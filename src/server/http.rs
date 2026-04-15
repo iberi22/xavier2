@@ -2,11 +2,12 @@
 
 use axum::{
     extract::{Query, State},
+    http::StatusCode,
     response::IntoResponse,
     Extension, Json,
 };
 use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{error, info, warn};
 
 use crate::{
     agents::provider::ModelProviderClient,
@@ -238,7 +239,7 @@ fn default_relevance_threshold() -> f32 {
 }
 
 fn default_rrf_k() -> u32 {
-    60
+    crate::search::rrf::default_rrf_k()
 }
 
 /// Response for multi-layer memory retrieval
@@ -442,6 +443,9 @@ pub struct ReadinessResponse {
     pub version: String,
     pub workspace: ReadinessComponent,
     pub memory_store: ReadinessComponent,
+    pub working_memory: ReadinessComponent,
+    pub episodic_memory: ReadinessComponent,
+    pub semantic_memory: ReadinessComponent,
     pub code_graph: ReadinessComponent,
     pub embeddings: ReadinessComponent,
     pub llm: ReadinessComponent,
@@ -506,7 +510,7 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
         },
     };
 
-    let memory_store = match workspace_context {
+    let memory_store = match workspace_context.as_ref() {
         Some(workspace) => match workspace.workspace.durable_store_health().await {
             Ok(detail) => ReadinessComponent {
                 configured: true,
@@ -529,6 +533,54 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
         },
     };
 
+    let working_memory = match workspace_context.as_ref() {
+        Some(workspace) => {
+            let count = workspace.workspace.memory.count().await.unwrap_or(0);
+            ReadinessComponent {
+                configured: true,
+                ready: true,
+                detail: format!("working memory active with {} documents", count),
+            }
+        }
+        None => ReadinessComponent {
+            configured: true,
+            ready: false,
+            detail: "workspace unavailable".to_string(),
+        },
+    };
+
+    let episodic_memory = match workspace_context.as_ref() {
+        Some(workspace) => {
+            let threads = workspace.workspace.panel_store.list_threads().await;
+            ReadinessComponent {
+                configured: true,
+                ready: true,
+                detail: format!("episodic memory active with {} threads", threads.len()),
+            }
+        }
+        None => ReadinessComponent {
+            configured: true,
+            ready: false,
+            detail: "workspace unavailable".to_string(),
+        },
+    };
+
+    let semantic_memory = match workspace_context.as_ref() {
+        Some(workspace) => {
+            let entities = workspace.workspace.entity_graph.all_entities().await;
+            ReadinessComponent {
+                configured: true,
+                ready: true,
+                detail: format!("semantic memory active with {} entities", entities.len()),
+            }
+        }
+        None => ReadinessComponent {
+            configured: true,
+            ready: false,
+            detail: "workspace unavailable".to_string(),
+        },
+    };
+
     let code_graph = match state.code_db.stats() {
         Ok(stats) => ReadinessComponent {
             configured: true,
@@ -547,6 +599,9 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
 
     let ready = workspace.ready
         && memory_store.ready
+        && working_memory.ready
+        && episodic_memory.ready
+        && semantic_memory.ready
         && code_graph.ready
         && (!embeddings.configured || embeddings.ready)
         && (!llm.configured || llm.ready);
@@ -557,10 +612,49 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
         workspace,
         memory_store,
+        working_memory,
+        episodic_memory,
+        semantic_memory,
         code_graph,
         embeddings,
         llm,
     })
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApiErrorResponse {
+    pub status: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
+}
+
+pub enum ApiError {
+    BadRequest(String),
+    NotFound(String),
+    Unauthorized(String),
+    Internal(String, Option<String>),
+    Forbidden(String),
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> axum::response::Response {
+        let (status, message, workspace_id) = match self {
+            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg, None),
+            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg, None),
+            ApiError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg, None),
+            ApiError::Internal(msg, ws_id) => (StatusCode::INTERNAL_SERVER_ERROR, msg, ws_id),
+            ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg, None),
+        };
+
+        let body = Json(ApiErrorResponse {
+            status: "error".to_string(),
+            message,
+            workspace_id,
+        });
+
+        (status, body).into_response()
+    }
 }
 
 pub async fn memory_add(
@@ -568,6 +662,7 @@ pub async fn memory_add(
     Json(payload): Json<AddMemoryRequest>,
 ) -> impl IntoResponse {
     info!(
+        workspace_id = %workspace.workspace_id,
         path = payload.path.as_deref().unwrap_or("default"),
         "memory_add"
     );
@@ -614,11 +709,7 @@ pub async fn memory_add(
         .ensure_within_storage_limit(&path, &content, &metadata)
         .await
     {
-        return Json(serde_json::json!({
-            "status": "error",
-            "message": error.to_string(),
-            "workspace_id": workspace.workspace_id,
-        }));
+        return ApiError::Forbidden(error.to_string()).into_response();
     }
 
     let memory_id = match workspace
@@ -629,12 +720,11 @@ pub async fn memory_add(
     {
         Ok(id) => id,
         Err(error) => {
-            tracing::error!(%error, workspace_id = %workspace.workspace_id, "failed to add memory document");
-            return Json(serde_json::json!({
-                "status": "error",
-                "message": format!("failed to add memory: {}", error),
-                "workspace_id": workspace.workspace_id,
-            }));
+            error!(%error, workspace_id = %workspace.workspace_id, "failed to add memory document");
+            return ApiError::Internal(
+                format!("failed to add memory: {}", error),
+                Some(workspace.workspace_id.clone())
+            ).into_response();
         }
     };
 
@@ -665,10 +755,14 @@ pub async fn memory_add(
 
 pub async fn memory_search(
     Extension(workspace): Extension<WorkspaceContext>,
-    Json(payload): Json<SearchRequest>,
+    Json(mut payload): Json<SearchRequest>,
 ) -> impl IntoResponse {
+    payload.limit = payload.limit.clamp(1, 100);
+
     info!(
+        workspace_id = %workspace.workspace_id,
         query_fingerprint = %query_fingerprint(&payload.query),
+        limit = payload.limit,
         "memory_search"
     );
 
@@ -698,12 +792,16 @@ pub async fn memory_search(
 
 pub async fn memory_hybrid_search(
     Extension(workspace): Extension<WorkspaceContext>,
-    Json(payload): Json<HybridSearchRequest>,
+    Json(mut payload): Json<HybridSearchRequest>,
 ) -> impl IntoResponse {
+    payload.limit = payload.limit.clamp(1, 100);
+
     let mode = payload.search_type.unwrap_or_default();
     info!(
+        workspace_id = %workspace.workspace_id,
         query_fingerprint = %query_fingerprint(&payload.query),
         mode = ?mode,
+        limit = payload.limit,
         "memory_hybrid_search"
     );
 
@@ -741,22 +839,22 @@ pub async fn memory_hybrid_search(
             mode,
         })
         .into_response(),
-        Err(error) => Json(serde_json::json!({
-            "status": "error",
-            "message": error.to_string(),
-            "query": payload.query,
-            "mode": mode,
-        }))
-        .into_response(),
+        Err(error) => ApiError::Internal(
+            error.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
 /// Multi-layer memory retrieval with adaptive gating
 pub async fn memory_retrieve(
     Extension(workspace): Extension<WorkspaceContext>,
-    Json(payload): Json<MultiLayerRetrieveRequest>,
+    Json(mut payload): Json<MultiLayerRetrieveRequest>,
 ) -> impl IntoResponse {
+    payload.limit = payload.limit.clamp(1, 100);
+
     info!(
+        workspace_id = %workspace.workspace_id,
         query_fingerprint = %query_fingerprint(&payload.query),
         limit = payload.limit,
         "memory_retrieve"
@@ -770,7 +868,7 @@ pub async fn memory_retrieve(
         layer_weights: weights,
         relevance_threshold: payload.relevance_threshold.clamp(0.0, 1.0),
         rrf_k: payload.rrf_k,
-        max_results: payload.limit.max(1),
+        max_results: payload.limit,
     });
 
     // Collect working memory documents
@@ -899,80 +997,95 @@ pub async fn memory_curate(
         {
             Ok(_) => {
                 if let Err(error) = workspace.workspace.persist_beliefs().await {
-                    return Json(serde_json::json!({
-                        "status": "error",
-                        "message": error.to_string(),
-                    }));
+                    return ApiError::Internal(
+                        error.to_string(),
+                        Some(workspace.workspace_id.clone())
+                    ).into_response();
                 }
-                Json(serde_json::json!({ "status": "ok", "message": "Curation completed" }))
+                Json(serde_json::json!({ "status": "ok", "message": "Curation completed" })).into_response()
             }
-            Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+            Err(e) => ApiError::Internal(
+                e.to_string(),
+                Some(workspace.workspace_id.clone())
+            ).into_response(),
         }
     } else {
-        Json(serde_json::json!({ "status": "error", "message": "Missing 'id' in request body" }))
+        ApiError::BadRequest("Missing 'id' in request body".to_string()).into_response()
     }
 }
 
 pub async fn memory_manage(Extension(workspace): Extension<WorkspaceContext>) -> impl IntoResponse {
-    info!("⚙️ Memory management auto-run requested");
+    info!(workspace_id = %workspace.workspace_id, "⚙️ Memory management auto-run requested");
     match workspace.workspace.memory_manager.auto_manage().await {
         Ok(count) => {
             if let Err(error) = workspace.workspace.persist_beliefs().await {
-                return Json(serde_json::json!({
-                    "status": "error",
-                    "message": error.to_string(),
-                }));
+                return ApiError::Internal(
+                    error.to_string(),
+                    Some(workspace.workspace_id.clone())
+                ).into_response();
             }
-            Json(serde_json::json!({ "status": "ok", "actions_executed": count }))
+            Json(serde_json::json!({ "status": "ok", "actions_executed": count })).into_response()
         }
-        Err(e) => Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+        Err(e) => ApiError::Internal(
+            e.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
 pub async fn memory_decay(Extension(workspace): Extension<WorkspaceContext>) -> impl IntoResponse {
-    info!("📉 Memory decay request");
+    info!(workspace_id = %workspace.workspace_id, "📉 Memory decay request");
     match workspace.workspace.memory_manager.decay_memories().await {
         Ok(result) => {
             if let Err(error) = workspace.workspace.persist_beliefs().await {
-                return Json(serde_json::json!({
-                    "status": "error",
-                    "message": error.to_string(),
-                }));
+                return ApiError::Internal(
+                    error.to_string(),
+                    Some(workspace.workspace_id.clone())
+                ).into_response();
             }
             Json(serde_json::json!({
                 "status": "ok",
                 "documents_affected": result.documents_affected,
                 "actions": result.actions.len(),
                 "bytes_freed": result.bytes_freed,
-            }))
+            })).into_response()
         }
-        Err(e) => Json(serde_json::json!({"status": "error", "message": e.to_string() })),
+        Err(e) => ApiError::Internal(
+            e.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
 pub async fn memory_consolidate(
     Extension(workspace): Extension<WorkspaceContext>,
 ) -> impl IntoResponse {
-    info!("🔗 Memory consolidation request");
+    info!(workspace_id = %workspace.workspace_id, "🔗 Memory consolidation request");
     let task = ConsolidationTask::default();
     match task.consolidate(&workspace).await {
         Ok(stats) => Json(serde_json::json!({
             "status": "ok",
             "stats": stats,
-        })),
-        Err(e) => Json(serde_json::json!({"status": "error", "message": e.to_string() })),
+        })).into_response(),
+        Err(e) => ApiError::Internal(
+            e.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
 pub async fn memory_reflect(Extension(workspace): Extension<WorkspaceContext>) -> impl IntoResponse {
-    info!("🪞 Memory reflection request");
+    info!(workspace_id = %workspace.workspace_id, "🪞 Memory reflection request");
     let task = ConsolidationTask::default();
     match task.reflect(&workspace).await {
         Ok(stats) => Json(serde_json::json!({
             "status": "ok",
             "stats": stats,
-        })),
-        Err(e) => Json(serde_json::json!({"status": "error", "message": e.to_string() })),
+        })).into_response(),
+        Err(e) => ApiError::Internal(
+            e.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
@@ -985,7 +1098,7 @@ pub async fn memory_quality(
     Extension(workspace): Extension<WorkspaceContext>,
     Query(params): Query<MemoryQualityQuery>,
 ) -> impl IntoResponse {
-    info!("📊 Memory quality request");
+    info!(workspace_id = %workspace.workspace_id, "📊 Memory quality request");
     let threshold = params.threshold.unwrap_or(0.3);
 
     match workspace
@@ -1020,9 +1133,12 @@ pub async fn memory_quality(
                 "threshold": threshold,
                 "count": memories.len(),
                 "memories": results,
-            }))
+            })).into_response()
         }
-        Err(e) => Json(serde_json::json!({"status": "error", "message": e.to_string() })),
+        Err(e) => ApiError::Internal(
+            e.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
@@ -1036,7 +1152,7 @@ pub async fn memory_evict(
     Extension(workspace): Extension<WorkspaceContext>,
     Query(params): Query<MemoryEvictQuery>,
 ) -> impl IntoResponse {
-    info!("🗑️ Memory eviction request");
+    info!(workspace_id = %workspace.workspace_id, "🗑️ Memory eviction request");
 
     let result = if let Some(priority_str) = &params.priority {
         let priority = match priority_str.to_lowercase().as_str() {
@@ -1046,10 +1162,7 @@ pub async fn memory_evict(
             "low" => crate::memory::manager::MemoryPriority::Low,
             "ephemeral" => crate::memory::manager::MemoryPriority::Ephemeral,
             _ => {
-                return Json(serde_json::json!({
-                    "status": "error",
-                    "message": format!("Unknown priority: {}", priority_str),
-                }));
+                return ApiError::BadRequest(format!("Unknown priority: {}", priority_str)).into_response();
             }
         };
         workspace
@@ -1064,24 +1177,27 @@ pub async fn memory_evict(
     match result {
         Ok(r) => {
             if let Err(error) = workspace.workspace.persist_beliefs().await {
-                return Json(serde_json::json!({
-                    "status": "error",
-                    "message": error.to_string(),
-                }));
+                return ApiError::Internal(
+                    error.to_string(),
+                    Some(workspace.workspace_id.clone())
+                ).into_response();
             }
             Json(serde_json::json!({
                 "status": "ok",
                 "documents_affected": r.documents_affected,
                 "actions": r.actions.len(),
                 "bytes_freed": r.bytes_freed,
-            }))
+            })).into_response()
         }
-        Err(e) => Json(serde_json::json!({"status": "error", "message": e.to_string() })),
+        Err(e) => ApiError::Internal(
+            e.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
 pub async fn memory_stats(Extension(workspace): Extension<WorkspaceContext>) -> impl IntoResponse {
-    info!("📈 Memory stats request");
+    info!(workspace_id = %workspace.workspace_id, "📈 Memory stats request");
     match workspace.workspace.memory_manager.get_stats().await {
         Ok(stats) => Json(serde_json::json!({
             "status": "ok",
@@ -1091,8 +1207,11 @@ pub async fn memory_stats(Extension(workspace): Extension<WorkspaceContext>) -> 
             "by_quality_bucket": stats.by_quality_bucket,
             "low_quality_count": stats.low_quality_count,
             "ephemeral_count": stats.ephemeral_count,
-        })),
-        Err(e) => Json(serde_json::json!({"status": "error", "message": e.to_string() })),
+        })).into_response(),
+        Err(e) => ApiError::Internal(
+            e.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
@@ -1103,15 +1222,10 @@ pub async fn memory_delete(
     let target = payload.id.clone().or(payload.path.clone());
 
     let Some(target) = target else {
-        return Json(DeleteMemoryResponse {
-            status: "error: missing id or path".to_string(),
-            deleted: false,
-            id: payload.id,
-            path: payload.path,
-        });
+        return ApiError::BadRequest("missing id or path".to_string()).into_response();
     };
 
-    info!("🗑️ Delete request: {}", target);
+    info!(workspace_id = %workspace.workspace_id, "🗑️ Delete request: {}", target);
 
     match workspace.workspace.memory.delete(&target).await {
         Ok(Some(doc)) => {
@@ -1133,12 +1247,10 @@ pub async fn memory_delete(
             id: payload.id,
             path: payload.path,
         }),
-        Err(error) => Json(DeleteMemoryResponse {
-            status: format!("error: {}", error),
-            deleted: false,
-            id: payload.id,
-            path: payload.path,
-        }),
+        Err(error) => ApiError::Internal(
+            error.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
@@ -1147,6 +1259,7 @@ pub async fn memory_query(
     Json(payload): Json<SearchRequest>,
 ) -> impl IntoResponse {
     info!(
+        workspace_id = %workspace.workspace_id,
         query_fingerprint = %query_fingerprint(&payload.query),
         "memory_query"
     );
@@ -1166,12 +1279,10 @@ pub async fn memory_query(
     match response {
         Ok(trace) => {
             if let Err(error) = record_optimization_trace(&workspace, &trace).await {
-                return Json(QueryResponse {
-                    status: format!("error: {}", error),
-                    response: String::new(),
-                    confidence: 0.0,
-                    session_id: String::new(),
-                });
+                return ApiError::Internal(
+                    error.to_string(),
+                    Some(workspace.workspace_id.clone())
+                ).into_response();
             }
 
             Json(QueryResponse {
@@ -1179,34 +1290,32 @@ pub async fn memory_query(
                 response: trace.agent.response,
                 confidence: trace.agent.confidence,
                 session_id: trace.agent.session_id,
-            })
+            }).into_response()
         }
-        Err(error) => Json(QueryResponse {
-            status: format!("error: {}", error),
-            response: String::new(),
-            confidence: 0.0,
-            session_id: String::new(),
-        }),
+        Err(error) => ApiError::Internal(
+            error.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
 pub async fn memory_reset(Extension(workspace): Extension<WorkspaceContext>) -> impl IntoResponse {
-    info!("♻️ Reset memory request");
+    info!(workspace_id = %workspace.workspace_id, "♻️ Reset memory request");
 
     match workspace.workspace.memory.clear().await {
         Ok(removed) => Json(ResetMemoryResponse {
             status: "ok".to_string(),
             removed,
-        }),
-        Err(error) => Json(ResetMemoryResponse {
-            status: format!("error: {}", error),
-            removed: 0,
-        }),
+        }).into_response(),
+        Err(error) => ApiError::Internal(
+            error.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
 pub async fn memory_graph(Extension(workspace): Extension<WorkspaceContext>) -> impl IntoResponse {
-    info!("🔗 Graph request");
+    info!(workspace_id = %workspace.workspace_id, "🔗 Graph request");
 
     let graph = workspace.workspace.belief_graph.read().await;
 
@@ -1219,9 +1328,11 @@ pub async fn memory_graph(Extension(workspace): Extension<WorkspaceContext>) -> 
 
 pub async fn memory_graph_hops(
     Extension(workspace): Extension<WorkspaceContext>,
-    Json(payload): Json<GraphHopsRequest>,
+    Json(mut payload): Json<GraphHopsRequest>,
 ) -> impl IntoResponse {
-    info!(path = %payload.path, hops = payload.hops, "memory_graph_hops");
+    payload.hops = payload.hops.clamp(1, 5);
+
+    info!(workspace_id = %workspace.workspace_id, path = %payload.path, hops = payload.hops, "memory_graph_hops");
 
     match workspace
         .workspace
@@ -1229,7 +1340,7 @@ pub async fn memory_graph_hops(
         .graph_hops(
             &workspace.workspace_id,
             &payload.path,
-            payload.hops.max(1),
+            payload.hops,
             &payload.query,
         )
         .await
@@ -1255,6 +1366,7 @@ pub async fn agents_run(
     Json(payload): Json<AgentRunRequest>,
 ) -> impl IntoResponse {
     info!(
+        workspace_id = %workspace.workspace_id,
         query_fingerprint = %query_fingerprint(&payload.query),
         "agents_run"
     );
@@ -1274,12 +1386,10 @@ pub async fn agents_run(
     match response {
         Ok(trace) => {
             if let Err(error) = record_optimization_trace(&workspace, &trace).await {
-                return Json(AgentResponse {
-                    status: format!("error: {}", error),
-                    session_id: String::new(),
-                    response: String::new(),
-                    confidence: 0.0,
-                });
+                return ApiError::Internal(
+                    error.to_string(),
+                    Some(workspace.workspace_id.clone())
+                ).into_response();
             }
             if let Err(error) = workspace
                 .workspace
@@ -1291,12 +1401,10 @@ pub async fn agents_run(
                 )
                 .await
             {
-                return Json(AgentResponse {
-                    status: format!("error: {}", error),
-                    session_id: String::new(),
-                    response: String::new(),
-                    confidence: 0.0,
-                });
+                return ApiError::Internal(
+                    error.to_string(),
+                    Some(workspace.workspace_id.clone())
+                ).into_response();
             }
 
             Json(AgentResponse {
@@ -1304,14 +1412,12 @@ pub async fn agents_run(
                 session_id: trace.agent.session_id,
                 response: trace.agent.response,
                 confidence: trace.agent.confidence,
-            })
+            }).into_response()
         }
-        Err(error) => Json(AgentResponse {
-            status: format!("error: {}", error),
-            session_id: String::new(),
-            response: String::new(),
-            confidence: 0.0,
-        }),
+        Err(error) => ApiError::Internal(
+            error.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 
@@ -1330,7 +1436,7 @@ pub async fn bridge_import(
     Extension(workspace): Extension<WorkspaceContext>,
     Json(payload): Json<BridgeImportRequest>,
 ) -> impl IntoResponse {
-    info!(path = %payload.path, source = ?payload.source, "bridge_import");
+    info!(workspace_id = %workspace.workspace_id, path = %payload.path, source = ?payload.source, "bridge_import");
 
     match crate::memory::bridge::import_from_path(
         &workspace.workspace.memory,
@@ -1350,13 +1456,11 @@ pub async fn bridge_import(
             source: stats.source,
             imported: stats.imported,
             skipped: stats.skipped,
-        }),
-        Err(error) => Json(BridgeImportResponse {
-            status: format!("error: {}", error),
-            source: String::new(),
-            imported: 0,
-            skipped: 0,
-        }),
+        }).into_response(),
+        Err(error) => ApiError::Internal(
+            error.to_string(),
+            Some(workspace.workspace_id.clone())
+        ).into_response(),
     }
 }
 

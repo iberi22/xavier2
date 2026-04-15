@@ -274,8 +274,8 @@ pub struct MemoryManagerConfig {
 impl Default for MemoryManagerConfig {
     fn default() -> Self {
         Self {
-            max_documents: 10000,
-            max_storage_bytes: 500 * 1024 * 1024, // 500MB
+            max_documents: 50000,
+            max_storage_bytes: 1024 * 1024 * 1024, // 1GB
             quality_threshold: 0.25,
             auto_decay_enabled: true,
             auto_consolidate_enabled: true,

@@ -76,9 +76,19 @@ enum SyncAction {
     Import,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4))
+        .thread_name("xavier2-worker")
+        .build()?;
+
+    runtime.block_on(async_main(cli))
+}
+
+async fn async_main(cli: Cli) -> Result<()> {
     let is_mcp = matches!(cli.command, Some(Commands::McpStdio));
 
     let log_filter = std::env::var("RUST_LOG")
@@ -372,7 +382,15 @@ async fn start_server() -> Result<()> {
     tracing::info!("Xavier2 HTTP server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to install CTRL+C signal handler");
+            tracing::info!("Shutdown signal received, starting graceful shutdown...");
+        })
+        .await?;
 
     Ok(())
 }
@@ -433,7 +451,10 @@ async fn auth_middleware(
             Err(_) => {
                 return (
                     StatusCode::UNAUTHORIZED,
-                    "Unauthorized: Invalid X-Xavier2-Token header",
+                    axum::Json(serde_json::json!({
+                        "status": "error",
+                        "message": "Unauthorized: Invalid X-Xavier2-Token header"
+                    })),
                 )
                     .into_response();
             }
@@ -441,7 +462,10 @@ async fn auth_middleware(
     } else {
         return (
             StatusCode::UNAUTHORIZED,
-            "Unauthorized: Invalid or missing X-Xavier2-Token",
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "message": "Unauthorized: Invalid or missing X-Xavier2-Token"
+            })),
         )
             .into_response();
     };
@@ -479,7 +503,10 @@ async fn auth_middleware(
 
     (
         StatusCode::UNAUTHORIZED,
-        "Unauthorized: Invalid or missing X-Xavier2-Token",
+        axum::Json(serde_json::json!({
+            "status": "error",
+            "message": "Unauthorized: Invalid or missing X-Xavier2-Token"
+        })),
     )
         .into_response()
 }

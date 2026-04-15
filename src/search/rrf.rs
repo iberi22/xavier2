@@ -51,6 +51,13 @@ impl FusedScore {
     }
 }
 
+pub fn default_rrf_k() -> u32 {
+    std::env::var("XAVIER2_RRF_K")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(60)
+}
+
 /// Reciprocal Rank Fusion.
 ///
 /// Result positions are treated as 1-based ranks.

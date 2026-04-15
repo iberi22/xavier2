@@ -59,7 +59,7 @@ impl PlanTier {
         match self {
             Self::Community => None,
             Self::Free => Some(100 * MB),
-            Self::Personal => Some(500 * MB),
+            Self::Personal => Some(1024 * MB),
             Self::Pro => Some(2 * 1024 * MB),
         }
     }

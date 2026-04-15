@@ -15,7 +15,7 @@ static GITHUB_PATTERN: LazyLock<Regex> =
 
 /// Pattern for Slack tokens
 static SLACK_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"xox[baprs]-[a-zA-Z0-9]{10,}").unwrap());
+    LazyLock::new(|| Regex::new(r"xox[baprs]-[a-zA-Z0-9]{20,}").unwrap());
 
 /// Pattern for generic secrets
 static SECRET_PATTERN: LazyLock<Regex> = LazyLock::new(|| {

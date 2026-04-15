@@ -75,7 +75,7 @@ impl Default for GatingConfig {
         Self {
             layer_weights: LayerWeights::default(),
             relevance_threshold: 0.3,
-            rrf_k: 60,
+            rrf_k: crate::search::rrf::default_rrf_k(),
             max_results: 20,
         }
     }

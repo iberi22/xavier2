@@ -11,7 +11,8 @@ use std::{
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use parking_lot::Mutex;
+use r2d2::Pool;
+use r2d2_rusqlite::RusqliteConnectionManager;
 use regex::Regex;
 use rusqlite::ffi::sqlite3_auto_extension;
 use rusqlite::{params, Connection};
@@ -105,15 +106,11 @@ impl VecSqliteStoreConfig {
 /// Vector-enabled SQLite memory store using sqlite-vec for HNSW-like similarity search.
 #[derive(Clone)]
 pub struct VecSqliteMemoryStore {
-    conn: Arc<Mutex<Connection>>,
+    pool: Pool<RusqliteConnectionManager>,
     config: VecSqliteStoreConfig,
 }
 
 impl VecSqliteMemoryStore {
-    /// Get a clone of the inner connection (for PatternStore)
-    pub fn clone_inner_conn(&self) -> Arc<Mutex<Connection>> {
-        self.conn.clone()
-    }
 
     pub async fn from_env() -> Result<Self> {
         Self::new(VecSqliteStoreConfig::from_env()).await
@@ -126,12 +123,13 @@ impl VecSqliteMemoryStore {
 
         Self::register_sqlite_vec_extension()?;
 
-        let conn = Connection::open(&config.path).with_context(|| {
-            format!(
-                "failed to open SQLite database at {}",
-                config.path.display()
-            )
-        })?;
+        let manager = RusqliteConnectionManager::file(&config.path);
+        let pool = Pool::builder()
+            .max_size(10)
+            .build(manager)
+            .context("failed to create sqlite connection pool")?;
+
+        let conn = pool.get()?;
 
         // Enable WAL mode with full optimizations for better concurrency and performance
         conn.execute_batch(
@@ -151,10 +149,7 @@ impl VecSqliteMemoryStore {
         // Initialize schema
         Self::init_schema(&conn, config.embedding_dimensions)?;
 
-        Ok(Self {
-            conn: Arc::new(Mutex::new(conn)),
-            config,
-        })
+        Ok(Self { pool, config })
     }
 
     fn register_sqlite_vec_extension() -> Result<()> {
@@ -1222,7 +1217,7 @@ impl VecSqliteMemoryStore {
 
     /// Insert or update a vector in the sqlite-vec virtual table
     fn upsert_vector(&self, memory_id: &str, workspace_id: &str, embedding: &[f32]) -> Result<()> {
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         let embedding_json =
             serde_json::to_string(embedding).context("failed to serialize embedding")?;
 
@@ -1274,7 +1269,7 @@ impl VecSqliteMemoryStore {
         let mut scored: HashMap<String, HybridSearchResult> = HashMap::new();
 
         {
-            let conn = self.conn.lock();
+            let conn = self.pool.get()?;
             let dataset_size = conn
                 .query_row(
                     &format!(
@@ -1478,7 +1473,7 @@ impl VecSqliteMemoryStore {
             .get(workspace_id, path_or_id)
             .await?
             .with_context(|| format!("memory not found for graph traversal: {path_or_id}"))?;
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         let seed_ids = Self::resolve_graph_seed_entities(&conn, workspace_id, &source, query)?;
 
         if seed_ids.is_empty() {
@@ -1578,7 +1573,7 @@ impl VecSqliteMemoryStore {
 
     /// Add an entity to the knowledge graph
     pub async fn add_entity(&self, id: &str, name: &str, entity_type: &str) -> Result<()> {
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         conn.execute(
             "INSERT OR REPLACE INTO entities (id, name, entity_type) VALUES (?, ?, ?)",
             params![id, name, entity_type],
@@ -1594,7 +1589,7 @@ impl VecSqliteMemoryStore {
         target_id: &str,
         relation_type: &str,
     ) -> Result<()> {
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         conn.execute(
             "INSERT OR REPLACE INTO relations (id, source_id, target_id, relation_type) VALUES (?, ?, ?, ?)",
             params![id, source_id, target_id, relation_type],
@@ -1610,7 +1605,7 @@ impl MemoryStore for VecSqliteMemoryStore {
     }
 
     async fn health(&self) -> Result<String> {
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         conn.execute("SELECT 1", [])?;
         Ok(format!("vecsqlite {}", self.config.detail()))
     }
@@ -1621,7 +1616,7 @@ impl MemoryStore for VecSqliteMemoryStore {
 
         // Get the previous hash for chain linking
         let prev_hash: Option<String> = {
-            let conn = self.conn.lock();
+            let conn = self.pool.get()?;
             conn.query_row(
                 "SELECT content_hash FROM memory_chain ORDER BY created_at DESC LIMIT 1",
                 [],
@@ -1632,7 +1627,7 @@ impl MemoryStore for VecSqliteMemoryStore {
 
         // Store in main table first
         {
-            let conn = self.conn.lock();
+            let conn = self.pool.get()?;
             let embedding_blob = if !record.embedding.is_empty()
                 && Self::qjl_enabled_for_workspace(&conn, &record.workspace_id)
             {
@@ -1690,7 +1685,7 @@ impl MemoryStore for VecSqliteMemoryStore {
     }
 
     async fn get(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
 
         // Try by id first (O(1) lookup)
         let key = Self::row_key(workspace_id, id_or_path);
@@ -1735,7 +1730,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         let removed = self.get(workspace_id, id_or_path).await?;
         if let Some(record) = &removed {
             let key = Self::row_key(workspace_id, &record.id);
-            let conn = self.conn.lock();
+            let conn = self.pool.get()?;
             conn.execute(
                 &format!("DELETE FROM {} WHERE id = ?", TABLE_MEMORIES),
                 [&key],
@@ -1789,7 +1784,7 @@ impl MemoryStore for VecSqliteMemoryStore {
     }
 
     async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>> {
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         let mut stmt = conn.prepare(&format!(
             "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ?",
             TABLE_MEMORIES
@@ -1877,7 +1872,7 @@ impl MemoryStore for VecSqliteMemoryStore {
     }
 
     async fn load_workspace_state(&self, workspace_id: &str) -> Result<DurableWorkspaceState> {
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
 
         // Load memories
         let mut memories = Vec::new();
@@ -1966,7 +1961,7 @@ impl MemoryStore for VecSqliteMemoryStore {
 
     async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()> {
         let belief_key = stable_key("belief_row", &[workspace_id]);
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         let beliefs_json = serde_json::to_string(&beliefs)?;
 
         conn.execute(
@@ -1990,7 +1985,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         token: SessionTokenRecord,
     ) -> Result<()> {
         let token_key = stable_key("session_token_row", &[workspace_id, &token.token]);
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
 
         // Delete expired tokens first
         conn.execute(
@@ -2020,7 +2015,7 @@ impl MemoryStore for VecSqliteMemoryStore {
 
     async fn is_session_token_valid(&self, workspace_id: &str, token: &str) -> Result<bool> {
         let token_key = stable_key("session_token_row", &[workspace_id, token]);
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         let now = chrono::Utc::now().to_rfc3339();
 
         let count: i32 = conn.query_row(
@@ -2040,7 +2035,7 @@ impl MemoryStore for VecSqliteMemoryStore {
             "checkpoint_row",
             &[workspace_id, &checkpoint.task_id, &checkpoint.name],
         );
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         let data_json = serde_json::to_string(&checkpoint.data)?;
 
         conn.execute(
@@ -2065,7 +2060,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         task_id: &str,
         name: &str,
     ) -> Result<Option<Checkpoint>> {
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
 
         let mut stmt = conn.prepare(&format!(
             "SELECT data FROM {} WHERE workspace_id = ? AND task_id = ? AND name = ?",
@@ -2087,7 +2082,7 @@ impl MemoryStore for VecSqliteMemoryStore {
     }
 
     async fn list_checkpoints(&self, workspace_id: &str, task_id: &str) -> Result<Vec<Checkpoint>> {
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         let mut stmt = conn.prepare(&format!(
             "SELECT task_id, name, data FROM {} WHERE workspace_id = ? AND task_id = ?",
             TABLE_CHECKPOINTS
@@ -2107,7 +2102,7 @@ impl MemoryStore for VecSqliteMemoryStore {
 
     async fn delete_checkpoint(&self, workspace_id: &str, task_id: &str, name: &str) -> Result<()> {
         let checkpoint_key = stable_key("checkpoint_row", &[workspace_id, task_id, name]);
-        let conn = self.conn.lock();
+        let conn = self.pool.get()?;
         conn.execute(
             &format!("DELETE FROM {} WHERE id = ?", TABLE_CHECKPOINTS),
             [&checkpoint_key],
@@ -2351,7 +2346,7 @@ mod tests {
 
         store.put(record.clone()).await.unwrap();
 
-        let conn = store.conn.lock();
+        let conn = store.pool.get()?;
         let link_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM memory_entities WHERE workspace_id = ? AND memory_id = ?",
@@ -2413,7 +2408,7 @@ mod tests {
 
         store.put(record.clone()).await.unwrap();
 
-        let conn = store.conn.lock();
+        let conn = store.pool.get()?;
         let columns = VecSqliteMemoryStore::virtual_table_columns(&conn, "memory_fts").unwrap();
         assert!(columns.iter().any(|column| column == "code_tokens"));
 
@@ -2456,7 +2451,7 @@ mod tests {
         record.id = stable_key("memory", &[workspace_id, &record.path]);
         store.put(record.clone()).await.unwrap();
 
-        let conn = store.conn.lock();
+        let conn = store.pool.get()?;
         let event_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM timeline_events WHERE workspace_id = ?",

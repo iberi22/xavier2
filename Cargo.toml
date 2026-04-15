@@ -79,6 +79,8 @@ surrealdb-types = "3.0.5"
 # State management
 parking_lot = "0.12"
 rusqlite = { version = "0.32.0", features = ["bundled", "load_extension"] }
+r2d2 = "0.8"
+r2d2-rusqlite = "0.2.0"
 sqlite-vec = "0.1"
 zerocopy = "0.8"
 
