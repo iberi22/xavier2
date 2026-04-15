@@ -117,7 +117,7 @@ jobs:
         run: npm run test:e2e:generative --workspace panel-ui
       - name: Upload panel e2e log on failure
         if: failure()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: xavier2-panel-e2e-log
           path: panel-e2e.log
@@ -158,7 +158,7 @@ jobs:
         run: bash scripts/release-smoke.sh
       - name: Upload smoke log on failure
         if: failure()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: xavier2-release-smoke-log
           path: smoke.log

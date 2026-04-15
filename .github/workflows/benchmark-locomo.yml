@@ -49,7 +49,7 @@ jobs:
             --question-limit "${{ github.event.inputs.question_limit || '0' }}"
 
       - name: Upload LoCoMo results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: locomo-results
           path: benchmark-results/locomo
