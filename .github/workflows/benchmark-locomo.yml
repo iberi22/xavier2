@@ -1,0 +1,55 @@
+name: LoCoMo Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample_limit:
+        description: "How many conversations to score from LoCoMo10"
+        required: false
+        default: "10"
+      question_limit:
+        description: "Optional per-conversation QA cap (0 = all)"
+        required: false
+        default: "0"
+  schedule:
+    - cron: "0 9 * * 1"
+
+env:
+  CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  locomo:
+    name: LoCoMo
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Xavier2
+        run: cargo build --release --bin xavier2
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Run LoCoMo benchmark
+        run: |
+          python scripts/benchmarks/run_locomo_benchmark.py \
+            --xavier2-binary target/release/xavier2 \
+            --output-dir benchmark-results/locomo \
+            --sample-limit "${{ github.event.inputs.sample_limit || '10' }}" \
+            --question-limit "${{ github.event.inputs.question_limit || '0' }}"
+
+      - name: Upload LoCoMo results
+        uses: actions/upload-artifact@v7
+        with:
+          name: locomo-results
+          path: benchmark-results/locomo

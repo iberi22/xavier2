@@ -1,0 +1,164 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  panel-check:
+    name: Panel Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: npm
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Validate panel-ui
+        run: npm run check --workspace panel-ui
+
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Run cargo check
+        run: cargo check --workspace --all-targets --features ci-safe --exclude xavier2-web
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --features ci-safe --exclude xavier2-web -- -D warnings
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Run tests
+        run: cargo test --workspace --features ci-safe --exclude xavier2-web
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Build release
+        run: cargo build --release --bin xavier2
+
+  panel-e2e:
+    name: Panel E2E
+    runs-on: ubuntu-latest
+    needs: [panel-check]
+    env:
+      XAVIER2_TOKEN: dev-token
+      XAVIER2_URL: http://127.0.0.1:8003
+      XAVIER2_HOST: 127.0.0.1
+      XAVIER2_PORT: 8003
+      XAVIER2_CODE_GRAPH_DB_PATH: data/ci-panel-e2e.db
+      PANEL_UI_BASE_URL: http://127.0.0.1:8003
+      PANEL_UI_APP_PATH: /panel
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: npm
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Install Playwright browser
+        run: npm exec --workspace panel-ui playwright install --with-deps chromium
+      - name: Build panel-ui
+        run: npm run build --workspace panel-ui
+      - name: Build Xavier2 debug binary
+        run: cargo build --bin xavier2
+      - name: Start Xavier2
+        run: |
+          nohup target/debug/xavier2 > panel-e2e.log 2>&1 &
+      - name: Wait for startup
+        run: sleep 3
+      - name: Verify server health
+        run: curl -f http://127.0.0.1:8003/health
+      - name: Run panel Playwright suite
+        run: npm run test:e2e:generative --workspace panel-ui
+      - name: Upload panel e2e log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: xavier2-panel-e2e-log
+          path: panel-e2e.log
+
+  release-smoke:
+    name: Release Smoke
+    runs-on: ubuntu-latest
+    needs: [panel-check, check, clippy, test, build, panel-e2e]
+    env:
+      XAVIER2_TOKEN: dev-token
+      XAVIER2_URL: http://127.0.0.1:8003
+      XAVIER2_HOST: 127.0.0.1
+      XAVIER2_PORT: 8003
+      XAVIER2_CODE_GRAPH_DB_PATH: data/ci-release-smoke.db
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: npm
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Build panel-ui
+        run: npm run build --workspace panel-ui
+      - name: Build debug binary
+        run: cargo build --bin xavier2
+      - name: Start Xavier2
+        run: |
+          nohup target/debug/xavier2 > smoke.log 2>&1 &
+      - name: Wait for startup
+        run: sleep 3
+      - name: Run release smoke checks
+        run: bash scripts/release-smoke.sh
+      - name: Upload smoke log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: xavier2-release-smoke-log
+          path: smoke.log

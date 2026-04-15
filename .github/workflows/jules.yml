@@ -1,0 +1,163 @@
+name: Jules Agent Tests
+
+on:
+  push:
+    branches: [main, develop, 'feat/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of tests to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - unit
+          - integration
+          - e2e
+      modules:
+        description: 'Modules to test (comma-separated)'
+        required: false
+        default: ''
+      parallel:
+        description: 'Run tests in parallel'
+        required: false
+        default: 'true'
+        type: boolean
+
+# Limit to 100 runs per day
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  # Run tests with Jules agent
+  jules-tests:
+    name: Jules Agent Testing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      # Run tests and collect results
+      - name: Run Unit Tests
+        run: |
+          echo "Running unit tests with Jules agent..."
+          cargo test --workspace --lib --features ci-safe --exclude xavier2-web -- --nocapture 2>&1 | tee test_results.txt
+
+      - name: Run Integration Tests
+        run: |
+          echo "Running integration tests..."
+          cargo test --workspace --test integration --features ci-safe --exclude xavier2-web 2>&1 | tee integration_results.txt
+
+      - name: Run E2E Tests
+        run: |
+          echo "Running E2E tests..."
+          cargo test --workspace --test e2e --features ci-safe --exclude xavier2-web 2>&1 | tee e2e_results.txt
+
+      # Analyze and improve tests with Jules
+      - name: Jules Test Analysis
+        run: |
+          echo "Jules analyzing test coverage and quality..."
+          # This is where Jules would:
+          # 1. Analyze code coverage
+          # 2. Identify untested edge cases
+          # 3. Generate additional test cases
+          # 4. Suggest improvements
+
+          # Show coverage report
+          cargo tarpaulin --out Html --report-dir coverage 2>&1 || true
+
+      # Generate test improvements
+      - name: Generate Test Improvements
+        run: |
+          echo "Jules generating test improvements..."
+          # Jules would:
+          # 1. Find weak test coverage areas
+          # 2. Generate property-based tests
+          # 3. Create fuzzing targets
+          # 4. Add mutation testing
+
+      # Report results
+      - name: Report Test Results
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Type | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tests completed at: $(date)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: test-results
+          path: |
+            *results.txt
+            coverage/
+          retention-days: 30
+
+  # Parallel test execution for Jules
+  parallel-tests:
+    name: Parallel Test Execution
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: lib
+            command: cargo test --workspace --lib --features ci-safe --exclude xavier2-web -- --nocapture
+          - name: integration
+            command: cargo test --workspace --test integration --features ci-safe --exclude xavier2-web
+          - name: e2e
+            command: cargo test --workspace --test e2e --features ci-safe --exclude xavier2-web
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run test target
+        run: |
+          echo "Testing target: ${{ matrix.name }}"
+          ${{ matrix.command }}
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7.0.0
+        with:
+          name: test-results-${{ matrix.name }}
+          path: |
+            *results.txt
+
+  summarize-results:
+    name: Summarize Test Coverage
+    runs-on: ubuntu-latest
+    needs: [jules-tests, parallel-tests]
+    if: always()
+    steps:
+      - name: Publish summary
+        run: |
+          echo "## Jules Test Workflow" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Primary suite: ${{ needs.jules-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Parallel suite: ${{ needs.parallel-tests.result }}" >> $GITHUB_STEP_SUMMARY
+

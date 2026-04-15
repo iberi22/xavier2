@@ -1,0 +1,123 @@
+/* Xavier2 Documentation - Custom Styles */
+/* Based on OpenClaw Docs Theme */
+
+:root {
+  /* OpenClaw-inspired color palette */
+  --sl-color-accent-low: #1a1a2e;
+  --sl-color-accent: #6366f1;
+  --sl-color-accent-high: #818cf8;
+  --sl-color-white: #e2e8f0;
+  --sl-color-gray-1: #cbd5e1;
+  --sl-color-gray-2: #94a3b8;
+  --sl-color-gray-3: #64748b;
+  --sl-color-gray-4: #475569;
+  --sl-color-gray-5: #334155;
+  --sl-color-gray-6: #1e293b;
+  --sl-color-black: #0f172a;
+
+  /* Background */
+  --sl-color-bg: #0f172a;
+  --sl-color-bg-nav: #1e293b;
+  --sl-color-bg-sidebar: #1e293b;
+  --sl-color-bg-body: #0f172a;
+
+  /* Typography */
+  --sl-text-base: 16px;
+  --sl-text-sm: 14px;
+  --sl-text-xs: 12px;
+
+  /* Code blocks */
+  --sl-color-code-bg: #1e293b;
+}
+
+/* Dark theme overrides */
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #312e81;
+  --sl-color-accent: #818cf8;
+  --sl-color-accent-high: #a5b4fc;
+}
+
+/* Custom components */
+.card {
+  background: var(--sl-color-gray-6);
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+.card.success {
+  border-left: 4px solid #22c55e;
+}
+
+.card.warning {
+  border-left: 4px solid #f59e0b;
+}
+
+.card.error {
+  border-left: 4px solid #ef4444;
+}
+
+/* Architecture diagrams placeholder */
+.arch-diagram {
+  background: var(--sl-color-gray-6);
+  border: 1px dashed var(--sl-color-gray-4);
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  color: var(--sl-color-gray-2);
+}
+
+/* Module cards */
+.module-card {
+  background: linear-gradient(135deg, var(--sl-color-gray-6) 0%, var(--sl-color-gray-5) 100%);
+  border: 1px solid var(--sl-color-gray-4);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.module-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* Test badges */
+.test-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.test-badge.unit {
+  background: #22c55e20;
+  color: #22c55e;
+}
+
+.test-badge.integration {
+  background: #3b82f620;
+  color: #3b82f6;
+}
+
+.test-badge.e2e {
+  background: #f59e0b20;
+  color: #f59e0b;
+}
+
+/* Code highlighting */
+pre {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 8px;
+}
+
+/* Navigation enhancements */
+.sidebar-content {
+  border-right: 1px solid var(--sl-color-gray-5);
+}
+
+/* Smooth transitions */
+a, button {
+  transition: color 0.15s, background-color 0.15s;
+}

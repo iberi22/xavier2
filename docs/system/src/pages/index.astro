@@ -1,0 +1,68 @@
+---
+import Sidebar from '../components/Sidebar.svelte';
+import Graph from '../components/Graph.svelte';
+import Search from '../components/Search.svelte';
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DocNode - Documentation System</title>
+    <link rel="stylesheet" href="/styles/global.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <Search client:load />
+        <Sidebar client:load />
+      </aside>
+      <main class="content">
+        <slot />
+      </main>
+      <aside class="graph-panel">
+        <Graph client:load />
+      </aside>
+    </div>
+  </body>
+</html>
+
+<style>
+  :global(*) {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  :global(body) {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: 250px 1fr 300px;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    background: #16213e;
+    padding: 1rem;
+    overflow-y: auto;
+    border-right: 1px solid #0f3460;
+  }
+
+  .content {
+    padding: 2rem;
+    overflow-y: auto;
+    background: #1a1a2e;
+  }
+
+  .graph-panel {
+    background: #16213e;
+    border-left: 1px solid #0f3460;
+    padding: 1rem;
+  }
+</style>

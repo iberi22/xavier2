@@ -1,0 +1,26 @@
+{
+  "name": "docnode",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Minimal Astro + Svelte documentation system with vault support",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/svelte": "^6.0.0",
+    "@astrojs/node": "^9.0.0",
+    "astro": "^5.0.0",
+    "svelte": "^5.0.0",
+    "marked": "^15.0.0",
+    "gray-matter": "^4.0.3",
+    "flexsearch": "^0.7.43"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

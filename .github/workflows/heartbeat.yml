@@ -1,0 +1,17 @@
+# DISABLED - Waiting for n8n VPS deployment and action fix
+# TODO: Fix gestalt-core-health-check-action name corruption
+# TODO: Configure n8n webhook URL once VPS is deployed
+
+name: Project Heartbeat
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'
+
+jobs:
+  analyze-project-health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health Check
+        run: echo "Heartbeat disabled - waiting for n8n VPS deployment"

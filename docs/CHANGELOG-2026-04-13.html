@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xavier2 Changelog — 2026-04-13</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #7d8590;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --purple: #bc8cff;
+      --orange: #d29922;
+      --red: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 40px 20px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 2em;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      margin-bottom: 40px;
+    }
+    .timeline {
+      position: relative;
+      padding-left: 32px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 11px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      background: var(--border);
+    }
+    .entry {
+      position: relative;
+      margin-bottom: 40px;
+    }
+    .entry::before {
+      content: '';
+      position: absolute;
+      left: -28px;
+      top: 6px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--bg);
+    }
+    .entry.commit::before { border-color: var(--accent); background: var(--accent); }
+    .entry.docker::before { border-color: var(--green); background: var(--green); }
+    .entry.docs::before { border-color: var(--purple); background: var(--purple); }
+    .entry.skill::before { border-color: var(--orange); background: var(--orange); }
+    .entry.config::before { border-color: var(--green); background: var(--green); }
+
+    .entry-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .entry-title {
+      font-size: 1.1em;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .entry-type {
+      font-size: 0.75em;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .entry-type.commit { background: rgba(88,166,255,0.15); color: var(--accent); }
+    .entry-type.docker { background: rgba(63,185,80,0.15); color: var(--green); }
+    .entry-type.docs { background: rgba(188,140,255,0.15); color: var(--purple); }
+    .entry-type.skill { background: rgba(210,153,34,0.15); color: var(--orange); }
+    .entry-type.config { background: rgba(63,185,80,0.15); color: var(--green); }
+
+    .entry-meta {
+      font-size: 0.85em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .entry-desc {
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+    .entry-desc ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    .entry-desc ul li {
+      padding: 4px 0;
+      padding-left: 20px;
+      position: relative;
+      color: var(--text-muted);
+      font-size: 0.95em;
+    }
+    .entry-desc ul li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: var(--green);
+    }
+    .commit-hash {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.85em;
+      background: var(--surface);
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+    .tag {
+      display: inline-block;
+      font-size: 0.8em;
+      padding: 1px 8px;
+      border-radius: 4px;
+      background: rgba(248,81,73,0.15);
+      color: var(--red);
+      border: 1px solid rgba(248,81,73,0.3);
+      margin-left: 8px;
+    }
+    .section-header {
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin: 50px 0 20px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .image-tag {
+      font-family: monospace;
+      background: var(--surface);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.9em;
+      border: 1px solid var(--border);
+      color: var(--green);
+    }
+    .divider {
+      border: none;
+      border-top: 1px dashed var(--border);
+      margin: 40px 0;
+    }
+    .summary-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 40px;
+    }
+    .summary-box h2 {
+      font-size: 1em;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .summary-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .summary-item .label {
+      font-size: 0.8em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .summary-item .value {
+      font-size: 1.1em;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .summary-item .value.green { color: var(--green); }
+    .summary-item .value.purple { color: var(--purple); }
+    .summary-item .value.orange { color: var(--orange); }
+  </style>
+</head>
+<body>
+
+<h1>Xavier2 Changelog</h1>
+<p class="subtitle">2026-04-13 — SQLite-pro upgrade day</p>
+
+<div class="summary-box">
+  <h2>Session Summary</h2>
+  <div class="summary-grid">
+    <div class="summary-item">
+      <span class="label">Commits</span>
+      <span class="value purple">6</span>
+    </div>
+    <div class="summary-item">
+      <span class="label">Docker Image</span>
+      <span class="value green">xavier2:0.4.4</span>
+    </div>
+    <div class="summary-item">
+      <span class="label">Files Changed</span>
+      <span class="value">+1,839 lines</span>
+    </div>
+    <div class="summary-item">
+      <span class="label">Skill Created</span>
+      <span class="value orange">sqlite-pro</span>
+    </div>
+    <div class="summary-item">
+      <span class="label">Docs Updated</span>
+      <span class="value purple">5 files</span>
+    </div>
+    <div class="summary-item">
+      <span class="label">Build Time (Docker)</span>
+      <span class="value">9m 01s</span>
+    </div>
+  </div>
+</div>
+
+<div class="section-header">Storage Backend Upgrade — The Big Picture</div>
+
+<p class="entry-desc" style="margin-bottom:30px;">
+  The core Xavier2 memory system was completely overhauled from a basic SQLite/text-search setup
+  to a full-featured <strong>sqlite-pro</strong> backend matching the best patterns from production
+  AI memory systems (Aingram, Engram, sqlite-memory, sqlite-vector).
+</p>
+
+<!-- 1. Feature: sqlite-vec backend -->
+<div class="entry commit">
+  <div class="entry-header">
+    <span class="entry-title">feat(storage): add sqlite-vec vector search as primary backend</span>
+    <span class="entry-type commit">commit</span>
+  </div>
+  <div class="entry-meta">
+    <span class="commit-hash">b1f6009</span>
+    &nbsp;·&nbsp; First implementation of sqlite-vec integration in Xavier2
+  </div>
+  <div class="entry-desc">
+    <ul>
+      <li>New <code>VecSqliteMemoryStore</code> wrapping existing <code>SqliteMemoryStore</code></li>
+      <li>Virtual table <code>memory_embeddings</code> with 768-dim float vectors</li>
+      <li>KNN search via <code>knn_search</code> with Euclidean distance</li>
+      <li><code>XAVIER2_MEMORY_BACKEND=vec</code> env var with <code>MemoryBackend::Vec</code> variant</li>
+      <li><code>XAVIER2_EMBEDDING_DIMENSIONS</code> for configurable embedding size (default 768)</li>
+      <li>sqlite-vec loaded via <code>sqlite3_auto_extension</code> on DB open</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 2. Feature: sqlite-pro upgrade -->
+<div class="entry commit">
+  <div class="entry-header">
+    <span class="entry-title">feat(storage): upgrade to sqlite-pro patterns — FTS5, RRF, KG, hash chain</span>
+    <span class="entry-type commit">commit</span>
+    <span class="tag">Core upgrade</span>
+  </div>
+  <div class="entry-meta">
+    <span class="commit-hash">78cf387</span>
+    &nbsp;·&nbsp; 1,040 lines added, 755 replaced — sqlite_vec_store.rs: 755 → 1,795 lines
+  </div>
+  <div class="entry-desc">
+    <ul>
+      <li><strong>FTS5</strong> virtual table with porter unicode61 tokenizer + BM25 ranking</li>
+      <li><strong>RRF (Reciprocal Rank Fusion)</strong> — k=60 constant, fuses vector + FTS5 + KG signals</li>
+      <li><strong>Knowledge Graph</strong> — <code>entities</code> + <code>relations</code> tables with recursive CTE</li>
+      <li><strong>Hash Chain</strong> — <code>memory_chain</code> table for tamper-evident history</li>
+      <li><strong>WAL optimization</strong> — mmap 256MB, cache 32MB, wal_autocheckpoint 1000, synchronous NORMAL, temp_store MEMORY, foreign_keys ON</li>
+      <li><code>kg_traverse()</code> — multi-hop entity traversal</li>
+      <li><code>add_entity()</code> / <code>add_relation()</code> — KG management API</li>
+      <li><code>put()</code> now syncs FTS5 automatically</li>
+      <li><code>delete()</code> cleans up FTS5 + KG entries</li>
+      <li>Hybrid search with graceful FTS5 fallback if table not ready</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 3. Docker image built -->
+<div class="entry docker">
+  <div class="entry-header">
+    <span class="entry-title">Docker image built: <span class="image-tag">xavier2:0.4.4</span></span>
+    <span class="entry-type docker">docker</span>
+  </div>
+  <div class="entry-meta">
+    sha256:d0bd8c4f319c &nbsp;·&nbsp; Multi-stage build &nbsp;·&nbsp; Build time: 9m 01s
+  </div>
+  <div class="entry-desc">
+    <ul>
+      <li>Rust 1.89 / Debian bookworm-slim runtime</li>
+      <li>sqlite-vec compiled statically into the binary</li>
+      <li>Node 22 frontend builder (panel-ui)</li>
+      <li>Default <code>XAVIER2_MEMORY_BACKEND=vec</code> in docker-compose.yml</li>
+      <li>No external SurrealDB required for basic operation</li>
+    </ul>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="section-header">Documentation Updates</div>
+
+<!-- 4. Architecture docs -->
+<div class="entry docs">
+  <div class="entry-header">
+    <span class="entry-title">docs: update ARCHITECTURE for sqlite-pro vec backend</span>
+    <span class="entry-type docs">commit</span>
+  </div>
+  <div class="entry-meta">
+    <span class="commit-hash">a474f1d</span>
+    &nbsp;·&nbsp; docs/ARCHITECTURE/OVERVIEW.md &nbsp;·&nbsp; +48 lines
+  </div>
+  <div class="entry-desc">
+    <ul>
+      <li>Added "Memory Backend: sqlite-pro (vec)" section with RRF search pipeline diagram</li>
+      <li>Documented four SQLite tables: <code>memory_fts</code>, <code>entities</code>, <code>relations</code>, <code>memory_chain</code></li>
+      <li>WAL optimization pragmas documented (mmap_size, autocheckpoint, cache_size)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 5. Xavier2 usage docs -->
+<div class="entry docs">
+  <div class="entry-header">
+    <span class="entry-title">docs: update Xavier2 docs for vec backend (sqlite-pro patterns)</span>
+    <span class="entry-type docs">commit</span>
+  </div>
+  <div class="entry-meta">
+    <span class="commit-hash">4eb98e9</span>
+    &nbsp;·&nbsp; XAVIER2_USAGE_GUIDE.md, XAVIER2_QUICK_REFERENCE.md, MEMORY_MANAGER.md &nbsp;·&nbsp; +147 lines
+  </div>
+  <div class="entry-desc">
+    <ul>
+      <li>Updated default backend from <code>surreal</code> → <code>vec</code></li>
+      <li>Added "Backend Comparison" table (vec vs surreal vs sqlite vs file)</li>
+      <li>Documented <code>XAVIER2_EMBEDDING_DIMENSIONS</code>, new FTS5 features, RRF fusion</li>
+      <li>Added "Knowledge Graph Usage" section with <code>add_entity()</code>, <code>add_relation()</code>, <code>kg_traverse()</code></li>
+    </ul>
+  </div>
+</div>
+
+<!-- 6. STORAGE_SWITCH update -->
+<div class="entry docs">
+  <div class="entry-header">
+    <span class="entry-title">docs: update STORAGE_SWITCH for vec backend + sqlite-pro patterns</span>
+    <span class="entry-type docs">commit</span>
+  </div>
+  <div class="entry-meta">
+    <span class="commit-hash">ee3bad5</span>
+    &nbsp;·&nbsp; STORAGE_SWITCH.md, docker-compose.yml &nbsp;·&nbsp; +98 lines
+  </div>
+  <div class="entry-desc">
+    <ul>
+      <li>Added <code>vec</code> to backend table with description: "General purpose — fastest, no external deps"</li>
+      <li>4-backend table (vec ⭐, surreal, sqlite, file) replaces 3-backend table</li>
+      <li>New section "vec backend features" listing FTS5, RRF, KG, Hash Chain, WAL optimizations</li>
+      <li><code>XAVIER2_MEMORY_BACKEND=vec</code> is now the docker-compose default</li>
+    </ul>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="section-header">New Skill: sqlite-pro</div>
+
+<div class="entry skill">
+  <div class="entry-header">
+    <span class="entry-title">feat(skills): add sqlite-pro skill — SQLite 3.53.0, vector search, RRF, knowledge graph</span>
+    <span class="entry-type skill">commit</span>
+  </div>
+  <div class="entry-meta">
+    <span class="commit-hash">32a7f6f</span>
+    &nbsp;·&nbsp; Location: <code>skills/sqlite-pro/</code>
+  </div>
+  <div class="entry-desc">
+    <p>Research extracted from best-in-class GitHub repos for AI agent memory systems:</p>
+    <ul>
+      <li><strong>Aingram</strong> — RRF 3-signals (vec+FTS+KG), QJL two-pass compression, Ed25519 hash chain, multi-hop KG</li>
+      <li><strong>Engram</strong> (Gentleman-Programming) — MCP tools, FTS5 snippets, git-sync via compressed chunks</li>
+      <li><strong>sqlite-memory</strong> (sqliteai) — Hybrid vec+FTS, local embeddings, markdown-aware chunking</li>
+      <li><strong>sqlite-vector</strong> (sqliteai) — SIMD-accelerated, quantization (4-5x faster), zero preindexing, multi-platform (Win/Mac/Linux/WASM)</li>
+    </ul>
+    <p style="margin-top:10px;">Skill contents:</p>
+    <ul>
+      <li><code>SKILL.md</code> — 9KB, full instructions + RRF, FTS5, KG patterns</li>
+      <li><code>scripts/sqlite_pro.py</code> — 26KB Python engine with full CRUD, RRF search, KG, hash chain</li>
+      <li><code>references/sqlite-353-features.md</code> — SQLite 3.53.0 complete feature reference</li>
+      <li><code>references/sqlite-patterns.md</code> — schemas, RRF SQL, WAL pragmas, performance checklist</li>
+    </ul>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="section-header">Key Decisions Made</div>
+
+<table style="width:100%; border-collapse: collapse; margin-top: 16px; font-size: 0.95em;">
+  <tr style="border-bottom: 1px solid var(--border);">
+    <td style="padding: 10px 0; color: var(--text-muted); width: 35%;">Default backend</td>
+    <td style="padding: 10px 0;"><strong>vec</strong> (SQLite + sqlite-vec) — no external dependencies</td>
+  </tr>
+  <tr style="border-bottom: 1px solid var(--border);">
+    <td style="padding: 10px 0; color: var(--text-muted);">Vector engine</td>
+    <td style="padding: 10px 0;"><code>sqlite-vec</code> — partitions built-in, pre-v1 but stable</td>
+  </tr>
+  <tr style="border-bottom: 1px solid var(--border);">
+    <td style="padding: 10px 0; color: var(--text-muted);">Embedding dimension</td>
+    <td style="padding: 10px 0;"><code>XAVIER2_EMBEDDING_DIMENSIONS=768</code> (pplx-embed, nomic-embed-text)</td>
+  </tr>
+  <tr style="border-bottom: 1px solid var(--border);">
+    <td style="padding: 10px 0; color: var(--text-muted);">Search fusion</td>
+    <td style="padding: 10px 0;"><strong>RRF</strong> with k=60, combining vector + FTS5 + Knowledge Graph signals</td>
+  </tr>
+  <tr style="border-bottom: 1px solid var(--border);">
+    <td style="padding: 10px 0; color: var(--text-muted);">Text search</td>
+    <td style="padding: 10px 0;"><strong>FTS5</strong> virtual table with porter unicode61 tokenizer + BM25 ranking</td>
+  </tr>
+  <tr style="border-bottom: 1px solid var(--border);">
+    <td style="padding: 10px 0; color: var(--text-muted);">WAL mode</td>
+    <td style="padding: 10px 0;">mmap 256MB, cache 32MB, autocheckpoint 1000, synchronous NORMAL</td>
+  </tr>
+  <tr style="border-bottom: 1px solid var(--border);">
+    <td style="padding: 10px 0; color: var(--text-muted);">SQLite version</td>
+    <td style="padding: 10px 0;"><strong>3.53.0</strong> (2026-04-09) — ALTER TABLE constraints, REINDEX EXPRESSIONS, json_array_insert</td>
+  </tr>
+  <tr>
+    <td style="padding: 10px 0; color: var(--text-muted);">SurrealDB status</td>
+    <td style="padding: 10px 0;">Still supported via <code>XAVIER2_MEMORY_BACKEND=surreal</code> for distributed setups — no longer default</td>
+  </tr>
+</table>
+
+<br><br>
+<small style="color: var(--text-muted);">
+  Generated: 2026-04-13 11:52 GMT-5 &nbsp;·&nbsp;
+  <span style="color: var(--accent);">xavier2:0.4.4</span> &nbsp;·&nbsp;
+  <span style="color: var(--purple);">6 commits</span> &nbsp;·&nbsp;
+  <span style="color: var(--orange);">sqlite-pro skill</span>
+</small>
+
+</body>
+</html>

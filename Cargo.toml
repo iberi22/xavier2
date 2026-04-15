@@ -1,0 +1,145 @@
+[package]
+name = "xavier2"
+version = "0.4.1"
+edition = "2021"
+autobins = false
+description = "Xavier2 - Cognitive Memory Runtime for AI Agents (open source)"
+license = "MIT"
+repository = "https://github.com/iberi22/xavier2-1"
+homepage = "https://github.com/iberi22/xavier2-1"
+
+[package.metadata.enterprise]
+brand = "Xavier2"
+compatibility_alias = "xavier2"
+open_source_license = "MIT"
+enterprise_license_file = "LICENSE.enterprise"
+enterprise_contact = "enterprise@southwest-ai-labs.com"
+support_model = "dual-license-open-core"
+enterprise_reserved_features = [
+    "advanced-rrf",
+    "enterprise-embeddings",
+    "advanced-audit-logging",
+    "priority-support-queue",
+]
+
+[lib]
+name = "xavier2"
+path = "src/lib.rs"
+
+[workspace]
+members = ["code-graph"]
+
+[features]
+default = []
+egui = ["dep:egui", "dep:eframe", "dep:egui_extras"]
+egui-standalone = ["egui"]
+wasm = ["dep:wasm-bindgen", "dep:web-sys", "dep:js-sys", "dep:egui", "dep:eframe"]
+# All features that are safe to run on host CI (no GUI/Winit issues)
+ci-safe = []
+bench-runners = []
+telegram = ["teloxide"]
+
+[dependencies]
+code-graph = { path = "./code-graph" }
+anyhow = "1.0.102"
+async-trait = "0.1"
+reqwest = { version = "0.12", features = ["json"] }
+teloxide = { version = "0.12", optional = true }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+thiserror = "2.0.18"
+flate2 = "1.0"
+tokio = { version = "1.50.0", features = ["full"] }
+tokio-stream = "0.1"
+ulid = "1.1"
+uuid = { version = "1.8", features = ["v4"] }
+
+# HTTP Server
+axum = "0.8"
+tower = "0.5"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI arguments
+clap = { version = "4", features = ["derive"] }
+pico-args = "0.5"
+
+# TUI Dashboard
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+cron = "0.15"
+surrealdb = { version = "3.0.5", features = ["protocol-ws"] }
+surrealdb-types = "3.0.5"
+
+# State management
+parking_lot = "0.12"
+rusqlite = { version = "0.32.0", features = ["bundled", "load_extension"] }
+sqlite-vec = "0.1"
+zerocopy = "0.8"
+
+# File traversal
+walkdir = "2"
+
+# egui - Native UI (optional, for web UI)
+egui = { version = "0.33.3", optional = true }
+eframe = { version = "0.33.3", default-features = false, optional = true, features = ["default_fonts", "glow"] }
+egui_extras = { version = "0.33.3", optional = true, features = ["image", "serde"] }
+
+# For WASM web deployment
+wasm-bindgen = { version = "0.2", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["console"] }
+js-sys = { version = "0.3", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+# Security - Pattern matching
+regex = "1.10"
+memchr = "2.5"
+once_cell = "1.19"
+
+# Security - Prompt Injection Detection
+sha2 = "0.10"
+hex = "0.4"
+
+# Security - Phrase matching (Aho-Corasick)
+aho-corasick = "1.1"
+base64 = "0.22"
+unicode-normalization = "0.1"
+
+# E2E Encryption for cloud tier
+aes-gcm = "0.10"
+generic-array = "0.14"
+argon2 = "0.5"
+rand = "0.8"
+
+# HMAC for webhook signature verification
+hmac = "0.12"
+
+# HTTP body utilities for webhook handling
+http-body-util = "0.1"
+
+[dev-dependencies]
+proptest = "1.6.0"
+tempfile = "3.10"
+criterion = "0.5"
+
+[[bin]]
+name = "xavier2"
+path = "src/main.rs"
+
+[[bin]]
+name = "xavier2-gui"
+path = "src/main_egui.rs"
+required-features = ["egui-standalone"]
+
+[[bin]]
+name = "xavier2-tui"
+path = "src/main_tui.rs"
+
+[profile.release]
+opt-level = 3
+lto = "thin"

@@ -1,0 +1,63 @@
+name: Xavier2 Index
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**.md'
+      - '.github/workflows/xavier2-index.yml'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Build Xavier2
+        run: |
+          docker build -t xavier2:latest .
+
+      - name: Start Xavier2
+        run: |
+          docker run -d --rm \
+            --name xavier2-index \
+            -e XAVIER2_DEV_MODE=1 \
+            -e XAVIER2_HOST=0.0.0.0 \
+            -e XAVIER2_PORT=8003 \
+            -e XAVIER2_CODE_GRAPH_DB_PATH=/tmp/code_graph.db \
+            -p 8003:8003 \
+            -v ${{ github.workspace }}:/data/projects \
+            xavier2:latest
+
+      - name: Wait for health
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8003/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs xavier2-index
+          exit 1
+
+      - name: Generate Index
+        run: |
+          curl -fsS -X POST http://127.0.0.1:8003/code/scan \
+            -H "Content-Type: application/json" \
+            -d '{"path":"/data/projects"}'
+
+      - name: Stop Xavier2
+        if: always()
+        run: docker stop xavier2-index || true
+
+      - name: Commit Index
+        uses: stefanzweifel/git-auto-commit-action@v7.1.0
+        with:
+          commit_message: "ci: Update Xavier2 index"
+          file_pattern: ".xavier2/index.json"
