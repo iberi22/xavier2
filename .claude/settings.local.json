@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la e:/scripts-python/xavier2/*.md)",
+      "Bash(ls -la e:/scripts-python/xavier2/*.txt)",
+      "Bash(ls -la e:/scripts-python/xavier2/*.py)",
+      "Bash(ls -la e:/scripts-python/xavier2/*.ps1)",
+      "Bash(ls *.md)",
+      "Bash(cargo build *)"
+    ]
+  }
+}

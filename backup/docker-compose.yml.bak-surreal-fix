@@ -1,0 +1,173 @@
+services:
+  # Xavier2 Memory Server
+  xavier2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xavier2:${XAVIER2_IMAGE_TAG:-0.4.1}
+    container_name: xavier2
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      - XAVIER2_PORT=8003
+      - XAVIER2_HOST=0.0.0.0
+      - XAVIER2_CODE_GRAPH_DB_PATH=/data/code_graph.db
+      - XAVIER2_TOKEN=${XAVIER2_TOKEN:-dev-token}
+      # FIXED: Using file backend for reliable local persistence
+      # SurrealDB integration disabled due to persistent write failures (see BENCHMARKS.md)
+      - XAVIER2_MEMORY_BACKEND=file
+      - XAVIER2_WORKSPACE_DIR=/data/workspaces
+      - RUST_LOG=${RUST_LOG:-info}
+      - XAVIER2_LOG_LEVEL=${XAVIER2_LOG_LEVEL:-info}
+      - SURREALDB_URL=http://surrealdb:8000
+      - SURREALDB_USER=${SURREALDB_USER:-root}
+      - SURREALDB_PASS=${SURREALDB_PASS:-root}
+      - XAVIER2_EMBEDDING_URL=http://pplx-embed:8000
+      - XAVIER2_EMBEDDING_MODEL=${XAVIER2_EMBEDDING_MODEL:-perplexity-ai/pplx-embed-v1-0.6b}
+      - XAVIER2_ROUTER_RETRIEVED_MODEL=${XAVIER2_ROUTER_RETRIEVED_MODEL:-}
+      - XAVIER2_ROUTER_COMPLEX_MODEL=${XAVIER2_ROUTER_COMPLEX_MODEL:-}
+      - XAVIER2_LOCAL_LLM_MODEL=${XAVIER2_LOCAL_LLM_MODEL:-llama3}
+      - XAVIER2_LOCAL_LLM_URL=${XAVIER2_LOCAL_LLM_URL:-http://host.docker.internal:11434/v1}
+      # CRITICAL FIX: Disable HyDE (Hypothetical Document Embeddings) by default
+      # HyDE doubles latency by generating a hypothetical document before embedding
+      # Set to 0/false/no to re-enable if needed
+      - XAVIER2_DISABLE_HYDE=${XAVIER2_DISABLE_HYDE:-1}
+    volumes:
+      - xavier2_data:/data
+      - xavier2_logs:/logs
+    depends_on:
+      # SurrealDB disabled - using file backend for reliable persistence
+      # surrealdb:
+      #   condition: service_healthy
+      pplx-embed:
+        condition: service_healthy
+    networks:
+      - xavier2_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "xavier2.version=${XAVIER2_IMAGE_TAG:-0.4.1}"
+      - "xavier2.service=memory"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  pplx-embed:
+    image: southwestailabs/pplx-embed:latest
+    container_name: pplx-embed
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    environment:
+      - PORT=8000
+      - MODEL_NAME=${XAVIER2_EMBEDDING_MODEL:-perplexity-ai/pplx-embed-v1-0.6b}
+      - DEVICE=${PPLX_EMBED_DEVICE:-cpu}
+      - TRANSFORMERS_CACHE=/models
+    volumes:
+      - pplx_embed_models:/models
+    networks:
+      - xavier2_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-X", "POST", "http://localhost:8000/v1/embeddings", "-H", "Content-Type: application/json", "-d", "{\"input\":\"health\",\"model\":\"perplexity-ai/pplx-embed-v1-0.6b\"}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # SurrealDB Database
+  surrealdb:
+    image: surrealdb/surrealdb:v2.6.4
+    container_name: surrealdb
+    restart: unless-stopped
+    # CRITICAL FIX: Added file:/data/surreal path to enable persistent storage
+    # Previously ran with default 'memory' store - all data lost on restart!
+    command: start rocksdb:///data/surreal --user root --pass root --bind 0.0.0.0:8000
+    user: "0:0"
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      - SURREALDB_USER=${SURREALDB_USER:-root}
+      - SURREALDB_PASS=${SURREALDB_PASS:-root}
+      - SURREALDB_PATH=/data/surreal
+    volumes:
+      - surreal_data:/data
+    networks:
+      - xavier2_network
+    healthcheck:
+      test: ["CMD", "/surreal", "is-ready", "--endpoint", "ws://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "surrealdb.version=v2.6.4"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - xavier2_network
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - xavier2_network
+    profiles:
+      - monitoring
+    depends_on:
+      - prometheus
+
+networks:
+  xavier2_network:
+    driver: bridge
+    name: xavier2_network
+
+volumes:
+  xavier2_data:
+    name: xavier2_data
+  xavier2_logs:
+    name: xavier2_logs
+  surreal_data:
+    name: surreal_data
+  prometheus_data:
+    name: prometheus_data
+  grafana_data:
+    name: grafana_data
+  pplx_embed_models:
+    name: pplx_embed_models

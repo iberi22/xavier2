@@ -1,0 +1,103 @@
+[package]
+name = "xavier2"
+version = "0.4.1"
+edition = "2021"
+license = "Apache-2.0"
+
+[lib]
+path = "src/lib.rs"
+
+[workspace]
+members = ["code-graph", "web"]
+
+[features]
+default = []
+egui = ["dep:egui", "dep:eframe", "dep:egui_extras"]
+egui-standalone = ["egui"]
+wasm = ["dep:wasm-bindgen", "dep:web-sys", "dep:js-sys", "dep:egui", "dep:eframe"]
+# All features that are safe to run on host CI (no GUI/Winit issues)
+ci-safe = []
+bench-runners = []
+
+[dependencies]
+code-graph = { path = "./code-graph" }
+anyhow = "1.0.102"
+async-trait = "0.1"
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+thiserror = "2.0.18"
+flate2 = "1.0"
+tokio = { version = "1.50.0", features = ["full"] }
+tokio-stream = "0.1"
+uuid = { version = "1.8", features = ["v4"] }
+
+# HTTP Server
+axum = "0.8"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "compression-full"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI arguments
+clap = { version = "4", features = ["derive"] }
+
+# TUI Dashboard
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+cron = "0.15"
+surrealdb = { version = "2.3.10", features = ["protocol-http"] }
+
+# State management
+parking_lot = "0.12"
+rusqlite = { version = "0.32.0", features = ["bundled"] }
+
+# File traversal
+walkdir = "2"
+
+# egui - Native UI (optional, for web UI)
+egui = { version = "0.33.3", optional = true }
+eframe = { version = "0.33.3", default-features = false, optional = true, features = ["default_fonts", "glow"] }
+egui_extras = { version = "0.33.3", optional = true, features = ["image", "serde"] }
+
+# For WASM web deployment
+wasm-bindgen = { version = "0.2", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["console"] }
+js-sys = { version = "0.3", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+# Security - Prompt Injection Detection
+regex = "1.10"
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]
+proptest = "1.6.0"
+tempfile = "3.10"
+criterion = "0.8"
+
+[[bin]]
+name = "xavier2-gui"
+path = "src/main_egui.rs"
+required-features = ["egui-standalone"]
+
+[[bin]]
+name = "xavier2-tui"
+path = "src/main_tui.rs"
+
+[[bench]]
+name = "xavier2"
+harness = false
+
+[[bench]]
+name = "api_v1"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true

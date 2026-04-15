@@ -1,0 +1,95 @@
+{
+  "benchmark": "locomo",
+  "dataset": "C:\\Users\\belal\\AppData\\Local\\Temp\\xavier2-benchmark-sources\\LoCoMo\\data\\locomo10.json",
+  "samples_evaluated": 3,
+  "modes": {
+    "strict": {
+      "mode": "strict",
+      "strict_no_hints": true,
+      "questions_evaluated": 387,
+      "metrics": {
+        "overall": {
+          "count": 385,
+          "exact_match": 0.046753246753246755,
+          "token_f1": 0.15723118565220295,
+          "accuracy": 0.05194805194805195
+        },
+        "by_category": {
+          "2": {
+            "count": 90,
+            "exact_match": 0.17777777777777778,
+            "token_f1": 0.44402998236331565,
+            "accuracy": 0.17777777777777778
+          },
+          "3": {
+            "count": 21,
+            "exact_match": 0.047619047619047616,
+            "token_f1": 0.08891223155929039,
+            "accuracy": 0.14285714285714285
+          },
+          "1": {
+            "count": 74,
+            "exact_match": 0.0,
+            "token_f1": 0.07563529916471093,
+            "accuracy": 0.0
+          },
+          "4": {
+            "count": 200,
+            "exact_match": 0.005,
+            "token_f1": 0.06553569531233013,
+            "accuracy": 0.005
+          },
+          "5": {
+            "count": 2,
+            "exact_match": 0.0,
+            "token_f1": 0.0,
+            "accuracy": 0.0
+          }
+        }
+      }
+    }
+  },
+  "mode": "strict",
+  "strict_no_hints": true,
+  "questions_evaluated": 387,
+  "metrics": {
+    "overall": {
+      "count": 385,
+      "exact_match": 0.046753246753246755,
+      "token_f1": 0.15723118565220295,
+      "accuracy": 0.05194805194805195
+    },
+    "by_category": {
+      "2": {
+        "count": 90,
+        "exact_match": 0.17777777777777778,
+        "token_f1": 0.44402998236331565,
+        "accuracy": 0.17777777777777778
+      },
+      "3": {
+        "count": 21,
+        "exact_match": 0.047619047619047616,
+        "token_f1": 0.08891223155929039,
+        "accuracy": 0.14285714285714285
+      },
+      "1": {
+        "count": 74,
+        "exact_match": 0.0,
+        "token_f1": 0.07563529916471093,
+        "accuracy": 0.0
+      },
+      "4": {
+        "count": 200,
+        "exact_match": 0.005,
+        "token_f1": 0.06553569531233013,
+        "accuracy": 0.005
+      },
+      "5": {
+        "count": 2,
+        "exact_match": 0.0,
+        "token_f1": 0.0,
+        "accuracy": 0.0
+      }
+    }
+  }
+}

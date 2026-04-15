@@ -1,0 +1,171 @@
+services:
+  # Xavier2 Memory Server
+  xavier2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xavier2:${XAVIER2_IMAGE_TAG:-0.4.1}
+    container_name: xavier2
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      - XAVIER2_PORT=8003
+      - XAVIER2_HOST=0.0.0.0
+      - XAVIER2_CODE_GRAPH_DB_PATH=/data/code_graph.db
+      - XAVIER2_TOKEN=${XAVIER2_TOKEN:?Set XAVIER2_TOKEN in .env before starting Docker}
+      - XAVIER2_MEMORY_BACKEND=${XAVIER2_MEMORY_BACKEND:-vec}
+      - XAVIER2_WORKSPACE_DIR=/data/workspaces
+      - RUST_LOG=${RUST_LOG:-info}
+      - XAVIER2_LOG_LEVEL=${XAVIER2_LOG_LEVEL:-info}
+      - XAVIER2_SURREALDB_URL=${XAVIER2_SURREALDB_URL:-ws://surrealdb:8000}  # Only used when XAVIER2_MEMORY_BACKEND=surreal
+      - XAVIER2_SURREALDB_USER=${XAVIER2_SURREALDB_USER:-}  # Only used when XAVIER2_MEMORY_BACKEND=surreal
+      - XAVIER2_SURREALDB_PASS=${XAVIER2_SURREALDB_PASS:-}  # Only used when XAVIER2_MEMORY_BACKEND=surreal
+      - XAVIER2_EMBEDDING_URL=http://pplx-embed:8000
+      - XAVIER2_EMBEDDING_MODEL=${XAVIER2_EMBEDDING_MODEL:-perplexity-ai/pplx-embed-v1-0.6b}
+      - XAVIER2_ROUTER_RETRIEVED_MODEL=${XAVIER2_ROUTER_RETRIEVED_MODEL:-}
+      - XAVIER2_ROUTER_COMPLEX_MODEL=${XAVIER2_ROUTER_COMPLEX_MODEL:-}
+      - XAVIER2_LOCAL_LLM_MODEL=${XAVIER2_LOCAL_LLM_MODEL:-llama3}
+      - XAVIER2_LOCAL_LLM_URL=${XAVIER2_LOCAL_LLM_URL:-http://host.docker.internal:11434/v1}
+      # CRITICAL FIX: Disable HyDE (Hypothetical Document Embeddings) by default
+      - XAVIER2_DISABLE_HYDE=${XAVIER2_DISABLE_HYDE:-1}
+    volumes:
+      - xavier2_data:/data
+      - xavier2_logs:/logs
+      # Portable default mount for local code indexing and smoke tests.
+      - ./:/mnt/workspaces/xavier2:ro
+    depends_on:
+      pplx-embed:
+        condition: service_healthy
+    networks:
+      - xavier2_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "xavier2.version=${XAVIER2_IMAGE_TAG:-0.4.1}"
+      - "xavier2.service=memory"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  pplx-embed:
+    image: southwestailabs/pplx-embed:latest
+    container_name: pplx-embed
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    environment:
+      - PORT=8000
+      - MODEL_NAME=${XAVIER2_EMBEDDING_MODEL:-perplexity-ai/pplx-embed-v1-0.6b}
+      - DEVICE=${PPLX_EMBED_DEVICE:-cpu}
+      - TRANSFORMERS_CACHE=/models
+    volumes:
+      - pplx_embed_models:/models
+    networks:
+      - xavier2_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-X", "POST", "http://localhost:8000/v1/embeddings", "-H", "Content-Type: application/json", "-d", "{\"input\":\"health\",\"model\":\"perplexity-ai/pplx-embed-v1-0.6b\"}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # SurrealDB Database
+  surrealdb:
+    # UPGRADED: v3.0.5 crate + v3.0.5 server
+    image: surrealdb/surrealdb:v3.0.5
+    container_name: surrealdb
+    restart: unless-stopped
+    command: start rocksdb:///data/surreal --user ${XAVIER2_SURREALDB_USER:?Set XAVIER2_SURREALDB_USER in .env} --pass ${XAVIER2_SURREALDB_PASS:?Set XAVIER2_SURREALDB_PASS in .env} --bind 0.0.0.0:8000
+    # NOTE: If upgrading from v2, you must clear the volume first:
+    # docker compose down -v  (the -v flag removes volumes)
+    user: "0:0"
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      - SURREALDB_USER=${XAVIER2_SURREALDB_USER:?Set XAVIER2_SURREALDB_USER in .env}
+      - SURREALDB_PASS=${XAVIER2_SURREALDB_PASS:?Set XAVIER2_SURREALDB_PASS in .env}
+      - SURREALDB_PATH=/data/surreal
+    volumes:
+      - surreal_data:/data
+    networks:
+      - xavier2_network
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "surrealdb.version=v3.0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - surreal
+
+  # Optional: Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - xavier2_network
+    profiles:
+      - monitoring
+
+  # Optional: Grafana for dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - xavier2_network
+    profiles:
+      - monitoring
+    depends_on:
+      - prometheus
+
+networks:
+  xavier2_network:
+    driver: bridge
+    name: xavier2_network
+
+volumes:
+  xavier2_data:
+    name: xavier2_data
+  xavier2_logs:
+    name: xavier2_logs
+  surreal_data:
+    name: surreal_data
+  prometheus_data:
+    name: prometheus_data
+  grafana_data:
+    name: grafana_data
+  pplx_embed_models:
+    name: pplx_embed_models

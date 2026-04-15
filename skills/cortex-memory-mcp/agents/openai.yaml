@@ -1,0 +1,5 @@
+version: 1
+interface:
+  display_name: Xavier2 Memory MCP
+  short_description: Use Xavier2 over MCP when the host requires streamable HTTP tool transport.
+  default_prompt: Use the xavier2-memory-mcp skill to interact with Xavier2 through its MCP endpoint and current tool set.

@@ -762,6 +762,13 @@ pub async fn memory_retrieve(
         "memory_retrieve"
     );
 
+    Json(build_multi_layer_retrieve_response(&workspace, &payload).await)
+}
+
+async fn build_multi_layer_retrieve_response(
+    workspace: &WorkspaceContext,
+    payload: &MultiLayerRetrieveRequest,
+) -> MultiLayerRetrieveResponse {
     let weights = payload.layer_weights.unwrap_or_else(LayerWeights::default);
 
     // Configure adaptive gating with the caller's requested limit so we do not
@@ -845,7 +852,7 @@ pub async fn memory_retrieve(
         })
         .collect();
 
-    Json(MultiLayerRetrieveResponse {
+    MultiLayerRetrieveResponse {
         status: "ok".to_string(),
         results: retrieved,
         query: payload.query.clone(),
@@ -856,7 +863,7 @@ pub async fn memory_retrieve(
             total_results,
         },
         coherence_report,
-    })
+    }
 }
 
 fn retrieved_path_for_result(
@@ -1150,6 +1157,44 @@ pub async fn memory_query(
         query_fingerprint = %query_fingerprint(&payload.query),
         "memory_query"
     );
+
+    let retrieval = build_multi_layer_retrieve_response(
+        &workspace,
+        &MultiLayerRetrieveRequest {
+            query: payload.query.clone(),
+            limit: payload.limit.max(1),
+            layer_weights: None,
+            relevance_threshold: default_relevance_threshold(),
+            rrf_k: default_rrf_k(),
+            include_coherence: false,
+        },
+    )
+    .await;
+
+    if !retrieval.results.is_empty() {
+        let response = retrieval
+            .results
+            .iter()
+            .take(payload.limit.max(1))
+            .map(|item| item.content.trim())
+            .filter(|content| !content.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        let confidence = retrieval
+            .results
+            .iter()
+            .map(|item| item.score)
+            .fold(0.0_f32, f32::max)
+            .clamp(0.0, 1.0);
+
+        return Json(QueryResponse {
+            status: "ok".to_string(),
+            response,
+            confidence,
+            session_id: query_fingerprint(&payload.query),
+        });
+    }
 
     let response = workspace
         .workspace

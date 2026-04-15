@@ -1,0 +1,31 @@
+{
+  "dataset": "scripts/benchmarks/datasets/internal_swal_openclaw_memory.json",
+  "base_url": "http://127.0.0.1:8003",
+  "baseline_embedding_label": "pplx",
+  "embedding_candidates": [
+    {
+      "label": "pplx",
+      "model": "perplexity-ai/pplx-embed-v1-0.6b",
+      "url": "http://localhost:8002"
+    },
+    {
+      "label": "embeddinggemma",
+      "model": "google/embeddinggemma-300m",
+      "url": "http://localhost:11435/v1"
+    }
+  ],
+  "llm_candidates": [
+    {
+      "label": "fast",
+      "provider": "local",
+      "model": "gemma4:e2b",
+      "url": "http://localhost:11434/v1"
+    },
+    {
+      "label": "quality",
+      "provider": "local",
+      "model": "gemma4:e4b",
+      "url": "http://localhost:11434/v1"
+    }
+  ]
+}

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xavier2 Chat</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f0f; color: #fff; height: 100vh; }
+    #root { height: 100vh; display: flex; flex-direction: column; }
+    .chat-header { background: #1a1a2e; padding: 16px 20px; border-bottom: 1px solid #2a2a4a; display: flex; align-items: center; gap: 12px; }
+    .chat-header h1 { font-size: 18px; font-weight: 600; }
+    .chat-header .status { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; }
+    .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .message { max-width: 80%; padding: 12px 16px; border-radius: 16px; line-height: 1.5; }
+    .message.user { align-self: flex-end; background: #6366f1; border-bottom-right-radius: 4px; }
+    .message.xavier2 { align-self: flex-start; background: #1e1e2e; border-bottom-left-radius: 4px; }
+    .message .component { margin-top: 12px; }
+    .stats-card { background: #252540; border-radius: 12px; padding: 16px; min-width: 200px; }
+    .stats-card h3 { font-size: 14px; color: #a0a0c0; margin-bottom: 8px; }
+    .stats-card .value { font-size: 32px; font-weight: 700; color: #22c55e; }
+    .stats-card .label { font-size: 12px; color: #707090; }
+    .table-component { background: #1a1a2e; border-radius: 8px; overflow: hidden; width: 100%; }
+    .table-component th, .table-component td { padding: 10px 14px; text-align: left; }
+    .table-component th { background: #252540; font-size: 12px; color: #a0a0c0; font-weight: 500; }
+    .table-component tr:not(:last-child) td { border-bottom: 1px solid #2a2a4a; }
+    .table-component tr:hover td { background: #1e1e30; }
+    .timeline { display: flex; flex-direction: column; gap: 8px; }
+    .timeline-item { display: flex; gap: 12px; align-items: flex-start; }
+    .timeline-dot { width: 10px; height: 10px; background: #6366f1; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .timeline-content { background: #1a1a2e; padding: 10px 14px; border-radius: 8px; flex: 1; }
+    .timeline-date { font-size: 11px; color: #707090; margin-bottom: 4px; }
+    .input-area { padding: 16px 20px; background: #1a1a2e; border-top: 1px solid #2a2a4a; display: flex; gap: 12px; }
+    .input-area input { flex: 1; background: #252540; border: none; padding: 12px 16px; border-radius: 24px; color: #fff; font-size: 14px; outline: none; }
+    .input-area input::placeholder { color: #707090; }
+    .input-area button { background: #6366f1; border: none; padding: 10px 20px; border-radius: 20px; color: #fff; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+    .input-area button:hover { background: #4f46e5; }
+    .input-area button:disabled { background: #3a3a5a; cursor: not-allowed; }
+    .loading { display: flex; align-items: center; gap: 8px; color: #707090; font-size: 14px; }
+    .loading::after { content: ''; width: 16px; height: 16px; border: 2px solid #707090; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Xavier2 API configuration
+    const XAVIER2_URL = 'http://localhost:8003';
+    const XAVIER2_TOKEN = 'dev-token';
+
+    // Intent patterns
+    const INTENT_PATTERNS = {
+      stats: /\b(stats|statistics|numbers|how many|count|total)\b/i,
+      table: /\b(list|show me|all |every |compare|table)\b/i,
+      timeline: /\b(when|timeline|history|past|recent|ago)\b/i,
+      search: /\b(find|search|look for|get)\b/i,
+      add: /\b(add|save|remember|store)\b/i,
+    };
+
+    // Detect intent from message
+    function detectIntent(message) {
+      for (const [intent, pattern] of Object.entries(INTENT_PATTERNS)) {
+        if (pattern.test(message)) return intent;
+      }
+      return 'search'; // default
+    }
+
+    // Render UI components based on type
+    function UIComponent({ type, data }) {
+      switch (type) {
+        case 'stats':
+          return (
+            <div className="stats-card">
+              <h3>{data.title || 'Statistics'}</h3>
+              <div className="value">{data.value}</div>
+              <div className="label">{data.label || ''}</div>
+            </div>
+          );
+        case 'table':
+          return (
+            <div className="table-component">
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {data.columns?.map((col, i) => <th key={i}>{col}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.rows?.map((row, i) => (
+                    <tr key={i}>
+                      {row.map((cell, j) => <td key={j}>{cell}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        case 'timeline':
+          return (
+            <div className="timeline">
+              {data.items?.map((item, i) => (
+                <div key={i} className="timeline-item">
+                  <div className="timeline-dot"></div>
+                  <div className="timeline-content">
+                    <div className="timeline-date">{item.date}</div>
+                    <div>{item.content}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        case 'list':
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {data.items?.map((item, i) => (
+                <div key={i} style={{ background: '#252540', padding: '10px 14px', borderRadius: '8px' }}>
+                  {item}
+                </div>
+              ))}
+            </div>
+          );
+        default:
+          return null;
+      }
+    }
+
+    // Chat message component
+    function Message({ message, isUser }) {
+      return (
+        <div className={`message ${isUser ? 'user' : 'xavier2'}`}>
+          {message.text}
+          {message.component && (
+            <div className="component">
+              <UIComponent type={message.component.type} data={message.component.data} />
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Main App
+    function App() {
+      const [messages, setMessages] = useState([]);
+      const [input, setInput] = useState('');
+      const [loading, setLoading] = useState(false);
+      const messagesEndRef = useRef(null);
+
+      const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      };
+
+      useEffect(() => {
+        scrollToBottom();
+      }, [messages]);
+
+      // Fetch memory stats for initial greeting
+      useEffect(() => {
+        async function fetchStats() {
+          try {
+            const res = await fetch(`${XAVIER2_URL}/memory/stats`, {
+              headers: { 'X-Xavier2-Token': XAVIER2_TOKEN }
+            });
+            const stats = await res.json();
+            setMessages([{
+              id: Date.now(),
+              isUser: false,
+              text: `🧠 Xavier2 ready! I have ${stats.total_documents || 0} memories indexed. Ask me anything!`,
+              component: {
+                type: 'stats',
+                data: {
+                  title: 'Memory Status',
+                  value: stats.total_documents || 0,
+                  label: 'memories indexed'
+                }
+              }
+            }]);
+          } catch (e) {
+            setMessages([{
+              id: Date.now(),
+              isUser: false,
+              text: '🧠 Xavier2 ready! Connect to start chatting with your memories.'
+            }]);
+          }
+        }
+        fetchStats();
+      }, []);
+
+      const handleSend = async () => {
+        if (!input.trim() || loading) return;
+
+        const userMessage = { id: Date.now(), isUser: true, text: input.trim() };
+        setMessages(prev => [...prev, userMessage]);
+        setInput('');
+        setLoading(true);
+
+        const intent = detectIntent(input);
+
+        try {
+          // Search memories
+          const searchRes = await fetch(`${XAVIER2_URL}/memory/search`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Xavier2-Token': XAVIER2_TOKEN
+            },
+            body: JSON.stringify({ query: input, limit: 5 })
+          });
+          const searchData = await searchRes.json();
+          const results = searchData.results || [];
+
+          let response = '';
+          let component = null;
+
+          if (results.length === 0) {
+            response = "I couldn't find anything related to that. Try a different search or add new memories.";
+          } else {
+            // Generate response based on intent
+            switch (intent) {
+              case 'stats':
+                const total = results.length;
+                response = `Found ${total} relevant memory ${total === 1 ? 'item' : 'items'}:`;
+                component = {
+                  type: 'stats',
+                  data: { title: 'Search Results', value: total, label: 'relevant memories' }
+                };
+                break;
+              case 'table':
+                response = 'Here are the memories I found:';
+                component = {
+                  type: 'table',
+                  data: {
+                    columns: ['Memory', 'Relevance'],
+                    rows: results.map(r => [r.content.substring(0, 50) + '...', Math.round(r.score * 100) + '%'])
+                  }
+                };
+                break;
+              case 'timeline':
+                response = 'Memory timeline:';
+                component = {
+                  type: 'timeline',
+                  data: {
+                    items: results.map((r, i) => ({
+                      date: `Result ${i + 1}`,
+                      content: r.content.substring(0, 100) + '...'
+                    }))
+                  }
+                };
+                break;
+              default:
+                response = `I found ${results.length} relevant memory ${results.length === 1 ? 'item' : 'items'}:\n\n`;
+                response += results.map((r, i) => `${i + 1}. ${r.content.substring(0, 150)}${r.content.length > 150 ? '...' : ''}`).join('\n\n');
+            }
+          }
+
+          setMessages(prev => [...prev, {
+            id: Date.now() + 1,
+            isUser: false,
+            text: response,
+            component: component
+          }]);
+
+        } catch (e) {
+          setMessages(prev => [...prev, {
+            id: Date.now() + 1,
+            isUser: false,
+            text: 'Sorry, I encountered an error connecting to Xavier2. Is the service running?'
+          }]);
+        }
+
+        setLoading(false);
+      };
+
+      const handleKeyPress = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          handleSend();
+        }
+      };
+
+      return (
+        <>
+          <div className="chat-header">
+            <div className="status"></div>
+            <h1>Xavier2 Chat</h1>
+          </div>
+          <div className="messages">
+            {messages.map(msg => (
+              <Message key={msg.id} message={msg} isUser={msg.isUser} />
+            ))}
+            {loading && (
+              <div className="message xavier2">
+                <div className="loading">Thinking...</div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+          <div className="input-area">
+            <input
+              type="text"
+              placeholder="Ask about your memories..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={loading}
+            />
+            <button onClick={handleSend} disabled={loading || !input.trim()}>
+              Send
+            </button>
+          </div>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

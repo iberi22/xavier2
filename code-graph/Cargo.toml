@@ -1,0 +1,62 @@
+[package]
+name = "code-graph"
+version = "0.2.0"
+edition = "2021"
+description = "Codebase Understanding without RAG - Tree-sitter + Agentic Search"
+license = "MIT"
+repository = "https://github.com/southwest-ai-labs/code-graph"
+authors = ["Southwest AI Labs <dev@southwestai.io]"]
+rust-version = "1.75"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Tree-sitter - todas las versiones 0.23 (últimas estables)
+tree-sitter = "0.23"
+tree-sitter-rust = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-python = "0.25"
+tree-sitter-go = "0.25"
+tree-sitter-java = "0.23"
+
+# File traversal
+walkdir = "2"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# HTTP Server
+axum = "0.8"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors"] }
+hyper = "1"
+hyper-util = "0.1"
+
+# Async mutex for shared state
+parking_lot = "0.12"
+
+# Database
+rusqlite = { version = "0.32.0", features = ["bundled"] }
+
+[dev-dependencies]
+
+[[bin]]
+name = "code-graph"
+path = "src/main.rs"
+
+[lib]
+name = "code_graph"
+path = "src/lib.rs"

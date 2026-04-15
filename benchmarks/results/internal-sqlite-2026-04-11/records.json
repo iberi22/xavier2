@@ -1,0 +1,37 @@
+[
+  {
+    "id": "repo-file-recall",
+    "endpoint": "search",
+    "success": true,
+    "expected_path": "repo/xavier2",
+    "actual_path": "repo/xavier2"
+  },
+  {
+    "id": "repo-provenance-filter",
+    "endpoint": "search",
+    "success": true,
+    "expected_path": "repo/xavier2",
+    "actual_path": "repo/xavier2"
+  },
+  {
+    "id": "decision-query",
+    "endpoint": "query",
+    "success": true,
+    "expected_substring": "System3 optional",
+    "actual_response": "Decision: keep System3 optional and answer factual or temporal questions directly from typed evidence whenever possible"
+  },
+  {
+    "id": "session-handoff",
+    "endpoint": "agents_run",
+    "success": true,
+    "expected_substring": "openclaw-content",
+    "actual_response": "Session handoff: Agent openclaw-content imported the YouTube publishing backlog and saved the result in Xavier2 for the ops team"
+  },
+  {
+    "id": "multilingual-recall",
+    "endpoint": "search",
+    "success": true,
+    "expected_path": "task/multilingual-recall",
+    "actual_path": "task/multilingual-recall"
+  }
+]

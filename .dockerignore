@@ -1,0 +1,34 @@
+# Git metadata
+.git
+.gitcore
+.github
+
+# IDE / editor files
+.vscode
+.idea
+*.swp
+*.tmp
+
+# Build artifacts (we compile inside container)
+target
+dist
+*.so
+*.a
+
+# Node modules (frontend builds happen inside container)
+node_modules
+panel-ui/node_modules
+
+# Test & benchmark results (not needed in container)
+tests
+benchmarks
+benchmark-results
+benchmark_test_results.json
+
+# Docs & scripts (not needed in runtime)
+docs
+scripts
+
+# Agent / Clawd files
+.agents
+.agent

@@ -1,0 +1,33 @@
+{
+  "name": "xavier2-panel-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "npm run biome:check && npm run typecheck && npm run build",
+    "biome:check": "biome check src/App.tsx src/main.tsx src/theme.ts src/styles.css src/components/QuestionCard.tsx src/components/DecisionCard.tsx src/components/ProjectCard.tsx playwright.config.ts tests/generative-ui.spec.ts",
+    "biome:write": "biome check --write src/App.tsx src/main.tsx src/theme.ts src/styles.css src/components/QuestionCard.tsx src/components/DecisionCard.tsx src/components/ProjectCard.tsx playwright.config.ts tests/generative-ui.spec.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.generative.json",
+    "test:e2e:generative": "playwright test"
+  },
+  "dependencies": {
+    "@openuidev/react-headless": "^0.7.9",
+    "@openuidev/react-lang": "^0.1.3",
+    "@openuidev/react-ui": "^0.9.18",
+    "@tauri-apps/api": "^2.10.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@playwright/test": "^1.54.2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0"
+  }
+}

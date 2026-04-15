@@ -1,0 +1,26 @@
+# Xavier2 Cursor Rules
+
+`AGENTS.md` is the canonical contract. Do not fork protocol behavior here.
+
+## Read Order
+
+1. `AGENTS.md`
+2. `.gitcore/ARCHITECTURE.md`
+3. `.gitcore/features.json`
+4. `README.md`
+5. `docs/agent-docs/RESEARCH_STACK_CONTEXT.md` when dependency work is involved
+
+## Memory Split
+
+- GitHub Issues: task-level state and progress (`<agent-state>`).
+- Xavier2 (MCP/HTTP): permanent project memory and long-horizon context.
+- Refer to `docs/agent-docs/specs/SPEC_MEMORY_INTEGRATION.md` for the full protocol.
+- Do not create tracking documents for tasks, plans, or summaries.
+
+## Project Rules
+
+- **Durable Memory**: Always search Xavier2 (`http://localhost:8003/mcp`) for past context BEFORE starting complex tasks.
+- **Durable Learning**: Store deep research findings or architectural decisions in Xavier2 after task completion.
+- Keep secrets out of repo files; use environment variables.
+- Respect Git-Core forbidden files and atomic commit rules from `AGENTS.md`.
+- Use `.gitcore/ARCHITECTURE.md` as the authoritative source for implementation decisions.

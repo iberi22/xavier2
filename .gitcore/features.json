@@ -1,0 +1,113 @@
+{
+  "_comment": "Feature tracking file for Xavier2 Cognitive Memory System.",
+  "metadata": {
+    "project": "Xavier2",
+    "created": "2026-03-05",
+    "last_verified": "2026-04-11",
+    "total_features": 6,
+    "passing": 6,
+    "failing": 0
+  },
+  "features": [
+    {
+      "id": "feat-unified-storage",
+      "category": "core",
+      "description": "Unified durable storage direction using SQLite + SQLite-vec for vector and graph data",
+      "steps": [
+        "Initialize SQLite + sqlite-vec",
+        "Store high-dimensional vectors for semantic search",
+        "Store graph nodes for belief relationships"
+      ],
+      "passes": true,
+      "verified_by": "doc-alignment",
+      "github_issue": null,
+      "last_tested": "2026-04-14",
+      "notes": "SQLite + sqlite-vec is the production-ready default backend since v0.4.x."
+    },
+    {
+      "id": "feat-hybrid-search",
+      "category": "search",
+      "description": "Hybrid Search combining BM25 keyword matching and vector retrieval",
+      "steps": [
+        "Index markdown files with Tantivy",
+        "Perform vector search in the active memory runtime",
+        "Rerank and combine results"
+      ],
+      "passes": true,
+      "verified_by": "automated",
+      "github_issue": null,
+      "last_tested": "2026-04-11",
+      "notes": "Validated through tests and benchmark smoke execution. Retrieval quality remains strong, but current benchmark latency is above the older <500ms target."
+    },
+    {
+      "id": "feat-belief-graph",
+      "category": "cognitive",
+      "description": "Belief Graph for conceptual relationship mapping",
+      "steps": [
+        "Define relationship nodes",
+        "Implement extraction logic for agent insights",
+        "Verify graph traversal performance"
+      ],
+      "passes": true,
+      "verified_by": "automated",
+      "github_issue": null,
+      "last_tested": "2026-03-17",
+      "notes": "Current belief graph module is covered by passing tests in `memory/belief_graph.rs`."
+    },
+    {
+      "id": "feat-mcp-server",
+      "category": "integration",
+      "description": "HTTP-first integration surface with optional Model Context Protocol (MCP) support",
+      "steps": [
+        "Expose authenticated HTTP endpoints for memory and code operations",
+        "Implement MCP tool definitions",
+        "Expose memory search as a tool",
+        "Verify connectivity through HTTP and MCP clients"
+      ],
+      "passes": true,
+      "verified_by": "automated",
+      "github_issue": null,
+      "last_tested": "2026-03-19",
+      "notes": "The integrated binary exposes authenticated HTTP handlers in `server/http.rs` and an MCP surface in `server/mcp_server.rs`."
+    },
+    {
+      "id": "feat-code-graph-index",
+      "category": "integration",
+      "description": "AST-backed code indexing and symbol search through the `code-graph` sidecar",
+      "steps": [
+        "Initialize SQLite index for code symbols",
+        "Expose `/code/scan`, `/code/find`, and `/code/stats`",
+        "Persist index path via `XAVIER2_CODE_GRAPH_DB_PATH` across local, test, and Docker runs"
+      ],
+      "passes": true,
+      "verified_by": "automated",
+      "github_issue": null,
+      "last_tested": "2026-03-17",
+      "notes": "Validated with HTTP handler tests, e2e startup, and benchmark smoke runs."
+    },
+    {
+      "id": "feat-src-reference",
+      "category": "documentation",
+      "description": "Source Code Reference (SRC) - Comprehensive documentation of all source files",
+      "steps": [
+        "Document directory structure",
+        "Document core modules (a2a, agents, memory, server, tasks)",
+        "Document important types and traits",
+        "Add build/run instructions",
+        "Add CLI reference"
+      ],
+      "passes": true,
+      "verified_by": "repo-audit",
+      "github_issue": null,
+      "last_tested": "2026-03-20",
+      "notes": "GitCore Monitor executed 2026-03-20: 78 projects analyzed, 153 modules found. SRC.md central index updated from 43 to 78 projects."
+    }
+  ],
+  "verification_commands": {
+    "all": "cargo test -p xavier2",
+    "unit": "cargo test -p xavier2 --lib",
+    "e2e": "cargo test -p xavier2 --test e2e -- --nocapture",
+    "lint": "cargo clippy -p xavier2 --all-targets -- -D warnings",
+    "benchmark_smoke": "python scripts/benchmarks/run_locomo_benchmark.py --sample-limit 1 --question-limit 2"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-04-13T19-29-42",
+  "backend": "vec-build-test",
+  "files": [
+    {
+      "name": "xavier2_memory_vec_2026-04-13T19-29-42_vec-build-test.db",
+      "size": 0
+    },
+    {
+      "name": "xavier2_code_graph_2026-04-13T19-29-42_vec-build-test.db",
+      "size": 0
+    }
+  ]
+}

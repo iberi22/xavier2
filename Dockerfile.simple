@@ -1,0 +1,58 @@
+# syntax=docker/dockerfile:1
+# Xavier2 - Cognitive Memory Runtime
+# Simple, robust, easy to adopt
+#
+# Usage: docker build -t xavier2 .
+#        docker run -p 8003:8003 xavier2
+
+# Stage 1: Build (using multi-platform rust base)
+FROM rust:1.89-bookworm AS builder
+
+WORKDIR /app
+
+# Install system deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler libssl-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy source
+COPY . .
+
+# Build only the binaries we need (skip bench validation)
+RUN cargo build --release --bin xavier2 --bin xavier2-tui
+
+# Stage 2: Runtime
+FROM debian:bookworm-slim
+
+ARG XAVIER2_VERSION=0.4.1
+
+# Runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libssl3 curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create dirs
+RUN mkdir -p /data /logs /app/panel-ui/build
+
+# Copy binaries
+COPY --from=builder /app/target/release/xavier2-bin /usr/local/bin/xavier2-bin
+COPY --from=builder /app/target/release/xavier2-tui /usr/local/bin/xavier2-tui
+
+# Copy launcher
+COPY xavier2.sh /usr/local/bin/xavier2-launcher
+RUN chmod 0755 /usr/local/bin/xavier2-bin /usr/local/bin/xavier2-tui /usr/local/bin/xavier2-launcher
+
+WORKDIR /app
+
+ENV XAVIER2_PORT=8003 \
+    XAVIER2_HOST=0.0.0.0 \
+    XAVIER2_BACKEND=vec \
+    XAVIER2_VERSION=${XAVIER2_VERSION} \
+    RUST_LOG=info
+
+EXPOSE 8003
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -fsS http://localhost:8003/health > /dev/null || exit 1
+
+ENTRYPOINT ["/usr/local/bin/xavier2-launcher"]

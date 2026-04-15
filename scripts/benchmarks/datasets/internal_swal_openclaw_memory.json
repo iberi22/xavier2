@@ -1,0 +1,123 @@
+{
+  "dataset": "internal_swal_openclaw_memory_v1",
+  "documents": [
+    {
+      "path": "repo/xavier2",
+      "content": "The Xavier2 repository keeps the typed memory schema in src/memory/schema.rs and the bridge import path in src/memory/bridge.rs.",
+      "kind": "repo",
+      "provenance": {
+        "source_app": "openclaw",
+        "source_type": "repo_memory",
+        "repo_url": "https://github.com/iberi22/xavier2-1",
+        "file_path": "src/memory/schema.rs"
+      },
+      "namespace": {
+        "project": "xavier2",
+        "agent_id": "openclaw-ceo"
+      }
+    },
+    {
+      "path": "decision/memory-core",
+      "content": "Decision: keep System3 optional and answer factual or temporal questions directly from typed evidence whenever possible.",
+      "kind": "decision",
+      "evidence_kind": "observation",
+      "provenance": {
+        "source_app": "engram",
+        "source_type": "observation",
+        "topic_key": "architecture/system3-optional",
+        "recorded_at": "2026-03-28T18:00:00Z"
+      },
+      "namespace": {
+        "project": "xavier2",
+        "session_id": "session-wave-92"
+      }
+    },
+    {
+      "path": "session/openclaw-handoff",
+      "content": "Session handoff: Agent openclaw-content imported the YouTube publishing backlog and saved the result in Xavier2 for the ops team.",
+      "kind": "session",
+      "evidence_kind": "session_summary",
+      "provenance": {
+        "source_app": "openclaw",
+        "source_type": "session_summary",
+        "recorded_at": "2026-03-28T19:00:00Z"
+      },
+      "namespace": {
+        "project": "content-ops",
+        "agent_id": "openclaw-content",
+        "session_id": "handoff-7"
+      }
+    },
+    {
+      "path": "task/multilingual-recall",
+      "content": "Tarea: revisar el roadmap de memoria universal y conectar OpenClaw con Engram sin depender de heurísticas frágiles en inglés.",
+      "kind": "task",
+      "evidence_kind": "fact_atom",
+      "provenance": {
+        "source_app": "engram",
+        "source_type": "observation",
+        "recorded_at": "2026-03-28T19:05:00Z"
+      },
+      "namespace": {
+        "project": "xavier2",
+        "user_id": "belal",
+        "session_id": "session-wave-92"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "id": "repo-file-recall",
+      "endpoint": "search",
+      "query": "Where is the typed memory schema stored?",
+      "filters": {
+        "kinds": ["repo"],
+        "project": "xavier2"
+      },
+      "expected_path": "repo/xavier2"
+    },
+    {
+      "id": "repo-provenance-filter",
+      "endpoint": "search",
+      "query": "Where is the typed memory schema stored?",
+      "filters": {
+        "project": "xavier2",
+        "source_app": "openclaw",
+        "source_type": "repo_memory"
+      },
+      "expected_path": "repo/xavier2"
+    },
+    {
+      "id": "decision-query",
+      "endpoint": "query",
+      "query": "What was the decision about System3?",
+      "system3_mode": "disabled",
+      "filters": {
+        "project": "xavier2",
+        "session_id": "session-wave-92"
+      },
+      "expected_substring": "System3 optional"
+    },
+    {
+      "id": "session-handoff",
+      "endpoint": "agents_run",
+      "query": "Which agent imported the YouTube publishing backlog?",
+      "system3_mode": "disabled",
+      "filters": {
+        "session_id": "handoff-7",
+        "project": "content-ops"
+      },
+      "expected_substring": "openclaw-content"
+    },
+    {
+      "id": "multilingual-recall",
+      "endpoint": "search",
+      "query": "¿Qué tarea menciona OpenClaw y Engram?",
+      "filters": {
+        "user_id": "belal",
+        "project": "xavier2"
+      },
+      "expected_path": "task/multilingual-recall"
+    }
+  ]
+}

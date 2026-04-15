@@ -1,0 +1,5 @@
+version: 1
+interface:
+  display_name: Rust Hexagonal Modern
+  short_description: Design and refactor Rust services with modern crates, strong async patterns, and clean hexagonal boundaries.
+  default_prompt: Use the rust-hexagonal-modern skill to improve a Rust workspace with current crate guidance and hexagonal architecture patterns.

@@ -1,0 +1,23 @@
+{
+  "name": "xavier2-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "panel-ui",
+    "docs/site"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspaces",
+    "build": "npm run build --workspace panel-ui && npm run build --workspace docs/site",
+    "build:panel": "npm run build --workspace panel-ui",
+    "build:docs": "npm run build --workspace docs/site",
+    "lint": "eslint src/"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8"
+  }
+}

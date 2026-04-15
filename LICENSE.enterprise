@@ -1,0 +1,75 @@
+SouthWest AI Labs Enterprise License
+Copyright (c) 2026 SouthWest AI Labs
+
+This Enterprise License governs proprietary software modules, private patches,
+priority support deliverables, and other commercial materials provided by
+SouthWest AI Labs ("SWAL") to paying enterprise customers for Xavier2.
+
+1. Scope
+
+The public repository contents remain available under the MIT License unless
+explicitly distributed by SWAL under a separate written commercial agreement.
+This Enterprise License applies only to proprietary enterprise deliverables,
+private enhancements, support artifacts, hosted integrations, and reserved
+feature sets that are not released under the public MIT terms.
+
+2. Grant of Rights
+
+Subject to payment of applicable fees and compliance with the customer
+agreement, SWAL grants the customer a non-exclusive, non-transferable,
+non-sublicensable license to:
+
+- use the proprietary enterprise deliverables internally;
+- install and run the enterprise deliverables for the customer's own business;
+- make a reasonable number of backup copies for disaster recovery.
+
+3. Restrictions
+
+The customer may not, except where required by law or expressly permitted in a
+written agreement:
+
+- redistribute, resell, sublicense, or offer the enterprise deliverables to third parties;
+- publish source code, private patches, or confidential support artifacts;
+- remove ownership, attribution, or confidentiality notices;
+- use SWAL trademarks except as allowed by a separate trademark policy.
+
+4. Ownership
+
+SWAL and its licensors retain all right, title, and interest in the enterprise
+deliverables, including all intellectual property rights, derivative works,
+confidential methods, and non-public feature implementations.
+
+5. Support and Updates
+
+Support scope, response times, update access, and priority feature delivery are
+defined by the applicable order form, statement of work, or enterprise support
+agreement.
+
+6. Confidentiality
+
+Any non-public enterprise deliverables, support materials, pricing, integration
+details, audit tooling, or roadmap commitments shared by SWAL are confidential
+information and must be protected with reasonable care.
+
+7. Termination
+
+This license terminates automatically upon material breach. Upon termination,
+the customer must stop using the proprietary enterprise deliverables and delete
+all copies, except where retention is required by law.
+
+8. Warranty Disclaimer
+
+EXCEPT AS EXPRESSLY PROVIDED IN A WRITTEN COMMERCIAL AGREEMENT, THE ENTERPRISE
+DELIVERABLES ARE PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, WHETHER
+EXPRESS, IMPLIED, OR STATUTORY.
+
+9. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, SWAL WILL NOT BE LIABLE FOR INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES, OR FOR LOST PROFITS,
+REVENUE, DATA, OR BUSINESS INTERRUPTION, ARISING FROM USE OF THE ENTERPRISE
+DELIVERABLES.
+
+10. Contact
+
+Enterprise licensing and support inquiries: enterprise@southwest-ai-labs.com

@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xavier2 — Generative Everything</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    :root {
+      --bg: #09090b;
+      --bg2: #18181b;
+      --bg3: #27272a;
+      --border: #3f3f46;
+      --text: #fafafa;
+      --text2: #a1a1aa;
+      --text3: #71717a;
+      --accent: #6366f1;
+      --accent2: #4f46e5;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #eab308;
+      --orange: #f97316;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; gap: 12px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+    .logo-icon { width: 34px; height: 34px; background: linear-gradient(135deg, var(--accent), #a855f7); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+
+    .main { flex: 1; display: flex; overflow: hidden; }
+
+    /* Left: Chat */
+    .chat-panel { width: 380px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .chat-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .msg { padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.5; max-width: 92%; }
+    .msg.user { align-self: flex-end; background: var(--accent); color: white; border-bottom-right-radius: 4px; }
+    .msg.assistant { align-self: flex-start; background: var(--bg3); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+    .msg-time { font-size: 10px; opacity: 0.6; margin-top: 4px; }
+
+    /* Right: Generated UI */
+    .ui-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .ui-header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+    .ui-title { font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+    .ui-actions { display: flex; gap: 6px; }
+    .ui-btn { background: transparent; border: 1px solid var(--border); color: var(--text2); padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+    .ui-btn:hover { background: var(--bg3); color: var(--text); }
+
+    .ui-canvas { flex: 1; overflow-y: auto; padding: 24px; }
+    .ui-frame { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .ui-content { padding: 20px; }
+
+    /* Empty state */
+    .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text3); text-align: center; padding: 40px; }
+    .empty-icon { font-size: 56px; margin-bottom: 16px; opacity: 0.4; }
+    .empty h3 { font-size: 18px; color: var(--text2); margin-bottom: 8px; }
+    .empty p { font-size: 14px; max-width: 300px; }
+
+    /* Generated UI Components */
+    .g-grid { display: grid; gap: 14px; }
+    .g-grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .g-grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .g-grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .g-h1 { font-size: 28px; font-weight: 700; margin-bottom: 14px; }
+    .g-h2 { font-size: 20px; font-weight: 600; margin-bottom: 10px; }
+    .g-h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .g-p { font-size: 14px; line-height: 1.6; color: var(--text2); margin-bottom: 10px; }
+    .g-divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+    .g-space { height: 14px; }
+
+    .g-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .g-card-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .g-card-sub { font-size: 11px; color: var(--text3); }
+    .g-card-body { font-size: 13px; color: var(--text2); margin-top: 8px; line-height: 1.5; }
+
+    .g-stat { text-align: center; padding: 18px; }
+    .g-stat-val { font-size: 34px; font-weight: 700; }
+    .g-stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+    .g-stat-change { font-size: 12px; margin-top: 6px; }
+    .g-stat-change.up { color: var(--green); }
+    .g-stat-change.down { color: var(--red); }
+
+    .g-list { display: flex; flex-direction: column; gap: 6px; }
+    .g-list-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg3); border-radius: 8px; cursor: pointer; transition: background 0.15s; }
+    .g-list-item:hover { background: var(--bg); }
+    .g-list-icon { width: 30px; height: 30px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+    .g-list-content { flex: 1; }
+    .g-list-title { font-size: 13px; font-weight: 500; }
+    .g-list-sub { font-size: 11px; color: var(--text3); }
+    .g-list-action { font-size: 11px; color: var(--accent); }
+
+    .g-table { width: 100%; border-collapse: collapse; }
+    .g-table th { text-align: left; padding: 8px 10px; background: var(--bg3); font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; }
+    .g-table td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .g-table tr:hover td { background: var(--bg3); }
+    .g-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; }
+    .g-badge-g { background: rgba(34,197,94,0.2); color: var(--green); }
+    .g-badge-y { background: rgba(234,179,8,0.2); color: var(--yellow); }
+    .g-badge-r { background: rgba(239,68,68,0.2); color: var(--red); }
+
+    .g-form { display: flex; flex-direction: column; gap: 12px; }
+    .g-form-group { display: flex; flex-direction: column; gap: 4px; }
+    .g-form-label { font-size: 12px; font-weight: 500; color: var(--text2); }
+    .g-form-input { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: 13px; outline: none; }
+    .g-form-input:focus { border-color: var(--accent); }
+    .g-form-textarea { min-height: 80px; resize: vertical; }
+    .g-form-btn { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; align-self: flex-start; }
+    .g-form-btn:hover { background: var(--accent2); }
+
+    .g-progress { display: flex; flex-direction: column; gap: 8px; }
+    .g-progress-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+    .g-progress-bar { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+    .g-progress-fill { height: 100%; border-radius: 3px; }
+
+    .g-timeline { position: relative; padding-left: 20px; }
+    .g-timeline::before { content: ''; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 2px; background: var(--border); }
+    .g-timeline-item { position: relative; padding-bottom: 16px; }
+    .g-timeline-dot { position: absolute; left: -17px; top: 4px; width: 10px; height: 10px; background: var(--accent); border-radius: 50%; }
+    .g-timeline-date { font-size: 10px; color: var(--text3); margin-bottom: 3px; }
+    .g-timeline-title { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+    .g-timeline-desc { font-size: 12px; color: var(--text2); }
+
+    /* Input */
+    .input-area { padding: 14px 20px; background: var(--bg2); border-top: 1px solid var(--border); display: flex; gap: 10px; }
+    .input-wrap { flex: 1; position: relative; }
+    .input-wrap textarea { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 12px; padding: 11px 15px; color: var(--text); font-size: 14px; resize: none; outline: none; min-height: 46px; max-height: 120px; }
+    .input-wrap textarea:focus { border-color: var(--accent); }
+    .send-btn { background: var(--accent); border: none; padding: 10px 18px; border-radius: 10px; color: white; font-weight: 500; cursor: pointer; font-size: 14px; }
+    .send-btn:hover { background: var(--accent2); }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Quick */
+    .quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--border); }
+    .quick-btn { background: var(--bg3); border: 1px solid var(--border); padding: 5px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; transition: all 0.15s; }
+    .quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Loading */
+    .loading { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 30px; color: var(--text3); }
+    .loading span { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; animation: pulse 1s infinite; }
+    .loading span:nth-child(2) { animation-delay: 0.15s; }
+    .loading span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // =============================================
+    // GENERATIVE UI ENGINE
+    // Parses JSON spec into React components
+    // =============================================
+    function render(spec, i) {
+      if (!spec) return null;
+      const k = spec._key || i;
+
+      switch (spec._) {
+        case 'grid': return <div key={k} className={`g-grid ${spec.cols ? `g-grid-${spec.cols}` : ''}`} style={spec.style}>{spec.items?.map((c, i) => render(c, i))}</div>;
+        case 'h1': return <h1 key={k} className="g-h1" style={spec.style}>{spec.text}</h1>;
+        case 'h2': return <h2 key={k} className="g-h2" style={spec.style}>{spec.text}</h2>;
+        case 'h3': return <h3 key={k} className="g-h3" style={spec.style}>{spec.text}</h3>;
+        case 'p': return <p key={k} className="g-p" style={spec.style}>{spec.text}</p>;
+        case 'divider': return <hr key={k} className="g-divider" />;
+        case 'space': return <div key={k} style={{height: spec.h || 14}} />;
+
+        case 'card':
+          return (
+            <div key={k} className="g-card" style={spec.style}>
+              {spec.title && <div className="g-card-title">{spec.title}</div>}
+              {spec.sub && <div className="g-card-sub">{spec.sub}</div>}
+              {spec.body && <div className="g-card-body">{spec.body}</div>}
+              {spec.items?.map((c, i) => render(c, i))}
+            </div>
+          );
+
+        case 'stat':
+          return (
+            <div key={k} className="g-card g-stat" style={spec.style}>
+              <div className="g-stat-val" style={{color: spec.valC || 'var(--text)'}}>{spec.value}</div>
+              <div className="g-stat-label">{spec.label}</div>
+              {spec.change !== undefined && <div className={`g-stat-change ${spec.change >= 0 ? 'up' : 'down'}`}>{spec.change >= 0 ? '↑' : '↓'} {Math.abs(spec.change)}%</div>}
+            </div>
+          );
+
+        case 'list':
+          return (
+            <div key={k} className="g-list" style={spec.style}>
+              {spec.items?.map((item, i) => (
+                <div key={i} className="g-list-item">
+                  {item.icon && <div className="g-list-icon">{item.icon}</div>}
+                  <div className="g-list-content">
+                    <div className="g-list-title">{item.title}</div>
+                    {item.sub && <div className="g-list-sub">{item.sub}</div>}
+                  </div>
+                  {item.action && <span className="g-list-action">{item.action}</span>}
+                </div>
+              ))}
+            </div>
+          );
+
+        case 'table':
+          return (
+            <table key={k} className="g-table" style={spec.style}>
+              <thead><tr>{spec.cols?.map((c, i) => <th key={i}>{c}</th>)}</tr></thead>
+              <tbody>
+                {spec.rows?.map((row, i) => (
+                  <tr key={i}>
+                    {row.map((cell, j) => (
+                      <td key={j}>
+                        {typeof cell === 'object' ? <span className={`g-badge g-badge-${cell.c}`}>{cell.t}</span> : cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          );
+
+        case 'form':
+          return (
+            <form key={k} className="g-form" onSubmit={e => e.preventDefault()} style={spec.style}>
+              {spec.fields?.map((f, i) => (
+                <div key={i} className="g-form-group">
+                  <label className="g-form-label">{f.label}</label>
+                  {f.type === 'textarea' ? <textarea className="g-form-input g-form-textarea" placeholder={f.placeholder} /> : <input type={f.type || 'text'} className="g-form-input" placeholder={f.placeholder} />}
+                </div>
+              ))}
+              <button type="submit" className="g-form-btn">{spec.submit || 'Submit'}</button>
+            </form>
+          );
+
+        case 'progress':
+          return (
+            <div key={k} className="g-card g-progress" style={spec.style}>
+              {spec.items?.map((item, i) => (
+                <div key={i}>
+                  <div className="g-progress-row"><span>{item.label}</span><span>{item.value}%</span></div>
+                  <div className="g-progress-bar"><div className="g-progress-fill" style={{width: `${item.value}%`, background: item.color || 'var(--accent)'}}></div></div>
+                </div>
+              ))}
+            </div>
+          );
+
+        case 'timeline':
+          return (
+            <div key={k} className="g-timeline" style={spec.style}>
+              {spec.items?.map((item, i) => (
+                <div key={i} className="g-timeline-item">
+                  <div className="g-timeline-dot" style={{background: item.color || 'var(--accent)'}}></div>
+                  {item.date && <div className="g-timeline-date">{item.date}</div>}
+                  <div className="g-timeline-title">{item.title}</div>
+                  {item.desc && <div className="g-timeline-desc">{item.desc}</div>}
+                </div>
+              ))}
+            </div>
+          );
+
+        default: return <div key={k} style={{color: 'var(--text3)', fontSize: 12}}>Unknown: {spec._}</div>;
+      }
+    }
+
+    function GenerativeUI({ spec }) {
+      if (!spec) return null;
+      return <div className="ui-frame"><div className="ui-content">{spec.map((c, i) => render(c, i))}</div></div>;
+    }
+
+    // =============================================
+    // AI GENERATES UI FROM TEXT
+    // =============================================
+    function generateUI(msg) {
+      const m = msg.toLowerCase();
+
+      // DASHBOARD
+      if (m.includes('dashboard') || m.includes('stats') || m.includes('metrics') || m.includes('overview')) {
+        return {
+          title: '📊 Dashboard',
+          spec: [
+            {_:'h1', text:'Performance Dashboard'},
+            {_:'space', h:10},
+            {_:'grid', cols:4, items:[
+              {_:'stat', value:'415', label:'Total Memories', change:12},
+              {_:'stat', value:'99.1%', label:'Recall', valC:'#22c55e', change:2},
+              {_:'stat', value:'4.45/5', label:'Precision', valC:'#6366f1', change:8},
+              {_:'stat', value:'56ms', label:'Latency', valC:'#22c55e', change:-15},
+            ]},
+            {_:'space'}, {_:'h2', text:'Recent Activity'},
+            {_:'divider'},
+            {_:'list', items:[
+              {icon:'🧠', title:'Xavier2 99.1% recall achieved', sub:'Today 3:30 PM', action:'View'},
+              {icon:'📝', title:'Memory manager implemented', sub:'Today 2:15 PM', action:'View'},
+              {icon:'🔒', title:'E2E encryption designed', sub:'Today 1:00 PM', action:'View'},
+            ]},
+          ]
+        };
+      }
+
+      // KANBAN
+      if (m.includes('kanban') || m.includes('board') || m.includes('tasks') || m.includes('todo') || m.includes('project')) {
+        return {
+          title: '📋 Kanban Board',
+          spec: [
+            {_:'h1', text:'Project Board'},
+            {_:'space', h:10},
+            {_:'grid', cols:3, items:[
+              {_:'card', title:'📥 Backlog', sub:'3 items', body:'• Research pricing\n• Write docs\n• API tests'},
+              {_:'card', title:'📋 To Do', sub:'4 items', body:'• Deploy Cloud Run\n• Setup monitoring\n• Create landing\n• User testing', style:{borderLeft:'3px solid #f97316'}},
+              {_:'card', title:'🚀 In Progress', sub:'2 items', body:'• Build chat UI\n• Mobile app setup', style:{borderLeft:'3px solid #eab308'}},
+            ]},
+            {_:'space'}, {_:'h2', text:'Completed'},
+            {_:'divider'},
+            {_:'list', items:[
+              {icon:'✅', title:'Xavier2 benchmark 99.1%', sub:'Completed today'},
+              {icon:'✅', title:'Memory manager implemented', sub:'Completed today'},
+            ]},
+          ]
+        };
+      }
+
+      // TABLE
+      if (m.includes('table') || m.includes('data') || m.includes('list all')) {
+        return {
+          title: '📊 Data Table',
+          spec: [
+            {_:'h1', text:'Projects Data'},
+            {_:'space', h:10},
+            {_:'table', cols:['Project','Status','Priority','Due'], rows:[
+              ['ManteniApp', {t:'Active',c:'g'}, {t:'High',c:'r'}, '2026-04-10'],
+              ['Xavier2', {t:'Testing',c:'y'}, {t:'High',c:'r'}, '2026-04-08'],
+              ['Tripro', {t:'Done',c:'g'}, {t:'Medium',c:'y'}, '2026-04-01'],
+              ['Synapse', {t:'Active',c:'g'}, {t:'Medium',c:'y'}, 'Ongoing'],
+            ]},
+          ]
+        };
+      }
+
+      // TIMELINE
+      if (m.includes('timeline') || m.includes('history') || m.includes('log')) {
+        return {
+          title: '📅 Timeline',
+          spec: [
+            {_:'h1', text:'Activity Timeline'},
+            {_:'space', h:10},
+            {_:'timeline', items:[
+              {date:'April 5, 2026 - 3:30 PM', title:'Xavier2 99.1% recall', desc:'LoCoMo benchmark surpassed', color:'#22c55e'},
+              {date:'April 5, 2026 - 2:15 PM', title:'Memory manager implemented', desc:'Decay, consolidate, evict complete'},
+              {date:'April 5, 2026 - 1:00 PM', title:'E2E encryption designed', desc:'AES-256-GCM + Anticipator'},
+              {date:'April 4, 2026', title:'pplx-embed fixed', desc:'Service restarted and healthy'},
+            ]},
+          ]
+        };
+      }
+
+      // FORM
+      if (m.includes('form') || m.includes('input') || m.includes('create') || m.includes('add')) {
+        return {
+          title: '📝 Form',
+          spec: [
+            {_:'h1', text:'Create New Item'},
+            {_:'space', h:10},
+            {_:'form', fields:[
+              {label:'Title', placeholder:'Enter title...'},
+              {label:'Description', type:'textarea', placeholder:'Describe...'},
+              {label:'Category', placeholder:'Select category'},
+              {label:'Priority', placeholder:'Low / Medium / High'},
+            ], submit:'Create Item'},
+          ]
+        };
+      }
+
+      // PROGRESS
+      if (m.includes('progress') || m.includes('sprint') || m.includes('completion')) {
+        return {
+          title: '📈 Progress',
+          spec: [
+            {_:'h1', text:'Project Progress'},
+            {_:'space', h:10},
+            {_:'grid', cols:2, items:[
+              {_:'card', title:'🦀 Xavier2', sub:'v0.4.2', items:[
+                {_:'progress', items:[
+                  {label:'Development', value:85, color:'#22c55e'},
+                  {label:'Testing', value:60, color:'#eab308'},
+                  {label:'Docs', value:40, color:'#6366f1'},
+                ]},
+              ]},
+              {_:'card', title:'📱 Mobile', sub:'Planning', items:[
+                {_:'progress', items:[
+                  {label:'Design', value:30, color:'#f97316'},
+                  {label:'Development', value:0, color:'#6366f1'},
+                ]},
+              ]},
+            ]},
+          ]
+        };
+      }
+
+      // FEATURES
+      if (m.includes('feature') || m.includes('service') || m.includes('card')) {
+        return {
+          title: '✨ Features',
+          spec: [
+            {_:'h1', text:'Xavier2 Features'},
+            {_:'space', h:10},
+            {_:'grid', cols:3, items:[
+              {_:'card', title:'🧠 Semantic Memory', sub:'AI search', body:'99.1% recall. Find by meaning.'},
+              {_:'card', title:'🔒 E2E Encryption', sub:'Enterprise', body:'AES-256-GCM. Your keys.'},
+              {_:'card', title:'🛡️ Prompt Protection', sub:'Anticipator', body:'10-layer threat detection.'},
+              {_:'card', title:'📊 Auto Dashboard', sub:'Dynamic', body:'Ask, get instant charts.'},
+              {_:'card', title:'📱 Mobile', sub:'Flutter', body:'iOS + Android.'},
+              {_:'card', title:'☁️ Cloud Native', sub:'Free Tier', body:'Deploy in seconds.'},
+            ]},
+          ]
+        };
+      }
+
+      // NOTES
+      if (m.includes('note') || m.includes('doc')) {
+        return {
+          title: '📝 Notes',
+          spec: [
+            {_:'h1', text:'Project Notes'},
+            {_:'space', h:10},
+            {_:'card', title:'Xavier2 Memory System', sub:'Last updated: Today', body:'# Overview\n\nXavier2 is an AI memory system with 99.1% recall.\n\n## Features\n- Semantic search\n- Auto curation\n- E2E encryption\n- Open source MIT'},
+            {_:'space'}, {_:'h2', text:'Recent Notes'},
+            {_:'list', items:[
+              {icon:'📝', title:'Security Architecture', sub:'E2E + Anticipator'},
+              {icon:'📝', title:'Competitive Analysis', sub:'vs Mem0, Zep'},
+            ]},
+          ]
+        };
+      }
+
+      // DEFAULT
+      return {
+        title: '✨ Generated UI',
+        spec: [
+          {_:'h1', text:'Your UI Will Appear Here'},
+          {_:'space', h:10},
+          {_:'card', body:'Ask for:\n• "Show me a dashboard"\n• "Create a kanban board"\n• "Display as table"\n• "Build a timeline"'},
+        ]
+      };
+    }
+
+    // =============================================
+    // APP
+    // =============================================
+    function App() {
+      const [msgs, setMsgs] = useState([]);
+      const [ui, setUi] = useState(null);
+      const [input, setInput] = useState('');
+      const [gen, setGen] = useState(false);
+      const bottomRef = useRef(null);
+      const inputRef = useRef(null);
+
+      useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, ui]);
+      useEffect(() => { inputRef.current?.focus(); }, []);
+
+      const send = async (text) => {
+        if (!text.trim() || gen) return;
+        setMsgs(m => [...m, {role:'user', content:text}]);
+        setInput('');
+        setGen(true);
+        await new Promise(r => setTimeout(r, 700));
+        const result = generateUI(text);
+        setUi(result);
+        setMsgs(m => [...m, {role:'assistant', content:`Generated: ${result.title}`}]);
+        setGen(false);
+      };
+
+      const keySend = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } };
+
+      const quick = ['dashboard','kanban','table','timeline','progress','features','notes','form'];
+
+      return (
+        <>
+          <div className="header">
+            <div className="logo">
+              <div className="logo-icon">🧠</div>
+              <span>Xavier2 — Generative Everything</span>
+            </div>
+          </div>
+
+          <div className="main">
+            {/* LEFT: Chat */}
+            <div className="chat-panel">
+              <div className="chat-header">Conversation</div>
+              <div className="chat-messages">
+                {msgs.map((msg, i) => (
+                  <div key={i} className={`msg ${msg.role}`}>
+                    {msg.content}
+                    <div className="msg-time">{new Date().toLocaleTimeString()}</div>
+                  </div>
+                ))}
+                {gen && <div className="msg assistant"><div className="loading"><span/><span/><span/></div></div>}
+                <div ref={bottomRef} />
+              </div>
+              <div className="quick">
+                {quick.map(q => <button key={q} className="quick-btn" onClick={() => send(q)}>{q}</button>)}
+              </div>
+            </div>
+
+            {/* RIGHT: Generated UI */}
+            <div className="ui-panel">
+              <div className="ui-header">
+                <div className="ui-title"><span>✨</span> {ui?.title || 'Generated UI'}</div>
+                <div className="ui-actions">
+                  <button className="ui-btn">Export</button>
+                  <button className="ui-btn">Copy</button>
+                </div>
+              </div>
+              <div className="ui-canvas">
+                {ui ? <GenerativeUI spec={ui.spec} /> : (
+                  <div className="empty">
+                    <div className="empty-icon">✨</div>
+                    <h3>UI will be generated here</h3>
+                    <p>Describe what you want to see and I'll generate it instantly</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="input-area">
+            <div className="input-wrap">
+              <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={keySend} placeholder="Describe the UI you want to generate..." rows={1} />
+            </div>
+            <button className="send-btn" onClick={() => send(input)} disabled={!input.trim() || gen}>Generate</button>
+          </div>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

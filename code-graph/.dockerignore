@@ -1,0 +1,19 @@
+# Build artifacts
+target/
+*.exe
+*.pdb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Git
+.git/
+.gitcore/
+
+# Docs (keep if needed)
+*.md
+
+# Cargo
+Cargo.lock

@@ -1,0 +1,70 @@
+services:
+  xavier2-benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xavier2-benchmark:latest
+    container_name: xavier2-benchmark
+    environment:
+      - XAVIER2_DEV_MODE=1
+      - RUST_LOG=info
+    ports:
+      - "${XAVIER2_BENCHMARK_PORT:-8003}:8003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  locomo-benchmark:
+    build:
+      context: .
+      dockerfile: docker/benchmark-runner.Dockerfile
+    image: xavier2-benchmark-runner:latest
+    container_name: locomo-benchmark
+    depends_on:
+      xavier2-benchmark:
+        condition: service_healthy
+    working_dir: /workspace
+    volumes:
+      - ./benchmark-results:/workspace/benchmark-results
+    environment:
+      - PYTHONUNBUFFERED=1
+    command:
+      - python
+      - scripts/benchmarks/run_locomo_benchmark.py
+      - --base-url
+      - http://xavier2-benchmark:8003
+      - --output-dir
+      - /workspace/benchmark-results/locomo-docker
+      - --sample-limit
+      - "10"
+      - --question-limit
+      - "5"
+      - --use-existing-server
+
+  swebench-benchmark:
+    build:
+      context: .
+      dockerfile: docker/benchmark-runner.Dockerfile
+    image: xavier2-benchmark-runner:latest
+    container_name: swebench-benchmark
+    profiles: ["swebench"]
+    working_dir: /workspace
+    volumes:
+      - ./benchmark-results:/workspace/benchmark-results
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PYTHONUNBUFFERED=1
+    command:
+      - python
+      - scripts/benchmarks/run_swebench_eval.py
+      - --dataset-name
+      - princeton-nlp/SWE-bench_Lite
+      - --predictions-path
+      - gold
+      - --max-workers
+      - "1"
+      - --output-dir
+      - /workspace/benchmark-results/swebench-docker
