@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22.12.0
           cache: npm
@@ -90,7 +90,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22.12.0
           cache: npm
@@ -135,7 +135,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22.12.0
           cache: npm
