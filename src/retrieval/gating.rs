@@ -74,7 +74,9 @@ impl Default for GatingConfig {
     fn default() -> Self {
         Self {
             layer_weights: LayerWeights::default(),
-            relevance_threshold: 0.3,
+            // LOCOMO fix: raise from 0.3 to 0.5 to reduce hallucinations
+            // and improve factuality by requiring better keyword overlap
+            relevance_threshold: 0.5,
             rrf_k: 60,
             max_results: 20,
         }

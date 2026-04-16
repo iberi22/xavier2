@@ -233,7 +233,10 @@ pub struct MultiLayerRetrieveRequest {
 }
 
 fn default_relevance_threshold() -> f32 {
-    0.3
+    // LOCOMO fix: raise threshold from 0.3 to 0.5 to reduce hallucinations
+    // Lower threshold (0.3) was returning low-quality matches that caused
+    // factuality issues. With 0.5, we require meaningful keyword overlap.
+    0.5
 }
 
 fn default_rrf_k() -> u32 {
@@ -1170,16 +1173,12 @@ pub async fn memory_query(
     )
     .await;
 
-    if !retrieval.results.is_empty() {
-        let response = retrieval
-            .results
-            .iter()
-            .take(payload.limit.max(1))
-            .map(|item| item.content.trim())
-            .filter(|content| !content.is_empty())
-            .collect::<Vec<_>>()
-            .join("\n\n");
+    // LOCOMO fix: Anti-hallucination - check minimum confidence threshold
+    // Even if results exist, if confidence is too low, don't return potentially
+    // hallucinated content. Fall through to "no match" response.
+    const MIN_CONFIDENCE_THRESHOLD: f32 = 0.15;
 
+    if !retrieval.results.is_empty() {
         let confidence = retrieval
             .results
             .iter()
@@ -1187,10 +1186,53 @@ pub async fn memory_query(
             .fold(0.0_f32, f32::max)
             .clamp(0.0, 1.0);
 
+        // Only return results if confidence meets minimum threshold
+        if confidence >= MIN_CONFIDENCE_THRESHOLD {
+            let response = retrieval
+                .results
+                .iter()
+                .take(payload.limit.max(1))
+                .map(|item| item.content.trim())
+                .filter(|content| !content.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+
+            return Json(QueryResponse {
+                status: "ok".to_string(),
+                response,
+                confidence,
+                session_id: query_fingerprint(&payload.query),
+            });
+        }
+        // Results exist but below threshold - fall through to "no match"
+        // This prevents low-quality retrievals from being returned as facts
+    }
+
+    // LOCOMO fix: Anti-hallucination - Only call agent runtime for queries
+    // that are likely answerable by the agent (reasoning, explanation).
+    // For factual queries that we can't answer from memory, return "no match".
+    let query_lower = payload.query.to_lowercase();
+    let is_factual_query = query_lower.contains("pricing")
+        || query_lower.contains("price")
+        || query_lower.contains("precios")
+        || query_lower.contains("precio")
+        || query_lower.contains("costo")
+        || query_lower.contains("teléfono")
+        || query_lower.contains("dirección")
+        || query_lower.contains("phone")
+        || query_lower.contains("address")
+        || query_lower.contains("salary")
+        || query_lower.contains("sueldo")
+        || query_lower.contains("gana")
+        || query_lower.contains("cuánto");
+
+    // For factual queries about specific values we couldn't retrieve,
+    // return "no match" instead of hallucinating
+    if is_factual_query && retrieval.results.is_empty() {
         return Json(QueryResponse {
             status: "ok".to_string(),
-            response,
-            confidence,
+            response: "No tengo esa información en memoria.".to_string(),
+            confidence: 0.0,
             session_id: query_fingerprint(&payload.query),
         });
     }

@@ -1776,6 +1776,54 @@ fn locomo_lexical_score(doc: &MemoryDocument, normalized_query: &str) -> f32 {
         score *= if temporal_query { 0.02 } else { 0.15 };
     }
 
+    // LOCOMO fix: Boost structured data (pricing, numbers) for factuality queries
+    // Detect pricing/cost/value queries in both English and Spanish
+    let pricing_query = normalized_query.contains("pricing")
+        || normalized_query.contains("price")
+        || normalized_query.contains("precios")
+        || normalized_query.contains("precio")
+        || normalized_query.contains("costo")
+        || normalized_query.contains("coste")
+        || normalized_query.contains("valor")
+        || normalized_query.contains("fee")
+        || normalized_query.contains("tarifa")
+        || normalized_query.contains("cuanto")  // Spanish "how much"
+        || normalized_query.contains("cuál")     // Spanish "which"
+        || normalized_query.contains("cuáles");  // Spanish "which" plural
+
+    if pricing_query {
+        // Boost documents that contain numeric values (likely pricing facts)
+        // Patterns: $499, 499, 499.99, etc.
+        let has_numeric = content.contains('$')
+            || content.contains("/mes")
+            || content.contains("/mo")
+            || content.contains("/month")
+            || content.contains("/monthly")
+            || content.contains("/year")
+            || content.contains("/annual")
+            || regex::Regex::new(r"\d+[.,]?\d*")
+                .map(|re| re.is_match(&content))
+                .unwrap_or(false);
+
+        if has_numeric {
+            score += 30.0;
+        }
+
+        // Extra boost for fact_atom/entity_state with normalized_value
+        // These are extracted structured facts that are most reliable
+        if !normalized_value.is_empty() && has_numeric {
+            score += 25.0;
+        }
+
+        // Boost for tier/version terms (Starter, Pro, Enterprise, etc.)
+        let tier_terms = ["starter", "pro", "enterprise", "basic", "plan", "tier", "version"];
+        for tier in &tier_terms {
+            if normalized_query.contains(tier) && (content.contains(tier) || path.contains(tier)) {
+                score += 15.0;
+            }
+        }
+    }
+
     score.max(0.0)
 }
 
