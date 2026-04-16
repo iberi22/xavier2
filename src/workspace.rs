@@ -58,9 +58,9 @@ impl PlanTier {
     pub fn default_storage_limit_bytes(self) -> Option<u64> {
         match self {
             Self::Community => None,
-            Self::Free => Some(100 * MB),
-            Self::Personal => Some(500 * MB),
-            Self::Pro => Some(2 * 1024 * MB),
+            Self::Free => Some(256 * MB),
+            Self::Personal => Some(1024 * MB),
+            Self::Pro => Some(4 * 1024 * MB),
         }
     }
 

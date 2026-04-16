@@ -1,0 +1,332 @@
+   Compiling surrealdb-core v3.0.5
+   Compiling surrealdb v3.0.5
+   Compiling xavier2 v0.4.1 (/app)
+error[E0433]: failed to resolve: use of undeclared type `Utc`
+   --> src/consistency/regularization.rs:710:25
+    |
+710 |             first_seen: Utc::now(),
+    |                         ^^^ use of undeclared type `Utc`
+    |
+    = note: struct `crate::adapters::outbound::vec::pattern_adapter::tests::Utc` exists but is inaccessible
+help: consider importing this struct
+    |
+688 +     use chrono::Utc;
+    |
+
+error[E0433]: failed to resolve: use of undeclared type `Utc`
+   --> src/consistency/regularization.rs:711:24
+    |
+711 |             last_seen: Utc::now(),
+    |                        ^^^ use of undeclared type `Utc`
+    |
+    = note: struct `crate::adapters::outbound::vec::pattern_adapter::tests::Utc` exists but is inaccessible
+help: consider importing this struct
+    |
+688 +     use chrono::Utc;
+    |
+
+error[E0063]: missing fields `trust_rank` and `trust_score` in initializer of `entity_graph::EntityRecord`
+   --> src/consistency/regularization.rs:701:19
+    |
+701 |         let old = EntityRecord {
+    |                   ^^^^^^^^^^^^ missing `trust_rank` and `trust_score`
+
+error[E0609]: no field `conn` on type `sqlite_vec_store::VecSqliteMemoryStore`
+    --> src/memory/sqlite_vec_store.rs:2359:26
+     |
+2359 |         let conn = store.conn.lock();
+     |                          ^^^^ unknown field
+     |
+     = note: available fields are: `pool`, `config`
+
+error[E0282]: type annotations needed
+    --> src/memory/sqlite_vec_store.rs:2364:18
+     |
+2364 |                 |row| row.get(0),
+     |                  ^^^  --- type must be known at this point
+     |
+help: consider giving this closure parameter an explicit type
+     |
+2364 |                 |row: /* Type */| row.get(0),
+     |                     ++++++++++++
+
+error[E0609]: no field `conn` on type `sqlite_vec_store::VecSqliteMemoryStore`
+    --> src/memory/sqlite_vec_store.rs:2421:26
+     |
+2421 |         let conn = store.conn.lock();
+     |                          ^^^^ unknown field
+     |
+     = note: available fields are: `pool`, `config`
+
+error[E0282]: type annotations needed
+    --> src/memory/sqlite_vec_store.rs:2429:18
+     |
+2429 |                 |row| row.get(0),
+     |                  ^^^  --- type must be known at this point
+     |
+help: consider giving this closure parameter an explicit type
+     |
+2429 |                 |row: /* Type */| row.get(0),
+     |                     ++++++++++++
+
+error[E0609]: no field `conn` on type `sqlite_vec_store::VecSqliteMemoryStore`
+    --> src/memory/sqlite_vec_store.rs:2464:26
+     |
+2464 |         let conn = store.conn.lock();
+     |                          ^^^^ unknown field
+     |
+     = note: available fields are: `pool`, `config`
+
+error[E0282]: type annotations needed
+    --> src/memory/sqlite_vec_store.rs:2469:18
+     |
+2469 |                 |row| row.get(0),
+     |                  ^^^  --- type must be known at this point
+     |
+help: consider giving this closure parameter an explicit type
+     |
+2469 |                 |row: /* Type */| row.get(0),
+     |                     ++++++++++++
+
+error[E0282]: type annotations needed
+    --> src/memory/sqlite_vec_store.rs:2476:18
+     |
+2476 |                 |row| row.get(0),
+     |                  ^^^  --- type must be known at this point
+     |
+help: consider giving this closure parameter an explicit type
+     |
+2476 |                 |row: /* Type */| row.get(0),
+     |                     ++++++++++++
+
+error[E0277]: the trait bound `server::http::MultiLayerRetrieveResponse: serde::Deserialize<'de>` is not satisfied
+    --> src/server/http.rs:2201:51
+     |
+2201 |         let payload: MultiLayerRetrieveResponse = serde_json::from_slice(&body).unwrap();
+     |                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `a2a::_::_serde::Deserialize<'_>` is not implemented for `server::http::MultiLayerRetrieveResponse`
+    --> src/server/http.rs:246:1
+     |
+ 246 | pub struct MultiLayerRetrieveResponse {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `server::http::MultiLayerRetrieveResponse` type
+     = note: for types from other crates check whether the crate offers a `serde` feature flag
+     = help: the following other types implement trait `a2a::_::_serde::Deserialize<'de>`:
+               `&'a [u8]` implements `a2a::_::_serde::Deserialize<'de>`
+               `&'a serde_json::value::RawValue` implements `a2a::_::_serde::Deserialize<'de>`
+               `&'a std::path::Path` implements `a2a::_::_serde::Deserialize<'de>`
+               `&'a str` implements `a2a::_::_serde::Deserialize<'de>`
+               `()` implements `a2a::_::_serde::Deserialize<'de>`
+               `(T,)` implements `a2a::_::_serde::Deserialize<'de>`
+               `(T0, T1)` implements `a2a::_::_serde::Deserialize<'de>`
+               `(T0, T1, T2)` implements `a2a::_::_serde::Deserialize<'de>`
+             and 706 others
+note: required by a bound in `from_slice`
+    --> /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.149/src/de.rs:2659:8
+     |
+2657 | pub fn from_slice<'a, T>(v: &'a [u8]) -> Result<T>
+     |        ---------- required by a bound in this function
+2658 | where
+2659 |     T: de::Deserialize<'a>,
+     |        ^^^^^^^^^^^^^^^^^^^ required by this bound in `from_slice`
+     = note: the full name for the type has been written to '/app/target/debug/deps/xavier2-74df6c3c4356d081.long-type-17527579875109303649.txt'
+     = note: consider using `--verbose` to print the full type name to the console
+
+error[E0063]: missing fields `trust_rank` and `trust_score` in initializer of `entity_graph::EntityRecord`
+   --> src/retrieval/gating.rs:461:13
+    |
+461 |             EntityRecord {
+    |             ^^^^^^^^^^^^ missing `trust_rank` and `trust_score`
+
+error[E0063]: missing fields `trust_rank` and `trust_score` in initializer of `entity_graph::EntityRecord`
+   --> src/retrieval/gating.rs:474:13
+    |
+474 |             EntityRecord {
+    |             ^^^^^^^^^^^^ missing `trust_rank` and `trust_score`
+
+warning: unused import: `memory::semantic::SemanticMemoryExt`
+  --> src/server/http.rs:22:5
+   |
+22 |     memory::semantic::SemanticMemoryExt,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `sig3`
+   --> src/consistency/regularization.rs:769:13
+    |
+769 |         let sig3 = regularizer.duplicate_signature("Hello World");
+    |             ^^^^ help: if this is intentional, prefix it with an underscore: `_sig3`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+Some errors have detailed explanations: E0063, E0277, E0282, E0433, E0609.
+For more information about an error, try `rustc --explain E0063`.
+warning: `xavier2` (lib test) generated 2 warnings
+error: could not compile `xavier2` (lib test) due to 13 previous errors; 2 warnings emitted
+   Compiling xavier2 v0.4.1 (/app)
+error[E0433]: failed to resolve: use of undeclared type `Utc`
+   --> src/consistency/regularization.rs:710:25
+    |
+710 |             first_seen: Utc::now(),
+    |                         ^^^ use of undeclared type `Utc`
+    |
+    = note: struct `crate::adapters::outbound::vec::pattern_adapter::tests::Utc` exists but is inaccessible
+help: consider importing this struct
+    |
+688 +     use chrono::Utc;
+    |
+
+error[E0433]: failed to resolve: use of undeclared type `Utc`
+   --> src/consistency/regularization.rs:711:24
+    |
+711 |             last_seen: Utc::now(),
+    |                        ^^^ use of undeclared type `Utc`
+    |
+    = note: struct `crate::adapters::outbound::vec::pattern_adapter::tests::Utc` exists but is inaccessible
+help: consider importing this struct
+    |
+688 +     use chrono::Utc;
+    |
+
+error[E0063]: missing fields `trust_rank` and `trust_score` in initializer of `entity_graph::EntityRecord`
+   --> src/consistency/regularization.rs:701:19
+    |
+701 |         let old = EntityRecord {
+    |                   ^^^^^^^^^^^^ missing `trust_rank` and `trust_score`
+
+error[E0609]: no field `conn` on type `sqlite_vec_store::VecSqliteMemoryStore`
+    --> src/memory/sqlite_vec_store.rs:2359:26
+     |
+2359 |         let conn = store.conn.lock();
+     |                          ^^^^ unknown field
+     |
+     = note: available fields are: `pool`, `config`
+
+error[E0282]: type annotations needed
+    --> src/memory/sqlite_vec_store.rs:2364:18
+     |
+2364 |                 |row| row.get(0),
+     |                  ^^^  --- type must be known at this point
+     |
+help: consider giving this closure parameter an explicit type
+     |
+2364 |                 |row: /* Type */| row.get(0),
+     |                     ++++++++++++
+
+error[E0609]: no field `conn` on type `sqlite_vec_store::VecSqliteMemoryStore`
+    --> src/memory/sqlite_vec_store.rs:2421:26
+     |
+2421 |         let conn = store.conn.lock();
+     |                          ^^^^ unknown field
+     |
+     = note: available fields are: `pool`, `config`
+
+error[E0282]: type annotations needed
+    --> src/memory/sqlite_vec_store.rs:2429:18
+     |
+2429 |                 |row| row.get(0),
+     |                  ^^^  --- type must be known at this point
+     |
+help: consider giving this closure parameter an explicit type
+     |
+2429 |                 |row: /* Type */| row.get(0),
+     |                     ++++++++++++
+
+error[E0609]: no field `conn` on type `sqlite_vec_store::VecSqliteMemoryStore`
+    --> src/memory/sqlite_vec_store.rs:2464:26
+     |
+2464 |         let conn = store.conn.lock();
+     |                          ^^^^ unknown field
+     |
+     = note: available fields are: `pool`, `config`
+
+error[E0282]: type annotations needed
+    --> src/memory/sqlite_vec_store.rs:2469:18
+     |
+2469 |                 |row| row.get(0),
+     |                  ^^^  --- type must be known at this point
+     |
+help: consider giving this closure parameter an explicit type
+     |
+2469 |                 |row: /* Type */| row.get(0),
+     |                     ++++++++++++
+
+error[E0282]: type annotations needed
+    --> src/memory/sqlite_vec_store.rs:2476:18
+     |
+2476 |                 |row| row.get(0),
+     |                  ^^^  --- type must be known at this point
+     |
+help: consider giving this closure parameter an explicit type
+     |
+2476 |                 |row: /* Type */| row.get(0),
+     |                     ++++++++++++
+
+error[E0277]: the trait bound `server::http::MultiLayerRetrieveResponse: serde::Deserialize<'de>` is not satisfied
+    --> src/server/http.rs:2201:51
+     |
+2201 |         let payload: MultiLayerRetrieveResponse = serde_json::from_slice(&body).unwrap();
+     |                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `a2a::_::_serde::Deserialize<'_>` is not implemented for `server::http::MultiLayerRetrieveResponse`
+    --> src/server/http.rs:246:1
+     |
+ 246 | pub struct MultiLayerRetrieveResponse {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `server::http::MultiLayerRetrieveResponse` type
+     = note: for types from other crates check whether the crate offers a `serde` feature flag
+     = help: the following other types implement trait `a2a::_::_serde::Deserialize<'de>`:
+               `&'a [u8]` implements `a2a::_::_serde::Deserialize<'de>`
+               `&'a serde_json::value::RawValue` implements `a2a::_::_serde::Deserialize<'de>`
+               `&'a std::path::Path` implements `a2a::_::_serde::Deserialize<'de>`
+               `&'a str` implements `a2a::_::_serde::Deserialize<'de>`
+               `()` implements `a2a::_::_serde::Deserialize<'de>`
+               `(T,)` implements `a2a::_::_serde::Deserialize<'de>`
+               `(T0, T1)` implements `a2a::_::_serde::Deserialize<'de>`
+               `(T0, T1, T2)` implements `a2a::_::_serde::Deserialize<'de>`
+             and 706 others
+note: required by a bound in `from_slice`
+    --> /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_json-1.0.149/src/de.rs:2659:8
+     |
+2657 | pub fn from_slice<'a, T>(v: &'a [u8]) -> Result<T>
+     |        ---------- required by a bound in this function
+2658 | where
+2659 |     T: de::Deserialize<'a>,
+     |        ^^^^^^^^^^^^^^^^^^^ required by this bound in `from_slice`
+     = note: the full name for the type has been written to '/app/target/debug/deps/xavier2-74df6c3c4356d081.long-type-15120329221771983641.txt'
+     = note: consider using `--verbose` to print the full type name to the console
+
+error[E0063]: missing fields `trust_rank` and `trust_score` in initializer of `entity_graph::EntityRecord`
+   --> src/retrieval/gating.rs:461:13
+    |
+461 |             EntityRecord {
+    |             ^^^^^^^^^^^^ missing `trust_rank` and `trust_score`
+
+error[E0063]: missing fields `trust_rank` and `trust_score` in initializer of `entity_graph::EntityRecord`
+   --> src/retrieval/gating.rs:474:13
+    |
+474 |             EntityRecord {
+    |             ^^^^^^^^^^^^ missing `trust_rank` and `trust_score`
+
+warning: unused import: `memory::semantic::SemanticMemoryExt`
+  --> src/server/http.rs:22:5
+   |
+22 |     memory::semantic::SemanticMemoryExt,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `sig3`
+   --> src/consistency/regularization.rs:769:13
+    |
+769 |         let sig3 = regularizer.duplicate_signature("Hello World");
+    |             ^^^^ help: if this is intentional, prefix it with an underscore: `_sig3`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+Some errors have detailed explanations: E0063, E0277, E0282, E0433, E0609.
+For more information about an error, try `rustc --explain E0063`.
+warning: `xavier2` (lib test) generated 2 warnings
+error: could not compile `xavier2` (lib test) due to 13 previous errors; 2 warnings emitted

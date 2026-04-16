@@ -697,6 +697,7 @@ mod tests {
 
     #[test]
     fn test_detect_trust_score_drift() {
+        use chrono::Utc;
         let regularizer = RetentionRegularizer::with_defaults();
         let old = EntityRecord {
             id: "e1".to_string(),
@@ -707,6 +708,8 @@ mod tests {
             description: None,
             occurrence_count: 10,
             memory_count: 5,
+            trust_rank: 1,
+            trust_score: 0.0,
             first_seen: Utc::now(),
             last_seen: Utc::now(),
             merged_from: vec![],

@@ -11,7 +11,7 @@ use axum::{
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
-    Router,
+    Json, Router,
 };
 use clap::{Parser, Subcommand};
 use std::net::SocketAddr;
@@ -93,6 +93,8 @@ async fn main() -> Result<()> {
             }
         });
 
+    let json_log = std::env::var("XAVIER2_LOG_FORMAT").ok().as_deref() == Some("json");
+
     if is_mcp {
         tracing_subscriber::registry()
             .with(EnvFilter::new(log_filter))
@@ -101,6 +103,11 @@ async fn main() -> Result<()> {
                     .with_writer(std::io::stderr)
                     .with_ansi(false),
             )
+            .init();
+    } else if json_log {
+        tracing_subscriber::registry()
+            .with(EnvFilter::new(log_filter))
+            .with(tracing_subscriber::fmt::layer().json())
             .init();
     } else {
         tracing_subscriber::registry()
@@ -372,9 +379,39 @@ async fn start_server() -> Result<()> {
     tracing::info!("Xavier2 HTTP server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
 
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("Received Ctrl+C, starting graceful shutdown");
+        },
+        _ = terminate => {
+            tracing::info!("Received SIGTERM, starting graceful shutdown");
+        },
+    }
 }
 
 fn code_graph_db_path() -> Result<std::path::PathBuf> {
@@ -433,7 +470,11 @@ async fn auth_middleware(
             Err(_) => {
                 return (
                     StatusCode::UNAUTHORIZED,
-                    "Unauthorized: Invalid X-Xavier2-Token header",
+                    Json(serde_json::json!({
+                        "status": "error",
+                        "error": "Unauthorized",
+                        "message": "Invalid X-Xavier2-Token header"
+                    })),
                 )
                     .into_response();
             }
@@ -441,7 +482,11 @@ async fn auth_middleware(
     } else {
         return (
             StatusCode::UNAUTHORIZED,
-            "Unauthorized: Invalid or missing X-Xavier2-Token",
+            Json(serde_json::json!({
+                "status": "error",
+                "error": "Unauthorized",
+                "message": "Invalid or missing X-Xavier2-Token"
+            })),
         )
             .into_response();
     };
@@ -479,7 +524,11 @@ async fn auth_middleware(
 
     (
         StatusCode::UNAUTHORIZED,
-        "Unauthorized: Invalid or missing X-Xavier2-Token",
+        Json(serde_json::json!({
+            "status": "error",
+            "error": "Unauthorized",
+            "message": "Invalid or missing X-Xavier2-Token"
+        })),
     )
         .into_response()
 }

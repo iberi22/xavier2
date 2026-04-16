@@ -242,7 +242,7 @@ fn default_rrf_k() -> u32 {
 }
 
 /// Response for multi-layer memory retrieval
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MultiLayerRetrieveResponse {
     pub status: String,
     pub results: Vec<RetrievedMemory>,
@@ -251,7 +251,7 @@ pub struct MultiLayerRetrieveResponse {
     pub coherence_report: Option<CoherenceReport>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RetrievedMemory {
     pub id: String,
     pub content: String,
@@ -260,7 +260,7 @@ pub struct RetrievedMemory {
     pub path: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LayerStatsJson {
     pub working_count: usize,
     pub episodic_count: usize,
@@ -442,9 +442,17 @@ pub struct ReadinessResponse {
     pub version: String,
     pub workspace: ReadinessComponent,
     pub memory_store: ReadinessComponent,
+    pub memory_layers: MemoryLayersReadiness,
     pub code_graph: ReadinessComponent,
     pub embeddings: ReadinessComponent,
     pub llm: ReadinessComponent,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MemoryLayersReadiness {
+    pub working: ReadinessComponent,
+    pub episodic: ReadinessComponent,
+    pub semantic: ReadinessComponent,
 }
 
 pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
@@ -506,7 +514,7 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
         },
     };
 
-    let memory_store = match workspace_context {
+    let memory_store = match workspace_context.as_ref() {
         Some(workspace) => match workspace.workspace.durable_store_health().await {
             Ok(detail) => ReadinessComponent {
                 configured: true,
@@ -529,6 +537,54 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
         },
     };
 
+    let working_layer = match workspace_context.as_ref() {
+        Some(workspace) => {
+            let count = workspace.workspace.memory.count().await.unwrap_or(0);
+            ReadinessComponent {
+                configured: true,
+                ready: true,
+                detail: format!("{count} documents in working memory"),
+            }
+        }
+        None => ReadinessComponent {
+            configured: false,
+            ready: false,
+            detail: "workspace not loaded".to_string(),
+        },
+    };
+
+    let episodic_layer = match workspace_context.as_ref() {
+        Some(workspace) => {
+            let count = workspace.workspace.panel_store.list_threads().await.len();
+            ReadinessComponent {
+                configured: true,
+                ready: true,
+                detail: format!("{count} session threads available"),
+            }
+        }
+        None => ReadinessComponent {
+            configured: false,
+            ready: false,
+            detail: "workspace not loaded".to_string(),
+        },
+    };
+
+    let semantic_layer = match workspace_context.as_ref() {
+        Some(workspace) => {
+            let count = workspace.workspace.entity_graph.all_entities().await.len();
+            ReadinessComponent {
+                configured: true,
+                ready: true,
+                detail: format!("{count} entities in knowledge graph"),
+            }
+        }
+        None => ReadinessComponent {
+            configured: false,
+            ready: false,
+            detail: "workspace not loaded".to_string(),
+        },
+    };
+
     let code_graph = match state.code_db.stats() {
         Ok(stats) => ReadinessComponent {
             configured: true,
@@ -548,6 +604,7 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
     let ready = workspace.ready
         && memory_store.ready
         && code_graph.ready
+        && working_layer.ready
         && (!embeddings.configured || embeddings.ready)
         && (!llm.configured || llm.ready);
 
@@ -557,6 +614,11 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
         workspace,
         memory_store,
+        memory_layers: MemoryLayersReadiness {
+            working: working_layer,
+            episodic: episodic_layer,
+            semantic: semantic_layer,
+        },
         code_graph,
         embeddings,
         llm,
@@ -667,15 +729,17 @@ pub async fn memory_search(
     Extension(workspace): Extension<WorkspaceContext>,
     Json(payload): Json<SearchRequest>,
 ) -> impl IntoResponse {
+    let limit = payload.limit.clamp(1, 100);
     info!(
         query_fingerprint = %query_fingerprint(&payload.query),
+        limit = limit,
         "memory_search"
     );
 
     let results = workspace
         .workspace
         .memory
-        .search_filtered(&payload.query, payload.limit, payload.filters.as_ref())
+        .search_filtered(&payload.query, limit, payload.filters.as_ref())
         .await
         .unwrap_or_default()
         .into_iter()
@@ -701,9 +765,11 @@ pub async fn memory_hybrid_search(
     Json(payload): Json<HybridSearchRequest>,
 ) -> impl IntoResponse {
     let mode = payload.search_type.unwrap_or_default();
+    let limit = payload.limit.clamp(1, 100);
     info!(
         query_fingerprint = %query_fingerprint(&payload.query),
         mode = ?mode,
+        limit = limit,
         "memory_hybrid_search"
     );
 
@@ -715,7 +781,7 @@ pub async fn memory_hybrid_search(
             &payload.query,
             mode,
             payload.filters.as_ref(),
-            payload.limit,
+            limit,
         )
         .await
     {
@@ -754,8 +820,9 @@ pub async fn memory_hybrid_search(
 /// Multi-layer memory retrieval with adaptive gating
 pub async fn memory_retrieve(
     Extension(workspace): Extension<WorkspaceContext>,
-    Json(payload): Json<MultiLayerRetrieveRequest>,
+    Json(mut payload): Json<MultiLayerRetrieveRequest>,
 ) -> impl IntoResponse {
+    payload.limit = payload.limit.clamp(1, 100);
     info!(
         query_fingerprint = %query_fingerprint(&payload.query),
         limit = payload.limit,
@@ -770,6 +837,7 @@ async fn build_multi_layer_retrieve_response(
     payload: &MultiLayerRetrieveRequest,
 ) -> MultiLayerRetrieveResponse {
     let weights = payload.layer_weights.unwrap_or_else(LayerWeights::default);
+    let limit = payload.limit.clamp(1, 100);
 
     // Configure adaptive gating with the caller's requested limit so we do not
     // truncate results at the module default before applying the HTTP limit.
@@ -777,7 +845,7 @@ async fn build_multi_layer_retrieve_response(
         layer_weights: weights,
         relevance_threshold: payload.relevance_threshold.clamp(0.0, 1.0),
         rrf_k: payload.rrf_k,
-        max_results: payload.limit.max(1),
+        max_results: limit,
     });
 
     // Collect working memory documents
@@ -1153,8 +1221,10 @@ pub async fn memory_query(
     Extension(workspace): Extension<WorkspaceContext>,
     Json(payload): Json<SearchRequest>,
 ) -> impl IntoResponse {
+    let limit = payload.limit.clamp(1, 100);
     info!(
         query_fingerprint = %query_fingerprint(&payload.query),
+        limit = limit,
         "memory_query"
     );
 
@@ -1162,7 +1232,7 @@ pub async fn memory_query(
         &workspace,
         &MultiLayerRetrieveRequest {
             query: payload.query.clone(),
-            limit: payload.limit.max(1),
+            limit,
             layer_weights: None,
             relevance_threshold: default_relevance_threshold(),
             rrf_k: default_rrf_k(),
@@ -1175,7 +1245,7 @@ pub async fn memory_query(
         let response = retrieval
             .results
             .iter()
-            .take(payload.limit.max(1))
+            .take(limit)
             .map(|item| item.content.trim())
             .filter(|content| !content.is_empty())
             .collect::<Vec<_>>()
@@ -1266,7 +1336,8 @@ pub async fn memory_graph_hops(
     Extension(workspace): Extension<WorkspaceContext>,
     Json(payload): Json<GraphHopsRequest>,
 ) -> impl IntoResponse {
-    info!(path = %payload.path, hops = payload.hops, "memory_graph_hops");
+    let hops = payload.hops.clamp(1, 5);
+    info!(path = %payload.path, hops = hops, "memory_graph_hops");
 
     match workspace
         .workspace
@@ -1274,7 +1345,7 @@ pub async fn memory_graph_hops(
         .graph_hops(
             &workspace.workspace_id,
             &payload.path,
-            payload.hops.max(1),
+            hops,
             &payload.query,
         )
         .await

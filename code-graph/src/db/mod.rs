@@ -305,7 +305,7 @@ impl CodeGraphDB {
 
         let kind_str = format!("{:?}", kind);
         let symbols = stmt
-            .query_map(params![kind_str, limit], |row| {
+            .query_map(params![kind_str, limit as i64], |row| {
                 Ok(Symbol {
                     id: Some(row.get(0)?),
                     name: row.get(1)?,
@@ -335,17 +335,17 @@ impl CodeGraphDB {
 
         let total_files: u64 = conn
             .query_row("SELECT COUNT(DISTINCT file_path) FROM symbols", [], |row| {
-                row.get(0)
+                row.get::<_, i64>(0)
             })
-            .unwrap_or(0);
+            .unwrap_or(0) as u64;
 
         let total_symbols: u64 = conn
-            .query_row("SELECT COUNT(*) FROM symbols", [], |row| row.get(0))
-            .unwrap_or(0);
+            .query_row("SELECT COUNT(*) FROM symbols", [], |row| row.get::<_, i64>(0))
+            .unwrap_or(0) as u64;
 
         let total_imports: u64 = conn
-            .query_row("SELECT COUNT(*) FROM imports", [], |row| row.get(0))
-            .unwrap_or(0);
+            .query_row("SELECT COUNT(*) FROM imports", [], |row| row.get::<_, i64>(0))
+            .unwrap_or(0) as u64;
 
         let mut stmt = conn
             .prepare("SELECT lang, COUNT(*) FROM symbols GROUP BY lang")
@@ -354,10 +354,10 @@ impl CodeGraphDB {
         let languages = stmt
             .query_map([], |row| {
                 let lang_str: String = row.get(0)?;
-                let count: u64 = row.get(1)?;
+                let count: i64 = row.get(1)?;
                 Ok(LanguageCount {
                     lang: serde_json::from_str(&lang_str).unwrap_or(Language::Unknown),
-                    count,
+                    count: count as u64,
                 })
             })
             .map_err(|e| GraphError::Database(e.to_string()))?
