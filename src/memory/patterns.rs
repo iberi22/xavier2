@@ -183,7 +183,7 @@ impl PatternStore {
                 &req.discovered_by,
                 req.confidence,
                 &req.source_file,
-                req.source_occurrences,
+                req.source_occurrences as i64,
                 &req.source_snippet,
                 &now,
                 &now,
@@ -236,7 +236,7 @@ impl PatternStore {
         }
 
         sql.push_str(" ORDER BY confidence DESC, usage_count DESC LIMIT ?");
-        args.push(Box::new(limit));
+        args.push(Box::new(limit as i64));
 
         let mut stmt = conn.prepare(&sql)?;
         let args_refs: Vec<&dyn rusqlite::ToSql> = args.iter().map(|b| b.as_ref()).collect();

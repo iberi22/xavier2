@@ -60,7 +60,7 @@ tower = "0.5"
 
 # Logging
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # CLI arguments
 clap = { version = "4", features = ["derive"] }
@@ -78,7 +78,9 @@ surrealdb-types = "3.0.5"
 
 # State management
 parking_lot = "0.12"
-rusqlite = { version = "0.32.0", features = ["bundled", "load_extension"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.33"
+rusqlite = { version = "0.39.0", features = ["bundled", "load_extension"] }
 sqlite-vec = "0.1"
 zerocopy = "0.8"
 
