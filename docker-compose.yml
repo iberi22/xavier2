@@ -7,6 +7,14 @@ services:
     image: xavier2:${XAVIER2_IMAGE_TAG:-0.4.1}
     container_name: xavier2
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     ports:
       - "8003:8003"
     environment:

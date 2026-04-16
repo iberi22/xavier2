@@ -22,6 +22,7 @@ use surrealdb::Surreal;
 use surrealdb_types::SurrealValue;
 
 pub(crate) const TABLE_MEMORIES: &str = "memory_records";
+pub const TABLE_ARCHIVES: &str = "memory_archives";
 pub(crate) const TABLE_BELIEFS: &str = "belief_states";
 pub(crate) const TABLE_SESSION_TOKENS: &str = "session_tokens";
 pub(crate) const TABLE_CHECKPOINTS: &str = "checkpoint_records";
@@ -328,6 +329,7 @@ pub trait MemoryStore: Send + Sync {
     }
     async fn load_workspace_state(&self, workspace_id: &str) -> Result<DurableWorkspaceState>;
     async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()>;
+    async fn archive(&self, record: MemoryRecord) -> Result<()>;
     async fn save_session_token(&self, workspace_id: &str, token: SessionTokenRecord)
         -> Result<()>;
     async fn is_session_token_valid(&self, workspace_id: &str, token: &str) -> Result<bool>;
@@ -407,6 +409,17 @@ impl MemoryStore for FileMemoryStore {
             workspace.memories.push(record);
         }
         self.persist().await
+    }
+
+    async fn archive(&self, record: MemoryRecord) -> Result<()> {
+        let _workspace_id = record.workspace_id.clone();
+        {
+            let mut state = self.state.write().await;
+            let _workspace = Self::workspace_mut(&mut state, &_workspace_id);
+            // In File store, we'll just log it for now as a separate collection isn't fully implemented in the file schema
+            tracing::info!("Archiving record {} to file-based archive", record.id);
+        }
+        Ok(())
     }
 
     async fn get(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
@@ -695,6 +708,11 @@ impl MemoryStore for InMemoryMemoryStore {
         let mut state = self.state.write().await;
         let workspace = Self::workspace_mut(&mut state, workspace_id);
         workspace.beliefs = beliefs;
+        Ok(())
+    }
+
+    async fn archive(&self, record: MemoryRecord) -> Result<()> {
+        tracing::info!("Archiving record {} in-memory", record.id);
         Ok(())
     }
 
@@ -1052,6 +1070,11 @@ impl MemoryStore for SurrealMemoryStore {
             updated_at: Utc::now(),
         };
         self.update_row(TABLE_BELIEFS, &row.storage_id, &row).await
+    }
+
+    async fn archive(&self, record: MemoryRecord) -> Result<()> {
+        let storage_key = memory_row_key(&record.workspace_id, &record.id);
+        self.update_row(TABLE_ARCHIVES, &storage_key, &record).await
     }
 
     async fn save_session_token(

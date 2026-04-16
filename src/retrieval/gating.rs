@@ -131,11 +131,14 @@ impl AdaptiveGating {
         );
 
         // 4. Filter by threshold and limit results
-        fused
+        let results: Vec<ScoredResult> = fused
             .into_iter()
             .filter(|r| r.score >= self.config.relevance_threshold)
             .take(self.config.max_results)
-            .collect()
+            .collect();
+
+
+        results
     }
 
     /// Retrieve only from working memory
