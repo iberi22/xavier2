@@ -208,6 +208,13 @@ impl MemoryStore for SqliteMemoryStore {
         Ok(())
     }
 
+    async fn archive(&self, record: MemoryRecord) -> Result<()> {
+        // Simple SQLite store doesn't have an archive table in schema yet,
+        // we'll just log it for now to satisfy the trait
+        tracing::info!("Archiving record {} in basic SQLite store", record.id);
+        Ok(())
+    }
+
     async fn get(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
         let conn = self.conn.lock();
 

@@ -700,6 +700,18 @@ impl QmdMemory {
         Ok(removed)
     }
 
+    pub async fn archive(&self, id: &str) -> Result<bool> {
+        if let Some(record) = self.get(id).await? {
+            let memory_record = memory_record_from_document(&self.workspace_id, &record);
+            if let Some(store) = self.store().await {
+                store.archive(memory_record).await?;
+                self.delete(id).await?;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub async fn clear(&self) -> Result<usize> {
         let ids = self
             .docs

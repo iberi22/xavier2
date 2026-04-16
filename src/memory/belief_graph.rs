@@ -391,6 +391,48 @@ impl BeliefGraph {
             .collect())
     }
 
+    /// Verify a memory's content against the belief graph.
+    /// Returns a confidence score between 0.0 and 1.0.
+    pub fn verify_content(&self, content: &str) -> f32 {
+        let content_lower = content.to_lowercase();
+        let relations = self.get_relations();
+
+        if relations.is_empty() {
+            return 0.5; // Neutral confidence if graph is empty
+        }
+
+        let mut matches = 0;
+        let mut conflicts = 0usize;
+        let mut total_weight = 0.0;
+
+        for rel in relations {
+            let source_lower = rel.source.to_lowercase();
+            let target_lower = rel.target.to_lowercase();
+
+            // If the content mentions both source and target of a known relation
+            if content_lower.contains(&source_lower) && content_lower.contains(&target_lower) {
+                matches += 1;
+                total_weight += rel.weight;
+            }
+            // Conflict detection: if it mentions source and a different target for same relation type
+            else if content_lower.contains(&source_lower) {
+                // Check if any other known targets for this source are NOT in the content
+                // but something that looks like a target is.
+                // For Xavier2, we'll just check if the known target is missing while source is present
+                if !content_lower.contains(&target_lower) {
+                    conflicts += 1;
+                }
+            }
+        }
+
+        if matches == 0 {
+            return 0.5;
+        }
+
+        let match_ratio = matches as f32 / (matches + conflicts) as f32;
+        (match_ratio * 0.7 + (total_weight / matches as f32) * 0.3).clamp(0.0, 1.0)
+    }
+
     pub fn to_json(&self) -> Result<String> {
         let data = serde_json::json!({
             "nodes": self.list_nodes(),

@@ -25,7 +25,8 @@ use crate::memory::schema::MemoryQueryFilters;
 use crate::memory::surreal_store::{
     stable_key, DurableWorkspaceState, GraphHopPath, GraphHopResult, HybridSearchMode,
     HybridSearchResult, MemoryBackend, MemoryRecord, MemoryStore, SessionTokenRecord,
-    SessionTokenRow, TABLE_BELIEFS, TABLE_CHECKPOINTS, TABLE_MEMORIES, TABLE_SESSION_TOKENS,
+    SessionTokenRow, TABLE_ARCHIVES, TABLE_BELIEFS, TABLE_CHECKPOINTS, TABLE_MEMORIES,
+    TABLE_SESSION_TOKENS,
 };
 
 const DB_FILENAME: &str = "xavier2_memory_vec.db";
@@ -203,6 +204,21 @@ impl VecSqliteMemoryStore {
             CREATE TABLE IF NOT EXISTS {} (
                 id TEXT PRIMARY KEY,
                 workspace_id TEXT NOT NULL,
+                path TEXT NOT NULL,
+                content TEXT NOT NULL,
+                metadata TEXT NOT NULL DEFAULT '{{}}',
+                embedding BLOB,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                revision INTEGER NOT NULL DEFAULT 1,
+                primary_flag INTEGER NOT NULL DEFAULT 1,
+                parent_id TEXT,
+                revisions TEXT NOT NULL DEFAULT '[]'
+            );
+
+            CREATE TABLE IF NOT EXISTS {} (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
                 beliefs TEXT NOT NULL DEFAULT '[]',
                 updated_at TEXT NOT NULL
             );
@@ -230,6 +246,7 @@ impl VecSqliteMemoryStore {
             CREATE INDEX IF NOT EXISTS idx_checkpoints_task ON {}(workspace_id, task_id);
             "#,
             TABLE_MEMORIES,
+            TABLE_ARCHIVES,
             TABLE_BELIEFS,
             TABLE_SESSION_TOKENS,
             TABLE_CHECKPOINTS,
@@ -889,37 +906,51 @@ impl VecSqliteMemoryStore {
         raw_score: Option<f32>,
         record: MemoryRecord,
     ) {
-        let contribution = (1.0 / (rrf_k as f32 + rank as f32)) * Self::source_weight(source);
+        // IMPROVED RRF: Apply source weights more aggressively
+        let base_weight = Self::source_weight(source);
+        let contribution = base_weight / (rrf_k as f32 + rank as f32);
+
+        // Add raw_score boost for FTS (BM25)
+        let boost = if let (FusionSource::Fts, Some(s)) = (source, raw_score) {
+            // BM25 in SQLite is negative (lower is better), so we use -s
+            let normalized_bm25 = ((-s).max(0.0) / 10.0).min(1.0);
+            normalized_bm25 * 0.1
+        } else {
+            0.0
+        };
+
+        let final_contribution = contribution + boost;
+
         scored
             .entry(record.id.clone())
             .and_modify(|existing| {
-                existing.score += contribution;
+                existing.score += final_contribution;
                 match source {
-                    FusionSource::Vector => existing.vector_score += contribution,
+                    FusionSource::Vector => existing.vector_score += final_contribution,
                     FusionSource::Fts => {
-                        existing.lexical_score += contribution;
+                        existing.lexical_score += final_contribution;
                         if raw_score.is_some() {
                             existing.bm25 = raw_score;
                         }
                     }
-                    FusionSource::Kg => existing.kg_score += contribution,
+                    FusionSource::Kg => existing.kg_score += final_contribution,
                 }
             })
             .or_insert(HybridSearchResult {
                 record,
-                score: contribution,
+                score: final_contribution,
                 vector_score: if matches!(source, FusionSource::Vector) {
-                    contribution
+                    final_contribution
                 } else {
                     0.0
                 },
                 lexical_score: if matches!(source, FusionSource::Fts) {
-                    contribution
+                    final_contribution
                 } else {
                     0.0
                 },
                 kg_score: if matches!(source, FusionSource::Kg) {
-                    contribution
+                    final_contribution
                 } else {
                     0.0
                 },
@@ -1586,6 +1617,38 @@ impl VecSqliteMemoryStore {
         Ok(())
     }
 
+    async fn archive(&self, record: MemoryRecord) -> Result<()> {
+        let conn = self.conn.lock();
+        let embedding_blob = if !record.embedding.is_empty()
+            && Self::qjl_enabled_for_workspace(&conn, &record.workspace_id)
+        {
+            Self::serialize_embedding_qjl(&record.embedding)
+        } else {
+            Self::serialize_embedding(&record.embedding)
+        };
+        conn.execute(
+            &format!(
+                "INSERT OR REPLACE INTO {} (id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                TABLE_ARCHIVES
+            ),
+            params![
+                record.id,
+                record.workspace_id,
+                record.path,
+                record.content,
+                serde_json::to_string(&record.metadata).unwrap_or_default(),
+                embedding_blob,
+                record.created_at.to_rfc3339(),
+                record.updated_at.to_rfc3339(),
+                record.revision,
+                record.primary as i32,
+                record.parent_id,
+                serde_json::to_string(&record.revisions).unwrap_or_default(),
+            ],
+        )?;
+        Ok(())
+    }
+
     /// Add a relation to the knowledge graph
     pub async fn add_relation(
         &self,
@@ -1613,6 +1676,10 @@ impl MemoryStore for VecSqliteMemoryStore {
         let conn = self.conn.lock();
         conn.execute("SELECT 1", [])?;
         Ok(format!("vecsqlite {}", self.config.detail()))
+    }
+
+    async fn archive(&self, record: MemoryRecord) -> Result<()> {
+        VecSqliteMemoryStore::archive(self, record).await
     }
 
     async fn put(&self, record: MemoryRecord) -> Result<()> {
