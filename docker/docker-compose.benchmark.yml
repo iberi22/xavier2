@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # Xavier2 Docker - New instance for benchmark
+  xavier2:
+    image: iberi22/xavier2:latest
+    container_name: xavier2-memory
+    ports:
+      - "8006:8006"
+    environment:
+      - XAVIER2_PORT=8006
+      - RUST_LOG=info
+      - XAVIER2_STORAGE=/data
+    volumes:
+      - xavier2-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Cortex - Already running on host (port 8003)
+  # To run in Docker uncomment below:
+  # cortex:
+  #   image: iberi22/cortex:latest
+  #   container_name: cortex-memory
+  #   ports:
+  #     - "8003:8003"
+  #   environment:
+  #     - CORTEX_PORT=8003
+  #   volumes:
+  #     - cortex-data:/data
+  #   restart: unless-stopped
+
+  # Benchmark runner
+  benchmark:
+    image: python:3.11-slim
+    container_name: swal-benchmark
+    depends_on:
+      xavier2:
+        condition: service_healthy
+    volumes:
+      - ./scripts:/scripts
+      - ./benchmark_results:/results
+    command: >
+      bash -c "pip install aiohttp && python /scripts/benchmark_memory_systems.py"
+    working_dir: /scripts
+
+volumes:
+  xavier2-data:

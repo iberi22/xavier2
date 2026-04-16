@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  xavier2:
+    image: iberi22/xavier2:latest
+    container_name: xavier2-memory
+    ports:
+      - "8006:8006"
+    environment:
+      - XAVIER2_PORT=8006
+      - RUST_LOG=info
+      - XAVIER2_STORAGE=/data/memory
+    volumes:
+      - xavier2-data:/data/memory
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Redis for vector storage (if needed)
+  redis:
+    image: redis:7-alpine
+    container_name: xavier2-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  xavier2-data:
+  redis-data:
