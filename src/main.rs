@@ -7,7 +7,7 @@ use anyhow::Result;
 use clap::Parser;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-use xavier2::cli::Cli;
+use crate::cli::Cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {

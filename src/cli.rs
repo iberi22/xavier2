@@ -13,6 +13,31 @@ pub struct Cli {
     pub command: Command,
 }
 
+#[derive(Subcommand)]
+pub enum Command {
+    /// Start HTTP API server
+    Http {
+        #[arg(short, long, default_value_t = 8006)]
+        port: u16,
+    },
+    /// Start MCP-stdio server
+    Mcp,
+    /// Search memories from a running server
+    Search {
+        query: String,
+        #[arg(short, long, default_value_t = 10)]
+        limit: usize,
+    },
+    /// Add a memory via a running server
+    Add {
+        content: String,
+        #[arg(short, long)]
+        title: Option<String>,
+    },
+    /// Show stats from a running server
+    Stats,
+}
+
 impl Cli {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
@@ -30,7 +55,7 @@ impl Cli {
                 search_memories(query, *limit).await
             }
             Command::Add { content, title } => {
-                let title_display = title.unwrap_or("Untitled");
+                let title_display = title.as_deref().unwrap_or("Untitled");
                 println!("Adding memory: {}", title_display);
                 add_memory(content, title.as_deref()).await
             }

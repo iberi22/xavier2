@@ -2,6 +2,7 @@
 
 use axum::{
     extract::{Query, State},
+    http::StatusCode,
     response::IntoResponse,
     Extension, Json,
 };
@@ -15,10 +16,9 @@ use tracing::{info, warn, error};
 
 use crate::{
     agents::provider::ModelProviderClient,
-    agents::runtime::AgentRunTrace,
-    agents::runtime::System3Mode,
+    agents::runtime::{AgentRunTrace, System3Mode},
     consolidation::ConsolidationTask,
-    consistency::regularization::{CoherenceReport, RetentionRegularizer},
+    consistency::{CoherenceReport, RetentionRegularizer},
     embedding,
     memory::belief_graph::{BeliefNode, BeliefRelation},
     memory::entity_graph::EntityRecord,
@@ -105,14 +105,12 @@ impl Default for ShutdownState {
 /// Returns a handle to the task; dropping the handle does NOT cancel the task.
 pub async fn start_signal_handler(state: ShutdownState) {
     tokio::spawn(async move {
-        use tokio::signal::windows::{ctrl_c, ctrl_break, ctrl_close, ctrl_logoff, ctrl_shutdown};
-        use tokio::signal::unix::{signal, SignalKind};
-
         let mut shutdown_reason: Option<&'static str> = None;
 
         // Unix signals (SIGTERM / SIGINT)
         #[cfg(unix)]
         {
+            use tokio::signal::unix::{signal, SignalKind};
             let mut sigterm = match signal(SignalKind::terminate()) {
                 Ok(s) => s,
                 Err(e) => {
@@ -137,6 +135,7 @@ pub async fn start_signal_handler(state: ShutdownState) {
         // Windows console events
         #[cfg(windows)]
         {
+            use tokio::signal::windows::ctrl_c;
             let mut ctrl_events = async {
                 let mut rx = ctrl_c().expect("failed to subscribe to Ctrl+C");
                 rx.recv().await
@@ -144,7 +143,8 @@ pub async fn start_signal_handler(state: ShutdownState) {
 
             let reason = ctrl_events.await;
             match reason {
-                Ok(()) | Err(_) => shutdown_reason = Some("Ctrl+C / console close"),
+                Some(Ok(())) | Some(Err(_)) => shutdown_reason = Some("Ctrl+C / console close"),
+                None => {}
             }
         }
 
@@ -186,7 +186,7 @@ pub fn install_panic_hook() {
             concat!(
                 "══════════════════════════════════════════════════\n",
                 "  🔥 PANIC in Xavier2 ({})\n",
-                "  Thread: {}{}\n",
+                "  Thread: {}\n",
                 "  Location: {}\n",
                 "  Message: {}\n",
                 "══════════════════════════════════════════════════\n"
@@ -1174,10 +1174,10 @@ pub async fn memory_reflect(Extension(workspace): Extension<WorkspaceContext>) -
     info!("🪞 Memory reflection request");
     let task = ConsolidationTask::default();
     match task.reflect(&workspace).await {
-        Ok(result) => Json(result),
+        Ok(result) => Json(result).into_response(),
         Err(e) => {
             error!("Memory reflect error: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
 }
