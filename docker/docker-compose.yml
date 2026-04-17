@@ -4,6 +4,7 @@ services:
   xavier2:
     image: iberi22/xavier2:latest
     container_name: xavier2-memory
+    #network_mode: host  # DISABLED - causes crash loop on Windows Docker Desktop
     ports:
       - "8006:8006"
     environment:

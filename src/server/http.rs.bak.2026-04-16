@@ -1173,11 +1173,4 @@ pub async fn memory_consolidate(
 pub async fn memory_reflect(Extension(workspace): Extension<WorkspaceContext>) -> impl IntoResponse {
     info!("🪞 Memory reflection request");
     let task = ConsolidationTask::default();
-    match task.reflect(&workspace).await {
-        Ok(result) => Json(result),
-        Err(e) => {
-            error!("Memory reflect error: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
-    }
-}
+    match task.reflect(&workspace).await
