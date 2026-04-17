@@ -39,9 +39,24 @@ static QUERY_SPEAKER_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static SHE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bshe\b").unwrap());
 static HE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bhe\b").unwrap());
+static SYNONYM_MAP: LazyLock<HashMap<&'static str, &'static [&'static str]>> = LazyLock::new(|| {
+    HashMap::from([
+        ("bug", &["issue", "error", "failure", "defect"][..]),
+        ("cache", &["caching", "memoization", "store"][..]),
+        ("fast", &["quick", "speed", "latency"][..]),
+        ("memory", &["context", "retrieval", "knowledge"][..]),
+        ("search", &["lookup", "find", "retrieve"][..]),
+        ("vector", &["embedding", "semantic", "dense"][..]),
+        ("query", &["question", "request", "prompt"][..]),
+        ("reasoning", &["multi-hop", "inference", "analysis"][..]),
+    ])
+});
 const RRF_K: f32 = 60.0;
 const KEYWORD_WEIGHT: f32 = 0.7;
 const SEMANTIC_WEIGHT: f32 = 0.3;
+const MAX_EXPANSIONS: usize = 4;
+const MAX_MULTI_HOP_DEPTH: usize = 2;
+const MAX_RERANK_CANDIDATES: usize = 32;
 static DIA_ID_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)^([a-z]+\d+):0*([0-9]+)$").unwrap());
 static LOCOMO_PATH_DIA_ID_RE: LazyLock<Regex> =
@@ -213,6 +228,13 @@ impl QmdMemory {
         limit: usize,
         filters: Option<&MemoryQueryFilters>,
     ) -> Result<Vec<MemoryDocument>> {
+        let optimized = self
+            .search_hybrid_optimized(query_text, limit, filters)
+            .await?;
+        if !optimized.is_empty() {
+            return Ok(optimized);
+        }
+
         let all_docs = self.all_documents().await;
         let locomo_only = !all_docs.is_empty()
             && all_docs
@@ -240,6 +262,77 @@ impl QmdMemory {
             .search_with_cache_filtered(query_text, limit, filters)
             .await?
             .documents)
+    }
+
+    async fn search_hybrid_optimized(
+        &self,
+        query_text: &str,
+        limit: usize,
+        filters: Option<&MemoryQueryFilters>,
+    ) -> Result<Vec<MemoryDocument>> {
+        let query_bundle = build_query_bundle(query_text);
+        let mut candidate_scores: HashMap<String, (f32, MemoryDocument, f32)> = HashMap::new();
+
+        for expanded_query in &query_bundle.variants {
+            let cache_hit = self
+                .search_with_cache_filtered(expanded_query, limit.max(3), filters)
+                .await?;
+            self.merge_ranked_candidates(
+                &mut candidate_scores,
+                cache_hit.documents,
+                expanded_query,
+                query_bundle.weight_for(expanded_query),
+            );
+        }
+
+        if candidate_scores.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut candidates: Vec<(f32, MemoryDocument, f32)> = candidate_scores.values().cloned().collect();
+        candidates.sort_by(|left, right| {
+            right
+                .0
+                .partial_cmp(&left.0)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| left.1.path.cmp(&right.1.path))
+        });
+
+        let seed_docs: Vec<MemoryDocument> = candidates
+            .iter()
+            .take(limit.max(3))
+            .map(|(_, doc, _)| doc.clone())
+            .collect();
+
+        let multi_hop_docs = self
+            .multi_hop_context(query_text, &seed_docs, filters)
+            .await;
+
+        for doc in multi_hop_docs {
+            let score = contextual_boost(&query_bundle.normalized_query, &doc, 0.45);
+            candidate_scores
+                .entry(doc.id.clone().unwrap_or_else(|| doc.path.clone()))
+                .and_modify(|entry| entry.0 += score)
+                .or_insert((score, doc, 0.45));
+        }
+
+        let mut reranked: Vec<(f32, MemoryDocument, f32)> =
+            candidate_scores.values().cloned().collect();
+        reranked.truncate(MAX_RERANK_CANDIDATES.max(limit));
+        reranked.sort_by(|left, right| {
+            right
+                .0
+                .partial_cmp(&left.0)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| right.2.partial_cmp(&left.2).unwrap_or(Ordering::Equal))
+                .then_with(|| left.1.path.cmp(&right.1.path))
+        });
+
+        Ok(reranked
+            .into_iter()
+            .take(limit)
+            .map(|(_, doc, _)| doc)
+            .collect())
     }
 
     pub async fn search_with_cache(
@@ -748,6 +841,189 @@ impl QmdMemory {
     async fn invalidate_cache(&self) {
         self.search_cache.write().await.clear();
     }
+
+    fn merge_ranked_candidates(
+        &self,
+        candidate_scores: &mut HashMap<String, (f32, MemoryDocument, f32)>,
+        documents: Vec<MemoryDocument>,
+        query: &str,
+        query_weight: f32,
+    ) {
+        for (rank, doc) in documents.into_iter().enumerate() {
+            let key = doc.id.clone().unwrap_or_else(|| doc.path.clone());
+            let rrf_score = 1.0 / (RRF_K + (rank as f32) + 1.0);
+            let rerank = contextual_boost(query, &doc, query_weight);
+            let combined = (rrf_score * query_weight) + rerank;
+            candidate_scores
+                .entry(key)
+                .and_modify(|entry| {
+                    entry.0 += combined;
+                    entry.2 = entry.2.max(query_weight);
+                })
+                .or_insert((combined, doc, query_weight));
+        }
+    }
+
+    async fn multi_hop_context(
+        &self,
+        query_text: &str,
+        seed_docs: &[MemoryDocument],
+        filters: Option<&MemoryQueryFilters>,
+    ) -> Vec<MemoryDocument> {
+        let mut expanded = Vec::new();
+        let query_terms = normalize_query(query_text);
+
+        for doc in seed_docs.iter().take(MAX_MULTI_HOP_DEPTH) {
+            let mut extracted = extract_candidate_terms(&doc.content);
+            extracted.extend(extract_candidate_terms(&doc.path));
+            extracted.sort();
+            extracted.dedup();
+            for term in extracted.into_iter().take(MAX_EXPANSIONS) {
+                if query_terms.contains(&term) {
+                    continue;
+                }
+                if let Ok(results) = self.search_with_cache_filtered(&term, 2, filters).await {
+                    expanded.extend(results.documents);
+                }
+            }
+        }
+
+        expanded
+    }
+}
+
+#[derive(Debug, Clone)]
+struct QueryBundle {
+    normalized_query: String,
+    variants: Vec<String>,
+    weights: HashMap<String, f32>,
+}
+
+impl QueryBundle {
+    fn weight_for(&self, query: &str) -> f32 {
+        self.weights.get(query).copied().unwrap_or(1.0)
+    }
+}
+
+fn build_query_bundle(query_text: &str) -> QueryBundle {
+    let normalized_query = normalize_query(query_text);
+    let mut variants = vec![normalized_query.clone()];
+    let mut weights = HashMap::from([(normalized_query.clone(), 1.0)]);
+
+    let tokens = normalized_query
+        .split_whitespace()
+        .map(|value| value.to_string())
+        .collect::<Vec<_>>();
+
+    for token in tokens.into_iter().take(MAX_EXPANSIONS) {
+        if let Some(synonyms) = SYNONYM_MAP.get(token.as_str()) {
+            for synonym in synonyms.iter().take(2) {
+                let expanded = if normalized_query.is_empty() {
+                    (*synonym).to_string()
+                } else {
+                    format!("{normalized_query} {synonym}")
+                };
+                if weights.contains_key(&expanded) {
+                    continue;
+                }
+                variants.push(expanded.clone());
+                weights.insert(expanded, 0.85);
+            }
+        }
+    }
+
+    if variants.len() == 1 {
+        for token in query_text.split_whitespace().take(MAX_EXPANSIONS) {
+            let cleaned = normalize_token(token);
+            if cleaned.len() < 3 || cleaned == normalized_query {
+                continue;
+            }
+            let expanded = format!("{normalized_query} {cleaned}");
+            if !weights.contains_key(&expanded) {
+                variants.push(expanded.clone());
+                weights.insert(expanded, 0.8);
+            }
+        }
+    }
+
+    variants.truncate(5);
+
+    QueryBundle {
+        normalized_query,
+        variants,
+        weights,
+    }
+}
+
+fn extract_candidate_terms(text: &str) -> Vec<String> {
+    text.split_whitespace()
+        .map(normalize_token)
+        .filter(|token| token.len() >= 4)
+        .filter(|token| {
+            !matches!(
+                token.as_str(),
+                "with"
+                    | "that"
+                    | "this"
+                    | "from"
+                    | "have"
+                    | "were"
+                    | "when"
+                    | "what"
+                    | "where"
+                    | "which"
+                    | "would"
+                    | "could"
+            )
+        })
+        .collect()
+}
+
+fn contextual_boost(query: &str, document: &MemoryDocument, weight: f32) -> f32 {
+    let doc_text = format!(
+        "{} {} {}",
+        document.path.to_ascii_lowercase(),
+        document.content.to_ascii_lowercase(),
+        document.metadata.to_string().to_ascii_lowercase()
+    );
+    let mut score = 0.0;
+    for token in query.split_whitespace() {
+        if token.len() >= 3 && doc_text.contains(token) {
+            score += 0.12 * weight;
+        }
+    }
+    if let Some(title) = document.metadata.get("title").and_then(|value| value.as_str()) {
+        if query.contains(&title.to_ascii_lowercase()) {
+            score += 0.20 * weight;
+        }
+    }
+    score + memory_importance_score(document) + memory_decay_penalty(document)
+}
+
+fn memory_importance_score(document: &MemoryDocument) -> f32 {
+    let metadata = &document.metadata;
+    let importance = metadata
+        .get("importance")
+        .or_else(|| metadata.get("memory_importance"))
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.0) as f32;
+    importance.clamp(0.0, 1.0) * 0.25
+}
+
+fn memory_decay_penalty(document: &MemoryDocument) -> f32 {
+    let updated = document
+        .metadata
+        .get("updated_at")
+        .and_then(|value| value.as_str())
+        .or_else(|| document.metadata.get("last_accessed_at").and_then(|value| value.as_str()));
+    let Some(updated) = updated else {
+        return 0.0;
+    };
+    let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(updated) else {
+        return 0.0;
+    };
+    let age_days = (chrono::Utc::now() - parsed.with_timezone(&chrono::Utc)).num_days().max(0) as f32;
+    -(age_days / 365.0).min(1.0) * 0.15
 }
 
 pub fn estimate_document_bytes(path: &str, content: &str, metadata: &serde_json::Value) -> u64 {

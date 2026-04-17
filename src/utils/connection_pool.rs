@@ -28,6 +28,7 @@ impl Default for PoolConfig {
 
 /// A simple connection pool wrapper for SQLite connections
 pub struct ConnectionPool {
+    #[allow(dead_code)]
     config: PoolConfig,
     connection: Connection,
 }

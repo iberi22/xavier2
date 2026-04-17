@@ -1,21 +1,18 @@
 //! HTTP handlers for the minimal Xavier2 vertical slice.
 
 use axum::{
-    extract::{Query, State},
+    extract::State,
     response::IntoResponse,
     Extension, Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::broadcast;
-use tokio::time::{sleep, Duration};
-use tracing::{info, warn, error};
+use tracing::{info, error};
 
 use crate::{
     agents::provider::ModelProviderClient,
-    agents::runtime::AgentRunTrace,
     agents::runtime::System3Mode,
     consolidation::ConsolidationTask,
     consistency::regularization::{CoherenceReport, RetentionRegularizer},
@@ -105,14 +102,14 @@ impl Default for ShutdownState {
 /// Returns a handle to the task; dropping the handle does NOT cancel the task.
 pub async fn start_signal_handler(state: ShutdownState) {
     tokio::spawn(async move {
-        use tokio::signal::windows::{ctrl_c, ctrl_break, ctrl_close, ctrl_logoff, ctrl_shutdown};
-        use tokio::signal::unix::{signal, SignalKind};
+        use tokio::signal::windows::ctrl_c;
 
         let mut shutdown_reason: Option<&'static str> = None;
 
         // Unix signals (SIGTERM / SIGINT)
         #[cfg(unix)]
         {
+            use tokio::signal::unix::{signal, SignalKind};
             let mut sigterm = match signal(SignalKind::terminate()) {
                 Ok(s) => s,
                 Err(e) => {
@@ -137,14 +134,15 @@ pub async fn start_signal_handler(state: ShutdownState) {
         // Windows console events
         #[cfg(windows)]
         {
-            let mut ctrl_events = async {
+            let ctrl_events = async {
                 let mut rx = ctrl_c().expect("failed to subscribe to Ctrl+C");
                 rx.recv().await
             };
 
             let reason = ctrl_events.await;
             match reason {
-                Ok(()) | Err(_) => shutdown_reason = Some("Ctrl+C / console close"),
+                Some(()) => shutdown_reason = Some("Ctrl+C / console close"),
+                None => {}
             }
         }
 
@@ -183,18 +181,11 @@ pub fn install_panic_hook() {
         let thread_name = thread.name().map(|n| format!("[{n}] ")).unwrap_or_default();
 
         eprintln!(
-            concat!(
-                "══════════════════════════════════════════════════\n",
-                "  🔥 PANIC in Xavier2 ({})\n",
-                "  Thread: {}{}\n",
-                "  Location: {}\n",
-                "  Message: {}\n",
-                "══════════════════════════════════════════════════\n"
-            ),
+            "--------------------------------------------------\n  PANIC in Xavier2 ({})\n  Thread: {}{}\n  Location: {}\n--------------------------------------------------\n",
             chrono::Utc::now().to_rfc3339(),
             thread_name,
-            location,
-            msg
+            "",
+            location
         );
 
         // Also emit a structured log event so aggregators catch it.
@@ -285,21 +276,6 @@ fn default_limit() -> usize {
 
 fn query_fingerprint(query: &str) -> String {
     sha256_hex(query.as_bytes())[..12].to_string()
-}
-
-async fn record_optimization_trace(
-    workspace: &WorkspaceContext,
-    trace: &AgentRunTrace,
-) -> anyhow::Result<()> {
-    workspace
-        .workspace
-        .record_optimization(
-            trace.optimization.route_category,
-            trace.optimization.semantic_cache_hit,
-            trace.optimization.llm_used,
-            trace.optimization.model.as_deref(),
-        )
-        .await
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1171,13 +1147,20 @@ pub async fn memory_consolidate(
 }
 
 pub async fn memory_reflect(Extension(workspace): Extension<WorkspaceContext>) -> impl IntoResponse {
-    info!("🪞 Memory reflection request");
+    info!("?? Memory reflection request");
     let task = ConsolidationTask::default();
     match task.reflect(&workspace).await {
-        Ok(result) => Json(result),
+        Ok(result) => Json(serde_json::json!({
+            "status": "ok",
+            "data": result,
+        })),
         Err(e) => {
             error!("Memory reflect error: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            Json(serde_json::json!({
+                "status": "error",
+                "error": e.to_string(),
+            }))
         }
     }
 }
+
