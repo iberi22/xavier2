@@ -138,11 +138,10 @@ pub struct EntityGraph {
 pub type SharedEntityGraph = std::sync::Arc<EntityGraph>;
 
 static CANDIDATE_ENTITY_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"\b(?:[A-Z]{2,}(?:[A-Z0-9_-]*[A-Z0-9])?|[A-Z][a-z0-9]+(?:\s+[A-Z][a-z0-9]+)*|[A-Za-z]+[0-9]+[A-Za-z0-9_-]*)\b")
+    Regex::new(r"\b(?:[A-Z]{2,}(?:[A-Z0-9_-]*[A-Z0-9])?|[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9_-]*)+(?:\s+[A-Z][A-Za-z0-9_-]*)*|[A-Z][a-z0-9]+(?:\s+[A-Z][a-z0-9]+)*|[A-Za-z]+[0-9]+[A-Za-z0-9_-]*)\b")
         .unwrap()
 });
-static EMAIL_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"[\w.+-]+@[\w-]+\.[\w.-]+").unwrap());
+static EMAIL_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\w.+-]+@[\w-]+\.[\w.-]+").unwrap());
 static URL_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"https?://[^\s]+").unwrap());
 
 static RELATION_PATTERNS: &[(&str, &str, f32)] = &[
@@ -200,7 +199,8 @@ impl EntityGraph {
         metadata: Option<&serde_json::Value>,
     ) -> Result<GraphRelationsView> {
         let extracted = Self::extract_entities(content);
-        self.index_memory(memory_id, content, metadata, extracted).await
+        self.index_memory(memory_id, content, metadata, extracted)
+            .await
     }
 
     pub async fn remove_memory(&self, memory_id: &str) -> Result<()> {
@@ -215,7 +215,10 @@ impl EntityGraph {
         }
 
         data.relations.retain(|_, relation| {
-            !relation.provenance.iter().any(|provenance| provenance == memory_id)
+            !relation
+                .provenance
+                .iter()
+                .any(|provenance| provenance == memory_id)
         });
         data.rebuild_indexes();
         Ok(())
@@ -232,7 +235,13 @@ impl EntityGraph {
     }
 
     pub async fn all_relations(&self) -> Vec<EntityRelationRecord> {
-        self.inner.read().await.relations.values().cloned().collect()
+        self.inner
+            .read()
+            .await
+            .relations
+            .values()
+            .cloned()
+            .collect()
     }
 
     pub async fn relations_for_entity(
@@ -289,7 +298,11 @@ impl EntityGraph {
         })
     }
 
-    pub async fn merge_entities(&self, primary_id: &str, secondary_id: &str) -> Result<EntityRecord> {
+    pub async fn merge_entities(
+        &self,
+        primary_id: &str,
+        secondary_id: &str,
+    ) -> Result<EntityRecord> {
         let mut data = self.inner.write().await;
         let primary_id = data
             .resolve_entity_id(primary_id)
@@ -382,7 +395,10 @@ impl EntityGraph {
                 .as_str()
                 .trim()
                 .trim_matches(|c: char| {
-                    matches!(c, ',' | '.' | ';' | ':' | '"' | '\'' | '(' | ')' | '[' | ']')
+                    matches!(
+                        c,
+                        ',' | '.' | ';' | ':' | '"' | '\'' | '(' | ')' | '[' | ']'
+                    )
                 })
                 .to_string();
             if is_common_word(&name) {
@@ -471,7 +487,10 @@ impl EntityGraph {
                 mat.as_str()
                     .trim()
                     .trim_matches(|c: char| {
-                        matches!(c, ',' | '.' | ';' | ':' | '"' | '\'' | '(' | ')' | '[' | ']')
+                        matches!(
+                            c,
+                            ',' | '.' | ';' | ':' | '"' | '\'' | '(' | ')' | '[' | ']'
+                        )
                     })
                     .to_string()
             })
@@ -508,7 +527,10 @@ impl EntityGraph {
             }
         }
         data.relations.retain(|_, relation| {
-            !relation.provenance.iter().any(|provenance| provenance == memory_id)
+            !relation
+                .provenance
+                .iter()
+                .any(|provenance| provenance == memory_id)
         });
 
         for entity in extracted {
@@ -566,7 +588,8 @@ impl EntityGraph {
         }
 
         if let Some(metadata) = metadata {
-            if let Some(description) = metadata.get("description").and_then(|value| value.as_str()) {
+            if let Some(description) = metadata.get("description").and_then(|value| value.as_str())
+            {
                 if let Some(first_id) = entity_ids.first() {
                     if let Some(entity) = data.entities.get_mut(first_id) {
                         if entity.description.is_none() {
@@ -616,8 +639,11 @@ impl EntityGraph {
         direction: GraphDirection,
     ) -> Vec<TraversalStep> {
         let mut visited = HashSet::new();
-        let mut queue =
-            VecDeque::from([(start_entity.to_string(), 0usize, vec![start_entity.to_string()])]);
+        let mut queue = VecDeque::from([(
+            start_entity.to_string(),
+            0usize,
+            vec![start_entity.to_string()],
+        )]);
         let mut steps = Vec::new();
 
         while let Some((entity_id, depth, path)) = queue.pop_front() {
@@ -625,7 +651,8 @@ impl EntityGraph {
                 continue;
             }
 
-            for relation in Self::relations_from_locked(data, &entity_id, relation_types, direction) {
+            for relation in Self::relations_from_locked(data, &entity_id, relation_types, direction)
+            {
                 let next = if relation.source == entity_id {
                     relation.target.clone()
                 } else {
@@ -915,7 +942,10 @@ fn normalize_name(name: &str) -> String {
     name.split_whitespace()
         .map(|part| {
             part.trim_matches(|c: char| {
-                matches!(c, ',' | '.' | ';' | ':' | '"' | '\'' | '(' | ')' | '[' | ']')
+                matches!(
+                    c,
+                    ',' | '.' | ';' | ':' | '"' | '\'' | '(' | ')' | '[' | ']'
+                )
             })
         })
         .filter(|part| !part.is_empty())
@@ -941,11 +971,24 @@ fn is_common_word(value: &str) -> bool {
 fn looks_like_organization(name: &str) -> bool {
     let lowered = name.to_ascii_lowercase();
     let org_markers = [
-        " inc", " corp", " llc", " ltd", " company", " co", " labs", " lab", " systems",
-        " studio", " platform", " foundation", " university", " institute", " agency", " team",
+        " inc",
+        " corp",
+        " llc",
+        " ltd",
+        " company",
+        " co",
+        " labs",
+        " lab",
+        " systems",
+        " studio",
+        " platform",
+        " foundation",
+        " university",
+        " institute",
+        " agency",
+        " team",
     ];
-    name
-        .chars()
+    name.chars()
         .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '-' || c == '_')
         || org_markers
             .iter()
@@ -954,8 +997,21 @@ fn looks_like_organization(name: &str) -> bool {
 
 fn looks_like_location(lowered: &str) -> bool {
     let location_markers = [
-        " city", " town", " village", " province", " state", " country", " park", " valley",
-        " mountain", " river", " lake", " bay", " beach", " street", " avenue",
+        " city",
+        " town",
+        " village",
+        " province",
+        " state",
+        " country",
+        " park",
+        " valley",
+        " mountain",
+        " river",
+        " lake",
+        " bay",
+        " beach",
+        " street",
+        " avenue",
     ];
     location_markers
         .iter()
@@ -976,10 +1032,7 @@ fn looks_like_person(name: &str) -> bool {
     let tokens: Vec<_> = name.split_whitespace().collect();
     (tokens.len() <= 3
         && tokens.iter().all(|token| {
-            token
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_uppercase())
+            token.chars().next().is_some_and(|c| c.is_ascii_uppercase())
                 || token.chars().all(|c| c.is_ascii_uppercase())
         }))
         || name.len() <= 8
@@ -1026,6 +1079,9 @@ mod tests {
         let entities = graph.all_entities().await;
         assert!(!entities.is_empty());
         let primary = graph.merge_entities("Alice", "Alicia").await.unwrap();
-        assert!(primary.aliases.iter().any(|alias| alias.eq_ignore_ascii_case("Alicia")));
+        assert!(primary
+            .aliases
+            .iter()
+            .any(|alias| alias.eq_ignore_ascii_case("Alicia")));
     }
 }

@@ -74,7 +74,9 @@ impl EmbedderConfig {
                     ));
                 }
 
-                Ok(Arc::new(openai::OpenAIEmbedder::new(api_key, model, endpoint)?))
+                Ok(Arc::new(openai::OpenAIEmbedder::new(
+                    api_key, model, endpoint,
+                )?))
             }
             Self::Noop => Ok(Arc::new(NoopEmbedder)),
         }

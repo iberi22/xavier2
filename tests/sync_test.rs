@@ -14,6 +14,7 @@ fn test_sync_protocol_integration() -> Result<()> {
             path: "test/sync/1".to_string(),
             content: "First document for sync test".to_string(),
             metadata: serde_json::json!({"test": true}),
+            content_vector: None,
             embedding: vec![0.1; 128],
         },
         MemoryDocument {
@@ -21,6 +22,7 @@ fn test_sync_protocol_integration() -> Result<()> {
             path: "test/sync/2".to_string(),
             content: "Second document for sync test".to_string(),
             metadata: serde_json::json!({"priority": "high"}),
+            content_vector: None,
             embedding: vec![0.2; 128],
         },
     ];
@@ -69,6 +71,7 @@ fn test_sync_no_duplicate_chunks() -> Result<()> {
         path: "p1".to_string(),
         content: "constant content".to_string(),
         metadata: serde_json::json!({}),
+        content_vector: None,
         embedding: vec![],
     }];
 

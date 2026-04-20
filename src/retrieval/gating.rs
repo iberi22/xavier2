@@ -122,9 +122,12 @@ impl AdaptiveGating {
         let semantic_results = self.score_semantic_layer(semantic, query);
 
         // 2. Apply layer weights to scores
-        let weighted_working = self.apply_weights(working_results, self.config.layer_weights.working);
-        let weighted_episodic = self.apply_weights(episodic_results, self.config.layer_weights.episodic);
-        let weighted_semantic = self.apply_weights(semantic_results, self.config.layer_weights.semantic);
+        let weighted_working =
+            self.apply_weights(working_results, self.config.layer_weights.working);
+        let weighted_episodic =
+            self.apply_weights(episodic_results, self.config.layer_weights.episodic);
+        let weighted_semantic =
+            self.apply_weights(semantic_results, self.config.layer_weights.semantic);
 
         // 3. Fuse with RRF
         let fused = reciprocal_rank_fusion(
@@ -278,9 +281,7 @@ impl AdaptiveGating {
                     score = 1.0;
                 }
                 // Partial name match
-                else if name_lower.contains(&query_lower)
-                    || query_lower.contains(&name_lower)
-                {
+                else if name_lower.contains(&query_lower) || query_lower.contains(&name_lower) {
                     score = 0.7;
                 }
                 // Description match
@@ -472,6 +473,8 @@ mod tests {
                 first_seen: chrono::Utc::now(),
                 last_seen: chrono::Utc::now(),
                 merged_from: vec![],
+                trust_score: 0.5,
+                trust_rank: 1,
             },
             EntityRecord {
                 id: "entity2".to_string(),
@@ -485,6 +488,8 @@ mod tests {
                 first_seen: chrono::Utc::now(),
                 last_seen: chrono::Utc::now(),
                 merged_from: vec![],
+                trust_score: 0.5,
+                trust_rank: 1,
             },
         ];
 

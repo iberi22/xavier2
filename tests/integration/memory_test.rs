@@ -53,6 +53,7 @@ mod memory_manager_tests {
                 path: "memory/doc_old".to_string(),
                 content: "Same content".to_string(),
                 metadata: serde_json::json!({"kind": "fact", "memory_priority": "medium"}),
+                content_vector: None,
                 embedding: vec![],
             });
             docs_guard.push(MemoryDocument {
@@ -60,6 +61,7 @@ mod memory_manager_tests {
                 path: "memory/doc_new".to_string(),
                 content: "same    content".to_string(),
                 metadata: serde_json::json!({"kind": "fact", "memory_priority": "medium"}),
+                content_vector: None,
                 embedding: vec![],
             });
         }
@@ -85,6 +87,7 @@ mod memory_manager_tests {
             path: "memory/doc_low".to_string(),
             content: "tiny".to_string(),
             metadata: serde_json::json!({"memory_priority": "low"}),
+            content_vector: None,
             embedding: vec![],
         }]));
 

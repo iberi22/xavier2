@@ -436,7 +436,9 @@ mod tests {
                 code_indexer,
                 code_query,
                 code_db,
-                pattern_adapter: Arc::new(crate::adapters::outbound::vec::pattern_adapter::PatternAdapter::new()),
+                pattern_adapter: Arc::new(
+                    crate::adapters::outbound::vec::pattern_adapter::PatternAdapter::new(),
+                ),
                 security_service: Arc::new(crate::app::security_service::SecurityService::new()),
             },
             workspace,

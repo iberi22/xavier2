@@ -2,7 +2,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::embedding::{EmbeddingError, Embedder};
+use crate::embedding::{Embedder, EmbeddingError};
 
 #[derive(Debug)]
 pub struct OpenAIEmbedder {
@@ -13,11 +13,7 @@ pub struct OpenAIEmbedder {
 }
 
 impl OpenAIEmbedder {
-    pub fn new(
-        api_key: String,
-        model: String,
-        endpoint: String,
-    ) -> Result<Self, EmbeddingError> {
+    pub fn new(api_key: String, model: String, endpoint: String) -> Result<Self, EmbeddingError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()

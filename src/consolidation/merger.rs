@@ -93,12 +93,10 @@ pub fn merge_documents(memories: &[ManagedMemory]) -> Result<MergeOutcome> {
     let mut canonical = canonical_source.doc.clone();
     canonical.content = cleanup_redundant_text(&combined_sentences.join(" "));
     canonical.metadata["memory_merged"] = serde_json::json!(true);
-    canonical.metadata["memory_merged_from"] = serde_json::json!(
-        memories
-            .iter()
-            .filter_map(|memory| memory.doc.id.clone())
-            .collect::<Vec<_>>()
-    );
+    canonical.metadata["memory_merged_from"] = serde_json::json!(memories
+        .iter()
+        .filter_map(|memory| memory.doc.id.clone())
+        .collect::<Vec<_>>());
     canonical.metadata["memory_merge_count"] = serde_json::json!(memories.len());
     let importance = importance_score(
         canonical_source.access_count,
@@ -172,10 +170,7 @@ pub fn decay_importance(
     score.clamp(0.0, 1.0)
 }
 
-pub fn age_days(
-    last_access: Option<DateTime<Utc>>,
-    created_at: Option<DateTime<Utc>>,
-) -> f32 {
+pub fn age_days(last_access: Option<DateTime<Utc>>, created_at: Option<DateTime<Utc>>) -> f32 {
     let reference = last_access.or(created_at).unwrap_or_else(Utc::now);
     (Utc::now() - reference).num_seconds().max(0) as f32 / 86_400.0
 }

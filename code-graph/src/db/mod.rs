@@ -13,6 +13,39 @@ pub struct CodeGraphDB {
     conn: Mutex<Connection>,
 }
 
+fn parse_language(value: &str) -> Language {
+    serde_json::from_str(value).unwrap_or_else(|_| match value {
+        "Rust" => Language::Rust,
+        "TypeScript" => Language::TypeScript,
+        "JavaScript" => Language::JavaScript,
+        "Python" => Language::Python,
+        "Go" => Language::Go,
+        "Java" => Language::Java,
+        "C" => Language::C,
+        "Cpp" => Language::Cpp,
+        _ => Language::Unknown,
+    })
+}
+
+fn parse_symbol_kind(value: &str) -> SymbolKind {
+    serde_json::from_str(value).unwrap_or_else(|_| match value {
+        "Function" => SymbolKind::Function,
+        "Struct" => SymbolKind::Struct,
+        "Enum" => SymbolKind::Enum,
+        "Trait" => SymbolKind::Trait,
+        "Impl" => SymbolKind::Impl,
+        "Class" => SymbolKind::Class,
+        "Method" => SymbolKind::Method,
+        "Variable" => SymbolKind::Variable,
+        "Constant" => SymbolKind::Constant,
+        "Import" => SymbolKind::Import,
+        "Export" => SymbolKind::Export,
+        "Module" => SymbolKind::Module,
+        "File" => SymbolKind::File,
+        _ => SymbolKind::Symbol,
+    })
+}
+
 impl CodeGraphDB {
     /// Open or create a database at the given path
     pub fn new(path: &Path) -> Result<Self> {
@@ -238,10 +271,8 @@ impl CodeGraphDB {
                 Ok(Symbol {
                     id: Some(row.get(0)?),
                     name: row.get(1)?,
-                    kind: serde_json::from_str(&row.get::<_, String>(2)?)
-                        .unwrap_or(SymbolKind::Function),
-                    lang: serde_json::from_str(&row.get::<_, String>(3)?)
-                        .unwrap_or(Language::Unknown),
+                    kind: parse_symbol_kind(&row.get::<_, String>(2)?),
+                    lang: parse_language(&row.get::<_, String>(3)?),
                     file_path: row.get(4)?,
                     start_line: row.get(5)?,
                     end_line: row.get(6)?,
@@ -255,25 +286,18 @@ impl CodeGraphDB {
             .filter_map(|r| r.ok())
             .collect();
 
-        // Apply scoring and ranking
+        // Apply scoring and ranking without mutating semantic fields.
         if !query.is_empty() {
-            for symbol in &mut symbols {
-                let score = Self::calculate_score(&symbol.name, query);
-                // Add bonus for public symbols (functions are usually public in this context)
-                let bonus = match symbol.kind {
-                    SymbolKind::Function => 1,
-                    SymbolKind::Struct => 1,
-                    _ => 0,
-                };
-                // Use kind as secondary sort key
-                symbol.parent = Some(format!("{:?}", score + bonus));
-            }
-
-            // Sort by score descending
             symbols.sort_by(|a, b| {
-                let score_a: i32 = a.parent.as_ref().and_then(|s| s.parse().ok()).unwrap_or(0);
-                let score_b: i32 = b.parent.as_ref().and_then(|s| s.parse().ok()).unwrap_or(0);
-                score_b.cmp(&score_a)
+                let score_for = |symbol: &Symbol| {
+                    let score = Self::calculate_score(&symbol.name, query);
+                    let bonus = match symbol.kind {
+                        SymbolKind::Function | SymbolKind::Struct => 1,
+                        _ => 0,
+                    };
+                    score + bonus
+                };
+                score_for(b).cmp(&score_for(a))
             });
         }
 
@@ -309,10 +333,8 @@ impl CodeGraphDB {
                 Ok(Symbol {
                     id: Some(row.get(0)?),
                     name: row.get(1)?,
-                    kind: serde_json::from_str(&row.get::<_, String>(2)?)
-                        .unwrap_or(SymbolKind::Function),
-                    lang: serde_json::from_str(&row.get::<_, String>(3)?)
-                        .unwrap_or(Language::Unknown),
+                    kind: parse_symbol_kind(&row.get::<_, String>(2)?),
+                    lang: parse_language(&row.get::<_, String>(3)?),
                     file_path: row.get(4)?,
                     start_line: row.get(5)?,
                     end_line: row.get(6)?,
@@ -356,7 +378,7 @@ impl CodeGraphDB {
                 let lang_str: String = row.get(0)?;
                 let count: u64 = row.get(1)?;
                 Ok(LanguageCount {
-                    lang: serde_json::from_str(&lang_str).unwrap_or(Language::Unknown),
+                    lang: parse_language(&lang_str),
                     count,
                 })
             })
@@ -388,5 +410,24 @@ impl CodeGraphDB {
 
         info!("Database cleared");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_plain_text_language_values_from_sqlite() {
+        assert_eq!(parse_language("Rust"), Language::Rust);
+        assert_eq!(parse_language("TypeScript"), Language::TypeScript);
+        assert_eq!(parse_language("unknown-value"), Language::Unknown);
+    }
+
+    #[test]
+    fn parses_plain_text_symbol_kind_values_from_sqlite() {
+        assert_eq!(parse_symbol_kind("Struct"), SymbolKind::Struct);
+        assert_eq!(parse_symbol_kind("Function"), SymbolKind::Function);
+        assert_eq!(parse_symbol_kind("unknown-value"), SymbolKind::Symbol);
     }
 }

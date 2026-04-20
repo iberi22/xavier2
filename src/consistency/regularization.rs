@@ -244,12 +244,8 @@ impl RetentionRegularizer {
             report.drift_alerts = drift_alerts;
 
             // Adjust coherence score based on drift severity
-            let drift_penalty: f32 = report
-                .drift_alerts
-                .iter()
-                .map(|a| a.severity)
-                .sum::<f32>()
-                * 0.1;
+            let drift_penalty: f32 =
+                report.drift_alerts.iter().map(|a| a.severity).sum::<f32>() * 0.1;
             report.coherence_score = (report.coherence_score - drift_penalty).max(0.0);
             report.passes = report.coherence_score >= self.config.min_coherence_score;
         }
@@ -273,7 +269,6 @@ impl RetentionRegularizer {
                 severity: (occurrence_diff.abs() as f32 / 50.0).min(1.0),
             });
         }
-
 
         // Check trust score change
         let trust_diff = (old.trust_score - new.trust_score).abs();
@@ -413,7 +408,8 @@ impl RetentionRegularizer {
 
             // If same entity has conflicting property assignments
             if property_values.len() > 1 {
-                let all_memory_ids: Vec<String> = property_values.values().flatten().cloned().collect();
+                let all_memory_ids: Vec<String> =
+                    property_values.values().flatten().cloned().collect();
                 conflicts.push(Conflict {
                     conflict_type: ConflictType::EntityPropertyMismatch,
                     memory_ids: all_memory_ids,
@@ -486,7 +482,8 @@ impl RetentionRegularizer {
 
                 if marker1 != marker2 {
                     // Check if temporal relationship is violated
-                    if let Some(violation) = self.check_temporal_violation(marker1, mem1, marker2, mem2)
+                    if let Some(violation) =
+                        self.check_temporal_violation(marker1, mem1, marker2, mem2)
                     {
                         issues.push(violation);
                     }
@@ -542,7 +539,9 @@ impl RetentionRegularizer {
 
     /// Check if contents have negation-based conflict
     fn has_negation_conflict(&self, contents: &[&str]) -> bool {
-        let negation_words = ["not", "no", "never", "neither", "none", "doesn't", "isn't", "wasn't"];
+        let negation_words = [
+            "not", "no", "never", "neither", "none", "doesn't", "isn't", "wasn't",
+        ];
 
         let mut has_affirmative = false;
         let mut has_negative = false;
@@ -563,9 +562,8 @@ impl RetentionRegularizer {
     /// Extract entity references from content
     fn extract_entity_references(&self, content: &str) -> Vec<(String, String)> {
         use regex::Regex;
-        static ENTITY_RE: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b").unwrap()
-        });
+        static ENTITY_RE: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b").unwrap());
 
         let mut refs = Vec::new();
         let mut seen = std::collections::HashSet::new();
@@ -632,10 +630,7 @@ impl RetentionRegularizer {
                     mem1.id.clone().unwrap_or_default(),
                     mem2.id.clone().unwrap_or_default(),
                 ],
-                description: format!(
-                    "Temporal contradiction: '{}' vs '{}'",
-                    marker1, marker2
-                ),
+                description: format!("Temporal contradiction: '{}' vs '{}'", marker1, marker2),
                 expected_order: "Earlier event should come before later event".to_string(),
             });
         }
@@ -647,10 +642,8 @@ impl RetentionRegularizer {
     fn string_similarity(&self, s1: &str, s2: &str) -> f32 {
         let s1_lower = s1.to_lowercase();
         let s2_lower = s2.to_lowercase();
-        let words1: std::collections::HashSet<&str> =
-            s1_lower.split_whitespace().collect();
-        let words2: std::collections::HashSet<&str> =
-            s2_lower.split_whitespace().collect();
+        let words1: std::collections::HashSet<&str> = s1_lower.split_whitespace().collect();
+        let words2: std::collections::HashSet<&str> = s2_lower.split_whitespace().collect();
 
         if words1.is_empty() && words2.is_empty() {
             return 1.0;
@@ -686,6 +679,7 @@ use std::sync::LazyLock;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
 
     #[test]
     fn test_drift_threshold_default() {
@@ -710,6 +704,8 @@ mod tests {
             first_seen: Utc::now(),
             last_seen: Utc::now(),
             merged_from: vec![],
+            trust_score: 0.0,
+            trust_rank: 0,
         };
 
         let mut new = old.clone();
@@ -768,7 +764,6 @@ mod tests {
         let sig2 = regularizer.duplicate_signature("Hello World!");
         let sig3 = regularizer.duplicate_signature("Hello World");
         assert_eq!(sig1, sig2);
-        // Note: punctuation stripped, so sig1 == sig3 should also hold
-        // depending on implementation
+        assert_eq!(sig1, sig3);
     }
 }

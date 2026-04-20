@@ -41,7 +41,9 @@ impl HybridSearcher {
         limit: usize,
         filters: Option<&MemoryQueryFilters>,
     ) -> Result<Vec<ScoredResult>, SearchError> {
-        let keyword_results = self.keyword_search(memory, query, limit * 2, filters).await?;
+        let keyword_results = self
+            .keyword_search(memory, query, limit * 2, filters)
+            .await?;
         let vector_results = self
             .vector_search(memory, query, limit * 2, filters)
             .await
@@ -122,11 +124,7 @@ impl HybridSearcher {
         Ok(self.convert_documents(documents, "vector"))
     }
 
-    fn convert_documents(
-        &self,
-        documents: Vec<MemoryDocument>,
-        source: &str,
-    ) -> Vec<ScoredResult> {
+    fn convert_documents(&self, documents: Vec<MemoryDocument>, source: &str) -> Vec<ScoredResult> {
         let total = documents.len().max(1) as f32;
         documents
             .into_iter()

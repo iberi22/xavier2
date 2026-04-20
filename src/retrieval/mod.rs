@@ -6,6 +6,6 @@
 pub mod gating;
 
 pub use gating::{
-    AdaptiveGating, Event, GatingConfig, LayerStats, LayerWeights, LayerSearchResult,
+    AdaptiveGating, Event, GatingConfig, LayerSearchResult, LayerStats, LayerWeights,
     SessionSummary,
 };

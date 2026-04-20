@@ -130,7 +130,10 @@ impl SemanticMemory {
         drop(entities);
         self.rebuild_indexes().await;
 
-        debug!("Created new semantic entity: {} ({})", entity.name, entity_id);
+        debug!(
+            "Created new semantic entity: {} ({})",
+            entity.name, entity_id
+        );
         Ok(entity)
     }
 
@@ -157,10 +160,17 @@ impl SemanticMemory {
     }
 
     /// Get all entities, optionally filtered by type
-    pub async fn get_entities(&self, entity_type: Option<SemanticEntityType>) -> Vec<SemanticEntity> {
+    pub async fn get_entities(
+        &self,
+        entity_type: Option<SemanticEntityType>,
+    ) -> Vec<SemanticEntity> {
         let entities = self.entities.read().await;
         match entity_type {
-            Some(t) => entities.values().filter(|e| e.entity_type == t).cloned().collect(),
+            Some(t) => entities
+                .values()
+                .filter(|e| e.entity_type == t)
+                .cloned()
+                .collect(),
             None => entities.values().cloned().collect(),
         }
     }
@@ -191,51 +201,56 @@ impl SemanticMemory {
     }
 
     /// Merge two entities (secondary merged into primary)
-    pub async fn merge_entities(&self, primary_id: &str, secondary_id: &str) -> Result<SemanticEntity> {
+    pub async fn merge_entities(
+        &self,
+        primary_id: &str,
+        secondary_id: &str,
+    ) -> Result<SemanticEntity> {
         // Get secondary first since we'll remove it
         let secondary = {
             let entities = self.entities.read().await;
             entities.get(secondary_id).cloned()
         };
-        let secondary = secondary.ok_or_else(|| anyhow!("Secondary entity not found: {}", secondary_id))?;
-        
+        let secondary =
+            secondary.ok_or_else(|| anyhow!("Secondary entity not found: {}", secondary_id))?;
+
         // Remove secondary and get primary in same write guard
         {
             let mut entities = self.entities.write().await;
-            
+
             // Remove secondary first
             let _ = entities.remove(secondary_id);
-            
+
             let primary = entities
                 .get_mut(primary_id)
                 .ok_or_else(|| anyhow!("Primary entity not found: {}", primary_id))?;
-            
+
             // Merge properties
             primary.merge_properties(&secondary);
-            
+
             // Merge aliases
             for alias in &secondary.aliases {
                 if !primary.aliases.contains(alias) {
                     primary.aliases.push(alias.clone());
                 }
             }
-            
+
             // Merge source memories
             for memory_id in &secondary.source_memories {
                 if !primary.source_memories.contains(memory_id) {
                     primary.source_memories.push(memory_id.clone());
                 }
             }
-            
+
             // Update confirmation count
             primary.confirmation_count += secondary.confirmation_count;
             primary.last_updated = Utc::now();
-            
+
             // Recalculate trust
             drop(entities);
             self.update_entity_trust_internal_id(primary_id).await?;
         }
-        
+
         // Update relations: change secondary_id to primary_id in all relations
         {
             let mut relations = self.relations.write().await;
@@ -248,11 +263,11 @@ impl SemanticMemory {
                 }
             }
         }
-        
+
         self.rebuild_indexes().await;
-        
+
         info!("Merged entity {} into {}", secondary_id, primary_id);
-        
+
         self.get_entity(primary_id)
             .await
             .ok_or_else(|| anyhow!("Entity not found after merge"))
@@ -263,11 +278,18 @@ impl SemanticMemory {
     // =====================================================================
 
     /// Add or update a relationship between two entities
-    pub async fn upsert_relation(&self, request: UpsertRelationRequest) -> Result<SemanticRelation> {
+    pub async fn upsert_relation(
+        &self,
+        request: UpsertRelationRequest,
+    ) -> Result<SemanticRelation> {
         // Resolve entity names to IDs
-        let source_id = self.resolve_entity(&request.source_name).await?
+        let source_id = self
+            .resolve_entity(&request.source_name)
+            .await?
             .ok_or_else(|| anyhow!("Source entity not found: {}", request.source_name))?;
-        let target_id = self.resolve_entity(&request.target_name).await?
+        let target_id = self
+            .resolve_entity(&request.target_name)
+            .await?
             .ok_or_else(|| anyhow!("Target entity not found: {}", request.target_name))?;
 
         let _normalized_key = relation_key(&source_id, &target_id, &request.relation_type);
@@ -276,7 +298,9 @@ impl SemanticMemory {
 
         // Check if relation exists
         if let Some(existing) = relations.iter_mut().find(|r| {
-            r.source_id == source_id && r.target_id == target_id && r.relation_type == request.relation_type
+            r.source_id == source_id
+                && r.target_id == target_id
+                && r.relation_type == request.relation_type
         }) {
             // Update existing
             existing.confirmation_count += 1;
@@ -293,7 +317,11 @@ impl SemanticMemory {
         }
 
         // Create new relation
-        let mut relation = SemanticRelation::new(source_id.clone(), target_id.clone(), request.relation_type.clone());
+        let mut relation = SemanticRelation::new(
+            source_id.clone(),
+            target_id.clone(),
+            request.relation_type.clone(),
+        );
         relation.weight = request.weight;
         if let Some(memory_id) = request.source_memory {
             relation.source_memories.push(memory_id);
@@ -318,12 +346,19 @@ impl SemanticMemory {
                 .insert(source_id.clone());
         }
 
-        debug!("Created semantic relation: {} -> {} ({})", request.source_name, request.target_name, request.relation_type);
+        debug!(
+            "Created semantic relation: {} -> {} ({})",
+            request.source_name, request.target_name, request.relation_type
+        );
         Ok(relation)
     }
 
     /// Get relations for an entity
-    pub async fn get_relations(&self, entity_id: &str, direction: RelationDirection) -> Vec<SemanticRelation> {
+    pub async fn get_relations(
+        &self,
+        entity_id: &str,
+        direction: RelationDirection,
+    ) -> Vec<SemanticRelation> {
         let relations = self.relations.read().await;
 
         match direction {
@@ -346,7 +381,11 @@ impl SemanticMemory {
     }
 
     /// Get entity neighbors (entities connected by relations)
-    pub async fn get_neighbors(&self, entity_id: &str, direction: RelationDirection) -> Vec<(SemanticEntity, SemanticRelation)> {
+    pub async fn get_neighbors(
+        &self,
+        entity_id: &str,
+        direction: RelationDirection,
+    ) -> Vec<(SemanticEntity, SemanticRelation)> {
         let relations = self.relations.read().await;
         let entities = self.entities.read().await;
 
@@ -364,7 +403,13 @@ impl SemanticMemory {
             RelationDirection::Both => relations
                 .iter()
                 .filter(|r| r.source_id == entity_id || r.target_id == entity_id)
-                .map(|r| if r.source_id == entity_id { r.target_id.clone() } else { r.source_id.clone() })
+                .map(|r| {
+                    if r.source_id == entity_id {
+                        r.target_id.clone()
+                    } else {
+                        r.source_id.clone()
+                    }
+                })
                 .collect(),
         };
 
@@ -374,7 +419,10 @@ impl SemanticMemory {
                 let entity = entities.get(nid)?.clone();
                 let relation = relations
                     .iter()
-                    .find(|r| (r.source_id == entity_id && r.target_id == *nid) || (r.target_id == entity_id && r.source_id == *nid))
+                    .find(|r| {
+                        (r.source_id == entity_id && r.target_id == *nid)
+                            || (r.target_id == entity_id && r.source_id == *nid)
+                    })
                     .cloned()?;
                 Some((entity, relation))
             })
@@ -382,7 +430,12 @@ impl SemanticMemory {
     }
 
     /// Traverse the entity graph (BFS)
-    pub async fn traverse(&self, start_id: &str, max_depth: usize, direction: RelationDirection) -> Vec<TraversalResult> {
+    pub async fn traverse(
+        &self,
+        start_id: &str,
+        max_depth: usize,
+        direction: RelationDirection,
+    ) -> Vec<TraversalResult> {
         let relations = self.relations.read().await;
         let _entities = self.entities.read().await;
 
@@ -449,7 +502,11 @@ impl SemanticMemory {
     /// Extract entities from text content using pattern matching.
     /// This is a simplified NER-style extraction based on the existing
     /// entity_graph.rs patterns.
-    pub async fn extract_entities_from_text(&self, text: &str, source_memory: Option<String>) -> Vec<SemanticEntity> {
+    pub async fn extract_entities_from_text(
+        &self,
+        text: &str,
+        source_memory: Option<String>,
+    ) -> Vec<SemanticEntity> {
         let extracted = super::entity_graph::EntityGraph::extract_entities(text);
         let mut entities = Vec::new();
 
@@ -472,7 +529,11 @@ impl SemanticMemory {
 
     /// Extract relations from text content.
     /// Uses regex patterns to find relationship mentions.
-    pub async fn extract_relations_from_text(&self, text: &str, source_memory: Option<String>) -> Vec<SemanticRelation> {
+    pub async fn extract_relations_from_text(
+        &self,
+        text: &str,
+        source_memory: Option<String>,
+    ) -> Vec<SemanticRelation> {
         use super::entity_graph::EntityGraph;
 
         let relations = EntityGraph::extract_relation_candidates(text);
@@ -498,8 +559,12 @@ impl SemanticMemory {
 
     /// Process a memory document and extract entities + relations
     pub async fn index_memory(&self, memory_id: &str, content: &str) -> Result<IndexMemoryResult> {
-        let entities = self.extract_entities_from_text(content, Some(memory_id.to_string())).await;
-        let relations = self.extract_relations_from_text(content, Some(memory_id.to_string())).await;
+        let entities = self
+            .extract_entities_from_text(content, Some(memory_id.to_string()))
+            .await;
+        let relations = self
+            .extract_relations_from_text(content, Some(memory_id.to_string()))
+            .await;
 
         Ok(IndexMemoryResult {
             memory_id: memory_id.to_string(),
@@ -523,7 +588,9 @@ impl SemanticMemory {
         let mut high_trust_count = 0;
 
         for entity in entities.values() {
-            *by_type.entry(entity.entity_type.as_str().to_string()).or_insert(0) += 1;
+            *by_type
+                .entry(entity.entity_type.as_str().to_string())
+                .or_insert(0) += 1;
             total_trust += entity.trust_score;
             if entity.trust_score > 0.7 {
                 high_trust_count += 1;
@@ -535,7 +602,11 @@ impl SemanticMemory {
             total_entities: entities.len(),
             total_relations: relations.len(),
             by_type,
-            avg_trust_score: if count > 0.0 { total_trust / count } else { 0.0 },
+            avg_trust_score: if count > 0.0 {
+                total_trust / count
+            } else {
+                0.0
+            },
             high_trust_count,
         }
     }
@@ -549,7 +620,9 @@ impl SemanticMemory {
             .values()
             .filter(|e| {
                 e.name.to_ascii_lowercase().contains(&query_lower)
-                    || e.aliases.iter().any(|a| a.to_ascii_lowercase().contains(&query_lower))
+                    || e.aliases
+                        .iter()
+                        .any(|a| a.to_ascii_lowercase().contains(&query_lower))
             })
             .cloned()
             .collect()
@@ -675,9 +748,14 @@ pub struct IndexMemoryResult {
 
 fn normalize_name(name: &str) -> String {
     name.split_whitespace()
-        .map(|part| part.trim_matches(|c: char| {
-            matches!(c, ',' | '.' | ';' | ':' | '"' | '\'' | '(' | ')' | '[' | ']' | '-')
-        }))
+        .map(|part| {
+            part.trim_matches(|c: char| {
+                matches!(
+                    c,
+                    ',' | '.' | ';' | ':' | '"' | '\'' | '(' | ')' | '[' | ']' | '-'
+                )
+            })
+        })
         .filter(|part| !part.is_empty())
         .map(|part| part.to_ascii_lowercase())
         .collect::<Vec<_>>()
@@ -707,7 +785,10 @@ mod tests {
     async fn test_upsert_and_get_entity() {
         let sem = SemanticMemory::new();
 
-        let entity = sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string())).await.unwrap();
+        let entity = sem
+            .upsert_entity(UpsertEntityRequest::new("Alice".to_string()))
+            .await
+            .unwrap();
         assert_eq!(entity.name, "Alice");
         assert_eq!(entity.entity_type, SemanticEntityType::Concept);
 
@@ -720,20 +801,29 @@ mod tests {
         let sem = SemanticMemory::new();
 
         // Create entities
-        sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string())).await.unwrap();
-        sem.upsert_entity(UpsertEntityRequest::new("SWAL".to_string())).await.unwrap();
+        sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string()))
+            .await
+            .unwrap();
+        sem.upsert_entity(UpsertEntityRequest::new("SWAL".to_string()))
+            .await
+            .unwrap();
 
         // Create relation
-        let relation = sem.upsert_relation(UpsertRelationRequest::new(
-            "Alice".to_string(),
-            "SWAL".to_string(),
-            "works_at".to_string(),
-        )).await.unwrap();
+        let relation = sem
+            .upsert_relation(UpsertRelationRequest::new(
+                "Alice".to_string(),
+                "SWAL".to_string(),
+                "works_at".to_string(),
+            ))
+            .await
+            .unwrap();
 
         assert_eq!(relation.relation_type, "works_at");
 
         // Check neighbors
-        let neighbors = sem.get_neighbors(&relation.source_id, RelationDirection::Outgoing).await;
+        let neighbors = sem
+            .get_neighbors(&relation.source_id, RelationDirection::Outgoing)
+            .await;
         assert_eq!(neighbors.len(), 1);
     }
 
@@ -741,10 +831,12 @@ mod tests {
     async fn test_entity_extraction() {
         let sem = SemanticMemory::new();
 
-        let entities = sem.extract_entities_from_text(
-            "BELA works at SWAL and knows Leonardo in Bogota.",
-            Some("memory-1".to_string())
-        ).await;
+        let entities = sem
+            .extract_entities_from_text(
+                "BELA works at SWAL and knows Leonardo in Bogota.",
+                Some("memory-1".to_string()),
+            )
+            .await;
 
         assert!(entities.len() >= 3); // BELA, SWAL, Leonardo, Bogota
     }
@@ -753,9 +845,22 @@ mod tests {
     async fn test_stats() {
         let sem = SemanticMemory::new();
 
-        sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string()).with_type(SemanticEntityType::Person)).await.unwrap();
-        sem.upsert_entity(UpsertEntityRequest::new("Bob".to_string()).with_type(SemanticEntityType::Person)).await.unwrap();
-        sem.upsert_entity(UpsertEntityRequest::new("Acme".to_string()).with_type(SemanticEntityType::Organization)).await.unwrap();
+        sem.upsert_entity(
+            UpsertEntityRequest::new("Alice".to_string()).with_type(SemanticEntityType::Person),
+        )
+        .await
+        .unwrap();
+        sem.upsert_entity(
+            UpsertEntityRequest::new("Bob".to_string()).with_type(SemanticEntityType::Person),
+        )
+        .await
+        .unwrap();
+        sem.upsert_entity(
+            UpsertEntityRequest::new("Acme".to_string())
+                .with_type(SemanticEntityType::Organization),
+        )
+        .await
+        .unwrap();
 
         let stats = sem.stats().await;
         assert_eq!(stats.total_entities, 3);
@@ -768,15 +873,35 @@ mod tests {
         let sem = SemanticMemory::new();
 
         // Create chain: Alice -> Bob -> Carol
-        sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string())).await.unwrap();
-        sem.upsert_entity(UpsertEntityRequest::new("Bob".to_string())).await.unwrap();
-        sem.upsert_entity(UpsertEntityRequest::new("Carol".to_string())).await.unwrap();
+        sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string()))
+            .await
+            .unwrap();
+        sem.upsert_entity(UpsertEntityRequest::new("Bob".to_string()))
+            .await
+            .unwrap();
+        sem.upsert_entity(UpsertEntityRequest::new("Carol".to_string()))
+            .await
+            .unwrap();
 
-        sem.upsert_relation(UpsertRelationRequest::new("Alice".to_string(), "Bob".to_string(), "knows".to_string())).await.unwrap();
-        sem.upsert_relation(UpsertRelationRequest::new("Bob".to_string(), "Carol".to_string(), "knows".to_string())).await.unwrap();
+        sem.upsert_relation(UpsertRelationRequest::new(
+            "Alice".to_string(),
+            "Bob".to_string(),
+            "knows".to_string(),
+        ))
+        .await
+        .unwrap();
+        sem.upsert_relation(UpsertRelationRequest::new(
+            "Bob".to_string(),
+            "Carol".to_string(),
+            "knows".to_string(),
+        ))
+        .await
+        .unwrap();
 
         let alice = sem.get_entity("Alice").await.unwrap();
-        let traversal = sem.traverse(&alice.id, 2, RelationDirection::Outgoing).await;
+        let traversal = sem
+            .traverse(&alice.id, 2, RelationDirection::Outgoing)
+            .await;
 
         assert!(traversal.len() >= 2); // Bob at depth 1, Carol at depth 2
     }

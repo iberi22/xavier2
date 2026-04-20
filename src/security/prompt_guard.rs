@@ -25,6 +25,17 @@ pub enum AttackType {
     None,
 }
 
+impl AttackType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AttackType::DirectPromptInjection => "direct_prompt_injection",
+            AttackType::IndirectPromptInjection => "indirect_prompt_injection",
+            AttackType::PromptLeaking => "prompt_leaking",
+            AttackType::None => "none",
+        }
+    }
+}
+
 /// Resultado de la detección de prompt injection
 #[derive(Debug, Clone)]
 pub struct DetectionResult {

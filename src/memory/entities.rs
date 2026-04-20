@@ -62,7 +62,7 @@ impl Default for SemanticEntityType {
 }
 
 /// A semantic entity with metadata, properties, and trust scoring.
-/// 
+///
 /// This is the primary node type in the EntityGraph (semantic memory).
 /// Trust scores are based on confirmation count - more confirmations
 /// from different sources lead to higher trust.
@@ -177,7 +177,10 @@ impl SemanticEntity {
     pub fn matches_name(&self, name: &str) -> bool {
         let name_lower = name.to_ascii_lowercase();
         self.name.to_ascii_lowercase() == name_lower
-            || self.aliases.iter().any(|a| a.to_ascii_lowercase() == name_lower)
+            || self
+                .aliases
+                .iter()
+                .any(|a| a.to_ascii_lowercase() == name_lower)
     }
 
     /// Get the normalized (lowercase) name
@@ -366,11 +369,11 @@ mod tests {
     fn test_entity_trust_score_increase() {
         let mut entity = SemanticEntity::new("Bob".to_string(), SemanticEntityType::Person);
         let initial_trust = entity.trust_score;
-        
+
         entity.add_source("memory-1".to_string());
         entity.add_source("memory-2".to_string());
         entity.add_source("memory-3".to_string());
-        
+
         assert!(entity.trust_score > initial_trust);
         assert_eq!(entity.confirmation_count, 4); // 1 initial + 3 added
     }
@@ -380,7 +383,7 @@ mod tests {
         let mut entity = SemanticEntity::new("Robert".to_string(), SemanticEntityType::Person);
         entity.add_alias("Bob".to_string());
         entity.add_alias("Rob".to_string());
-        
+
         assert!(entity.matches_name("Robert"));
         assert!(entity.matches_name("Bob"));
         assert!(entity.matches_name("rob"));
@@ -400,8 +403,14 @@ mod tests {
 
     #[test]
     fn test_entity_type_from_str() {
-        assert_eq!(SemanticEntityType::from_str("person"), Some(SemanticEntityType::Person));
-        assert_eq!(SemanticEntityType::from_str("ORGANIZATION"), Some(SemanticEntityType::Organization));
+        assert_eq!(
+            SemanticEntityType::from_str("person"),
+            Some(SemanticEntityType::Person)
+        );
+        assert_eq!(
+            SemanticEntityType::from_str("ORGANIZATION"),
+            Some(SemanticEntityType::Organization)
+        );
         assert_eq!(SemanticEntityType::from_str("invalid"), None);
     }
 
@@ -409,7 +418,7 @@ mod tests {
     fn test_upsert_request() {
         let req = UpsertEntityRequest::new("Test Entity".to_string())
             .with_type(SemanticEntityType::Product);
-        
+
         assert_eq!(req.name, "Test Entity");
         assert_eq!(req.entity_type, SemanticEntityType::Product);
     }

@@ -1,21 +1,17 @@
 //! HTTP handlers for the minimal Xavier2 vertical slice.
 
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    Extension, Json,
-};
+use axum::{extract::State, response::IntoResponse, Extension, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use tracing::{info, error};
+use tracing::{error, info};
 
 use crate::{
     agents::provider::ModelProviderClient,
     agents::runtime::System3Mode,
-    consolidation::ConsolidationTask,
     consistency::regularization::{CoherenceReport, RetentionRegularizer},
+    consolidation::ConsolidationTask,
     embedding,
     memory::belief_graph::{BeliefNode, BeliefRelation},
     memory::entity_graph::EntityRecord,
@@ -56,9 +52,7 @@ impl ShutdownState {
 
     /// Request graceful shutdown. Idempotent — multiple calls are fine.
     pub fn request_shutdown(&self, reason: &'static str) {
-        let prev = self
-            .shutdown_signalled
-            .fetch_add(1, Ordering::SeqCst);
+        let prev = self.shutdown_signalled.fetch_add(1, Ordering::SeqCst);
         if prev == 0 {
             info!("Shutdown requested: {}", reason);
             // Ignore send error — receivers may have already dropped.
@@ -618,20 +612,10 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
         },
     };
 
-    let code_graph = match state.code_db.stats() {
-        Ok(stats) => ReadinessComponent {
-            configured: true,
-            ready: true,
-            detail: format!(
-                "code graph reachable (files={}, symbols={})",
-                stats.total_files, stats.total_symbols
-            ),
-        },
-        Err(error) => ReadinessComponent {
-            configured: true,
-            ready: false,
-            detail: error.to_string(),
-        },
+    let code_graph = ReadinessComponent {
+        configured: false,
+        ready: true,
+        detail: "code graph not available in CLI mode".to_string(),
     };
 
     let ready = workspace.ready
@@ -806,13 +790,19 @@ pub async fn memory_add(
         }));
     }
 
-    let memory_id = match workspace
+    match workspace
         .workspace
-        .memory
-        .add_document_typed_with_embedding(path, content.clone(), metadata.clone(), Some(typed), content_vector)
+        .ingest_typed(
+            path,
+            content.clone(),
+            metadata.clone(),
+            Some(typed),
+            content_vector,
+            false,
+        )
         .await
     {
-        Ok(id) => id,
+        Ok(_) => {}
         Err(error) => {
             tracing::error!(%error, workspace_id = %workspace.workspace_id, "failed to add memory document");
             return Json(serde_json::json!({
@@ -822,23 +812,6 @@ pub async fn memory_add(
             }));
         }
     };
-
-    if let Err(error) = workspace
-        .workspace
-        .index_memory_entities(&memory_id, &content, &metadata)
-        .await
-    {
-        tracing::warn!(%error, memory_id = %memory_id, "failed to index entity graph from memory_add");
-    }
-
-    if let Err(error) = workspace
-        .workspace
-        .semantic_memory
-        .index_memory(&memory_id, &content)
-        .await
-    {
-        tracing::warn!(%error, memory_id = %memory_id, "failed to index semantic memory from memory_add");
-    }
 
     Json(serde_json::json!({
         "status": "ok",
@@ -980,11 +953,8 @@ async fn build_multi_layer_retrieve_response(
         .collect::<Vec<_>>();
     let episodic_count = episodic_summaries.len();
 
-    let semantic_entities: Vec<EntityRecord> = workspace
-        .workspace
-        .entity_graph
-        .all_entities()
-        .await;
+    let semantic_entities: Vec<EntityRecord> =
+        workspace.workspace.entity_graph.all_entities().await;
     let semantic_count = semantic_entities.len();
 
     let results = gating.retrieve(
@@ -998,10 +968,7 @@ async fn build_multi_layer_retrieve_response(
 
     let coherence_report = if payload.include_coherence {
         let regularizer = RetentionRegularizer::with_defaults();
-        Some(regularizer.check_coherence_with_entities(
-            &working_docs,
-            &semantic_entities,
-        ))
+        Some(regularizer.check_coherence_with_entities(&working_docs, &semantic_entities))
     } else {
         None
     };
@@ -1146,7 +1113,9 @@ pub async fn memory_consolidate(
     }
 }
 
-pub async fn memory_reflect(Extension(workspace): Extension<WorkspaceContext>) -> impl IntoResponse {
+pub async fn memory_reflect(
+    Extension(workspace): Extension<WorkspaceContext>,
+) -> impl IntoResponse {
     info!("?? Memory reflection request");
     let task = ConsolidationTask::default();
     match task.reflect(&workspace).await {
@@ -1163,4 +1132,3 @@ pub async fn memory_reflect(Extension(workspace): Extension<WorkspaceContext>) -
         }
     }
 }
-

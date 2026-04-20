@@ -73,7 +73,11 @@ impl ConsolidationTask {
     pub async fn consolidate(&self, workspace: &WorkspaceContext) -> Result<ConsolidationStats> {
         let start = std::time::Instant::now();
         let mut stats = ConsolidationStats::default();
-        let memories = workspace.workspace.memory_manager.get_all_memories().await?;
+        let memories = workspace
+            .workspace
+            .memory_manager
+            .get_all_memories()
+            .await?;
         let mut selected = memories;
         selected.sort_by(|left, right| {
             right
@@ -89,10 +93,7 @@ impl ConsolidationTask {
 
         let memory = workspace.workspace.memory_manager.memory();
         let clusters = merger::cluster_similar_memories(&selected, self.similarity_threshold);
-        stats.grouped = clusters
-            .iter()
-            .filter(|cluster| cluster.len() > 1)
-            .count();
+        stats.grouped = clusters.iter().filter(|cluster| cluster.len() > 1).count();
 
         let mut seen_ids = HashSet::new();
         let mut removed_ids = HashSet::new();
@@ -197,7 +198,11 @@ impl ConsolidationTask {
     pub async fn reflect(&self, workspace: &WorkspaceContext) -> Result<ReflectionStats> {
         let start = std::time::Instant::now();
         let mut stats = ReflectionStats::default();
-        let memories = workspace.workspace.memory_manager.get_all_memories().await?;
+        let memories = workspace
+            .workspace
+            .memory_manager
+            .get_all_memories()
+            .await?;
         let mut candidates: Vec<ManagedMemory> = memories
             .into_iter()
             .filter(|memory| {
@@ -226,7 +231,8 @@ impl ConsolidationTask {
             return Ok(stats);
         }
 
-        let docs: Vec<MemoryDocument> = candidates.iter().map(|memory| memory.doc.clone()).collect();
+        let docs: Vec<MemoryDocument> =
+            candidates.iter().map(|memory| memory.doc.clone()).collect();
         let reflection = reflection::reflect_memories(&docs).await?;
         stats.llm_used = reflection.llm_used;
         stats.summarized_documents = docs.len();
@@ -271,7 +277,14 @@ impl ConsolidationTask {
                 .any(|target| target == candidate_id)
                 || merger::similarity_to_summary(&candidate.doc.content, &reflection.summary)
                     >= self.cleanup_similarity_threshold;
-            if should_remove && workspace.workspace.memory.delete(candidate_id).await.is_ok() {
+            if should_remove
+                && workspace
+                    .workspace
+                    .memory
+                    .delete(candidate_id)
+                    .await
+                    .is_ok()
+            {
                 stats.redundant_documents_removed += 1;
             }
         }

@@ -42,10 +42,10 @@ impl ConnectionPool {
     /// Create a new connection pool with custom configuration
     pub fn with_config(database_path: &str, config: PoolConfig) -> SqliteResult<Self> {
         let conn = Connection::open(database_path)?;
-        
+
         // Enable WAL mode for better concurrency
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
-        
+
         Ok(Self {
             config,
             connection: conn,
@@ -90,16 +90,20 @@ mod tests {
     fn test_pool_query() {
         let test_db = "file::memory:?cache=shared";
         let pool = ConnectionPool::new(test_db).unwrap();
-        
-        pool.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)").unwrap();
-        pool.execute("INSERT INTO test (name) VALUES ('test1')").unwrap();
-        
+
+        pool.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
+            .unwrap();
+        pool.execute("INSERT INTO test (name) VALUES ('test1')")
+            .unwrap();
+
         let conn = pool.connection();
         let mut stmt = conn.prepare("SELECT id, name FROM test").unwrap();
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, i32>(0)?, row.get::<_, String>(1)?))
-        }).unwrap();
-        
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, i32>(0)?, row.get::<_, String>(1)?))
+            })
+            .unwrap();
+
         let results: Vec<(i32, String)> = rows.filter_map(|r| r.ok()).collect();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].1, "test1");

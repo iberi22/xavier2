@@ -76,7 +76,12 @@ pub fn reciprocal_rank_fusion(result_sets: Vec<Vec<ScoredResult>>, k: u32) -> Ve
             .total_rrf
             .partial_cmp(&left.total_rrf)
             .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| right.total_weight.partial_cmp(&left.total_weight).unwrap_or(std::cmp::Ordering::Equal))
+            .then_with(|| {
+                right
+                    .total_weight
+                    .partial_cmp(&left.total_weight)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .then_with(|| left.id.cmp(&right.id))
     });
 

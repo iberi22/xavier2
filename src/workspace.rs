@@ -19,10 +19,10 @@ use crate::{
     checkpoint::CheckpointManager,
     memory::{
         belief_graph::{BeliefGraph, SharedBeliefGraph},
-        entity_graph::{EntityGraph, SharedEntityGraph},
-        semantic::SemanticMemory,
         embedder::EmbeddingClient,
+        entity_graph::{EntityGraph, SharedEntityGraph},
         qmd_memory::{estimate_document_bytes, MemoryUsage, QmdMemory},
+        semantic::SemanticMemory,
         session_store::SessionStore,
         sqlite_vec_store::VecSqliteMemoryStore,
         store::SqliteMemoryStore,
@@ -900,13 +900,39 @@ impl WorkspaceState {
         metadata: serde_json::Value,
         auto_curate: bool,
     ) -> Result<String> {
+        self.ingest_typed(path, content, metadata, None, None, auto_curate)
+            .await
+    }
+
+    pub async fn ingest_typed(
+        &self,
+        path: String,
+        content: String,
+        metadata: serde_json::Value,
+        typed: Option<crate::memory::schema::TypedMemoryPayload>,
+        content_vector: Option<Vec<f32>>,
+        auto_curate: bool,
+    ) -> Result<String> {
         self.ensure_within_storage_limit(&path, &content, &metadata)
             .await?;
 
-        let doc_id = self.memory.add_document(path, content.clone(), metadata.clone()).await?;
-        if let Err(error) = self.index_memory_entities(&doc_id, &content, &metadata).await {
-            tracing::warn!(%error, memory_id = %doc_id, "failed to index memory entities");
-        }
+        let doc_id = if let Some(content_vector) = content_vector {
+            self.memory
+                .add_document_typed_with_embedding(
+                    path,
+                    content.clone(),
+                    metadata.clone(),
+                    typed,
+                    Some(content_vector),
+                )
+                .await?
+        } else {
+            self.memory
+                .add_document_typed(path, content.clone(), metadata.clone(), typed)
+                .await?
+        };
+
+        self.index_memory_layers(&doc_id, &content, &metadata).await;
 
         if auto_curate {
             let action = crate::memory::manager::MemoryAction::Curate {
@@ -933,6 +959,24 @@ impl WorkspaceState {
             .upsert_memory(memory_id, content, Some(metadata))
             .await
             .map(|_| ())
+    }
+
+    pub async fn index_memory_layers(
+        &self,
+        memory_id: &str,
+        content: &str,
+        metadata: &serde_json::Value,
+    ) {
+        if let Err(error) = self
+            .index_memory_entities(memory_id, content, metadata)
+            .await
+        {
+            tracing::warn!(%error, memory_id = %memory_id, "failed to index memory entities");
+        }
+
+        if let Err(error) = self.semantic_memory.index_memory(memory_id, content).await {
+            tracing::warn!(%error, memory_id = %memory_id, "failed to index semantic memory");
+        }
     }
 
     pub async fn remove_memory_entities(&self, memory_id: &str) -> Result<()> {
@@ -991,16 +1035,9 @@ impl WorkspaceState {
         }
 
         self.memory.update(document.clone()).await?;
-        let memory_id = document
-            .id
-            .clone()
-            .unwrap_or_else(|| document.path.clone());
-        if let Err(error) = self
-            .index_memory_entities(&memory_id, &document.content, &document.metadata)
-            .await
-        {
-            tracing::warn!(%error, memory_id = %memory_id, "failed to reindex memory entities");
-        }
+        let memory_id = document.id.clone().unwrap_or_else(|| document.path.clone());
+        self.index_memory_layers(&memory_id, &document.content, &document.metadata)
+            .await;
         Ok(document.id)
     }
 

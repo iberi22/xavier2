@@ -4,10 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    agents::{
-        provider::ModelProviderClient,
-        system1::RetrievedDocument,
-    },
+    agents::{provider::ModelProviderClient, system1::RetrievedDocument},
     consolidation::merger,
     memory::qmd_memory::MemoryDocument,
 };
@@ -105,10 +102,7 @@ fn fallback_reflection(memories: &[MemoryDocument]) -> ReflectionResult {
 fn summarize_themes(memories: &[MemoryDocument]) -> Vec<String> {
     let mut counts: HashMap<String, usize> = HashMap::new();
 
-    for token in memories
-        .iter()
-        .flat_map(|memory| tokenize(&memory.content))
-    {
+    for token in memories.iter().flat_map(|memory| tokenize(&memory.content)) {
         *counts.entry(token).or_insert(0) += 1;
     }
 
@@ -118,11 +112,7 @@ fn summarize_themes(memories: &[MemoryDocument]) -> Vec<String> {
         .collect();
     ranked.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
 
-    ranked
-        .into_iter()
-        .take(5)
-        .map(|(token, _)| token)
-        .collect()
+    ranked.into_iter().take(5).map(|(token, _)| token).collect()
 }
 
 fn identify_cleanup_targets(summary: &str, memories: &[MemoryDocument]) -> Vec<String> {

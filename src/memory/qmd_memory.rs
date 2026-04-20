@@ -39,18 +39,19 @@ static QUERY_SPEAKER_RE: LazyLock<Regex> = LazyLock::new(|| {
 });
 static SHE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bshe\b").unwrap());
 static HE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bhe\b").unwrap());
-static SYNONYM_MAP: LazyLock<HashMap<&'static str, &'static [&'static str]>> = LazyLock::new(|| {
-    HashMap::from([
-        ("bug", &["issue", "error", "failure", "defect"][..]),
-        ("cache", &["caching", "memoization", "store"][..]),
-        ("fast", &["quick", "speed", "latency"][..]),
-        ("memory", &["context", "retrieval", "knowledge"][..]),
-        ("search", &["lookup", "find", "retrieve"][..]),
-        ("vector", &["embedding", "semantic", "dense"][..]),
-        ("query", &["question", "request", "prompt"][..]),
-        ("reasoning", &["multi-hop", "inference", "analysis"][..]),
-    ])
-});
+static SYNONYM_MAP: LazyLock<HashMap<&'static str, &'static [&'static str]>> =
+    LazyLock::new(|| {
+        HashMap::from([
+            ("bug", &["issue", "error", "failure", "defect"][..]),
+            ("cache", &["caching", "memoization", "store"][..]),
+            ("fast", &["quick", "speed", "latency"][..]),
+            ("memory", &["context", "retrieval", "knowledge"][..]),
+            ("search", &["lookup", "find", "retrieve"][..]),
+            ("vector", &["embedding", "semantic", "dense"][..]),
+            ("query", &["question", "request", "prompt"][..]),
+            ("reasoning", &["multi-hop", "inference", "analysis"][..]),
+        ])
+    });
 const RRF_K: f32 = 60.0;
 const KEYWORD_WEIGHT: f32 = 0.7;
 const SEMANTIC_WEIGHT: f32 = 0.3;
@@ -289,7 +290,8 @@ impl QmdMemory {
             return Ok(Vec::new());
         }
 
-        let mut candidates: Vec<(f32, MemoryDocument, f32)> = candidate_scores.values().cloned().collect();
+        let mut candidates: Vec<(f32, MemoryDocument, f32)> =
+            candidate_scores.values().cloned().collect();
         candidates.sort_by(|left, right| {
             right
                 .0
@@ -992,7 +994,11 @@ fn contextual_boost(query: &str, document: &MemoryDocument, weight: f32) -> f32 
             score += 0.12 * weight;
         }
     }
-    if let Some(title) = document.metadata.get("title").and_then(|value| value.as_str()) {
+    if let Some(title) = document
+        .metadata
+        .get("title")
+        .and_then(|value| value.as_str())
+    {
         if query.contains(&title.to_ascii_lowercase()) {
             score += 0.20 * weight;
         }
@@ -1015,14 +1021,21 @@ fn memory_decay_penalty(document: &MemoryDocument) -> f32 {
         .metadata
         .get("updated_at")
         .and_then(|value| value.as_str())
-        .or_else(|| document.metadata.get("last_accessed_at").and_then(|value| value.as_str()));
+        .or_else(|| {
+            document
+                .metadata
+                .get("last_accessed_at")
+                .and_then(|value| value.as_str())
+        });
     let Some(updated) = updated else {
         return 0.0;
     };
     let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(updated) else {
         return 0.0;
     };
-    let age_days = (chrono::Utc::now() - parsed.with_timezone(&chrono::Utc)).num_days().max(0) as f32;
+    let age_days = (chrono::Utc::now() - parsed.with_timezone(&chrono::Utc))
+        .num_days()
+        .max(0) as f32;
     -(age_days / 365.0).min(1.0) * 0.15
 }
 
@@ -2065,7 +2078,7 @@ fn locomo_lexical_score(doc: &MemoryDocument, normalized_query: &str) -> f32 {
         || normalized_query.contains("tarifa")
         || normalized_query.contains("cuanto")  // Spanish "how much"
         || normalized_query.contains("cuál")     // Spanish "which"
-        || normalized_query.contains("cuáles");  // Spanish "which" plural
+        || normalized_query.contains("cuáles"); // Spanish "which" plural
 
     if pricing_query {
         // Boost documents that contain numeric values (likely pricing facts)
@@ -2092,7 +2105,15 @@ fn locomo_lexical_score(doc: &MemoryDocument, normalized_query: &str) -> f32 {
         }
 
         // Boost for tier/version terms (Starter, Pro, Enterprise, etc.)
-        let tier_terms = ["starter", "pro", "enterprise", "basic", "plan", "tier", "version"];
+        let tier_terms = [
+            "starter",
+            "pro",
+            "enterprise",
+            "basic",
+            "plan",
+            "tier",
+            "version",
+        ];
         for tier in &tier_terms {
             if normalized_query.contains(tier) && (content.contains(tier) || path.contains(tier)) {
                 score += 15.0;

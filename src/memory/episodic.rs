@@ -213,11 +213,7 @@ impl EpisodicMemory {
     }
 
     /// Add an item to an existing session
-    pub fn add_to_session(
-        &mut self,
-        session_id: &str,
-        item_id: impl Into<String>,
-    ) -> Result<()> {
+    pub fn add_to_session(&mut self, session_id: &str, item_id: impl Into<String>) -> Result<()> {
         let session = self
             .sessions
             .get_mut(session_id)
@@ -228,11 +224,7 @@ impl EpisodicMemory {
     }
 
     /// Add a key event to an existing session
-    pub fn add_event_to_session(
-        &mut self,
-        session_id: &str,
-        event: KeyEvent,
-    ) -> Result<()> {
+    pub fn add_event_to_session(&mut self, session_id: &str, event: KeyEvent) -> Result<()> {
         let session = self
             .sessions
             .get_mut(session_id)
@@ -246,11 +238,7 @@ impl EpisodicMemory {
     }
 
     /// Add sentiment score to an existing session
-    pub fn add_sentiment_to_session(
-        &mut self,
-        session_id: &str,
-        score: f32,
-    ) -> Result<()> {
+    pub fn add_sentiment_to_session(&mut self, session_id: &str, score: f32) -> Result<()> {
         let session = self
             .sessions
             .get_mut(session_id)
@@ -315,10 +303,7 @@ impl EpisodicMemory {
 
     /// Get all sessions that have summaries
     pub fn summarized_sessions(&self) -> Vec<&SessionSummary> {
-        self.sessions
-            .values()
-            .filter(|s| s.is_summarized)
-            .collect()
+        self.sessions.values().filter(|s| s.is_summarized).collect()
     }
 
     /// Get sessions with key events
@@ -370,8 +355,11 @@ impl EpisodicMemory {
     pub fn stats(&self) -> EpisodicMemoryStats {
         let total_events: usize = self.sessions.values().map(|s| s.key_events.len()).sum();
         let summarized_count = self.sessions.values().filter(|s| s.is_summarized).count();
-        let total_sentiment_scores: usize =
-            self.sessions.values().map(|s| s.sentiment_timeline.len()).sum();
+        let total_sentiment_scores: usize = self
+            .sessions
+            .values()
+            .map(|s| s.sentiment_timeline.len())
+            .sum();
 
         EpisodicMemoryStats {
             session_count: self.sessions.len(),
@@ -419,10 +407,7 @@ pub struct EpisodicMemoryStats {
 ///
 /// # Returns
 /// A generated summary string
-pub async fn generate_session_summary(
-    _items: &[String],
-    _events: &[KeyEvent],
-) -> Result<String> {
+pub async fn generate_session_summary(_items: &[String], _events: &[KeyEvent]) -> Result<String> {
     // Placeholder: In production, call LLM here
     // For now, return a simple placeholder
     Ok("Session summary placeholder - implement LLM integration".to_string())
@@ -441,10 +426,7 @@ pub async fn generate_session_summary(
 ///
 /// # Returns
 /// A vector of key events
-pub async fn extract_key_events(
-    _items: &[String],
-    _min_importance: f32,
-) -> Result<Vec<KeyEvent>> {
+pub async fn extract_key_events(_items: &[String], _min_importance: f32) -> Result<Vec<KeyEvent>> {
     // Placeholder: In production, implement event extraction logic
     Ok(Vec::new())
 }
@@ -700,13 +682,16 @@ mod tests {
         let result = em.add_to_session("nonexistent", "item");
         assert!(result.is_err());
 
-        let result = em.add_event_to_session("nonexistent", KeyEvent {
-            id: "e1".into(),
-            description: "Test".into(),
-            timestamp: Utc::now(),
-            importance: 0.5,
-            event_type: None,
-        });
+        let result = em.add_event_to_session(
+            "nonexistent",
+            KeyEvent {
+                id: "e1".into(),
+                description: "Test".into(),
+                timestamp: Utc::now(),
+                importance: 0.5,
+                event_type: None,
+            },
+        );
         assert!(result.is_err());
 
         let result = em.add_sentiment_to_session("nonexistent", 0.5);

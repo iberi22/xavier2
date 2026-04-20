@@ -259,10 +259,7 @@ impl WorkingMemory {
             return Vec::new();
         }
 
-        let query_terms: Vec<&str> = query
-            .split_whitespace()
-            .filter(|t| !t.is_empty())
-            .collect();
+        let query_terms: Vec<&str> = query.split_whitespace().filter(|t| !t.is_empty()).collect();
 
         if query_terms.is_empty() {
             return Vec::new();
@@ -354,7 +351,8 @@ fn bm25_score(doc_content: &str, query_terms: &[&str], avg_doc_len: f32, k1: f32
 
         if term_count > 0.0 {
             // Term frequency component (simplified BM25)
-            let tf = (k1 + 1.0) * term_count / (k1 * (1.0 - b + b * doc_len / avg_doc_len) + term_count);
+            let tf =
+                (k1 + 1.0) * term_count / (k1 * (1.0 - b + b * doc_len / avg_doc_len) + term_count);
 
             // For simplicity, IDF is constant; in production, compute document frequency
             let idf = 1.0;

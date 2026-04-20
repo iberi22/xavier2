@@ -4,21 +4,21 @@
 //! A cognitive memory system with agent runtime, task management, and native UI.
 
 pub mod a2a;
-pub mod api;
 pub mod agents;
-pub mod consolidation;
-pub mod consistency;
+pub mod api;
 pub mod checkpoint;
+pub mod consistency;
+pub mod consolidation;
 pub mod coordination;
 pub mod crypto;
 pub mod embedding;
 pub mod memory;
+pub mod retrieval;
 pub mod scheduler;
+pub mod search;
 pub mod secrets;
 pub mod security;
 pub mod server;
-pub mod retrieval;
-pub mod search;
 pub mod sync;
 pub mod tasks;
 #[cfg(feature = "telegram")]

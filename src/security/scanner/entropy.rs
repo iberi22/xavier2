@@ -127,12 +127,36 @@ impl SecretDetector {
 
     fn default_patterns() -> Vec<(String, regex::Regex)> {
         vec![
-            ("GitHub Token".to_string(), regex::Regex::new(r"gh[pousr]_[A-Za-z0-9_]{36,}").unwrap()),
-            ("AWS Key".to_string(), regex::Regex::new(r"(?i)AKIA[0-9A-Z]{16}").unwrap()),
-            ("Generic API Key".to_string(), regex::Regex::new(r#"(?i)(api[_-]?key|apikey)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#).unwrap()),
-            ("Generic Secret".to_string(), regex::Regex::new(r#"(?i)(secret|password|token|auth)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#).unwrap()),
-            ("JWT".to_string(), regex::Regex::new(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+").unwrap()),
-            ("Slack Token".to_string(), regex::Regex::new(r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*").unwrap()),
+            (
+                "GitHub Token".to_string(),
+                regex::Regex::new(r"gh[pousr]_[A-Za-z0-9_]{36,}").unwrap(),
+            ),
+            (
+                "AWS Key".to_string(),
+                regex::Regex::new(r"(?i)AKIA[0-9A-Z]{16}").unwrap(),
+            ),
+            (
+                "Generic API Key".to_string(),
+                regex::Regex::new(
+                    r#"(?i)(api[_-]?key|apikey)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#,
+                )
+                .unwrap(),
+            ),
+            (
+                "Generic Secret".to_string(),
+                regex::Regex::new(
+                    r#"(?i)(secret|password|token|auth)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#,
+                )
+                .unwrap(),
+            ),
+            (
+                "JWT".to_string(),
+                regex::Regex::new(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+").unwrap(),
+            ),
+            (
+                "Slack Token".to_string(),
+                regex::Regex::new(r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*").unwrap(),
+            ),
         ]
     }
 }
@@ -174,7 +198,9 @@ mod tests {
     #[test]
     fn test_secret_detection() {
         SecretDetector::warm_up();
-        let secrets = SecretDetector::extract_secrets("github token: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+        let secrets = SecretDetector::extract_secrets(
+            "github token: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        );
         assert!(!secrets.is_empty());
     }
 }

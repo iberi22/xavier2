@@ -595,8 +595,7 @@ pub async fn handle_tool_call(
 
             workspace
                 .workspace
-                .memory
-                .add_document_typed(
+                .ingest_typed(
                     path.to_string(),
                     content.to_string(),
                     metadata,
@@ -606,6 +605,8 @@ pub async fn handle_tool_call(
                         namespace,
                         provenance,
                     }),
+                    None,
+                    false,
                 )
                 .await?;
 
@@ -758,8 +759,7 @@ pub async fn handle_tool_call(
 
                 workspace
                     .workspace
-                    .memory
-                    .add_document_typed(path, content, metadata, typed)
+                    .ingest_typed(path, content, metadata, typed, None, false)
                     .await?;
                 created += 1;
             }
@@ -841,7 +841,9 @@ mod tests {
                 code_indexer,
                 code_query,
                 code_db,
-                pattern_adapter: Arc::new(crate::adapters::outbound::vec::pattern_adapter::PatternAdapter::new()),
+                pattern_adapter: Arc::new(
+                    crate::adapters::outbound::vec::pattern_adapter::PatternAdapter::new(),
+                ),
                 security_service: Arc::new(crate::app::security_service::SecurityService::new()),
             },
             workspace,
@@ -1056,6 +1058,7 @@ mod tests {
     #[tokio::test]
     async fn tools_call_create_and_search_memory_support_typed_filters() {
         let (state, workspace) = test_state().await;
+        let workspace_for_assertions = workspace.clone();
         let app = test_router(state, workspace);
 
         let create_response = post_json(
@@ -1120,6 +1123,26 @@ mod tests {
         assert!(text.contains("Path: bridge/openclaw/task"));
         assert!(text.contains("openclaw-content"));
         assert!(text.contains("content/youtube-backlog"));
+
+        let entity = workspace_for_assertions
+            .workspace
+            .entity_graph
+            .entity("OpenClaw")
+            .await;
+        assert!(
+            entity.is_some(),
+            "MCP create_memory should index entity graph"
+        );
+
+        let semantic_stats = workspace_for_assertions
+            .workspace
+            .semantic_memory
+            .stats()
+            .await;
+        assert!(
+            semantic_stats.total_entities > 0,
+            "MCP create_memory should index semantic memory"
+        );
     }
 
     #[tokio::test]
