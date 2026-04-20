@@ -498,7 +498,34 @@ async fn code_scan_handler(
     State(state): State<CliState>,
     axum::Json(payload): axum::Json<CodeScanPayload>,
 ) -> impl axum::response::IntoResponse {
-    let path = payload.path.unwrap_or_else(|| ".".to_string());
+    // Security: validate path to prevent path traversal
+    let requested_path = payload.path.unwrap_or_else(|| ".".to_string());
+    
+    // Security scan on path
+    let sec_result = state.security.process_input(&requested_path);
+    if !sec_result.allowed {
+        info!("code/scan blocked by security: injection detected (confidence={})", sec_result.detection.confidence);
+        return axum::Json(serde_json::json!({
+            "status": "blocked",
+            "reason": "security_policy_violation",
+            "detection": {
+                "is_injection": sec_result.detection.is_injection,
+                "confidence": sec_result.detection.confidence,
+                "attack_type": sec_result.detection.attack_type.as_str(),
+            }
+        }));
+    }
+
+    // Additional path traversal protection
+    if requested_path.contains("..") {
+        return axum::Json(serde_json::json!({
+            "status": "error",
+            "message": "path traversal not allowed",
+            "indexed_files": 0,
+        }));
+    }
+
+    let path = requested_path;
     info!("Code scan request: path={}", path);
 
     match state.code_indexer.index(std::path::Path::new(&path)).await {
