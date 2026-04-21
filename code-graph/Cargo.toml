@@ -16,7 +16,7 @@ tokio = { version = "1", features = ["full"] }
 clap = { version = "4", features = ["derive", "env"] }
 
 # Tree-sitter - todas las versiones 0.23 (últimas estables)
-tree-sitter = "0.23"
+tree-sitter = "0.26"
 tree-sitter-rust = "0.23"
 tree-sitter-typescript = "0.23"
 tree-sitter-python = "0.25"
