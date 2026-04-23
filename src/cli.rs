@@ -1069,6 +1069,20 @@ async fn start_mcp_stdio() -> Result<()> {
                             }
                         },
                         {
+                            "name": "session_load",
+                            "description": "Restore context on session start",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "description": "Session ID to load context for"
+                                    }
+                                },
+                                "required": ["session_id"]
+                            }
+                        },
+                        {
                             "name": "stats",
                             "description": "Get Xavier2 memory statistics (total count, cache metrics)",
                             "inputSchema": {
@@ -1142,6 +1156,25 @@ async fn start_mcp_stdio() -> Result<()> {
                             Err(e) => format!("{{\"error\": \"{}\"}}", e),
                         }
                     }
+                    "session_load" => {
+                        let session_id = args.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+                        match memory.get_session_context(session_id).await {
+                            Ok(Some(doc)) => {
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "content": doc.content,
+                                    "metadata": doc.metadata,
+                                }).to_string()
+                            }
+                            Ok(None) => {
+                                serde_json::json!({
+                                    "status": "not_found",
+                                    "message": format!("No context found for session {}", session_id),
+                                }).to_string()
+                            }
+                            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+                        }
+                    }
                     "stats" => {
                         let count = memory.count().await.unwrap_or(0);
                         let usage = memory.usage().await;
@@ -1158,7 +1191,7 @@ async fn start_mcp_stdio() -> Result<()> {
                         .to_string()
                     }
                     _ => format!(
-                        "Unknown tool: {}. Available tools: search, add, stats",
+                        "Unknown tool: {}. Available tools: search, add, session_load, stats",
                         tool_name
                     ),
                 };

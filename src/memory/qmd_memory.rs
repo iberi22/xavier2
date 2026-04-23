@@ -668,6 +668,12 @@ impl QmdMemory {
             .cloned())
     }
 
+    /// Retrieve session context document specifically
+    pub async fn get_session_context(&self, session_id: &str) -> Result<Option<MemoryDocument>> {
+        let path = format!("sessions/{}/context", session_id);
+        self.get(&path).await
+    }
+
     pub async fn add(&self, doc: MemoryDocument) -> Result<()> {
         self.docs.write().await.push(doc.clone());
         self.invalidate_cache().await;
@@ -3009,6 +3015,26 @@ mod tests {
                 .and_then(|value| value.as_str()),
             Some("D1:3")
         );
+    }
+
+    #[tokio::test]
+    async fn get_session_context_retrieves_correct_document() {
+        let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
+        let session_id = "test-session-123";
+        let context_content = "This is the saved context.";
+        let path = format!("sessions/{}/context", session_id);
+
+        memory
+            .add_document(path.clone(), context_content.to_string(), serde_json::json!({}))
+            .await
+            .unwrap();
+
+        let context = memory.get_session_context(session_id).await.unwrap();
+        assert!(context.is_some());
+        assert_eq!(context.unwrap().content, context_content);
+
+        let non_existent = memory.get_session_context("other-session").await.unwrap();
+        assert!(non_existent.is_none());
     }
 
     #[tokio::test]
