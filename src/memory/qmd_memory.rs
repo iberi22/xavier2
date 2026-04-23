@@ -777,6 +777,20 @@ impl QmdMemory {
         Ok(id)
     }
 
+    /// Save full session context to persistent memory.
+    /// This is used before context window overflow to ensure continuity.
+    pub async fn save_session_context(&self, session_id: &str, content: String) -> Result<String> {
+        let path = format!("sessions/{}/context", session_id);
+        let metadata = serde_json::json!({
+            "session_id": session_id,
+            "type": "session_context",
+            "saved_at": chrono::Utc::now().to_rfc3339(),
+        });
+
+        self.add_document(path.clone(), content, metadata).await?;
+        Ok(path)
+    }
+
     pub async fn delete(&self, path_or_id: &str) -> Result<Option<MemoryDocument>> {
         let mut docs = self.docs.write().await;
         let removed = docs
@@ -3127,5 +3141,24 @@ mod tests {
         assert!(!is_likely_speaker("What"));
         assert!(!is_likely_speaker("She"));
         assert!(!is_likely_speaker("The"));
+    }
+
+    #[tokio::test]
+    async fn test_save_session_context() {
+        let docs = Arc::new(RwLock::new(Vec::new()));
+        let memory = QmdMemory::new(docs);
+
+        let session_id = "test-session-123";
+        let content = "This is a test session context. ".repeat(50);
+
+        let path = memory.save_session_context(session_id, content.clone()).await.unwrap();
+        assert_eq!(path, format!("sessions/{}/context", session_id));
+
+        let all_docs = memory.all_documents().await;
+        assert_eq!(all_docs.len(), 1);
+        assert_eq!(all_docs[0].path, path);
+        assert_eq!(all_docs[0].content, content);
+        assert_eq!(all_docs[0].metadata["session_id"], session_id);
+        assert_eq!(all_docs[0].metadata["type"], "session_context");
     }
 }

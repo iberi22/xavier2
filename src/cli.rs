@@ -145,6 +145,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/ready", get(readiness_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
+        .route("/session/save", post(session_save_handler))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -443,6 +444,64 @@ struct MemoryQueryPayload {
     query: String,
     limit: Option<usize>,
     filters: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SessionSavePayload {
+    session_id: String,
+    content: String,
+}
+
+async fn session_save_handler(
+    State(state): State<CliState>,
+    axum::Json(payload): axum::Json<SessionSavePayload>,
+) -> impl axum::response::IntoResponse {
+    // Validate session_id to prevent path traversal
+    if payload.session_id.contains('/') || payload.session_id.contains('\\') || payload.session_id.contains("..") {
+        return axum::Json(serde_json::json!({
+            "status": "error",
+            "message": "Invalid session_id: path traversal patterns detected",
+        }));
+    }
+
+    // Security scan on content
+    let sec_result = state.security.process_input(&payload.content);
+    if !sec_result.allowed {
+        return axum::Json(serde_json::json!({
+            "status": "blocked",
+            "reason": "security_policy_violation",
+            "detection": {
+                "is_injection": sec_result.detection.is_injection,
+                "confidence": sec_result.detection.confidence,
+                "attack_type": sec_result.detection.attack_type.as_str(),
+            }
+        }));
+    }
+
+    let effective_content = sec_result.effective_input().to_string();
+
+    match state
+        .memory
+        .save_session_context(&payload.session_id, effective_content)
+        .await
+    {
+        Ok(path) => {
+            info!("Session context saved: {}", path);
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "message": "Session context saved",
+                "path": path,
+                "session_id": payload.session_id,
+            }))
+        }
+        Err(e) => {
+            info!("Session save error: {}", e);
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "message": e.to_string(),
+            }))
+        }
+    }
 }
 
 async fn memory_query_handler(
@@ -1075,6 +1134,24 @@ async fn start_mcp_stdio() -> Result<()> {
                                 "type": "object",
                                 "properties": {}
                             }
+                        },
+                        {
+                            "name": "session_save",
+                            "description": "Save current session context before overflow",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "description": "Session identifier"
+                                    },
+                                    "content": {
+                                        "type": "string",
+                                        "description": "Full session context to save"
+                                    }
+                                },
+                                "required": ["session_id", "content"]
+                            }
                         }
                     ]
                 }
@@ -1157,8 +1234,46 @@ async fn start_mcp_stdio() -> Result<()> {
                         })
                         .to_string()
                     }
+                    "session_save" => {
+                        let session_id = args.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+                        let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
+
+                        // Validate session_id to prevent path traversal
+                        if session_id.contains('/') || session_id.contains('\\') || session_id.contains("..") {
+                            serde_json::json!({
+                                "status": "error",
+                                "message": "Invalid session_id: path traversal patterns detected",
+                            }).to_string()
+                        } else {
+                            // Security scan on content
+                            let security = SecurityService::new();
+                            let sec_result = security.process_input(content);
+
+                            if !sec_result.allowed {
+                                serde_json::json!({
+                                    "status": "blocked",
+                                    "reason": "security_policy_violation",
+                                    "detection": {
+                                        "is_injection": sec_result.detection.is_injection,
+                                        "confidence": sec_result.detection.confidence,
+                                        "attack_type": sec_result.detection.attack_type.as_str(),
+                                    }
+                                }).to_string()
+                            } else {
+                                let effective_content = sec_result.effective_input().to_string();
+                                match memory.save_session_context(session_id, effective_content).await {
+                                    Ok(path) => serde_json::json!({
+                                        "status": "ok",
+                                        "path": path,
+                                        "session_id": session_id,
+                                    }).to_string(),
+                                    Err(e) => format!("{{\"error\": \"{}\"}}", e),
+                                }
+                            }
+                        }
+                    }
                     _ => format!(
-                        "Unknown tool: {}. Available tools: search, add, stats",
+                        "Unknown tool: {}. Available tools: search, add, stats, session_save",
                         tool_name
                     ),
                 };

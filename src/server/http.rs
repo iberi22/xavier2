@@ -96,47 +96,27 @@ impl Default for ShutdownState {
 /// Returns a handle to the task; dropping the handle does NOT cancel the task.
 pub async fn start_signal_handler(state: ShutdownState) {
     tokio::spawn(async move {
-        use tokio::signal::windows::ctrl_c;
-
         let mut shutdown_reason: Option<&'static str> = None;
 
         // Unix signals (SIGTERM / SIGINT)
         #[cfg(unix)]
         {
             use tokio::signal::unix::{signal, SignalKind};
-            let mut sigterm = match signal(SignalKind::terminate()) {
-                Ok(s) => s,
-                Err(e) => {
-                    error!("Failed to register SIGTERM handler: {}", e);
-                    return;
-                }
-            };
-            let mut sigint = match signal(SignalKind::interrupt()) {
-                Ok(s) => s,
-                Err(e) => {
-                    error!("Failed to register SIGINT handler: {}", e);
-                    return;
-                }
-            };
+            let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
+            let mut sigint = signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
 
             tokio::select! {
                 _ = sigterm.recv() => shutdown_reason = Some("SIGTERM"),
                 _ = sigint.recv() => shutdown_reason = Some("SIGINT"),
+                _ = tokio::signal::ctrl_c() => shutdown_reason = Some("Ctrl+C"),
             }
         }
 
-        // Windows console events
-        #[cfg(windows)]
+        // Non-Unix platform support (Windows)
+        #[cfg(not(unix))]
         {
-            let ctrl_events = async {
-                let mut rx = ctrl_c().expect("failed to subscribe to Ctrl+C");
-                rx.recv().await
-            };
-
-            let reason = ctrl_events.await;
-            match reason {
-                Some(()) => shutdown_reason = Some("Ctrl+C / console close"),
-                None => {}
+            if tokio::signal::ctrl_c().await.is_ok() {
+                shutdown_reason = Some("Ctrl+C");
             }
         }
 
