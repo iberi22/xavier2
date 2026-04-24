@@ -26,6 +26,7 @@ pub mod telegram;
 pub mod tools;
 pub mod ui;
 pub mod utils;
+pub mod verification;
 pub mod workspace;
 
 // Hexagonal architecture modules

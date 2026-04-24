@@ -96,8 +96,6 @@ impl Default for ShutdownState {
 /// Returns a handle to the task; dropping the handle does NOT cancel the task.
 pub async fn start_signal_handler(state: ShutdownState) {
     tokio::spawn(async move {
-        use tokio::signal::windows::ctrl_c;
-
         let mut shutdown_reason: Option<&'static str> = None;
 
         // Unix signals (SIGTERM / SIGINT)
@@ -128,6 +126,7 @@ pub async fn start_signal_handler(state: ShutdownState) {
         // Windows console events
         #[cfg(windows)]
         {
+            use tokio::signal::windows::ctrl_c;
             let ctrl_events = async {
                 let mut rx = ctrl_c().expect("failed to subscribe to Ctrl+C");
                 rx.recv().await
@@ -790,19 +789,45 @@ pub async fn memory_add(
         }));
     }
 
+    let metadata_normalized = match crate::memory::schema::normalize_metadata(
+        &path,
+        metadata.clone(),
+        &workspace.workspace_id,
+        Some(typed.clone()),
+    ) {
+        Ok(m) => m,
+        Err(e) => {
+            return Json(serde_json::json!({
+                "status": "error",
+                "message": e.to_string(),
+                "workspace_id": workspace.workspace_id,
+            }))
+        }
+    };
+
+    let doc = crate::memory::qmd_memory::MemoryDocument {
+        id: Some(ulid::Ulid::new().to_string()),
+        path: path.clone(),
+        content: content.clone(),
+        metadata: metadata_normalized,
+        content_vector: content_vector.clone(),
+        embedding: content_vector.unwrap_or_default(),
+    };
+
+    let doc_id = doc.id.clone().unwrap_or_default();
+
     match workspace
         .workspace
-        .ingest_typed(
-            path,
-            content.clone(),
-            metadata.clone(),
-            Some(typed),
-            content_vector,
-            false,
-        )
+        .memory
+        .add_with_verification(workspace.clone(), doc)
         .await
     {
-        Ok(_) => {}
+        Ok(_) => {
+            workspace
+                .workspace
+                .index_memory_layers(&doc_id, &content, &metadata)
+                .await;
+        }
         Err(error) => {
             tracing::error!(%error, workspace_id = %workspace.workspace_id, "failed to add memory document");
             return Json(serde_json::json!({
@@ -817,6 +842,7 @@ pub async fn memory_add(
         "status": "ok",
         "message": "Document added to memory",
         "workspace_id": workspace.workspace_id,
+        "id": doc_id,
     }))
 }
 

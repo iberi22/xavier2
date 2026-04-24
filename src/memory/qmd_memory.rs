@@ -219,6 +219,31 @@ impl QmdMemory {
         Ok(())
     }
 
+    pub async fn add_with_verification(
+        &self,
+        workspace_ctx: crate::workspace::WorkspaceContext,
+        doc: MemoryDocument,
+    ) -> Result<()> {
+        let content = doc.content.clone();
+        let path = doc.path.clone();
+        self.add(doc).await?;
+
+        // Trigger verification asynchronously
+        let memory = self.clone();
+        tokio::spawn(async move {
+            let result = crate::verification::verify_save(&memory, &content).await;
+            crate::verification::auto_verifier::process_verification(
+                workspace_ctx,
+                path,
+                content,
+                result,
+            )
+            .await;
+        });
+
+        Ok(())
+    }
+
     pub async fn search(&self, query_text: &str, limit: usize) -> Result<Vec<MemoryDocument>> {
         self.search_filtered(query_text, limit, None).await
     }

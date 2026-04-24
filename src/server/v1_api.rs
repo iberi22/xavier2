@@ -136,34 +136,54 @@ pub async fn v1_memories_add(
         }));
     }
 
+    let doc_id = ulid::Ulid::new().to_string();
+    let metadata_normalized = match crate::memory::schema::normalize_metadata(
+        &path,
+        meta,
+        &workspace.workspace_id,
+        Some(TypedMemoryPayload {
+            kind: payload.kind,
+            evidence_kind: payload.evidence_kind,
+            namespace: namespace.clone(),
+            provenance: payload.provenance.clone(),
+        }),
+    ) {
+        Ok(m) => m,
+        Err(e) => {
+            return Json(serde_json::json!({
+                "status": "error",
+                "message": e.to_string(),
+            }))
+        }
+    };
+
+    let doc = crate::memory::qmd_memory::MemoryDocument {
+        id: Some(doc_id.clone()),
+        path: path.clone(),
+        content: content.clone(),
+        metadata: metadata_normalized,
+        content_vector: Some(Vec::new()),
+        embedding: Vec::new(),
+    };
+
     match workspace
         .workspace
         .memory
-        .add_document_typed(
-            path,
-            content,
-            meta,
-            Some(TypedMemoryPayload {
-                kind: payload.kind,
-                evidence_kind: payload.evidence_kind,
-                namespace,
-                provenance: payload.provenance,
-            }),
-        )
+        .add_with_verification(workspace.clone(), doc)
         .await
     {
-        Ok(id) => {
+        Ok(_) => {
             if let Err(error) = workspace
                 .workspace
-                .index_memory_entities(&id, &content_for_graph, &meta_for_graph)
+                .index_memory_entities(&doc_id, &content_for_graph, &meta_for_graph)
                 .await
             {
-                tracing::warn!(%error, memory_id = %id, "failed to index entity graph from v1 add");
+                tracing::warn!(%error, memory_id = %doc_id, "failed to index entity graph from v1 add");
             }
             Json(serde_json::json!({
                 "status": "ok",
                 "message": "Memory added successfully",
-                "id": id,
+                "id": doc_id,
             }))
         }
         Err(e) => Json(serde_json::json!({
