@@ -24,6 +24,11 @@ use crate::memory::schema::{
 };
 use crate::memory::surreal_store::{MemoryRecord, MemoryStore};
 use crate::utils::crypto::hex_encode;
+
+/// Compute a stable SHA256 content hash for deduplication.
+fn compute_content_hash(content: &str) -> String {
+    hex_encode(Sha256::digest(content.as_bytes()).as_slice())
+}
 static SPEAKER_COLON_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^([^:\s]+):\s*").unwrap());
 static SPEAKER_BRACKET_RE: LazyLock<Regex> =
