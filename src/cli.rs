@@ -3,6 +3,7 @@
 use anyhow::{anyhow, Result};
 use axum::{
     extract::State,
+    response::IntoResponse,
     routing::{get, post},
     Router,
 };
@@ -47,6 +48,8 @@ pub enum Command {
     },
     /// Show statistics
     Stats,
+    /// Load session context from Xavier2
+    SessionLoad { session_id: String },
 }
 
 /// Xavier2 - Fast Vector Memory for AI Agents
@@ -79,6 +82,19 @@ impl Cli {
             Command::Stats => {
                 println!("Fetching Xavier2 statistics...");
                 show_stats().await
+            }
+            Command::SessionLoad { session_id } => {
+                println!("Restoring context for session: {}...", session_id);
+                match perform_session_load(session_id).await {
+                    Ok(result) => {
+                        println!("Session context restored successfully:");
+                        println!("{}", serde_json::to_string_pretty(&result)?);
+                    }
+                    Err(e) => {
+                        println!("Failed to restore session context: {}", e);
+                    }
+                }
+                Ok(())
             }
         }
     }
@@ -145,6 +161,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/ready", get(readiness_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
+        .route("/context/:session_id/latest", get(context_latest_handler))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -157,6 +174,29 @@ async fn start_http_server(port: u16) -> Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+async fn perform_session_load(session_id: &str) -> Result<serde_json::Value> {
+    let session_id = secure_cli_input("session_id", session_id, 128)?;
+    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
+    let url = format!("http://localhost:{}/context/{}/latest", port, session_id);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("X-Cortex-Token", "dev-token")
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let body: serde_json::Value = response.json().await?;
+        Ok(body)
+    } else {
+        Err(anyhow!(
+            "Failed to load session context: status {}",
+            response.status()
+        ))
+    }
 }
 
 fn code_graph_db_path() -> PathBuf {
@@ -443,6 +483,71 @@ struct MemoryQueryPayload {
     query: String,
     limit: Option<usize>,
     filters: Option<serde_json::Value>,
+}
+
+async fn context_latest_handler(
+    State(state): State<CliState>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+) -> impl axum::response::IntoResponse {
+    // Auth: validate X-Cortex-Token
+    let auth_token = headers.get("X-Cortex-Token").and_then(|v| v.to_str().ok());
+    if auth_token != Some("dev-token") {
+        return (
+            axum::http::StatusCode::UNAUTHORIZED,
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "message": "Unauthorized: Invalid or missing X-Cortex-Token",
+            })),
+        ).into_response();
+    }
+
+    // Security: validate session_id to prevent path traversal
+    if session_id.contains("..") || session_id.contains('/') || session_id.contains('\\') {
+        return axum::Json(serde_json::json!({
+            "status": "error",
+            "message": "invalid session_id",
+        })).into_response();
+    }
+
+    // Security scan on session_id
+    let sec_result = state.security.process_input(&session_id);
+    if !sec_result.allowed {
+        return axum::Json(serde_json::json!({
+            "status": "blocked",
+            "reason": "security_policy_violation",
+        })).into_response();
+    }
+
+    info!("Context latest request: session_id={}", session_id);
+
+    // Attempt to load from checkpoint system
+    match xavier2::checkpoint::state::load_latest_checkpoint(&session_id).await {
+        Ok(checkpoint) => {
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "session_id": session_id,
+                "session_context": {
+                    "messages": checkpoint.messages,
+                    "task_queue": checkpoint.task_queue,
+                    "tools_state": checkpoint.tools_state,
+                    "timestamp": checkpoint.checkpoint_timestamp,
+                },
+                "tokens_restored": true,
+            })).into_response()
+        }
+        Err(e) => {
+            info!("Context latest load error: {}", e);
+            // Return empty context if not found or error
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "session_id": session_id,
+                "session_context": null,
+                "tokens_restored": false,
+                "message": format!("No context found or error: {}", e)
+            })).into_response()
+        }
+    }
 }
 
 async fn memory_query_handler(
@@ -1075,6 +1180,20 @@ async fn start_mcp_stdio() -> Result<()> {
                                 "type": "object",
                                 "properties": {}
                             }
+                        },
+                        {
+                            "name": "session_load",
+                            "description": "Restore context on session start from Xavier2",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "description": "Session ID to restore"
+                                    }
+                                },
+                                "required": ["session_id"]
+                            }
                         }
                     ]
                 }
@@ -1157,8 +1276,15 @@ async fn start_mcp_stdio() -> Result<()> {
                         })
                         .to_string()
                     }
+                    "session_load" => {
+                        let session_id = args.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+                        match perform_session_load(session_id).await {
+                            Ok(result) => serde_json::to_string_pretty(&result).unwrap_or_default(),
+                            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+                        }
+                    }
                     _ => format!(
-                        "Unknown tool: {}. Available tools: search, add, stats",
+                        "Unknown tool: {}. Available tools: search, add, stats, session_load",
                         tool_name
                     ),
                 };
@@ -1434,5 +1560,37 @@ mod tests {
         let err = secure_cli_input("memory title", &input, 10).unwrap_err();
 
         assert!(err.to_string().contains("exceeds maximum length"));
+    }
+
+    #[tokio::test]
+    async fn test_session_load_handler_invalid_id() {
+        let store = Arc::new(VecSqliteMemoryStore::from_env().await.unwrap());
+        let docs = Arc::new(RwLock::new(Vec::new()));
+        let memory = Arc::new(QmdMemory::new_with_workspace(docs, "test".to_string()));
+        let code_db = Arc::new(code_graph::db::CodeGraphDB::in_memory().unwrap());
+
+        let state = CliState {
+            memory,
+            store: store as Arc<dyn MemoryStore>,
+            workspace_id: "test".to_string(),
+            code_db: code_db.clone(),
+            code_indexer: Arc::new(code_graph::indexer::Indexer::new(code_db.clone())),
+            code_query: Arc::new(code_graph::query::QueryEngine::new(code_db)),
+            security: Arc::new(SecurityService::new()),
+        };
+
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("X-Cortex-Token", "dev-token".parse().unwrap());
+
+        let response = context_latest_handler(
+            State(state),
+            axum::extract::Path("../invalid".to_string()),
+            headers,
+        ).await;
+
+        let body = axum::body::to_bytes(axum::response::IntoResponse::into_response(response).into_body(), 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["status"], "error");
+        assert_eq!(json["message"], "invalid session_id");
     }
 }
