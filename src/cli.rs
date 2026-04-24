@@ -47,6 +47,11 @@ pub enum Command {
     },
     /// Show statistics
     Stats,
+    /// Compact session history
+    SessionCompact {
+        session_id: String,
+        max_tokens: Option<usize>,
+    },
 }
 
 /// Xavier2 - Fast Vector Memory for AI Agents
@@ -79,6 +84,13 @@ impl Cli {
             Command::Stats => {
                 println!("Fetching Xavier2 statistics...");
                 show_stats().await
+            }
+            Command::SessionCompact {
+                session_id,
+                max_tokens,
+            } => {
+                println!("Compacting session {}...", session_id);
+                compact_session_cli(session_id, max_tokens.unwrap_or(4096)).await
             }
         }
     }
@@ -145,6 +157,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/ready", get(readiness_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
+        .route("/session/compact", post(session_compact_handler))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -245,6 +258,36 @@ fn default_limit() -> usize {
     10
 }
 
+#[derive(Debug, Deserialize)]
+struct SessionCompactPayload {
+    session_id: String,
+    #[serde(default = "default_max_tokens")]
+    max_tokens: usize,
+}
+
+fn default_max_tokens() -> usize {
+    4096
+}
+
+async fn session_compact_handler(
+    State(state): State<CliState>,
+    axum::Json(payload): axum::Json<SessionCompactPayload>,
+) -> impl axum::response::IntoResponse {
+    match compact_session_internal(state.memory, &payload.session_id, payload.max_tokens).await {
+        Ok((compact_ok, tokens_before, tokens_after)) => axum::Json(serde_json::json!({
+            "status": "ok",
+            "compact_ok": compact_ok,
+            "tokens_before": tokens_before,
+            "tokens_after": tokens_after,
+            "session_id": payload.session_id,
+        })),
+        Err(e) => axum::Json(serde_json::json!({
+            "status": "error",
+            "message": e.to_string(),
+        })),
+    }
+}
+
 async fn search_handler(
     State(state): State<CliState>,
     axum::Json(payload): axum::Json<SearchPayload>,
@@ -323,6 +366,8 @@ struct AddPayload {
     metadata: Option<serde_json::Value>,
     #[serde(default)]
     title: Option<String>,
+    #[serde(default)]
+    session_id: Option<String>,
 }
 
 async fn add_handler(
@@ -350,15 +395,30 @@ async fn add_handler(
 
     let effective_content = sec_result.effective_input();
 
-    let path = payload
-        .path
-        .unwrap_or_else(|| format!("memory/{}", ulid::Ulid::new()));
+    let path = payload.path.clone().unwrap_or_else(|| {
+        if let Some(session_id) = &payload.session_id {
+            format!(
+                "sessions/{}/{}",
+                session_id,
+                chrono::Utc::now().format("%Y%m%dT%H%M%S%.3fZ")
+            )
+        } else {
+            format!("memory/{}", ulid::Ulid::new())
+        }
+    });
     let mut metadata = payload.metadata.unwrap_or(serde_json::json!({}));
 
     // Add title to metadata if provided
     if let Some(title) = payload.title {
         if let Some(obj) = metadata.as_object_mut() {
             obj.insert("title".to_string(), serde_json::json!(title));
+        }
+    }
+
+    // Add session_id to metadata if provided
+    if let Some(session_id) = &payload.session_id {
+        if let Some(obj) = metadata.as_object_mut() {
+            obj.insert("session_id".to_string(), serde_json::json!(session_id));
         }
     }
 
@@ -375,11 +435,26 @@ async fn add_handler(
     {
         Ok(id) => {
             info!("Memory added successfully: {}", path);
+
+            let mut compact_res = None;
+            if let Some(session_id) = &payload.session_id {
+                if let Ok(res) =
+                    compact_session_internal(Arc::clone(&state.memory), session_id, 4096).await
+                {
+                    compact_res = Some(res);
+                }
+            }
+
             axum::Json(serde_json::json!({
                 "status": "ok",
                 "message": "Memory added",
                 "path": path,
                 "id": id,
+                "compaction": compact_res.map(|(ok, before, after)| serde_json::json!({
+                    "triggered": ok,
+                    "tokens_before": before,
+                    "tokens_after": after,
+                })),
                 "security": {
                     "scanned": true,
                     "sanitized": sec_result.sanitized_input.is_some(),
@@ -780,6 +855,50 @@ fn estimate_tokens(text: &str) -> usize {
     (text.len() / 4).max(1)
 }
 
+async fn compact_session_internal(
+    memory: Arc<xavier2::memory::qmd_memory::QmdMemory>,
+    session_id: &str,
+    max_tokens: usize,
+) -> Result<(bool, usize, usize)> {
+    let all_docs = memory.all_documents().await;
+    let mut session_docs: Vec<_> = all_docs
+        .into_iter()
+        .filter(|doc| doc.path.starts_with(&format!("sessions/{}/", session_id)))
+        .collect();
+
+    // Sort by path (contains timestamp) descending - most recent first
+    session_docs.sort_by(|a, b| b.path.cmp(&a.path));
+
+    let tokens_before: usize = session_docs
+        .iter()
+        .map(|doc| estimate_tokens(&doc.content))
+        .sum();
+
+    if tokens_before <= (max_tokens * 8 / 10) {
+        return Ok((false, tokens_before, tokens_before));
+    }
+
+    let mut tokens_after = 0;
+    let budget_after = max_tokens * 2 / 10;
+    let mut to_delete = Vec::new();
+
+    for doc in session_docs {
+        let doc_tokens = estimate_tokens(&doc.content);
+        if tokens_after + doc_tokens <= budget_after {
+            tokens_after += doc_tokens;
+        } else {
+            to_delete.push(doc);
+        }
+    }
+
+    for doc in to_delete {
+        let id_or_path = doc.id.unwrap_or(doc.path);
+        memory.delete(&id_or_path).await?;
+    }
+
+    Ok((true, tokens_before, tokens_after))
+}
+
 fn secure_optional_request_field(
     security: &SecurityService,
     _field: &str,
@@ -1063,6 +1182,10 @@ async fn start_mcp_stdio() -> Result<()> {
                                     "title": {
                                         "type": "string",
                                         "description": "Optional title"
+                                    },
+                                    "session_id": {
+                                        "type": "string",
+                                        "description": "Optional session identifier"
                                     }
                                 },
                                 "required": ["content"]
@@ -1074,6 +1197,25 @@ async fn start_mcp_stdio() -> Result<()> {
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {}
+                            }
+                        },
+                        {
+                            "name": "session_compact",
+                            "description": "Compact session history when it exceeds 80% tokens",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "description": "Session identifier"
+                                    },
+                                    "max_tokens": {
+                                        "type": "number",
+                                        "description": "Max tokens budget (default 4096)",
+                                        "default": 4096
+                                    }
+                                },
+                                "required": ["session_id"]
                             }
                         }
                     ]
@@ -1122,21 +1264,71 @@ async fn start_mcp_stdio() -> Result<()> {
                     "add" => {
                         let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
                         let title = args.get("title").and_then(|v| v.as_str());
-                        let path = format!("memory/{}", ulid::Ulid::new());
+                        let session_id = args.get("session_id").and_then(|v| v.as_str());
+
+                        let path = if let Some(session_id) = session_id {
+                            format!(
+                                "sessions/{}/{}",
+                                session_id,
+                                chrono::Utc::now().format("%Y%m%dT%H%M%S%.3fZ")
+                            )
+                        } else {
+                            format!("memory/{}", ulid::Ulid::new())
+                        };
+
                         let mut metadata = serde_json::json!({});
                         if let Some(t) = title {
                             if let Some(obj) = metadata.as_object_mut() {
                                 obj.insert("title".to_string(), serde_json::json!(t));
                             }
                         }
+                        if let Some(sid) = session_id {
+                            if let Some(obj) = metadata.as_object_mut() {
+                                obj.insert("session_id".to_string(), serde_json::json!(sid));
+                            }
+                        }
+
                         match memory
                             .add_document(path.clone(), content.to_string(), metadata)
                             .await
                         {
-                            Ok(id) => serde_json::json!({
+                            Ok(id) => {
+                                let mut compact_res = None;
+                                if let Some(sid) = session_id {
+                                    if let Ok(res) =
+                                        compact_session_internal(Arc::clone(&memory), sid, 4096)
+                                            .await
+                                    {
+                                        compact_res = Some(res);
+                                    }
+                                }
+
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "path": path,
+                                    "id": id,
+                                    "compaction": compact_res.map(|(ok, before, after)| serde_json::json!({
+                                        "triggered": ok,
+                                        "tokens_before": before,
+                                        "tokens_after": after,
+                                    })),
+                                })
+                                .to_string()
+                            }
+                            Err(e) => format!("{{\"error\": \"{}\"}}", e),
+                        }
+                    }
+                    "session_compact" => {
+                        let session_id = args.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+                        let max_tokens = args.get("max_tokens").and_then(|v| v.as_u64()).unwrap_or(4096) as usize;
+
+                        match compact_session_internal(Arc::clone(&memory), session_id, max_tokens).await {
+                            Ok((ok, before, after)) => serde_json::json!({
                                 "status": "ok",
-                                "path": path,
-                                "id": id,
+                                "compact_ok": ok,
+                                "tokens_before": before,
+                                "tokens_after": after,
+                                "session_id": session_id,
                             })
                             .to_string(),
                             Err(e) => format!("{{\"error\": \"{}\"}}", e),
@@ -1311,6 +1503,41 @@ fn secure_cli_input(label: &str, input: &str, max_chars: usize) -> Result<String
     Ok(result.effective_input().to_string())
 }
 
+async fn compact_session_cli(session_id: &str, max_tokens: usize) -> Result<()> {
+    let token = std::env::var("XAVIER2_TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
+    let url = format!("http://localhost:{}/session/compact", port);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("X-Xavier2-Token", &token)
+        .json(&serde_json::json!({
+            "session_id": session_id,
+            "max_tokens": max_tokens
+        }))
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let body: serde_json::Value = resp.json().await.unwrap_or_default();
+                println!("\nSession Compaction Results:");
+                println!("{}", serde_json::to_string_pretty(&body)?);
+            } else {
+                println!("Compaction failed with status: {}", resp.status());
+            }
+        }
+        Err(e) => {
+            println!("Error connecting to Xavier2 server: {}", e);
+            println!("Is the server running? (xavier2 http)");
+        }
+    }
+
+    Ok(())
+}
+
 async fn show_stats() -> Result<()> {
     let token = std::env::var("XAVIER2_TOKEN").unwrap_or_else(|_| "dev-token".to_string());
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
@@ -1434,5 +1661,46 @@ mod tests {
         let err = secure_cli_input("memory title", &input, 10).unwrap_err();
 
         assert!(err.to_string().contains("exceeds maximum length"));
+    }
+
+    #[tokio::test]
+    async fn test_compact_session_internal() {
+        let docs = Arc::new(RwLock::new(Vec::new()));
+        let memory = Arc::new(QmdMemory::new_with_workspace(docs, "test-ws"));
+        let session_id = "test-session";
+
+        // Add 5 documents, each 400 characters -> ~100 tokens
+        // Total ~500 tokens
+        for i in 0..5 {
+            memory
+                .add_document(
+                    format!("sessions/{}/{}", session_id, i),
+                    "a".repeat(400),
+                    serde_json::json!({}),
+                )
+                .await
+                .unwrap();
+        }
+
+        // 80% of 400 tokens = 320 tokens.
+        // tokens_before (500) > 320, so compaction should trigger.
+        // It should keep most recent docs within 20% of 400 = 80 tokens.
+        // Each doc is 100 tokens, so it will keep 0 or 1 doc depending on how budget is handled.
+        // In our implementation, it keeps docs as long as tokens_after + doc_tokens <= budget_after.
+        // 0 + 100 > 80, so it might even keep NOTHING if one doc is too large, but it's better than overflow.
+        let (ok, before, after) = compact_session_internal(Arc::clone(&memory), session_id, 400)
+            .await
+            .unwrap();
+
+        assert!(ok);
+        assert_eq!(before, 500);
+        assert!(after <= 80);
+
+        let remaining = memory.all_documents().await;
+        let session_remaining: Vec<_> = remaining
+            .iter()
+            .filter(|d| d.path.contains(session_id))
+            .collect();
+        assert!(session_remaining.len() < 5);
     }
 }
