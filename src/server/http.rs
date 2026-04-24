@@ -982,6 +982,8 @@ async fn build_multi_layer_retrieve_response(
                 content,
                 score,
                 source,
+                path: _,
+                updated_at: _,
             } = r;
 
             RetrievedMemory {

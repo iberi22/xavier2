@@ -14,7 +14,7 @@ use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::info;
 
-use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
+use xavier2::memory::qmd_memory::{deduplicate_by_content_hash, MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier2::memory::surreal_store::{MemoryRecord, MemoryStore};
@@ -293,7 +293,9 @@ async fn search_handler(
         .await
     {
         Ok(results) => {
-            let search_results: Vec<serde_json::Value> = results
+            // Deduplicate results by content hash, keeping most recent by updated_at
+            let deduped_results = deduplicate_by_content_hash(results);
+            let search_results: Vec<serde_json::Value> = deduped_results
                 .into_iter()
                 .map(|document| {
                     serde_json::json!({

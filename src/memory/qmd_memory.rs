@@ -16,7 +16,7 @@ use std::{
     },
     time::Instant,
 };
-use tokio::sync::RwLock;
+use tokio::sync::RwLock as AsyncRwLock;
 
 use crate::memory::schema::{
     matches_filters, normalize_metadata, resolve_metadata, EvidenceKind, MemoryKind,
@@ -74,8 +74,8 @@ struct EmbeddingCacheEntry {
 }
 
 /// Global embedding cache - shared across all QmdMemory instances
-static EMBEDDING_CACHE: LazyLock<Arc<RwLock<HashMap<String, EmbeddingCacheEntry>>>> =
-    LazyLock::new(|| Arc::new(RwLock::new(HashMap::new())));
+static EMBEDDING_CACHE: LazyLock<Arc<AsyncRwLock<HashMap<String, EmbeddingCacheEntry>>>> =
+    LazyLock::new(|| Arc::new(AsyncRwLock::new(HashMap::new())));
 
 /// Compute a stable hash key for embedding cache
 fn embedding_cache_key(content: &str) -> String {
@@ -161,27 +161,27 @@ struct CacheCounters {
 #[derive(Clone)]
 pub struct QmdMemory {
     workspace_id: String,
-    docs: Arc<RwLock<Vec<MemoryDocument>>>,
-    search_cache: Arc<RwLock<HashMap<SearchCacheKey, Vec<MemoryDocument>>>>,
+    docs: Arc<AsyncRwLock<Vec<MemoryDocument>>>,
+    search_cache: Arc<AsyncRwLock<HashMap<SearchCacheKey, Vec<MemoryDocument>>>>,
     cache_counters: Arc<CacheCounters>,
-    store: Arc<RwLock<Option<Arc<dyn MemoryStore>>>>,
+    store: Arc<AsyncRwLock<Option<Arc<dyn MemoryStore>>>>,
 }
 
 impl QmdMemory {
-    pub fn new(docs: Arc<RwLock<Vec<MemoryDocument>>>) -> Self {
+    pub fn new(docs: Arc<AsyncRwLock<Vec<MemoryDocument>>>) -> Self {
         Self::new_with_workspace(docs, "default")
     }
 
     pub fn new_with_workspace(
-        docs: Arc<RwLock<Vec<MemoryDocument>>>,
+        docs: Arc<AsyncRwLock<Vec<MemoryDocument>>>,
         workspace_id: impl Into<String>,
     ) -> Self {
         Self {
             workspace_id: workspace_id.into(),
             docs,
-            search_cache: Arc::new(RwLock::new(HashMap::new())),
+            search_cache: Arc::new(AsyncRwLock::new(HashMap::new())),
             cache_counters: Arc::new(CacheCounters::default()),
-            store: Arc::new(RwLock::new(None)),
+            store: Arc::new(AsyncRwLock::new(None)),
         }
     }
 
@@ -2785,6 +2785,56 @@ pub async fn query_with_embedding_filtered(
         .await
 }
 
+/// Deduplicate search results by content hash, keeping most recent by updated_at.
+/// Groups documents by SHA256 content hash, then selects the document with the latest
+/// `updated_at` metadata field (or `created_at` as fallback). Preserves original order
+/// by keeping the first occurrence of each hash group.
+fn deduplicate_by_content_hash(results: Vec<MemoryDocument>) -> Vec<MemoryDocument> {
+    use std::collections::HashMap;
+
+    // Group by content hash, tracking (document, latest_updated_at, original_index)
+    let mut hash_groups: HashMap<String, (MemoryDocument, Option<String>, usize)> = HashMap::new();
+    for (idx, doc) in results.into_iter().enumerate() {
+        let content_hash = compute_content_hash(&doc.content);
+        let updated_at = doc
+            .metadata
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .or_else(|| {
+                doc.metadata
+                    .get("created_at")
+                    .and_then(|v| v.as_str())
+            })
+            .map(str::to_string);
+
+        hash_groups
+            .entry(content_hash)
+            .and_modify(|(existing_doc, existing_updated, existing_idx)| {
+                // Keep the one with more recent updated_at, or keep existing if tie
+                let is_newer = match (updated_at.as_ref(), existing_updated.as_ref()) {
+                    (Some(new), Some(old)) => new > old,
+                    (Some(_), None) => true, // new has timestamp, existing doesn't
+                    (None, Some(_)) => false, // existing has timestamp, new doesn't
+                    (None, None) => idx < *existing_idx, // tie-break by original order
+                };
+                if is_newer {
+                    *existing_doc = doc;
+                    *existing_updated = updated_at;
+                    *existing_idx = idx;
+                }
+            })
+            .or_insert((doc, updated_at, idx));
+    }
+
+    // Extract deduplicated results, sort by original order (first occurrence per hash)
+    let mut deduped: Vec<(usize, MemoryDocument)> = hash_groups
+        .into_values()
+        .map(|(doc, _, idx)| (idx, doc))
+        .collect();
+    deduped.sort_by(|a, b| a.0.cmp(&b.0));
+    deduped.into_iter().map(|(_, doc)| doc).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2792,7 +2842,7 @@ mod tests {
 
     #[tokio::test]
     async fn repeated_searches_hit_cache() {
-        let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
+        let memory = QmdMemory::new(Arc::new(AsyncRwLock::new(Vec::new())));
         memory
             .add_document(
                 "docs/cache".to_string(),
@@ -2821,7 +2871,7 @@ mod tests {
 
     #[tokio::test]
     async fn mutating_memory_invalidates_cache() {
-        let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
+        let memory = QmdMemory::new(Arc::new(AsyncRwLock::new(Vec::new())));
         memory
             .add_document(
                 "docs/original".to_string(),
@@ -2852,7 +2902,7 @@ mod tests {
             env::remove_var("XAVIER2_EMBEDDING_URL");
         }
 
-        let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
+        let memory = QmdMemory::new(Arc::new(AsyncRwLock::new(Vec::new())));
         memory
             .add_document(
                 "docs/offline".to_string(),
@@ -2868,7 +2918,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_document_creates_clean_locomo_derivatives() {
-        let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
+        let memory = QmdMemory::new(Arc::new(AsyncRwLock::new(Vec::new())));
         memory
             .add_document(
                 "locomo/conv-26/session_1/D1:17".to_string(),
@@ -2902,7 +2952,7 @@ mod tests {
 
     #[tokio::test]
     async fn locomo_search_prioritizes_temporal_derivatives_over_session_summaries() {
-        let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
+        let memory = QmdMemory::new(Arc::new(AsyncRwLock::new(Vec::new())));
         memory
             .add_document(
                 "locomo/conv-26/session_1/summary".to_string(),
@@ -2954,7 +3004,7 @@ mod tests {
 
     #[tokio::test]
     async fn add_document_normalizes_locomo_dia_ids_for_primary_and_derived_docs() {
-        let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
+        let memory = QmdMemory::new(Arc::new(AsyncRwLock::new(Vec::new())));
         memory
             .add_document(
                 "locomo/conv-26/session_1/D1:03".to_string(),
@@ -3013,7 +3063,7 @@ mod tests {
 
     #[tokio::test]
     async fn hybrid_search_uses_rrf_to_combine_keyword_and_vector_hits() {
-        let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
+        let memory = QmdMemory::new(Arc::new(AsyncRwLock::new(Vec::new())));
         memory
             .add(MemoryDocument {
                 id: Some("kw-doc".to_string()),

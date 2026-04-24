@@ -1,11 +1,17 @@
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ScoredResult {
     pub id: String,
     pub content: String,
     pub score: f32,
     pub source: String,
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub updated_at: Option<i64>, // Unix timestamp ms for deduplication
 }
 
 #[derive(Clone, Debug)]
@@ -14,18 +20,22 @@ struct FusedScore {
     content: String,
     best_original_score: f32,
     source: String,
+    path: String,
+    updated_at: Option<i64>,
     total_rrf: f32,
     total_weight: f32,
 }
 
 impl FusedScore {
-    fn new(result: ScoredResult, contribution: f32, weight: f32) -> Self {
+    fn new(result: &ScoredResult, contribution: f32, weight: f32) -> Self {
         let best_original_score = result.score;
         Self {
-            id: result.id,
-            content: result.content,
+            id: result.id.clone(),
+            content: result.content.clone(),
             best_original_score,
-            source: result.source,
+            source: result.source.clone(),
+            path: result.path.clone(),
+            updated_at: result.updated_at,
             total_rrf: contribution,
             total_weight: weight,
         }
@@ -47,6 +57,8 @@ impl FusedScore {
             content: self.content,
             score: self.total_rrf,
             source: "hybrid".to_string(),
+            path: self.path,
+            updated_at: self.updated_at,
         }
     }
 }
@@ -54,6 +66,8 @@ impl FusedScore {
 /// Reciprocal Rank Fusion.
 ///
 /// Result positions are treated as 1-based ranks.
+/// After fusion, deduplicates by canonical path — when the same path appears
+/// multiple times, keeps only the entry with the most recent `updated_at`.
 pub fn reciprocal_rank_fusion(result_sets: Vec<Vec<ScoredResult>>, k: u32) -> Vec<ScoredResult> {
     let mut scores: HashMap<String, FusedScore> = HashMap::new();
 
@@ -64,9 +78,18 @@ pub fn reciprocal_rank_fusion(result_sets: Vec<Vec<ScoredResult>>, k: u32) -> Ve
             let weight = 1.0;
 
             scores
-                .entry(result.id.clone())
-                .and_modify(|entry| entry.add_score(&result, contribution, weight))
-                .or_insert_with(|| FusedScore::new(result, contribution, weight));
+                .entry(result.path.clone())
+                .and_modify(|entry| {
+                    entry.add_score(&result, contribution, weight);
+                    // Keep the entry with the most recent updated_at
+                    if result.updated_at > entry.updated_at {
+                        entry.id = result.id.clone();
+                        entry.content = result.content.clone();
+                        entry.source = result.source.clone();
+                        entry.updated_at = result.updated_at;
+                    }
+                })
+                .or_insert_with(|| FusedScore::new(&result, contribution, weight));
         }
     }
 
@@ -101,38 +124,50 @@ mod tests {
                     content: "alpha".into(),
                     score: 1.0,
                     source: "keyword".into(),
+                    path: "projects/a".into(),
+                    updated_at: Some(1000),
                 },
                 ScoredResult {
                     id: "b".into(),
                     content: "bravo".into(),
                     score: 0.9,
                     source: "keyword".into(),
+                    path: "projects/b".into(),
+                    updated_at: Some(2000),
                 },
                 ScoredResult {
                     id: "c".into(),
                     content: "charlie".into(),
                     score: 0.8,
                     source: "keyword".into(),
+                    path: "projects/c".into(),
+                    updated_at: Some(3000),
                 },
             ],
             vec![
                 ScoredResult {
-                    id: "b".into(),
-                    content: "bravo".into(),
+                    id: "b2".into(),
+                    content: "bravo-rev2".into(),
                     score: 1.0,
                     source: "vector".into(),
+                    path: "projects/b".into(), // same path as b above — should dedupe, keeping this (more recent)
+                    updated_at: Some(2500),
                 },
                 ScoredResult {
                     id: "d".into(),
                     content: "delta".into(),
                     score: 0.9,
                     source: "vector".into(),
+                    path: "projects/d".into(),
+                    updated_at: Some(4000),
                 },
                 ScoredResult {
-                    id: "a".into(),
-                    content: "alpha".into(),
+                    id: "a2".into(),
+                    content: "alpha-rev2".into(),
                     score: 0.8,
                     source: "vector".into(),
+                    path: "projects/a".into(), // same path as a above — should dedupe, keeping this (more recent)
+                    updated_at: Some(1500),
                 },
             ],
         ];
@@ -140,8 +175,8 @@ mod tests {
         let fused = reciprocal_rank_fusion(results, 60);
         let ids: Vec<_> = fused.iter().map(|result| result.id.clone()).collect();
 
-        assert_eq!(ids[0], "b");
-        assert_eq!(ids[1], "a");
+        assert_eq!(ids[0], "b2"); // "b" path deduped, rev2 (2500) > original (2000)
+        assert_eq!(ids[1], "a2"); // "a" path deduped, rev2 (1500) > original (1000)
     }
 
     #[test]
@@ -152,6 +187,8 @@ mod tests {
                 content: "alpha".into(),
                 score: 1.0,
                 source: "keyword".into(),
+                path: "".into(),
+                updated_at: None,
             }],
             vec![],
         ];

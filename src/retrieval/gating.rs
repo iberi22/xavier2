@@ -190,6 +190,11 @@ impl AdaptiveGating {
                         content: doc.content.clone(),
                         score: score.min(1.0),
                         source: "working".to_string(),
+                        path: doc.path.clone(),
+                        updated_at: doc.metadata.get("updated_at")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                            .map(|dt| dt.timestamp_millis()),
                     })
                 } else {
                     None
@@ -250,6 +255,8 @@ impl AdaptiveGating {
                         content: session.summary.clone(),
                         score: score.min(1.0),
                         source: "episodic".to_string(),
+                        path: format!("sessions/{}", session.session_id),
+                        updated_at: Some(session.start_time.timestamp_millis()),
                     })
                 } else {
                     None
@@ -316,6 +323,8 @@ impl AdaptiveGating {
                         content: entity.name.clone(),
                         score: final_score.min(1.0),
                         source: "semantic".to_string(),
+                        path: format!("entities/{}", entity.id),
+                        updated_at: Some(entity.last_seen.timestamp_millis()),
                     })
                 } else {
                     None

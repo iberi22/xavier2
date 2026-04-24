@@ -6,6 +6,8 @@ use crate::{
     },
 };
 
+use chrono::DateTime;
+
 use super::rrf::{reciprocal_rank_fusion, ScoredResult};
 
 #[derive(Debug, thiserror::Error)]
@@ -131,11 +133,19 @@ impl HybridSearcher {
             .enumerate()
             .map(|(index, document)| {
                 let score = 1.0 - (index as f32 / total);
+                let updated_at = document
+                    .metadata
+                    .get("updated_at")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                    .map(|dt| dt.timestamp_millis());
                 ScoredResult {
                     id: document.id.unwrap_or_else(|| document.path.clone()),
                     content: document.content,
                     score,
                     source: source.to_string(),
+                    path: document.path,
+                    updated_at,
                 }
             })
             .collect()
