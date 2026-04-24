@@ -19,6 +19,8 @@ use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier2::memory::surreal_store::{MemoryRecord, MemoryStore};
 use xavier2::security::{ProcessResult, SecurityService};
+use xavier2::session::event_mapper::PanelThreadEntry;
+use xavier2::session::types::SessionEvent;
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
@@ -145,6 +147,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/ready", get(readiness_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
+        .route("/xavier2/events/session", post(session_event_handler))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -920,6 +923,60 @@ fn filter_symbols_by_query(symbols: &mut Vec<code_graph::types::Symbol>, query: 
                 .contains(&query)
             || symbol.file_path.to_ascii_lowercase().contains(&query)
     });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session Event Webhook Handler (SEVIER2 M1)
+// Receives session events from OpenClaw and indexes them into Xavier2
+// ─────────────────────────────────────────────────────────────────────────────
+
+async fn session_event_handler(
+    State(state): State<CliState>,
+    axum::Json(event): axum::Json<SessionEvent>,
+) -> impl axum::response::IntoResponse {
+    let entry = match PanelThreadEntry::from_session_event(&event) {
+        Some(e) => e,
+        None => {
+            return axum::Json(serde_json::json!({
+                "status": "skipped",
+                "reason": "no_content",
+                "session_id": event.session_id,
+            }))
+        }
+    };
+
+    let path = format!("sessions/{}/thread", event.session_id);
+    let content = format!(
+        "[{}] {}: {}",
+        entry.timestamp.format("%Y-%m-%d %H:%M:%S"),
+        entry.role,
+        entry.content
+    );
+    let metadata = serde_json::json!({
+        "session_id": event.session_id,
+        "role": entry.role,
+        "event_type": entry.event_type,
+        "kind": "session_event",
+    });
+
+    match state.memory.add_document(path.clone(), content, metadata).await {
+        Ok(id) => {
+            info!("Session event indexed: {} -> {}", event.session_id, id);
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "session_id": event.session_id,
+                "path": path,
+                "id": id,
+            }))
+        }
+        Err(e) => {
+            info!("Failed to index session event: {}", e);
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "error": e.to_string(),
+            }))
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
