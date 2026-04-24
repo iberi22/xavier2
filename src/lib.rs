@@ -16,6 +16,7 @@ pub mod memory;
 pub mod retrieval;
 pub mod scheduler;
 pub mod search;
+pub mod session;
 pub mod secrets;
 pub mod security;
 pub mod server;

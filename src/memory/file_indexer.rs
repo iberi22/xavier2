@@ -202,6 +202,19 @@ impl FileIndexer {
     }
 
     /// Indexa un archivo individual
+    pub async fn index_file_content(&self, path: &str, content: &str) -> Result<IndexedFile> {
+        let last_modified = chrono::Utc::now().to_rfc3339();
+        let chunks = self.generate_chunks(content);
+
+        Ok(IndexedFile {
+            path: path.to_string(),
+            content: content.to_string(),
+            chunks,
+            last_modified,
+            size: content.len(),
+        })
+    }
+
     pub async fn index_file(&self, path: &Path) -> Result<IndexedFile> {
         let path_str = path.to_string_lossy().to_string();
 
