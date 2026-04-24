@@ -49,6 +49,11 @@ pub enum Command {
     },
     /// Show statistics
     Stats,
+    /// Save current session context to Xavier2
+    SessionSave {
+        session_id: String,
+        content: String,
+    },
 }
 
 /// Xavier2 - Fast Vector Memory for AI Agents
@@ -81,6 +86,9 @@ impl Cli {
             Command::Stats => {
                 println!("Fetching Xavier2 statistics...");
                 show_stats().await
+            }
+            Command::SessionSave { session_id, content } => {
+                session_save(&session_id, &content).await
             }
         }
     }
@@ -147,6 +155,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/ready", get(readiness_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
+        .route("/session/compact", post(session_compact_handler))
         .route("/xavier2/events/session", post(session_event_handler))
         .with_state(state);
 
@@ -980,6 +989,159 @@ async fn session_event_handler(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Session Compaction Handler
+// Auto-triggers context compaction when token usage exceeds 80%
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct SessionCompactPayload {
+    session_id: String,
+    #[serde(default)]
+    current_tokens: Option<usize>,
+    #[serde(default = "default_compaction_threshold")]
+    threshold_percent: f64,
+}
+
+fn default_compaction_threshold() -> f64 {
+    80.0
+}
+
+async fn session_compact_handler(
+    State(state): State<CliState>,
+    axum::Json(payload): axum::Json<SessionCompactPayload>,
+) -> impl axum::response::IntoResponse {
+    let session_id = &payload.session_id;
+    let threshold = payload.threshold_percent.max(1.0).min(100.0);
+
+    // Get current token usage - use provided value or query from memory
+    let current_tokens = match payload.current_tokens {
+        Some(t) => t,
+        None => {
+            // Query session context to estimate token count
+            match state.memory.search(&format!("session {} compact", session_id), 50).await {
+                Ok(docs) => {
+                    let total_chars: usize = docs.iter().map(|d| d.content.len()).sum();
+                    total_chars / 4
+                }
+                Err(_) => 0,
+            }
+        }
+    };
+
+    // Estimate max tokens based on typical 200K context window
+    let estimated_max_tokens = 200_000;
+    let usage_percent = (current_tokens as f64 / estimated_max_tokens as f64) * 100.0;
+
+    let triggered = usage_percent >= threshold;
+
+    if !triggered {
+        return axum::Json(serde_json::json!({
+            "status": "ok",
+            "triggered": false,
+            "session_id": session_id,
+            "usage_percent": usage_percent,
+            "threshold_percent": threshold,
+            "message": format!(
+                "Compaction not needed: {:.1}% < {:.1}%",
+                usage_percent,
+                threshold
+            ),
+        }));
+    }
+
+    // Compaction triggered - fetch session history, keep last 20%
+    let search_path = format!("sessions/{}/thread", session_id);
+    let all_docs = match state.memory.get(&search_path).await {
+        Ok(Some(doc)) => vec![doc],
+        Ok(None) => {
+            match state.memory.search(&search_path, 100).await {
+                Ok(docs) => docs,
+                Err(_) => vec![],
+            }
+        }
+        Err(_) => vec![],
+    };
+
+    let total_docs = all_docs.len();
+    let keep_count = (total_docs as f64 * 0.20).ceil() as usize;
+    let compact_docs: Vec<_> = all_docs.iter().rev().take(keep_count).collect();
+
+    let mut compacted_content = String::new();
+    compacted_content.push_str(&format!(
+        "[COMPACTED] Session {} - Original {} entries, kept {}\n",
+        session_id,
+        total_docs,
+        compact_docs.len()
+    ));
+
+    if let Some(oldest) = all_docs.first() {
+        compacted_content.push_str(&format!(
+            "[EARLIEST] {}\n",
+            &oldest.content[..oldest.content.len().min(200)]
+        ));
+    }
+
+    compacted_content.push_str("\n=== KEPT RECENT ENTRIES ===\n");
+    for doc in &compact_docs {
+        let truncate_content = if doc.content.len() > 500 {
+            format!("{}... [truncated]", &doc.content[..500])
+        } else {
+            doc.content.clone()
+        };
+        compacted_content.push_str(&format!("[ENTRY] {}\n\n", truncate_content));
+    }
+
+    let compact_path = format!("context/{}/compact", session_id);
+    let metadata = serde_json::json!({
+        "session_id": session_id,
+        "original_entries": total_docs,
+        "kept_entries": compact_docs.len(),
+        "compaction_percent": 20,
+        "usage_percent": usage_percent,
+        "threshold_percent": threshold,
+        "kind": "session_compact",
+    });
+
+    match state.memory.add_document(compact_path.clone(), compacted_content.clone(), metadata).await {
+        Ok(id) => {
+            info!(
+                "Session {} compacted: {} -> {} entries, saved to {}",
+                session_id,
+                total_docs,
+                compact_docs.len(),
+                id
+            );
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "triggered": true,
+                "session_id": session_id,
+                "usage_percent": usage_percent,
+                "threshold_percent": threshold,
+                "original_entries": total_docs,
+                "kept_entries": compact_docs.len(),
+                "compacted_path": compact_path,
+                "compacted_id": id,
+                "message": format!(
+                    "Compacted session {}: {} -> {} entries (kept last 20%)",
+                    session_id,
+                    total_docs,
+                    compact_docs.len()
+                ),
+            }))
+        }
+        Err(e) => {
+            info!("Session compaction error: {}", e);
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "triggered": true,
+                "session_id": session_id,
+                "error": e.to_string(),
+            }))
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MCP-stdio Server
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1257,8 +1419,62 @@ async fn start_mcp_stdio() -> Result<()> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLI commands (HTTP-based for Search / Add / Stats)
+// Session Load - Restore context on session start
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// Session context returned by session_load
+#[derive(Debug, serde::Serialize)]
+struct SessionContext {
+    session_id: String,
+    context: Option<String>,
+    tokens_restored: usize,
+}
+
+/// Fetch session context from Xavier2 memory store.
+/// GETs from /memory/search with path: context/<session_id>/latest
+async fn session_load(ctx: &str) -> Result<String> {
+    let token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
+    let url = format!("http://localhost:{}/memory/search", port);
+
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("X-Cortex-Token", &token)
+        .json(&serde_json::json!({
+            "query": format!("path:context/{}/latest", ctx),
+            "limit": 1
+        }))
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(anyhow!("session_load failed: {}", response.status()));
+    }
+
+    let body: serde_json::Value = response.json().await?;
+    let results = body.get("results").and_then(|r| r.as_array()).map(|a| a.len()).unwrap_or(0);
+    let context = body
+        .get("results")
+        .and_then(|r| r.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|doc| doc.get("content"))
+        .and_then(|c| c.as_str())
+        .map(String::from);
+
+    let tokens_restored = context.as_ref().map(|c| estimate_tokens(c)).unwrap_or(0);
+
+    let session_ctx = SessionContext {
+        session_id: ctx.to_string(),
+        context,
+        tokens_restored,
+    };
+
+    serde_json::to_string(&session_ctx)
+        .map_err(|e| anyhow!("failed to serialize session context: {}", e))
+}
+
 
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
@@ -1388,6 +1604,52 @@ async fn show_stats() -> Result<()> {
                 println!("{}", serde_json::to_string_pretty(&body)?);
             } else {
                 println!("Failed to get stats: {}", resp.status());
+            }
+        }
+        Err(e) => {
+            println!("Error connecting to Xavier2 server: {}", e);
+            println!("Is the server running? (xavier2 http)");
+        }
+    }
+
+    Ok(())
+}
+
+/// Save current session context to Xavier2 memory
+/// POSTs to localhost:8006/memory/add with X-Cortex-Token: dev-token
+/// Path: context/<session_id>/save
+/// Content: current context
+async fn session_save(session_id: &str, content: &str) -> Result<()> {
+    let content = secure_cli_input("session content", content, 10_000_000)?;
+    let token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
+    let url = format!("http://localhost:{}/memory/add", port);
+
+    let body = serde_json::json!({
+        "content": content,
+        "path": format!("context/{}/save", session_id),
+        "metadata": {
+            "session_id": session_id,
+            "kind": "session_save",
+        }
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("X-Cortex-Token", &token)
+        .json(&body)
+        .send()
+        .await;
+
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                println!("Session context saved successfully!");
+                println!("Path: context/{}/save", session_id);
+            } else {
+                println!("Failed to save session context: {}", resp.status());
             }
         }
         Err(e) => {
