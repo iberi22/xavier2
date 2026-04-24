@@ -2,7 +2,9 @@
 
 use anyhow::{anyhow, Result};
 use axum::{
-    extract::State,
+    extract::{Path, State},
+    http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     routing::{get, post},
     Router,
 };
@@ -47,6 +49,11 @@ pub enum Command {
     },
     /// Show statistics
     Stats,
+    /// Save session context
+    SessionSave {
+        session_id: String,
+        content: String,
+    },
 }
 
 /// Xavier2 - Fast Vector Memory for AI Agents
@@ -79,6 +86,13 @@ impl Cli {
             Command::Stats => {
                 println!("Fetching Xavier2 statistics...");
                 show_stats().await
+            }
+            Command::SessionSave {
+                session_id,
+                content,
+            } => {
+                println!("Saving session context for: {}...", session_id);
+                session_save(session_id, content).await
             }
         }
     }
@@ -145,6 +159,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/ready", get(readiness_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
+        .route("/context/:session_id/save", post(session_save_handler))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -155,6 +170,43 @@ async fn start_http_server(port: u16) -> Result<()> {
     println!("Press Ctrl+C to stop");
 
     axum::serve(listener, app).await?;
+
+    Ok(())
+}
+
+async fn session_save(session_id: &str, content: &str) -> Result<()> {
+    let content = secure_cli_input("session content", content, 1_000_000)?;
+    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
+    let url = format!("http://localhost:{}/context/{}/save", port, session_id);
+
+    // Using the specified dev-token and header X-Cortex-Token
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("X-Cortex-Token", "dev-token")
+        .json(&serde_json::json!({
+            "content": content
+        }))
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let body: serde_json::Value = resp.json().await.unwrap_or_default();
+                println!("Session context saved successfully!");
+                println!("{}", serde_json::to_string_pretty(&body)?);
+            } else {
+                let status = resp.status();
+                let error_msg = resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                println!("Failed to save session context: {} - {}", status, error_msg);
+            }
+        }
+        Err(e) => {
+            println!("Error connecting to Xavier2 server: {}", e);
+            println!("Is the server running? (xavier2 http)");
+        }
+    }
 
     Ok(())
 }
@@ -438,6 +490,91 @@ async fn security_scan_handler(
 }
 
 // === Memory Query Handler (with LLM synthesis) ===
+#[derive(Debug, Deserialize)]
+struct SessionSavePayload {
+    content: String,
+}
+
+async fn session_save_handler(
+    State(state): State<CliState>,
+    headers: HeaderMap,
+    Path(session_id): Path<String>,
+    axum::Json(payload): axum::Json<SessionSavePayload>,
+) -> impl axum::response::IntoResponse {
+    // 1. Auth check: X-Cortex-Token: dev-token
+    let token = headers
+        .get("X-Cortex-Token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if token != "dev-token" {
+        return (
+            StatusCode::UNAUTHORIZED,
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "message": "Unauthorized: invalid cortex token"
+            })),
+        )
+            .into_response();
+    }
+
+    // 2. Validate session_id for path traversal
+    if session_id.contains("..") || session_id.contains('/') || session_id.contains('\\') {
+        return (
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "message": "Invalid session_id: path traversal not allowed"
+            })),
+        )
+            .into_response();
+    }
+
+    // 3. Security scan on content
+    let sec_result = state.security.process_input(&payload.content);
+    if !sec_result.allowed {
+        return (
+            StatusCode::FORBIDDEN,
+            axum::Json(serde_json::json!({
+                "status": "blocked",
+                "reason": "security_policy_violation",
+                "detection": {
+                    "is_injection": sec_result.detection.is_injection,
+                    "confidence": sec_result.detection.confidence,
+                    "attack_type": sec_result.detection.attack_type.as_str(),
+                }
+            })),
+        )
+            .into_response();
+    }
+
+    let effective_content = sec_result.effective_input();
+    let path = format!("context/{}/save", session_id);
+    let tokens_saved = estimate_tokens(effective_content);
+
+    // 4. Save to memory
+    match state
+        .memory
+        .add_document(path.clone(), effective_content.to_string(), serde_json::json!({}))
+        .await
+    {
+        Ok(_) => axum::Json(serde_json::json!({
+            "save_ok": true,
+            "path": path,
+            "tokens_saved": tokens_saved,
+        }))
+        .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "message": e.to_string(),
+            })),
+        )
+            .into_response(),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct MemoryQueryPayload {
     query: String,
@@ -1075,6 +1212,24 @@ async fn start_mcp_stdio() -> Result<()> {
                                 "type": "object",
                                 "properties": {}
                             }
+                        },
+                        {
+                            "name": "session_save",
+                            "description": "Save session context to Xavier2 before overflow",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "session_id": {
+                                        "type": "string",
+                                        "description": "The unique session identifier"
+                                    },
+                                    "content": {
+                                        "type": "string",
+                                        "description": "Session context content to save"
+                                    }
+                                },
+                                "required": ["session_id", "content"]
+                            }
                         }
                     ]
                 }
@@ -1157,8 +1312,35 @@ async fn start_mcp_stdio() -> Result<()> {
                         })
                         .to_string()
                     }
+                    "session_save" => {
+                        let session_id = args.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+                        let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
+
+                        // Security scan
+                        let security = SecurityService::new();
+                        let sec_result = security.process_input(content);
+                        if !sec_result.allowed {
+                            serde_json::json!({
+                                "status": "blocked",
+                                "reason": "security_policy_violation"
+                            }).to_string()
+                        } else {
+                            let effective_content = sec_result.effective_input();
+                            let path = format!("context/{}/save", session_id);
+                            let tokens_saved = estimate_tokens(effective_content);
+
+                            match memory.add_document(path.clone(), effective_content.to_string(), serde_json::json!({})).await {
+                                Ok(_) => serde_json::json!({
+                                    "save_ok": true,
+                                    "path": path,
+                                    "tokens_saved": tokens_saved,
+                                }).to_string(),
+                                Err(e) => format!("{{\"error\": \"{}\"}}", e),
+                            }
+                        }
+                    }
                     _ => format!(
-                        "Unknown tool: {}. Available tools: search, add, stats",
+                        "Unknown tool: {}. Available tools: search, add, stats, session_save",
                         tool_name
                     ),
                 };
