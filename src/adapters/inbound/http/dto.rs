@@ -2,6 +2,27 @@ use crate::domain::pattern::{PatternCategory, PatternVerification};
 use crate::domain::security::ThreatLevel;
 use serde::{Deserialize, Serialize};
 
+// ─── Time Metrics ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeMetricDto {
+    pub metric_type: String,
+    pub agent_id: String,
+    pub task_id: Option<String>,
+    pub started_at: String,
+    pub completed_at: String,
+    pub duration_ms: u64,
+    pub status: String,
+    pub error_message: Option<String>,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub tokens_used: Option<u64>,
+    pub task_category: Option<String>,
+    pub metadata: serde_json::Value,
+}
+
+// ─── Pattern Protocol ─────────────────────────────────────────────────────────
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PatternDiscoverRequest {
     pub pattern: String,

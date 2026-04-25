@@ -35,6 +35,7 @@ pub mod adapters;
 pub mod app;
 pub mod domain;
 pub mod ports;
+pub mod time;
 
 use std::sync::Arc;
 
