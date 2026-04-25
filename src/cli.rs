@@ -14,14 +14,20 @@ use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::info;
 
+use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
-use xavier2::memory::surreal_store::{MemoryRecord, MemoryStore};
+use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
+use xavier2::memory::surreal_store::MemoryRecord;
+use xavier2::memory::surreal_store::MemoryStore;
+use xavier2::ports::inbound::MemoryQueryPort;
+use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
 use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
+use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
 use xavier2::time::TimeMetricsStore;
 use xavier2::adapters::inbound::http::routes::{sync_check_handler, time_metric_handler};
@@ -29,7 +35,7 @@ use xavier2::adapters::inbound::http::routes::{sync_check_handler, time_metric_h
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
 pub struct CliState {
-    pub memory: Arc<QmdMemory>,
+    pub memory: Arc<dyn MemoryQueryPort>,
     pub store: Arc<dyn MemoryStore>,
     pub workspace_id: String,
     pub code_db: Arc<code_graph::db::CodeGraphDB>,
@@ -119,6 +125,7 @@ async fn start_http_server(port: u16) -> Result<()> {
     let dyn_store: Arc<dyn MemoryStore> = store.clone();
     memory.set_store(dyn_store.clone()).await;
     memory.init().await?;
+    let memory_port = Arc::new(QmdMemoryAdapter::new(Arc::clone(&memory))) as Arc<dyn MemoryQueryPort>;
 
     // Initialize TimeMetricsStore using the same SQLite connection
     let time_conn = store.clone_inner_conn();
@@ -130,9 +137,12 @@ async fn start_http_server(port: u16) -> Result<()> {
             info!("TimeMetricsStore schema init warning: {}", e);
         }
     }
-    // Register global time store for HTTP handler
-    use xavier2::adapters::inbound::http::routes::init_time_store;
-    init_time_store(Arc::clone(&time_store));
+    // Register global time metrics port for HTTP handler (wrap in adapter)
+    use xavier2::adapters::inbound::http::routes::{init_time_store, init_health_port};
+    use xavier2::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
+    let time_adapter = Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
+    init_time_store(time_adapter);
+    init_health_port(health_adapter.clone());
 
     let code_db_path = code_graph_db_path();
     if let Some(parent) = code_db_path.parent() {
@@ -143,7 +153,7 @@ async fn start_http_server(port: u16) -> Result<()> {
     let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
 
     let state = CliState {
-        memory,
+        memory: memory_port,
         store,
         workspace_id,
         code_db,
@@ -197,7 +207,10 @@ async fn start_http_server(port: u16) -> Result<()> {
     println!("Press Ctrl+C to stop");
 
     // Start session sync task cron (M5)
-    let sync_task = SessionSyncTask::new();
+    let health_adapter = Arc::new(HttpHealthAdapter::new(
+        std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
+    )) as Arc<dyn HealthCheckPort>;
+    let sync_task = SessionSyncTask::new(health_adapter);
     tokio::spawn(async move {
         sync_task.start_cron().await;
     });
@@ -419,11 +432,21 @@ async fn add_handler(
         effective_content.len()
     );
 
-    match state
-        .memory
-        .add_document(path.clone(), effective_content.to_string(), metadata)
-        .await
-    {
+    let record = DomainMemoryRecord {
+        id: String::new(),
+        content: effective_content.to_string(),
+        kind: xavier2::domain::memory::MemoryKind::Context,
+        namespace: xavier2::domain::memory::MemoryNamespace::Global,
+        provenance: xavier2::domain::memory::MemoryProvenance {
+            source: path.clone(),
+            evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
+            confidence: 1.0,
+        },
+        embedding: None,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    match state.memory.add(record).await {
         Ok(id) => {
             info!("Memory added successfully: {}", path);
             axum::Json(serde_json::json!({
@@ -993,7 +1016,6 @@ async fn session_event_handler(
         }
     };
 
-    let path = format!("sessions/{}/thread", event.session_id);
     let content = format!(
         "[{}] {}: {}",
         entry.timestamp.format("%Y-%m-%d %H:%M:%S"),
@@ -1007,13 +1029,28 @@ async fn session_event_handler(
         "kind": "session_event",
     });
 
-    match state.memory.add_document(path.clone(), content, metadata).await {
+    let record_path = format!("sessions/{}/thread", event.session_id);
+    let record = DomainMemoryRecord {
+        id: String::new(),
+        content,
+        kind: xavier2::domain::memory::MemoryKind::Context,
+        namespace: xavier2::domain::memory::MemoryNamespace::Session,
+        provenance: xavier2::domain::memory::MemoryProvenance {
+            source: record_path.clone(),
+            evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
+            confidence: 1.0,
+        },
+        embedding: None,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    match state.memory.add(record).await {
         Ok(id) => {
             info!("Session event indexed: {} -> {}", event.session_id, id);
             axum::Json(serde_json::json!({
                 "status": "ok",
                 "session_id": event.session_id,
-                "path": path,
+                "path": record_path,
                 "id": id,
             }))
         }
@@ -1140,8 +1177,21 @@ async fn session_compact_handler(
         "threshold_percent": threshold,
         "kind": "session_compact",
     });
-
-    match state.memory.add_document(compact_path.clone(), compacted_content.clone(), metadata).await {
+    let record = DomainMemoryRecord {
+        id: String::new(),
+        content: compacted_content.clone(),
+        kind: xavier2::domain::memory::MemoryKind::Context,
+        namespace: xavier2::domain::memory::MemoryNamespace::Session,
+        provenance: xavier2::domain::memory::MemoryProvenance {
+            source: compact_path.clone(),
+            evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
+            confidence: 1.0,
+        },
+        embedding: None,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    match state.memory.add(record).await {
         Ok(id) => {
             info!(
                 "Session {} compacted: {} -> {} entries, saved to {}",
@@ -1281,11 +1331,21 @@ async fn agent_push_context_handler(
         obj.insert("pushed_at".to_string(), serde_json::json!(chrono::Utc::now().to_rfc3339()));
     }
 
-    match state
-        .memory
-        .add_document(path.clone(), payload.context.clone(), metadata)
-        .await
-    {
+    let record = DomainMemoryRecord {
+        id: String::new(),
+        content: payload.context.clone(),
+        kind: xavier2::domain::memory::MemoryKind::Context,
+        namespace: xavier2::domain::memory::MemoryNamespace::Session,
+        provenance: xavier2::domain::memory::MemoryProvenance {
+            source: path.clone(),
+            evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
+            confidence: 1.0,
+        },
+        embedding: None,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    match state.memory.add(record).await {
         Ok(doc_id) => axum::Json(serde_json::json!({
             "status": "ok",
             "path": path,

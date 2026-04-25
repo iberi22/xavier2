@@ -6,11 +6,14 @@
 //! - Query active agents (heartbeat < 5 minutes)
 //! - Store/retrieve agent context in memory
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+use crate::ports::inbound::AgentLifecyclePort;
 
 /// Active agent entry
 #[derive(Debug, Clone)]
@@ -101,6 +104,34 @@ impl SimpleAgentRegistry {
     pub async fn list_ids(&self) -> Vec<String> {
         let agents = self.agents.read().await;
         agents.keys().cloned().collect()
+    }
+}
+
+#[async_trait]
+impl AgentLifecyclePort for SimpleAgentRegistry {
+    async fn register(
+        &self,
+        agent_id: String,
+        session_id: String,
+        metadata: AgentMetadata,
+    ) -> bool {
+        SimpleAgentRegistry::register(self, agent_id, session_id, metadata).await
+    }
+
+    async fn unregister(&self, agent_id: &str) -> bool {
+        SimpleAgentRegistry::unregister(self, agent_id).await
+    }
+
+    async fn heartbeat(&self, agent_id: &str) -> bool {
+        SimpleAgentRegistry::heartbeat(self, agent_id).await
+    }
+
+    async fn get_active_agents(&self) -> Vec<AgentEntry> {
+        SimpleAgentRegistry::get_active_agents(self).await
+    }
+
+    async fn get(&self, agent_id: &str) -> Option<AgentEntry> {
+        SimpleAgentRegistry::get(self, agent_id).await
     }
 }
 

@@ -8,19 +8,29 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::adapters::inbound::http::dto::TimeMetricDto;
+use crate::ports::inbound::TimeMetricsPort;
+use crate::ports::outbound::HealthCheckPort;
 use crate::session::types::{SessionEvent, SessionEventType};
 use crate::session::event_mapper::map_to_panel_thread;
 use crate::tasks::session_sync_task::SessionSyncTask;
 use crate::verification::auto_verifier::AutoVerifier;
-use crate::time::TimeMetricsStore;
 
-// ─── Module-level TimeMetricsStore (initialized by CLI) ─────────────────────
-static TIME_STORE: std::sync::OnceLock<Arc<TimeMetricsStore>> =
+// ─── Module-level TimeMetricsPort (initialized by CLI) ────────────────────────
+static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> =
     std::sync::OnceLock::new();
 
-/// Initialize the global time metrics store (call once at startup)
-pub fn init_time_store(store: Arc<TimeMetricsStore>) {
-    TIME_STORE.set(store).ok();
+/// Module-level HealthCheckPort (initialized by CLI)
+static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> =
+    std::sync::OnceLock::new();
+
+/// Initialize the global time metrics port (call once at startup)
+pub fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
+    TIME_STORE.set(port).ok();
+}
+
+/// Initialize the global health check port (call once at startup)
+pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
+    HEALTH_PORT.set(port).ok();
 }
 
 // ─── Router ─────────────────────────────────────────────────────────────────
@@ -194,7 +204,12 @@ pub struct SyncCheckResponse {
 
 pub async fn sync_check_handler() -> Json<SyncCheckResponse> {
     // Get the last sync result (or run a new check if none exists)
-    let task = SessionSyncTask::new();
+    let health_port = HEALTH_PORT.get().cloned().unwrap_or_else(|| {
+        Arc::new(crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(
+            std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
+        ))
+    });
+    let task = SessionSyncTask::new(health_port);
     let result = task.run_sync_check().await;
 
     Json(SyncCheckResponse {
