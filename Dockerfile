@@ -2,7 +2,7 @@
 # Xavier2 - Optimized Multi-Stage Docker Build
 # Target: < 100MB production image
 #
-# Usage: docker build -t xavier2 . && docker run -p 8003:8003 xavier2
+# Usage: docker build -t xavier2 . && docker run -p 8006:8006 xavier2
 
 # Stage 1: Builder
 # Using slim variant to keep final image small (~500MB vs ~800MB for full)
@@ -29,7 +29,8 @@ COPY src/ src/
 COPY code-graph/ code-graph/
 
 # Build only xavier2 binary (skip bench, gui, tui for smaller image)
-RUN cargo build --release --bin xavier2 -j 2
+# Using -j 1 to avoid OOM on memory-constrained systems (Windows Docker Desktop)
+RUN cargo build --release --bin xavier2 -j 1
 
 # Strip debug symbols to reduce binary size (~15-20MB savings)
 RUN strip -s /app/target/release/xavier2
@@ -58,13 +59,13 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /app/target/release/xavier2 /usr/local/bin/xavier2
 
-EXPOSE 8003
+EXPOSE 8006
 
 # Healthcheck: verify the server is responding
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -fsS http://localhost:8003/health || exit 1
+    CMD curl -fsS http://localhost:8006/health || exit 1
 
-ENV XAVIER2_PORT=8003 \
+ENV XAVIER2_PORT=8006 \
     XAVIER2_HOST=0.0.0.0 \
     RUST_LOG=info \
     XAVIER2_VERSION=${XAVIER2_VERSION}
