@@ -126,6 +126,8 @@ http-body-util = "0.1"
 proptest = "1.6.0"
 tempfile = "3.10"
 criterion = "0.5"
+axum = "0.8"
+tower = "0.5"
 
 [[bin]]
 name = "xavier2"
