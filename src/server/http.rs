@@ -96,6 +96,7 @@ impl Default for ShutdownState {
 /// Returns a handle to the task; dropping the handle does NOT cancel the task.
 pub async fn start_signal_handler(state: ShutdownState) {
     tokio::spawn(async move {
+        #[cfg(windows)]
         use tokio::signal::windows::ctrl_c;
 
         let mut shutdown_reason: Option<&'static str> = None;
