@@ -2,7 +2,6 @@
 //!
 //! Stores TimeMetric records to SQLite at path: metrics/time/{YYYY-MM-DD}/{metric_type}/{agent_id}
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -17,14 +16,13 @@ const TABLE_TIME_METRICS: &str = "time_metrics";
 
 /// Time metrics storage adapter
 pub struct TimeMetricsStore {
-    conn: Arc<Mutex<rusqlite::Connection>>,
-    base_path: PathBuf,
+    pub conn: Arc<Mutex<rusqlite::Connection>>,
 }
 
 impl TimeMetricsStore {
     /// Create a new TimeMetricsStore with the given SQLite connection
-    pub fn new(conn: Arc<Mutex<rusqlite::Connection>>, base_path: PathBuf) -> Self {
-        Self { conn, base_path }
+    pub fn new(conn: Arc<Mutex<rusqlite::Connection>>) -> Self {
+        Self { conn }
     }
 
     /// Initialize the time_metrics table schema

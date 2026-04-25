@@ -45,7 +45,6 @@ impl AutoVerifier {
             .map_err(|e| format!("save request failed: {}", e))?;
 
         let save_ok = save_resp.status().is_success();
-        let latency_ms = start.elapsed().as_millis() as u64;
 
         // Retrieve
         let retrieve_payload = serde_json::json!({
@@ -69,29 +68,79 @@ impl AutoVerifier {
             0.0
         };
 
+        let total_latency_ms = start.elapsed().as_millis() as u64;
+
         let result = VerificationResult {
             path: path.to_string(),
             save_ok,
             retrieve_ok,
             match_score,
-            latency_ms,
+            latency_ms: total_latency_ms,
         };
 
         info!(?result, "verification complete");
         Ok(result)
     }
 
+    fn compute_match_score_from_text(retrieved: &str, original: &str) -> f32 {
+        if retrieved.is_empty() || original.is_empty() {
+            return 0.0;
+        }
+
+        // Exact match
+        if retrieved == original {
+            return 1.0;
+        }
+
+        let orig_len = original.len();
+        let retr_len = retrieved.len();
+
+        // Check length constraint: retrieved must be > 50% of original
+        let len_ratio = retr_len as f32 / orig_len as f32;
+        if len_ratio < 0.5 {
+            return 0.0;
+        }
+
+        // Check partial hash match (first 32 chars as signature)
+        let sig_len = std::cmp::min(32, orig_len);
+        let orig_sig = &original[..sig_len];
+
+        if retrieved.starts_with(orig_sig) || retrieved.contains(orig_sig) {
+            // Partial match based on content overlap
+            let overlap = retrieved.len().min(original.len());
+            let match_chars = overlap as f32;
+            let total_chars = (retrieved.len() + original.len()) as f32;
+            return match_chars / total_chars * 2.0; // Scale to 0-1
+        }
+
+        // Fallback: simple length-based partial score
+        if len_ratio >= 0.5 {
+            return 0.5;
+        }
+
+        0.0
+    }
+
     async fn compute_match_score(
         resp: reqwest::Response,
-        _original: &str,
+        original: &str,
     ) -> f32 {
-        // Simple: if results returned, consider it a partial match
-        // In production, embed both and compare cosine similarity
         match resp.json::<serde_json::Value>().await {
             Ok(json) => {
                 let results = json.get("results").and_then(|r| r.as_array());
                 match results {
-                    Some(arr) if !arr.is_empty() => 0.85,
+                    Some(arr) if !arr.is_empty() => {
+                        // Try to extract content from first result
+                        let first = &arr[0];
+                        let retrieved = first
+                            .get("content")
+                            .or_else(|| first.get("text"))
+                            .or_else(|| first.get("value"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        
+                        Self::compute_match_score_from_text(retrieved, original)
+                    }
                     _ => 0.0,
                 }
             }

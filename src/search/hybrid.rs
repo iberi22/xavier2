@@ -6,8 +6,6 @@ use crate::{
     },
 };
 
-use chrono::DateTime;
-
 use super::rrf::{reciprocal_rank_fusion, ScoredResult};
 
 #[derive(Debug, thiserror::Error)]

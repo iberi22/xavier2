@@ -6,7 +6,7 @@
 
 # Stage 1: Builder
 # Using slim variant to keep final image small (~500MB vs ~800MB for full)
-FROM rust:1.89-slim-bookworm AS builder
+FROM rust:1.90-bookworm AS builder
 
 WORKDIR /app
 
@@ -70,4 +70,4 @@ ENV XAVIER2_PORT=8006 \
     RUST_LOG=info \
     XAVIER2_VERSION=${XAVIER2_VERSION}
 
-CMD ["xavier2"]
+CMD ["/usr/local/bin/xavier2", "http"]

@@ -4,12 +4,24 @@ use axum::{
     extract::Json,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::adapters::inbound::http::dto::TimeMetricDto;
 use crate::session::types::{SessionEvent, SessionEventType};
 use crate::session::event_mapper::map_to_panel_thread;
+use crate::tasks::session_sync_task::SessionSyncTask;
 use crate::verification::auto_verifier::AutoVerifier;
+use crate::time::TimeMetricsStore;
+
+// ─── Module-level TimeMetricsStore (initialized by CLI) ─────────────────────
+static TIME_STORE: std::sync::OnceLock<Arc<TimeMetricsStore>> =
+    std::sync::OnceLock::new();
+
+/// Initialize the global time metrics store (call once at startup)
+pub fn init_time_store(store: Arc<TimeMetricsStore>) {
+    TIME_STORE.set(store).ok();
+}
 
 // ─── Router ─────────────────────────────────────────────────────────────────
 
@@ -19,6 +31,7 @@ pub fn create_router() -> Router {
         .route("/xavier2/events/session", post(session_event_handler))
         .route("/xavier2/verify/save", post(verify_save_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
+        .route("/xavier2/sync/check", post(sync_check_handler))
 }
 
 async fn health_handler() -> &'static str {
@@ -135,21 +148,62 @@ pub struct TimeMetricResponse {
     pub agent_id: String,
 }
 
-async fn time_metric_handler(
+pub async fn time_metric_handler(
     Json(payload): Json<TimeMetricDto>,
 ) -> Json<TimeMetricResponse> {
     let workspace_id = std::env::var("XAVIER2_WORKSPACE_ID")
         .unwrap_or_else(|_| "default".to_string());
 
-    // TimeMetricsStore requires a SQLite connection — we store inline using
-    // the memory store path pattern. For now, return success status.
-    // The actual storage should be wired up via CliState or AppState in
-    // production.
-    let _ = workspace_id;
+    // Try to save via TimeMetricsStore if available
+    if let Some(time_store) = TIME_STORE.get() {
+        let result = time_store.save_time_metric(&payload, &workspace_id).await;
+        match result {
+            Ok(()) => {
+                return Json(TimeMetricResponse {
+                    status: "saved".to_string(),
+                    metric_type: payload.metric_type,
+                    agent_id: payload.agent_id,
+                });
+            }
+            Err(e) => {
+                tracing::warn!("TimeMetricsStore save error: {}", e);
+            }
+        }
+    }
 
     Json(TimeMetricResponse {
         status: "ok".to_string(),
         metric_type: payload.metric_type,
         agent_id: payload.agent_id,
+    })
+}
+
+// ─── Session Sync Check Endpoint ────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct SyncCheckResponse {
+    pub status: String,
+    pub lag_ms: u64,
+    pub save_ok_rate: f64,
+    pub match_score: f64,
+    pub active_agents: u64,
+    pub timestamp_ms: u64,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub alerts: Vec<String>,
+}
+
+pub async fn sync_check_handler() -> Json<SyncCheckResponse> {
+    // Get the last sync result (or run a new check if none exists)
+    let task = SessionSyncTask::new();
+    let result = task.run_sync_check().await;
+
+    Json(SyncCheckResponse {
+        status: result.status,
+        lag_ms: result.lag_ms,
+        save_ok_rate: result.save_ok_rate,
+        match_score: result.match_score,
+        active_agents: result.active_agents,
+        timestamp_ms: result.timestamp_ms,
+        alerts: result.alerts,
     })
 }

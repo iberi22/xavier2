@@ -7,8 +7,10 @@
 //!
 //! Integrates with TaskService for task distribution
 
+pub mod agent_registry;
 pub mod message_bus;
 
+pub use agent_registry::SimpleAgentRegistry;
 pub use message_bus::*;
 
 use std::collections::HashMap;

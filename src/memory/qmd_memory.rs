@@ -26,7 +26,8 @@ use crate::memory::surreal_store::{MemoryRecord, MemoryStore};
 use crate::utils::crypto::hex_encode;
 
 /// Compute a stable SHA256 content hash for deduplication.
-fn compute_content_hash(content: &str) -> String {
+#[allow(dead_code)]
+fn _compute_content_hash(content: &str) -> String {
     hex_encode(Sha256::digest(content.as_bytes()).as_slice())
 }
 static SPEAKER_COLON_RE: LazyLock<Regex> =
@@ -2794,13 +2795,14 @@ pub async fn query_with_embedding_filtered(
 /// Groups documents by SHA256 content hash, then selects the document with the latest
 /// `updated_at` metadata field (or `created_at` as fallback). Preserves original order
 /// by keeping the first occurrence of each hash group.
-fn deduplicate_by_content_hash(results: Vec<MemoryDocument>) -> Vec<MemoryDocument> {
+#[allow(dead_code)]
+fn _deduplicate_by_content_hash(results: Vec<MemoryDocument>) -> Vec<MemoryDocument> {
     use std::collections::HashMap;
 
     // Group by content hash, tracking (document, latest_updated_at, original_index)
     let mut hash_groups: HashMap<String, (MemoryDocument, Option<String>, usize)> = HashMap::new();
     for (idx, doc) in results.into_iter().enumerate() {
-        let content_hash = compute_content_hash(&doc.content);
+        let content_hash = _compute_content_hash(&doc.content);
         let updated_at = doc
             .metadata
             .get("updated_at")

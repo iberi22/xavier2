@@ -14,6 +14,7 @@ use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::info;
 
+use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
@@ -21,6 +22,9 @@ use xavier2::memory::surreal_store::{MemoryRecord, MemoryStore};
 use xavier2::security::{ProcessResult, SecurityService};
 use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
+use xavier2::tasks::session_sync_task::SessionSyncTask;
+use xavier2::time::TimeMetricsStore;
+use xavier2::adapters::inbound::http::routes::{sync_check_handler, time_metric_handler};
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
@@ -32,6 +36,8 @@ pub struct CliState {
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
     pub security: Arc<SecurityService>,
+    pub time_store: Option<Arc<TimeMetricsStore>>,
+    pub agent_registry: Arc<SimpleAgentRegistry>,
 }
 
 #[derive(Subcommand)]
@@ -110,9 +116,23 @@ async fn start_http_server(port: u16) -> Result<()> {
             .collect::<Vec<MemoryDocument>>(),
     ));
     let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
-    let store: Arc<dyn MemoryStore> = store;
-    memory.set_store(Arc::clone(&store)).await;
+    let dyn_store: Arc<dyn MemoryStore> = store.clone();
+    memory.set_store(dyn_store.clone()).await;
     memory.init().await?;
+
+    // Initialize TimeMetricsStore using the same SQLite connection
+    let time_conn = store.clone_inner_conn();
+    let time_store = Arc::new(TimeMetricsStore::new(time_conn));
+    // Init schema (table created if not exists)
+    {
+        let conn = time_store.conn.lock();
+        if let Err(e) = TimeMetricsStore::init_schema(&conn) {
+            info!("TimeMetricsStore schema init warning: {}", e);
+        }
+    }
+    // Register global time store for HTTP handler
+    use xavier2::adapters::inbound::http::routes::init_time_store;
+    init_time_store(Arc::clone(&time_store));
 
     let code_db_path = code_graph_db_path();
     if let Some(parent) = code_db_path.parent() {
@@ -130,6 +150,8 @@ async fn start_http_server(port: u16) -> Result<()> {
         code_indexer,
         code_query,
         security: Arc::new(SecurityService::new()),
+        time_store: Some(time_store),
+        agent_registry: SimpleAgentRegistry::new(),
     };
 
     info!(
@@ -157,6 +179,14 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/memory/query", post(memory_query_handler))
         .route("/session/compact", post(session_compact_handler))
         .route("/xavier2/events/session", post(session_event_handler))
+        .route("/xavier2/time/metric", post(time_metric_handler))
+        // Agent registration endpoints
+        .route("/xavier2/agents/register", post(agent_register_handler))
+        .route("/xavier2/agents/active", get(agent_active_handler))
+        .route("/xavier2/agents/{id}/heartbeat", post(agent_heartbeat_handler))
+        .route("/xavier2/agents/{id}/push", post(agent_push_context_handler))
+        .route("/xavier2/sync/check", post(sync_check_handler))
+        .route("/xavier2/sync/check", get(sync_check_handler))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -165,6 +195,13 @@ async fn start_http_server(port: u16) -> Result<()> {
     info!("Xavier2 HTTP server listening on http://{}", addr);
     println!("Xavier2 HTTP server listening on http://{}", addr);
     println!("Press Ctrl+C to stop");
+
+    // Start session sync task cron (M5)
+    let sync_task = SessionSyncTask::new();
+    tokio::spawn(async move {
+        sync_task.start_cron().await;
+    });
+    info!("SessionSyncTask cron started");
 
     axum::serve(listener, app).await?;
 
@@ -1140,6 +1177,125 @@ async fn session_compact_handler(
                 "error": e.to_string(),
             }))
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent Registry Endpoints
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct AgentRegisterPayload {
+    agent_id: String,
+    session_id: String,
+    name: Option<String>,
+    capabilities: Option<Vec<String>>,
+    role: Option<String>,
+}
+
+async fn agent_register_handler(
+    State(state): State<CliState>,
+    axum::Json(payload): axum::Json<AgentRegisterPayload>,
+) -> impl axum::response::IntoResponse {
+    let metadata = xavier2::coordination::agent_registry::AgentMetadata {
+        name: payload.name,
+        capabilities: payload.capabilities.unwrap_or_default(),
+        role: payload.role,
+    };
+
+    let success = state
+        .agent_registry
+        .register(payload.agent_id.clone(), payload.session_id.clone(), metadata)
+        .await;
+
+    axum::Json(serde_json::json!({
+        "status": if success { "ok" } else { "error" },
+        "agent_id": payload.agent_id,
+        "session_id": payload.session_id,
+        "message": if success { "Agent registered successfully" } else { "Registration failed" },
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+struct AgentHeartbeatPayload {
+    agent_id: String,
+}
+
+async fn agent_heartbeat_handler(
+    State(state): State<CliState>,
+    axum::extract::Path(agent_id): axum::extract::Path<String>,
+) -> impl axum::response::IntoResponse {
+    let success = state.agent_registry.heartbeat(&agent_id).await;
+
+    axum::Json(serde_json::json!({
+        "status": if success { "ok" } else { "error" },
+        "agent_id": agent_id,
+        "message": if success { "Heartbeat recorded" } else { "Agent not found" },
+    }))
+}
+
+async fn agent_active_handler(
+    State(state): State<CliState>,
+) -> impl axum::response::IntoResponse {
+    let active = state.agent_registry.get_active_agents().await;
+
+    axum::Json(serde_json::json!({
+        "status": "ok",
+        "active_agents": active.len(),
+        "agents": active.iter().map(|a| serde_json::json!({
+            "agent_id": a.agent_id,
+            "session_id": a.session_id,
+            "last_heartbeat": a.last_heartbeat.to_rfc3339(),
+            "name": a.metadata.name,
+            "capabilities": a.metadata.capabilities,
+            "role": a.metadata.role,
+        })).collect::<Vec<_>>(),
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+struct AgentPushContextPayload {
+    context: String,
+    metadata: Option<serde_json::Value>,
+}
+
+async fn agent_push_context_handler(
+    State(state): State<CliState>,
+    axum::extract::Path(agent_id): axum::extract::Path<String>,
+    axum::Json(payload): axum::Json<AgentPushContextPayload>,
+) -> impl axum::response::IntoResponse {
+    // Verify agent exists
+    let agent = state.agent_registry.get(&agent_id).await;
+    if agent.is_none() {
+        return axum::Json(serde_json::json!({
+            "status": "error",
+            "message": "Agent not registered",
+        }));
+    }
+
+    // Store context in memory at agents/{id}/context
+    let path = format!("agents/{}/context", agent_id);
+    let mut metadata = payload.metadata.unwrap_or(serde_json::json!({}));
+    if let Some(obj) = metadata.as_object_mut() {
+        obj.insert("agent_id".to_string(), serde_json::json!(agent_id));
+        obj.insert("pushed_at".to_string(), serde_json::json!(chrono::Utc::now().to_rfc3339()));
+    }
+
+    match state
+        .memory
+        .add_document(path.clone(), payload.context.clone(), metadata)
+        .await
+    {
+        Ok(doc_id) => axum::Json(serde_json::json!({
+            "status": "ok",
+            "path": path,
+            "document_id": doc_id,
+            "message": "Context stored successfully",
+        })),
+        Err(e) => axum::Json(serde_json::json!({
+            "status": "error",
+            "message": format!("Failed to store context: {}", e),
+        })),
     }
 }
 
