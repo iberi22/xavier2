@@ -125,7 +125,7 @@ http-body-util = "0.1"
 [dev-dependencies]
 proptest = "1.6.0"
 tempfile = "3.10"
-criterion = "0.5"
+criterion = "0.8"
 
 [[bin]]
 name = "xavier2"
