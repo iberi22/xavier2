@@ -41,6 +41,9 @@ services:
       - XAVIER2_ROUTER_COMPLEX_MODEL=${XAVIER2_ROUTER_COMPLEX_MODEL:-}
       # CRITICAL: Disable HyDE (avoids extra embedding calls)
       - XAVIER2_DISABLE_HYDE=${XAVIER2_DISABLE_HYDE:-1}
+      - XAVIER2_WORKSPACE_ID=default
+      - XAVIER2_URL=http://xavier2:8006
+      - X-CORTEX-TOKEN=${X_CORTEX_TOKEN}
     volumes:
       - xavier2_data:/data
       - xavier2_logs:/logs
