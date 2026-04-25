@@ -2823,12 +2823,12 @@ fn deduplicate_by_content_hash(results: Vec<MemoryDocument>) -> Vec<MemoryDocume
                     (None, None) => idx < *existing_idx, // tie-break by original order
                 };
                 if is_newer {
-                    *existing_doc = doc;
-                    *existing_updated = updated_at;
+                    *existing_doc = doc.clone();
+                    *existing_updated = updated_at.clone();
                     *existing_idx = idx;
                 }
             })
-            .or_insert((doc, updated_at, idx));
+            .or_insert((doc, updated_at.clone(), idx));
     }
 
     // Extract deduplicated results, sort by original order (first occurrence per hash)
