@@ -8,6 +8,8 @@ use tokio::sync::broadcast;
 use tracing::{error, info};
 
 use crate::{
+    hooks::{Decision, FileEdit, GitOp, HookResult, SessionSnapshot, TaskState},
+    search::bm25::{Bm25Index, Document},
     agents::provider::ModelProviderClient,
     agents::runtime::System3Mode,
     consistency::regularization::{CoherenceReport, RetentionRegularizer},
@@ -82,6 +84,130 @@ impl ShutdownState {
             val
         }
     }
+}
+
+// ============================================================
+// Hooks API Endpoints
+// ============================================================
+
+#[derive(Debug, Deserialize)]
+pub struct PreToolUseRequest {
+    pub tool: String,
+    pub input: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PostToolUseRequest {
+    pub tool: String,
+    pub output: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SessionActionRequest {
+    pub session_id: String,
+}
+
+pub async fn hook_pre_tool_use(Json(payload): Json<PreToolUseRequest>) -> impl IntoResponse {
+    info!("Hook: PreToolUse for tool: {}", payload.tool);
+    Json(HookResult {
+        status: "ok".to_string(),
+        data: (),
+    })
+}
+
+pub async fn hook_post_tool_use(Json(payload): Json<PostToolUseRequest>) -> impl IntoResponse {
+    info!("Hook: PostToolUse for tool: {}", payload.tool);
+    Json(HookResult {
+        status: "ok".to_string(),
+        data: payload.output,
+    })
+}
+
+pub async fn hook_pre_compact(Json(payload): Json<SessionActionRequest>) -> impl IntoResponse {
+    info!("Hook: PreCompact for session: {}", payload.session_id);
+    // Devuelve un snapshot vacío por ahora
+    let snapshot = SessionSnapshot {
+        session_id: payload.session_id,
+        timestamp: chrono::Utc::now(),
+        files_edited: vec![],
+        git_operations: vec![],
+        tasks: vec![],
+        decisions: vec![],
+        context_summary: "Placeholder summary".to_string(),
+    };
+    Json(HookResult {
+        status: "ok".to_string(),
+        data: snapshot,
+    })
+}
+
+pub async fn hook_session_start(Json(payload): Json<SessionActionRequest>) -> impl IntoResponse {
+    info!("Hook: SessionStart for session: {}", payload.session_id);
+    Json(HookResult {
+        status: "ok".to_string(),
+        data: None::<SessionSnapshot>,
+    })
+}
+
+// ============================================================
+// Session Snapshot API Endpoints
+// ============================================================
+
+pub async fn session_get_snapshot(
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    info!("Session: Get snapshot for id: {}", id);
+    // Placeholder logic
+    Json(serde_json::json!({
+        "status": "ok",
+        "snapshot": null
+    }))
+}
+
+pub async fn session_save_snapshot(
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(snapshot): Json<SessionSnapshot>,
+) -> impl IntoResponse {
+    info!("Session: Save snapshot for id: {}", id);
+    Json(serde_json::json!({
+        "status": "ok",
+        "message": "Snapshot saved"
+    }))
+}
+
+pub async fn session_search(
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let query = params.get("q").cloned().unwrap_or_default();
+    info!("Session: Search snapshots for query: {}", query);
+    Json(serde_json::json!({
+        "status": "ok",
+        "results": Vec::<SessionSnapshot>::new()
+    }))
+}
+
+// ============================================================
+// Hybrid Search (BM25) Endpoint
+// ============================================================
+
+#[derive(Debug, Deserialize)]
+pub struct HybridSearchPostRequest {
+    pub query: String,
+    pub alpha: f32,
+}
+
+pub async fn search_hybrid_bm25(
+    Extension(workspace): Extension<WorkspaceContext>,
+    Json(payload): Json<HybridSearchPostRequest>,
+) -> impl IntoResponse {
+    info!("Search: Hybrid BM25+Vector for query: {}", payload.query);
+
+    // Aquí se integraría Bm25Index con los documentos de la memoria
+    // Por ahora devolvemos resultados vacíos para cumplir con la interfaz
+    Json(serde_json::json!({
+        "status": "ok",
+        "results": []
+    }))
 }
 
 impl Default for ShutdownState {

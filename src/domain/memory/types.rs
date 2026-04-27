@@ -8,6 +8,7 @@ pub struct MemoryRecord {
     pub kind: MemoryKind,
     pub namespace: MemoryNamespace,
     pub provenance: MemoryProvenance,
+    pub metadata: serde_json::Value,
     pub embedding: Option<Vec<f32>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -48,7 +49,7 @@ pub struct MemoryProvenance {
     pub confidence: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MemoryQueryFilters {
     pub namespace: Option<MemoryNamespace>,
     pub kinds: Option<Vec<MemoryKind>>,

@@ -10,6 +10,8 @@ use std::time::Instant;
 use crate::adapters::inbound::http::dto::TimeMetricDto;
 use crate::ports::inbound::TimeMetricsPort;
 use crate::ports::outbound::HealthCheckPort;
+use crate::hooks::Hooks;
+use crate::session::snapshot::SessionStore;
 use crate::session::types::{SessionEvent, SessionEventType};
 use crate::session::event_mapper::map_to_panel_thread;
 use crate::tasks::session_sync_task::SessionSyncTask;
@@ -23,6 +25,12 @@ static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> =
 static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> =
     std::sync::OnceLock::new();
 
+static HOOKS: std::sync::OnceLock<Arc<dyn Hooks>> =
+    std::sync::OnceLock::new();
+
+static SESSION_STORE: std::sync::OnceLock<Arc<SessionStore>> =
+    std::sync::OnceLock::new();
+
 /// Initialize the global time metrics port (call once at startup)
 pub fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
     TIME_STORE.set(port).ok();
@@ -31,6 +39,14 @@ pub fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
 /// Initialize the global health check port (call once at startup)
 pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
     HEALTH_PORT.set(port).ok();
+}
+
+pub fn init_hooks(hooks: Arc<dyn Hooks>) {
+    HOOKS.set(hooks).ok();
+}
+
+pub fn init_session_store(store: Arc<SessionStore>) {
+    SESSION_STORE.set(store).ok();
 }
 
 // ─── Router ─────────────────────────────────────────────────────────────────

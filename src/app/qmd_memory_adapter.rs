@@ -33,6 +33,7 @@ fn doc_to_record(doc: MemoryDocument) -> MemoryRecord {
             evidence_kind: EvidenceKind::Direct,
             confidence: 1.0,
         },
+        metadata: doc.metadata,
         embedding: Some(doc.embedding),
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -57,7 +58,7 @@ impl MemoryQueryPort for QmdMemoryAdapter {
             id: None,
             path: record.provenance.source.clone(),
             content: record.content,
-            metadata: serde_json::Value::Object(serde_json::Map::new()),
+            metadata: record.metadata,
             content_vector: None,
             embedding: record.embedding.unwrap_or_default(),
         };
