@@ -140,9 +140,10 @@ $results += $r
 Write-Host "[TEST 5] POST /xavier2/agents/register" -ForegroundColor Yellow
 $agentBody = @{
     agent_id = "powershell-validator-$(Get-Random)"
-    agent_type = "validation"
-    status = "active"
-    metadata = @{ source = "test-sevier2-endpoints.ps1" }
+    session_id = "session-$(Get-Random)"
+    name = "powershell-validator"
+    capabilities = @("validation", "testing")
+    role = "validator"
 }
 $r = Test-Post -Endpoint "/xavier2/agents/register" -Body $agentBody -Description "POST /xavier2/agents/register"
 $results += $r

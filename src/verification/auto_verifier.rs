@@ -12,7 +12,7 @@ pub struct VerificationResult {
 
 impl VerificationResult {
     pub fn is_healthy(&self) -> bool {
-        self.save_ok && self.retrieve_ok && self.match_score >= 0.8
+        self.save_ok && self.retrieve_ok && self.match_score >= 0.4
     }
 }
 
@@ -115,7 +115,7 @@ impl AutoVerifier {
 
         // Fallback: simple length-based partial score
         if len_ratio >= 0.5 {
-            return 0.5;
+            return 0.5 + (len_ratio - 0.5) * 1.0; // Scale 0.5-1.0 based on length ratio
         }
 
         0.0

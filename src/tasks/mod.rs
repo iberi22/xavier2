@@ -15,6 +15,8 @@ use std::collections::VecDeque;
 use tokio::sync::Mutex;
 
 pub use store::{InMemoryTaskStore, TaskService, TaskStore};
+pub use session_sync_task::SyncState;
+
 
 // Re-exports
 

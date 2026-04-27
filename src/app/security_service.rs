@@ -1,12 +1,7 @@
-//! App-layer SecurityService — delegates to the real `security::SecurityService`.
-//!
-//! This implements `SecurityScanPort` by wrapping the concrete `security::SecurityService`.
-//! Handlers should use this through the port trait, not call `security::SecurityService` directly.
+//! App-layer SecurityService wrapper around the concrete `security::SecurityService`.
 
 use crate::domain::security::{ScanResult, Threat, ThreatCategory, ThreatLevel, Severity};
-use crate::ports::inbound::SecurityScanPort;
 use crate::security;
-use async_trait::async_trait;
 use chrono::Utc;
 use std::time::Instant;
 
@@ -25,11 +20,10 @@ impl SecurityService {
     }
 }
 
-#[async_trait]
-impl SecurityScanPort for SecurityService {
+impl SecurityService {
     /// Scans the given target for security threats.
     /// Delegates to `security::SecurityService::process_input()`.
-    async fn scan(
+    pub async fn scan(
         &self,
         target: &str,
         _level: Option<ThreatLevel>,
@@ -61,7 +55,7 @@ impl SecurityScanPort for SecurityService {
     }
 
     /// Returns the current security configuration as JSON.
-    async fn get_config(&self) -> anyhow::Result<serde_json::Value> {
+    pub async fn get_config(&self) -> anyhow::Result<serde_json::Value> {
         let config = tokio::task::spawn_blocking(|| {
             let service = security::get_security_service();
             service.get_config()
@@ -83,7 +77,7 @@ impl SecurityScanPort for SecurityService {
 }
 
 /// Converts a security `DetectionResult` into domain `Threat` entities.
-fn detection_to_threats(detection: &security::ProcessResult, target: &str) -> Vec<Threat> {
+fn detection_to_threats(detection: &security::ProcessResult, _target: &str) -> Vec<Threat> {
     if !detection.detection.is_injection && detection.detection.confidence < 0.1 {
         return Vec::new();
     }

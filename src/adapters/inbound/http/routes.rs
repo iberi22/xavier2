@@ -12,7 +12,8 @@ use crate::ports::inbound::TimeMetricsPort;
 use crate::ports::outbound::HealthCheckPort;
 use crate::session::types::{SessionEvent, SessionEventType};
 use crate::session::event_mapper::map_to_panel_thread;
-use crate::tasks::session_sync_task::SessionSyncTask;
+use crate::tasks::session_sync_task::get_last_sync_result;
+use crate::tasks::SyncState;
 use crate::verification::auto_verifier::AutoVerifier;
 
 // ─── Module-level TimeMetricsPort (initialized by CLI) ────────────────────────
@@ -22,7 +23,6 @@ static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> =
 /// Module-level HealthCheckPort (initialized by CLI)
 static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> =
     std::sync::OnceLock::new();
-
 /// Initialize the global time metrics port (call once at startup)
 pub fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
     TIME_STORE.set(port).ok();
@@ -31,6 +31,20 @@ pub fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
 /// Initialize the global health check port (call once at startup)
 pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
     HEALTH_PORT.set(port).ok();
+}
+
+/// Module-level SyncState for SessionSyncTask (ADR-003)
+static SYNC_STATE: std::sync::OnceLock<Arc<tokio::sync::RwLock<SyncState>>> =
+    std::sync::OnceLock::new();
+
+/// Initialize the global sync state (call once at startup)
+pub fn init_sync_state(sync_state: Arc<tokio::sync::RwLock<SyncState>>) {
+    SYNC_STATE.set(sync_state).ok();
+}
+
+/// Get the global sync state (for sync_check_handler)
+pub fn get_sync_state() -> Option<Arc<tokio::sync::RwLock<SyncState>>> {
+    SYNC_STATE.get().cloned()
 }
 
 // ─── Router ─────────────────────────────────────────────────────────────────
@@ -190,7 +204,7 @@ pub async fn time_metric_handler(
 
 // ─── Session Sync Check Endpoint ────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct SyncCheckResponse {
     pub status: String,
     pub lag_ms: u64,
@@ -202,15 +216,30 @@ pub struct SyncCheckResponse {
     pub alerts: Vec<String>,
 }
 
+impl SyncCheckResponse {
+    pub fn default() -> Self {
+        Self {
+            status: "unknown".to_string(),
+            lag_ms: 0,
+            save_ok_rate: 1.0,
+            match_score: 1.0,
+            active_agents: 0,
+            timestamp_ms: 0,
+            alerts: Vec::new(),
+        }
+    }
+}
+
 pub async fn sync_check_handler() -> Json<SyncCheckResponse> {
-    // Get the last sync result (or run a new check if none exists)
-    let health_port = HEALTH_PORT.get().cloned().unwrap_or_else(|| {
-        Arc::new(crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(
-            std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
-        ))
-    });
-    let task = SessionSyncTask::new(health_port);
-    let result = task.run_sync_check().await;
+    // Use shared SyncState (ADR-003) — consistent snapshot
+    let sync_state = match get_sync_state() {
+        Some(s) => s,
+        None => {
+            tracing::warn!("SyncState not initialized, using default");
+            return Json(SyncCheckResponse::default());
+        }
+    };
+    let result = get_last_sync_result(sync_state).await;
 
     Json(SyncCheckResponse {
         status: result.status,

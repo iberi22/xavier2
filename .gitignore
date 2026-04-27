@@ -1,4 +1,6 @@
 target/
+target-review/
+temp_xavier2/
 Cargo.lock
 *.rlib
 *.rmeta

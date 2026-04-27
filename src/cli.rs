@@ -28,9 +28,9 @@ use xavier2::security::{ProcessResult, SecurityService};
 use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
-use xavier2::tasks::session_sync_task::SessionSyncTask;
+use xavier2::tasks::session_sync_task::{SessionSyncTask, SyncState};
 use xavier2::time::TimeMetricsStore;
-use xavier2::adapters::inbound::http::routes::{sync_check_handler, time_metric_handler};
+use xavier2::adapters::inbound::http::routes::{sync_check_handler, time_metric_handler, verify_save_handler};
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
@@ -138,11 +138,17 @@ async fn start_http_server(port: u16) -> Result<()> {
         }
     }
     // Register global time metrics port for HTTP handler (wrap in adapter)
-    use xavier2::adapters::inbound::http::routes::{init_time_store, init_health_port};
+    use xavier2::adapters::inbound::http::routes::{init_time_store, init_health_port, init_sync_state};
     use xavier2::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
+    use xavier2::tasks::session_sync_task::SyncState;
     let time_adapter = Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
     init_time_store(time_adapter);
     init_health_port(health_adapter.clone());
+
+    // Create shared SyncState for SessionSyncTask (ADR-003)
+    use xavier2::tasks::session_sync_task::SyncState;
+    let sync_state: Arc<tokio::sync::RwLock<SyncState>> = Arc::new(RwLock::new(SyncState::default()));
+    init_sync_state(sync_state.clone());
 
     let code_db_path = code_graph_db_path();
     if let Some(parent) = code_db_path.parent() {
@@ -190,10 +196,13 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/session/compact", post(session_compact_handler))
         .route("/xavier2/events/session", post(session_event_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
+        .route("/xavier2/verify/save", post(verify_save_handler))
+        .route("/xavier2/verify-save", post(verify_save_handler))
         // Agent registration endpoints
         .route("/xavier2/agents/register", post(agent_register_handler))
         .route("/xavier2/agents/active", get(agent_active_handler))
         .route("/xavier2/agents/{id}/heartbeat", post(agent_heartbeat_handler))
+        .route("/xavier2/agents/{id}/unregister", post(agent_unregister_handler))
         .route("/xavier2/agents/{id}/push", post(agent_push_context_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
@@ -210,11 +219,21 @@ async fn start_http_server(port: u16) -> Result<()> {
     let health_adapter = Arc::new(HttpHealthAdapter::new(
         std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
     )) as Arc<dyn HealthCheckPort>;
-    let sync_task = SessionSyncTask::new(health_adapter);
+    let sync_task = SessionSyncTask::new(Arc::clone(&health_adapter));
+    let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
+    // Store shutdown_tx in a variable to keep it alive (it will be dropped at end of block)
+    let _shutdown_tx = shutdown_tx.clone();
     tokio::spawn(async move {
-        sync_task.start_cron().await;
+        sync_task.start_cron(sync_state, shutdown_rx).await;
     });
     info!("SessionSyncTask cron started");
+
+    // Spawn shutdown handler to broadcast on Ctrl+C
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.ok();
+        info!("Ctrl+C received, broadcasting shutdown");
+        let _ = shutdown_tx.send(());
+    });
 
     axum::serve(listener, app).await?;
 
@@ -1300,6 +1319,19 @@ async fn agent_active_handler(
             "capabilities": a.metadata.capabilities,
             "role": a.metadata.role,
         })).collect::<Vec<_>>(),
+    }))
+}
+
+async fn agent_unregister_handler(
+    State(state): State<CliState>,
+    axum::extract::Path(agent_id): axum::extract::Path<String>,
+) -> impl axum::response::IntoResponse {
+    let success = state.agent_registry.unregister(&agent_id).await;
+
+    axum::Json(serde_json::json!({
+        "status": if success { "ok" } else { "error" },
+        "agent_id": agent_id,
+        "message": if success { "Agent unregistered successfully" } else { "Agent not found" },
     }))
 }
 
