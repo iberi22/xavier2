@@ -29,11 +29,11 @@ const LAG_THRESHOLD_MS: u64 = 30_000;
 const SAVE_OK_RATE_THRESHOLD: f64 = 0.95;
 
 /// Last sync check result stored in memory (static)
-static LAST_CHECK_TIMESTAMP_MS: AtomicU64 = AtomicU64::new(0);
-static LAST_CHECK_LAG_MS: AtomicU64 = AtomicU64::new(0);
-static LAST_CHECK_SAVE_OK_RATE: Mutex<f64> = Mutex::new(1.0);
-static LAST_CHECK_MATCH_SCORE: Mutex<f64> = Mutex::new(1.0);
-static LAST_CHECK_ACTIVE_AGENTS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static LAST_CHECK_TIMESTAMP_MS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static LAST_CHECK_LAG_MS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static LAST_CHECK_SAVE_OK_RATE: Mutex<f64> = Mutex::new(1.0);
+pub(crate) static LAST_CHECK_MATCH_SCORE: Mutex<f64> = Mutex::new(1.0);
+pub(crate) static LAST_CHECK_ACTIVE_AGENTS: AtomicU64 = AtomicU64::new(0);
 
 /// Sync check result
 #[derive(Debug, Clone)]
