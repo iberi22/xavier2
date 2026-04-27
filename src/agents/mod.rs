@@ -7,6 +7,7 @@ pub mod system1;
 pub mod system2;
 pub mod system3;
 pub mod ui_render;
+pub mod unregister_agent_handler;
 
 use std::collections::HashMap;
 

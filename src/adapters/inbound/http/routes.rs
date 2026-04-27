@@ -1,27 +1,28 @@
 use axum::{
+    extract::Json,
+    routing::delete,
     routing::{get, post},
     Router,
-    extract::Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
 
 use crate::adapters::inbound::http::dto::TimeMetricDto;
+use crate::agents::unregister_agent_handler::unregister_agent_handler;
+use crate::coordination::SimpleAgentRegistry;
 use crate::ports::inbound::TimeMetricsPort;
 use crate::ports::outbound::HealthCheckPort;
-use crate::session::types::{SessionEvent, SessionEventType};
 use crate::session::event_mapper::map_to_panel_thread;
+use crate::session::types::{SessionEvent, SessionEventType};
 use crate::tasks::session_sync_task::get_last_sync_result;
 use crate::verification::auto_verifier::AutoVerifier;
 
 // ─── Module-level TimeMetricsPort (initialized by CLI) ────────────────────────
-static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> =
-    std::sync::OnceLock::new();
+static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> = std::sync::OnceLock::new();
 
 /// Module-level HealthCheckPort (initialized by CLI)
-static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> =
-    std::sync::OnceLock::new();
+static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> = std::sync::OnceLock::new();
 
 /// Initialize the global time metrics port (call once at startup)
 pub fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
@@ -36,12 +37,21 @@ pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 pub fn create_router() -> Router {
+    create_router_with_agent_registry(SimpleAgentRegistry::new())
+}
+
+pub fn create_router_with_agent_registry(agent_registry: Arc<SimpleAgentRegistry>) -> Router {
     Router::new()
         .route("/health", get(health_handler))
         .route("/xavier2/events/session", post(session_event_handler))
+        .route(
+            "/xavier2/agents/{id}/unregister",
+            delete(unregister_agent_handler),
+        )
         .route("/xavier2/verify/save", post(verify_save_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
+        .with_state(agent_registry)
 }
 
 async fn health_handler() -> &'static str {
@@ -91,7 +101,7 @@ async fn session_event_handler(
     };
 
     let mapped = map_to_panel_thread(event).is_some();
-    
+
     Json(SessionEventResponse {
         status: if mapped { "ok" } else { "ignored" }.to_string(),
         session_id: payload.session_id,
@@ -118,12 +128,11 @@ pub async fn verify_save_handler(
     Json(payload): Json<VerifySaveRequest>,
 ) -> Json<VerifySaveResponse> {
     let start = Instant::now();
-    
-    let xavier2_url = std::env::var("XAVIER2_URL")
-        .unwrap_or_else(|_| "http://localhost:8006".to_string());
-    let auth_token = std::env::var("X-CORTEX-TOKEN")
-        .unwrap_or_else(|_| "dev-token".to_string());
-    
+
+    let xavier2_url =
+        std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string());
+    let auth_token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+
     let client = reqwest::Client::new();
     let result = AutoVerifier::verify_save(
         &client,
@@ -131,10 +140,11 @@ pub async fn verify_save_handler(
         &auth_token,
         &payload.path,
         &payload.content,
-    ).await;
-    
+    )
+    .await;
+
     let elapsed = start.elapsed().as_millis() as u64;
-    
+
     match result {
         Ok(vr) => Json(VerifySaveResponse {
             save_ok: vr.save_ok,
@@ -158,11 +168,9 @@ pub struct TimeMetricResponse {
     pub agent_id: String,
 }
 
-pub async fn time_metric_handler(
-    Json(payload): Json<TimeMetricDto>,
-) -> Json<TimeMetricResponse> {
-    let workspace_id = std::env::var("XAVIER2_WORKSPACE_ID")
-        .unwrap_or_else(|_| "default".to_string());
+pub async fn time_metric_handler(Json(payload): Json<TimeMetricDto>) -> Json<TimeMetricResponse> {
+    let workspace_id =
+        std::env::var("XAVIER2_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
 
     // Try to save via TimeMetricsStore if available
     if let Some(time_store) = TIME_STORE.get() {
@@ -237,4 +245,108 @@ pub async fn sync_check_handler() -> Json<SyncCheckResponse> {
         timestamp_ms: result.timestamp_ms,
         alerts,
     })
+}
+
+#[cfg(test)]
+mod route_tests {
+    use axum::{
+        body::Body,
+        http::{Method, Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use tower::util::ServiceExt;
+
+    use super::create_router_with_agent_registry;
+    use crate::coordination::SimpleAgentRegistry;
+
+    fn delete(uri: &str) -> Request<Body> {
+        Request::builder()
+            .uri(uri)
+            .method(Method::DELETE)
+            .body(Body::empty())
+            .expect("build DELETE request")
+    }
+
+    #[tokio::test]
+    async fn unregister_route_removes_existing_agent() {
+        let registry = SimpleAgentRegistry::new();
+        registry
+            .register(
+                "agent-delete-1".to_string(),
+                "session-delete-1".to_string(),
+                Default::default(),
+            )
+            .await;
+
+        let response = create_router_with_agent_registry(registry.clone())
+            .oneshot(delete("/xavier2/agents/agent-delete-1/unregister"))
+            .await
+            .expect("request should complete");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("collect body")
+            .to_bytes();
+        let parsed: serde_json::Value =
+            serde_json::from_slice(&body).expect("parse unregister response");
+
+        assert_eq!(parsed["status"], "ok");
+        assert_eq!(parsed["agent_id"], "agent-delete-1");
+        assert_eq!(parsed["message"], "Agent unregistered");
+        assert!(registry.get("agent-delete-1").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn unregister_route_returns_error_for_missing_agent() {
+        let response = create_router_with_agent_registry(SimpleAgentRegistry::new())
+            .oneshot(delete("/xavier2/agents/missing-agent/unregister"))
+            .await
+            .expect("request should complete");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("collect body")
+            .to_bytes();
+        let parsed: serde_json::Value =
+            serde_json::from_slice(&body).expect("parse unregister response");
+
+        assert_eq!(parsed["status"], "error");
+        assert_eq!(parsed["agent_id"], "missing-agent");
+        assert_eq!(parsed["message"], "Agent not found or already unregistered");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tasks::session_sync_task::{
+        LAST_CHECK_ACTIVE_AGENTS, LAST_CHECK_LAG_MS, LAST_CHECK_MATCH_SCORE,
+        LAST_CHECK_SAVE_OK_RATE, LAST_CHECK_TIMESTAMP_MS,
+    };
+    use std::sync::atomic::Ordering;
+
+    #[tokio::test]
+    async fn sync_check_handler_uses_cached_sync_result() {
+        LAST_CHECK_LAG_MS.store(42_000, Ordering::SeqCst);
+        LAST_CHECK_TIMESTAMP_MS.store(1_234_567, Ordering::SeqCst);
+        LAST_CHECK_ACTIVE_AGENTS.store(7, Ordering::SeqCst);
+        *LAST_CHECK_SAVE_OK_RATE.lock().unwrap() = 0.90;
+        *LAST_CHECK_MATCH_SCORE.lock().unwrap() = 0.88;
+
+        let Json(response) = sync_check_handler().await;
+
+        assert_eq!(response.status, "alert");
+        assert_eq!(response.lag_ms, 42_000);
+        assert_eq!(response.save_ok_rate, 0.90);
+        assert_eq!(response.match_score, 0.88);
+        assert_eq!(response.active_agents, 7);
+        assert_eq!(response.timestamp_ms, 1_234_567);
+        assert_eq!(response.alerts.len(), 2);
+    }
 }

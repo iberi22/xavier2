@@ -8,19 +8,18 @@
 //!
 //! Run with: cargo test --test sevier2_stress_test
 
-use std::sync::Arc;
+use axum::{body::Body, http::Request, http::StatusCode};
+use http_body_util::BodyExt;
 use parking_lot::Mutex;
 use rusqlite::Connection;
+use std::sync::Arc;
 use tower::ServiceExt;
-use axum::{
-    body::Body,
-    http::Request,
-    http::StatusCode,
-};
-use http_body_util::BodyExt;
 
-use xavier2::adapters::inbound::http::routes::create_router;
 use xavier2::adapters::inbound::http::dto::TimeMetricDto;
+use xavier2::adapters::inbound::http::routes::create_router;
+use xavier2::adapters::inbound::http::routes::create_router_with_agent_registry;
+use xavier2::coordination::agent_registry::AgentMetadata;
+use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::time::TimeMetricsStore;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -54,6 +53,15 @@ fn get(uri: &str) -> Request<Body> {
         .uri(uri)
         .body(Body::empty())
         .expect("build GET request")
+}
+
+/// Build a DELETE request.
+fn delete(uri: &str) -> Request<Body> {
+    Request::builder()
+        .uri(uri)
+        .method(axum::http::Method::DELETE)
+        .body(Body::empty())
+        .expect("build DELETE request")
 }
 
 /// Assert status is 2xx.
@@ -176,14 +184,8 @@ async fn test_time_metric_endpoint_returns_correct_shape() {
         "Response should contain 'status' field: {:?}",
         parsed
     );
-    assert_eq!(
-        parsed["metric_type"].as_str().unwrap(),
-        "agent_execution"
-    );
-    assert_eq!(
-        parsed["agent_id"].as_str().unwrap(),
-        "test-agent-001"
-    );
+    assert_eq!(parsed["metric_type"].as_str().unwrap(), "agent_execution");
+    assert_eq!(parsed["agent_id"].as_str().unwrap(), "test-agent-001");
 }
 
 // ─── Test 4: Session Event — POST and verify mapped response ─────────────────
@@ -228,10 +230,7 @@ async fn test_session_event_returns_mapped_status() {
         parsed.get("mapped").is_some(),
         "Response should contain 'mapped' field"
     );
-    assert_eq!(
-        parsed["session_id"].as_str().unwrap(),
-        "session-test-001"
-    );
+    assert_eq!(parsed["session_id"].as_str().unwrap(), "session-test-001");
 }
 
 // ─── Test 5: Session Event unknown event type falls back gracefully ──────────
@@ -257,8 +256,7 @@ async fn test_session_event_unknown_type_graceful_fallback() {
 
     // Unknown types fall back to Message and return 2xx
     assert!(
-        response.status().is_success()
-            || response.status() == StatusCode::ACCEPTED,
+        response.status().is_success() || response.status() == StatusCode::ACCEPTED,
         "Unknown event type should not return error, got {}",
         response.status().as_u16()
     );
@@ -384,4 +382,62 @@ async fn test_unknown_route_returns_404() {
         StatusCode::NOT_FOUND,
         "Unknown route should return 404"
     );
+}
+
+#[tokio::test]
+async fn test_unregister_endpoint_removes_existing_agent() {
+    let registry = SimpleAgentRegistry::new();
+    registry
+        .register(
+            "agent-delete-1".to_string(),
+            "session-delete-1".to_string(),
+            AgentMetadata::default(),
+        )
+        .await;
+
+    let router = create_router_with_agent_registry(registry.clone());
+    let response = router
+        .oneshot(delete("/xavier2/agents/agent-delete-1/unregister"))
+        .await
+        .expect("request should complete");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body_bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("collect body")
+        .to_bytes();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("parse JSON response");
+
+    assert_eq!(parsed["status"], "ok");
+    assert_eq!(parsed["agent_id"], "agent-delete-1");
+    assert_eq!(parsed["message"], "Agent unregistered");
+    assert!(registry.get("agent-delete-1").await.is_none());
+}
+
+#[tokio::test]
+async fn test_unregister_endpoint_returns_error_for_missing_agent() {
+    let router = create_router_with_agent_registry(SimpleAgentRegistry::new());
+    let response = router
+        .oneshot(delete("/xavier2/agents/missing-agent/unregister"))
+        .await
+        .expect("request should complete");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body_bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("collect body")
+        .to_bytes();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("parse JSON response");
+
+    assert_eq!(parsed["status"], "error");
+    assert_eq!(parsed["agent_id"], "missing-agent");
+    assert_eq!(parsed["message"], "Agent not found or already unregistered");
 }
