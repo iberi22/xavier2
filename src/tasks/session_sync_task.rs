@@ -13,10 +13,11 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use tokio::sync::RwLock;
-use tokio::time::interval;
+use tokio::time::{interval, sleep};
 use tracing::{info, warn};
 
-use crate::ports::outbound::HealthCheckPort;
+use crate::domain::memory::MemoryNamespace;
+use crate::ports::outbound::{HealthCheckPort, StoragePort};
 
 /// Interval in milliseconds between sync checks.
 /// Default: 5 minutes (300_000 ms)
@@ -29,6 +30,12 @@ const DEFAULT_LAG_THRESHOLD_MS: u64 = 30_000;
 /// Threshold for save_ok_rate alert (percentage, expressed as 0.0-1.0)
 /// Default: 0.95 (95%)
 const DEFAULT_SAVE_OK_RATE_THRESHOLD: f64 = 0.95;
+
+/// Max health check retries before marking the sync check degraded.
+const DEFAULT_SYNC_MAX_RETRIES: u32 = 3;
+
+/// Delay between health check retries in milliseconds.
+const DEFAULT_SYNC_RETRY_DELAY_MS: u64 = 1_000;
 
 /// Last sync check result stored in memory (static)
 pub(crate) static LAST_CHECK_TIMESTAMP_MS: AtomicU64 = AtomicU64::new(0);
@@ -69,38 +76,67 @@ pub struct SessionSyncTask {
     interval_ms: u64,
     /// Health check port for Xavier2
     health_port: Arc<dyn HealthCheckPort>,
+    /// Storage port for querying memory records (optional, falls back if None)
+    storage_port: Option<Arc<dyn StoragePort>>,
     /// Last successful check timestamp
     last_check: Arc<RwLock<Instant>>,
     /// Lag threshold in ms (configurable via XAVIER2_SYNC_LAG_THRESHOLD_MS)
     lag_threshold_ms: u64,
     /// Save ok rate threshold (configurable via XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD)
     save_ok_rate_threshold: f64,
+    /// Max health check retries (configurable via XAVIER2_SYNC_MAX_RETRIES)
+    max_retries: u32,
+    /// Delay between health check retries (configurable via XAVIER2_SYNC_RETRY_DELAY_MS)
+    retry_delay_ms: u64,
 }
 
 impl SessionSyncTask {
     /// Create a new SessionSyncTask with the given health check port.
     pub fn new(health_port: Arc<dyn HealthCheckPort>) -> Self {
-        let interval_ms = std::env::var("XAVIER2_SYNC_INTERVAL_MS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_SYNC_INTERVAL_MS);
+        Self::with_storage(health_port, None)
+    }
 
-        let lag_threshold_ms = std::env::var("XAVIER2_SYNC_LAG_THRESHOLD_MS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_LAG_THRESHOLD_MS);
+    /// Create a new SessionSyncTask with the given health and optional storage port.
+    pub fn with_storage(
+        health_port: Arc<dyn HealthCheckPort>,
+        storage_port: Option<Arc<dyn StoragePort>>,
+    ) -> Self {
+        let interval_ms =
+            read_env_or_legacy("XAVIER2_SYNC_INTERVAL_MS", "SEVIER2_SYNC_INTERVAL_MS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_SYNC_INTERVAL_MS);
 
-        let save_ok_rate_threshold = std::env::var("XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_SAVE_OK_RATE_THRESHOLD);
+        let lag_threshold_ms =
+            read_env_or_legacy("XAVIER2_SYNC_LAG_THRESHOLD_MS", "SEVIER2_LAG_THRESHOLD_MS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_LAG_THRESHOLD_MS);
+
+        let save_ok_rate_threshold = read_env_or_legacy(
+            "XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD",
+            "SEVIER2_SAVE_OK_RATE_THRESHOLD",
+        )
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_SAVE_OK_RATE_THRESHOLD);
+
+        let max_retries =
+            read_env_or_legacy("XAVIER2_SYNC_MAX_RETRIES", "SEVIER2_SYNC_MAX_RETRIES")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_SYNC_MAX_RETRIES);
+
+        let retry_delay_ms =
+            read_env_or_legacy("XAVIER2_SYNC_RETRY_DELAY_MS", "SEVIER2_SYNC_RETRY_DELAY_MS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_SYNC_RETRY_DELAY_MS);
 
         Self {
             interval_ms,
             health_port,
+            storage_port,
             last_check: Arc::new(RwLock::new(Instant::now())),
             lag_threshold_ms,
             save_ok_rate_threshold,
+            max_retries,
+            retry_delay_ms,
         }
     }
 
@@ -115,13 +151,40 @@ impl SessionSyncTask {
         let mut status = "ok".to_string();
 
         // 1. Check if Xavier2 is reachable via /xavier2/health
-        let health_status = match self.health_port.check_health().await {
-            Ok(hs) => hs,
-            Err(e) => {
-                tracing::debug!(error = %e, "Health check failed");
-                alerts.push("Xavier2 /xavier2/health endpoint unreachable".to_string());
+        let mut health_status = None;
+        let mut last_error = None;
+        for attempt in 0..=self.max_retries {
+            match self.health_port.check_health().await {
+                Ok(hs) => {
+                    health_status = Some(hs);
+                    break;
+                }
+                Err(e) => {
+                    tracing::debug!(
+                        error = %e,
+                        attempt = attempt + 1,
+                        max_attempts = self.max_retries + 1,
+                        "Health check failed"
+                    );
+                    last_error = Some(e.to_string());
+                    if attempt < self.max_retries {
+                        sleep(Duration::from_millis(self.retry_delay_ms)).await;
+                    }
+                }
+            }
+        }
+
+        let health_status = match health_status {
+            Some(hs) => hs,
+            None => {
+                if let Some(error) = last_error {
+                    tracing::debug!(error = %error, "Health check retries exhausted");
+                }
+                alerts.push(format!(
+                    "Xavier2 /xavier2/health endpoint unreachable after {} attempts",
+                    self.max_retries + 1
+                ));
                 status = "degraded".to_string();
-                // Return early with degraded status
                 let result = SyncCheckResult {
                     status,
                     lag_ms: 0,
@@ -131,7 +194,6 @@ impl SessionSyncTask {
                     timestamp_ms: now_ms,
                     alerts,
                 };
-                // Update static last-check values
                 LAST_CHECK_TIMESTAMP_MS.store(now_ms, Ordering::SeqCst);
                 LAST_CHECK_LAG_MS.store(0, Ordering::SeqCst);
                 {
@@ -149,14 +211,16 @@ impl SessionSyncTask {
         };
 
         let active_agents = health_status.active_agents as u64;
-        let lag_ms = health_status.lag_ms;
+
+        // 2. Calculate index lag from storage (actual session record timestamps)
+        let lag_ms = self.estimate_index_lag().await;
 
         if health_status.status != "ok" && health_status.status != "degraded" {
             alerts.push(format!("Xavier2 health status: {}", health_status.status));
             status = "degraded".to_string();
         }
 
-        // 2. Calculate index lag
+        // 3. Check lag threshold
         if lag_ms > self.lag_threshold_ms {
             alerts.push(format!(
                 "Index lag {}ms exceeds threshold {}ms",
@@ -165,10 +229,10 @@ impl SessionSyncTask {
             status = "alert".to_string();
         }
 
-        // 3. Get save_ok_rate (from stored metrics)
+        // 4. Get save_ok_rate (from stored metrics)
         let save_ok_rate = self.get_save_ok_rate().await;
 
-        // 4. Get match_score (from stored metrics)
+        // 5. Get match_score (from stored metrics)
         let match_score = self.get_match_score().await;
 
         // Check save_ok_rate threshold
@@ -246,21 +310,49 @@ impl SessionSyncTask {
         }
     }
 
-    /// Estimate index lag by checking recent session memory entries
+    /// Estimate index lag by querying session memory records and comparing
+    /// the most recent record's updated_at timestamp with the current time.
+    /// Falls back to time-since-last-check if storage is unavailable.
     async fn estimate_index_lag(&self) -> u64 {
-        // In a real implementation, query Xavier2 memory for sessions/* patterns
-        // and compare event timestamps with indexed timestamps.
-        // For now, we use the time since last check as a proxy.
+        use std::time::SystemTime;
+
+        // Try to query session records from storage
+        if let Some(ref storage) = self.storage_port {
+            let records = match storage.list("session", 1000).await {
+                Ok(recs) => recs,
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to list session records for lag estimation");
+                    return self.fallback_lag().await;
+                }
+            };
+
+            let now = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+
+            if let Some(lag) = records
+                .iter()
+                .filter(|r| r.namespace == MemoryNamespace::Session)
+                .map(|r| r.updated_at.timestamp_millis() as u64)
+                .max()
+                .map(|last_updated| now.saturating_sub(last_updated))
+            {
+                return lag.min(60_000); // cap at 60s
+            }
+        }
+
+        self.fallback_lag().await
+    }
+
+    /// Fallback lag estimation using time since last successful check.
+    async fn fallback_lag(&self) -> u64 {
         let last = *self.last_check.read().await;
-        let elapsed = last.elapsed().as_millis() as u64;
-        // Add some simulated lag based on recent activity
-        elapsed.min(60_000) // cap at 60s
+        last.elapsed().as_millis() as u64
     }
 
     /// Get save_ok_rate from stored metrics
     async fn get_save_ok_rate(&self) -> f64 {
-        // In real implementation, query Xavier2 memory for metrics/time/ patterns
-        // For now return stored value
         *LAST_CHECK_SAVE_OK_RATE.lock().unwrap()
     }
 
@@ -285,25 +377,38 @@ impl SessionSyncTask {
 
 impl Default for SessionSyncTask {
     fn default() -> Self {
-        // This is kept for backwards compatibility with Default trait,
-        // but in practice SessionSyncTask must be constructed with a HealthCheckPort.
-        // A default-constructed task uses a no-op health adapter.
         Self {
-            interval_ms: std::env::var("XAVIER2_SYNC_INTERVAL_MS")
-                .ok()
+            interval_ms: read_env_or_legacy("XAVIER2_SYNC_INTERVAL_MS", "SEVIER2_SYNC_INTERVAL_MS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(DEFAULT_SYNC_INTERVAL_MS),
-            lag_threshold_ms: std::env::var("XAVIER2_SYNC_LAG_THRESHOLD_MS")
-                .ok()
+            lag_threshold_ms: read_env_or_legacy(
+                "XAVIER2_SYNC_LAG_THRESHOLD_MS",
+                "SEVIER2_LAG_THRESHOLD_MS",
+            )
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_LAG_THRESHOLD_MS),
+            save_ok_rate_threshold: read_env_or_legacy(
+                "XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD",
+                "SEVIER2_SAVE_OK_RATE_THRESHOLD",
+            )
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_SAVE_OK_RATE_THRESHOLD),
+            max_retries: read_env_or_legacy("XAVIER2_SYNC_MAX_RETRIES", "SEVIER2_SYNC_MAX_RETRIES")
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(DEFAULT_LAG_THRESHOLD_MS),
-            save_ok_rate_threshold: std::env::var("XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(DEFAULT_SAVE_OK_RATE_THRESHOLD),
-            health_port: Arc::new(crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(
-                std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
-            )),
+                .unwrap_or(DEFAULT_SYNC_MAX_RETRIES),
+            retry_delay_ms: read_env_or_legacy(
+                "XAVIER2_SYNC_RETRY_DELAY_MS",
+                "SEVIER2_SYNC_RETRY_DELAY_MS",
+            )
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_SYNC_RETRY_DELAY_MS),
+            health_port: Arc::new(
+                crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(
+                    std::env::var("XAVIER2_URL")
+                        .unwrap_or_else(|_| "http://localhost:8006".to_string()),
+                ),
+            ),
+            storage_port: None,
             last_check: Arc::new(RwLock::new(Instant::now())),
         }
     }
@@ -320,4 +425,10 @@ pub fn get_last_sync_result() -> SyncCheckResult {
         timestamp_ms: LAST_CHECK_TIMESTAMP_MS.load(Ordering::SeqCst),
         alerts: Vec::new(),
     }
+}
+
+fn read_env_or_legacy(primary: &str, legacy: &str) -> Option<String> {
+    std::env::var(primary)
+        .ok()
+        .or_else(|| std::env::var(legacy).ok())
 }
