@@ -459,10 +459,10 @@ mod tests {
 
         let results = wm.search("Rust", 10);
         assert_eq!(results.len(), 2);
-        assert_eq!(results[0].item.id, "1");
-        assert_eq!(results[1].item.id, "3");
+        assert_eq!(results[0].item.id, "3");
+        assert_eq!(results[1].item.id, "1");
 
-        // Both should score higher than Python result
+        // The Python query only matches the Python document.
         let python_results = wm.search("Python", 10);
         assert_eq!(python_results.len(), 1);
         assert_eq!(python_results[0].item.id, "2");

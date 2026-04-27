@@ -115,6 +115,9 @@ impl EpisodicMemoryLayerConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{LazyLock, Mutex};
+
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     #[test]
     fn test_default_config() {
@@ -125,6 +128,7 @@ mod tests {
 
     #[test]
     fn test_working_layer_config_from_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
         std::env::set_var("XAVIER2_WORKING_MEMORY_CAPACITY", "200");
         std::env::set_var("XAVIER2_WORKING_LRU_THRESHOLD", "5");
 
@@ -138,6 +142,7 @@ mod tests {
 
     #[test]
     fn test_episodic_layer_config_from_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
         std::env::set_var("XAVIER2_MAX_EPISODIC_SESSIONS", "100");
         std::env::set_var("XAVIER2_EPISODIC_SUMMARY_WINDOW", "20");
         std::env::set_var("XAVIER2_EPISODIC_MIN_EVENT_IMPORTANCE", "0.7");
@@ -149,11 +154,12 @@ mod tests {
 
         std::env::remove_var("XAVIER2_MAX_EPISODIC_SESSIONS");
         std::env::remove_var("XAVIER2_EPISODIC_SUMMARY_WINDOW");
-        std::env::remove_var("XAXIER2_EPISODIC_MIN_EVENT_IMPORTANCE");
+        std::env::remove_var("XAVIER2_EPISODIC_MIN_EVENT_IMPORTANCE");
     }
 
     #[test]
     fn test_memory_layers_config_from_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
         std::env::set_var("XAVIER2_WORKING_MEMORY_CAPACITY", "150");
         std::env::set_var("XAVIER2_MAX_EPISODIC_SESSIONS", "75");
 

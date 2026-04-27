@@ -313,7 +313,8 @@ mod tests {
             memory("c", "Different note about deployment", 0.2),
         ];
 
-        let clusters = cluster_similar_memories(&memories, 0.8);
+        // Lexical-only matches top out at 0.4 when no path/vector similarity is present.
+        let clusters = cluster_similar_memories(&memories, 0.4);
         assert!(clusters.iter().any(|cluster| cluster.len() == 2));
         assert!(clusters.iter().any(|cluster| cluster.len() == 1));
     }

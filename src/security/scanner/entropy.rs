@@ -189,10 +189,10 @@ mod tests {
     #[test]
     fn test_entropy_calculation() {
         let low_entropy = "aaaaaaaaaa";
-        let high_entropy = "x7k9m2p3q";
+        let high_entropy = "A1b2C3d4E5f6G7h8J9kLmNoP";
 
         assert!(EntropyCalculator::calculate(low_entropy) < 2.0);
-        assert!(EntropyCalculator::calculate(high_entropy) > 3.5);
+        assert!(EntropyCalculator::calculate(high_entropy) > 4.0);
     }
 
     #[test]

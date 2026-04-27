@@ -219,7 +219,7 @@ mod tests {
         assert!(shannon_entropy(low) < 2.0);
 
         // High entropy
-        let high = "x7#k9@p2$q8";
+        let high = "A1b2C3d4E5f6G7h8J9kLmNoPqRsTuVwX";
         assert!(shannon_entropy(high) > 4.0);
     }
 
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_find_regions() {
-        let text = "normal text x7#k9@p2$q8 more text";
+        let text = "normal text A1b2C3d4E5f6G7h8J9kLmNoPqRsTuVwX more text";
         let regions = find_high_entropy_regions(text, 4.0);
         assert!(!regions.is_empty());
     }

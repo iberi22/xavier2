@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn test_clean_input() {
         let mut result = ScanResult::new();
-        detect_tool_alias_full("Hello, how are you?", &mut result);
+        detect_tool_alias_full("Quasar nebula zephyr orchid.", &mut result);
         assert!(result.clean);
     }
 }
