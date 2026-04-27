@@ -12,7 +12,7 @@ use crate::ports::inbound::TimeMetricsPort;
 use crate::ports::outbound::HealthCheckPort;
 use crate::session::types::{SessionEvent, SessionEventType};
 use crate::session::event_mapper::map_to_panel_thread;
-use crate::tasks::session_sync_task::SessionSyncTask;
+use crate::tasks::session_sync_task::get_last_sync_result;
 use crate::verification::auto_verifier::AutoVerifier;
 
 // ─── Module-level TimeMetricsPort (initialized by CLI) ────────────────────────
@@ -203,22 +203,38 @@ pub struct SyncCheckResponse {
 }
 
 pub async fn sync_check_handler() -> Json<SyncCheckResponse> {
-    // Get the last sync result (or run a new check if none exists)
-    let health_port = HEALTH_PORT.get().cloned().unwrap_or_else(|| {
-        Arc::new(crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(
-            std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
-        ))
-    });
-    let task = SessionSyncTask::new(health_port);
-    let result = task.run_sync_check().await;
+    // Return cached sync check results from the SessionSyncTask cron.
+    let result = get_last_sync_result();
+
+    // Derive status and alerts from cached metrics.
+    let mut alerts = Vec::new();
+    let mut status = result.status.clone();
+
+    if result.lag_ms > 30_000 {
+        alerts.push(format!(
+            "Index lag {}ms exceeds threshold 30000ms",
+            result.lag_ms
+        ));
+        status = "alert".to_string();
+    }
+    if result.save_ok_rate < 0.95 {
+        alerts.push(format!(
+            "Save ok rate {:.1}% below threshold 95.0%",
+            result.save_ok_rate * 100.0
+        ));
+        status = "alert".to_string();
+    }
+    if result.timestamp_ms == 0 {
+        status = "unknown".to_string();
+    }
 
     Json(SyncCheckResponse {
-        status: result.status,
+        status,
         lag_ms: result.lag_ms,
         save_ok_rate: result.save_ok_rate,
         match_score: result.match_score,
         active_agents: result.active_agents,
         timestamp_ms: result.timestamp_ms,
-        alerts: result.alerts,
+        alerts,
     })
 }

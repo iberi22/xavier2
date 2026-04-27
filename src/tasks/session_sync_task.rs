@@ -23,10 +23,12 @@ use crate::ports::outbound::HealthCheckPort;
 const DEFAULT_SYNC_INTERVAL_MS: u64 = 300_000;
 
 /// Threshold for index lag alert (milliseconds)
-const LAG_THRESHOLD_MS: u64 = 30_000;
+/// Default: 30 seconds (30_000 ms)
+const DEFAULT_LAG_THRESHOLD_MS: u64 = 30_000;
 
-/// Threshold for save_ok_rate alert (percentage)
-const SAVE_OK_RATE_THRESHOLD: f64 = 0.95;
+/// Threshold for save_ok_rate alert (percentage, expressed as 0.0-1.0)
+/// Default: 0.95 (95%)
+const DEFAULT_SAVE_OK_RATE_THRESHOLD: f64 = 0.95;
 
 /// Last sync check result stored in memory (static)
 pub(crate) static LAST_CHECK_TIMESTAMP_MS: AtomicU64 = AtomicU64::new(0);
@@ -69,20 +71,36 @@ pub struct SessionSyncTask {
     health_port: Arc<dyn HealthCheckPort>,
     /// Last successful check timestamp
     last_check: Arc<RwLock<Instant>>,
+    /// Lag threshold in ms (configurable via XAVIER2_SYNC_LAG_THRESHOLD_MS)
+    lag_threshold_ms: u64,
+    /// Save ok rate threshold (configurable via XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD)
+    save_ok_rate_threshold: f64,
 }
 
 impl SessionSyncTask {
     /// Create a new SessionSyncTask with the given health check port.
     pub fn new(health_port: Arc<dyn HealthCheckPort>) -> Self {
-        let interval_ms = std::env::var("SEVIER2_SYNC_INTERVAL_MS")
+        let interval_ms = std::env::var("XAVIER2_SYNC_INTERVAL_MS")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_SYNC_INTERVAL_MS);
+
+        let lag_threshold_ms = std::env::var("XAVIER2_SYNC_LAG_THRESHOLD_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_LAG_THRESHOLD_MS);
+
+        let save_ok_rate_threshold = std::env::var("XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_SAVE_OK_RATE_THRESHOLD);
 
         Self {
             interval_ms,
             health_port,
             last_check: Arc::new(RwLock::new(Instant::now())),
+            lag_threshold_ms,
+            save_ok_rate_threshold,
         }
     }
 
@@ -139,10 +157,10 @@ impl SessionSyncTask {
         }
 
         // 2. Calculate index lag
-        if lag_ms > LAG_THRESHOLD_MS {
+        if lag_ms > self.lag_threshold_ms {
             alerts.push(format!(
                 "Index lag {}ms exceeds threshold {}ms",
-                lag_ms, LAG_THRESHOLD_MS
+                lag_ms, self.lag_threshold_ms
             ));
             status = "alert".to_string();
         }
@@ -154,11 +172,11 @@ impl SessionSyncTask {
         let match_score = self.get_match_score().await;
 
         // Check save_ok_rate threshold
-        if save_ok_rate < SAVE_OK_RATE_THRESHOLD {
+        if save_ok_rate < self.save_ok_rate_threshold {
             alerts.push(format!(
                 "Save ok rate {:.1}% below threshold {:.1}%",
                 save_ok_rate * 100.0,
-                SAVE_OK_RATE_THRESHOLD * 100.0
+                self.save_ok_rate_threshold * 100.0
             ));
             status = "alert".to_string();
         }
@@ -271,7 +289,18 @@ impl Default for SessionSyncTask {
         // but in practice SessionSyncTask must be constructed with a HealthCheckPort.
         // A default-constructed task uses a no-op health adapter.
         Self {
-            interval_ms: DEFAULT_SYNC_INTERVAL_MS,
+            interval_ms: std::env::var("XAVIER2_SYNC_INTERVAL_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_SYNC_INTERVAL_MS),
+            lag_threshold_ms: std::env::var("XAVIER2_SYNC_LAG_THRESHOLD_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_LAG_THRESHOLD_MS),
+            save_ok_rate_threshold: std::env::var("XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_SAVE_OK_RATE_THRESHOLD),
             health_port: Arc::new(crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(
                 std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
             )),
