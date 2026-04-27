@@ -9,6 +9,7 @@ pub mod api;
 pub mod checkpoint;
 pub mod consistency;
 pub mod consolidation;
+pub mod context;
 pub mod coordination;
 pub mod crypto;
 pub mod embedding;
@@ -21,13 +22,13 @@ pub mod security;
 pub mod server;
 pub mod session;
 pub mod sync;
-pub mod verification;
 pub mod tasks;
 #[cfg(feature = "telegram")]
 pub mod telegram;
 pub mod tools;
 pub mod ui;
 pub mod utils;
+pub mod verification;
 pub mod workspace;
 
 // Hexagonal architecture modules
