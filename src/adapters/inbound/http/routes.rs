@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::adapters::inbound::http::dto::TimeMetricDto;
-use crate::agents::unregister_agent_handler::unregister_agent_handler;
+use crate::agents::unregister_agent_handler;
 use crate::coordination::SimpleAgentRegistry;
 use crate::ports::inbound::TimeMetricsPort;
 use crate::ports::outbound::HealthCheckPort;
@@ -214,36 +214,14 @@ pub async fn sync_check_handler() -> Json<SyncCheckResponse> {
     // Return cached sync check results from the SessionSyncTask cron.
     let result = get_last_sync_result();
 
-    // Derive status and alerts from cached metrics.
-    let mut alerts = Vec::new();
-    let mut status = result.status.clone();
-
-    if result.lag_ms > 30_000 {
-        alerts.push(format!(
-            "Index lag {}ms exceeds threshold 30000ms",
-            result.lag_ms
-        ));
-        status = "alert".to_string();
-    }
-    if result.save_ok_rate < 0.95 {
-        alerts.push(format!(
-            "Save ok rate {:.1}% below threshold 95.0%",
-            result.save_ok_rate * 100.0
-        ));
-        status = "alert".to_string();
-    }
-    if result.timestamp_ms == 0 {
-        status = "unknown".to_string();
-    }
-
     Json(SyncCheckResponse {
-        status,
+        status: result.status,
         lag_ms: result.lag_ms,
         save_ok_rate: result.save_ok_rate,
         match_score: result.match_score,
         active_agents: result.active_agents,
         timestamp_ms: result.timestamp_ms,
-        alerts,
+        alerts: result.alerts,
     })
 }
 
@@ -326,8 +304,8 @@ mod route_tests {
 mod tests {
     use super::*;
     use crate::tasks::session_sync_task::{
-        LAST_CHECK_ACTIVE_AGENTS, LAST_CHECK_LAG_MS, LAST_CHECK_MATCH_SCORE,
-        LAST_CHECK_SAVE_OK_RATE, LAST_CHECK_TIMESTAMP_MS,
+        LAST_CHECK_ACTIVE_AGENTS, LAST_CHECK_ALERTS, LAST_CHECK_LAG_MS, LAST_CHECK_MATCH_SCORE,
+        LAST_CHECK_SAVE_OK_RATE, LAST_CHECK_STATUS, LAST_CHECK_TIMESTAMP_MS,
     };
     use std::sync::atomic::Ordering;
 
@@ -338,6 +316,11 @@ mod tests {
         LAST_CHECK_ACTIVE_AGENTS.store(7, Ordering::SeqCst);
         *LAST_CHECK_SAVE_OK_RATE.lock().unwrap() = 0.90;
         *LAST_CHECK_MATCH_SCORE.lock().unwrap() = 0.88;
+        *LAST_CHECK_STATUS.lock().unwrap() = "alert".to_string();
+        *LAST_CHECK_ALERTS.lock().unwrap() = vec![
+            "Index lag 42000ms exceeds threshold 30000ms".to_string(),
+            "Save ok rate 90.0% below threshold 95.0%".to_string(),
+        ];
 
         let Json(response) = sync_check_handler().await;
 

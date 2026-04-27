@@ -23,3 +23,57 @@ pub async fn unregister_agent_handler(
         },
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::unregister_agent_handler;
+    use crate::coordination::SimpleAgentRegistry;
+    use axum::{extract::{Path, State}, Json};
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn unregister_existing_agent_returns_success_payload() {
+        let registry = SimpleAgentRegistry::new();
+        registry
+            .register(
+                "agent-delete-1".to_string(),
+                "session-delete-1".to_string(),
+                Default::default(),
+            )
+            .await;
+
+        let Json(payload) = unregister_agent_handler(
+            State(registry.clone()),
+            Path("agent-delete-1".to_string()),
+        )
+        .await;
+
+        assert_eq!(
+            payload,
+            json!({
+                "status": "ok",
+                "agent_id": "agent-delete-1",
+                "message": "Agent unregistered",
+            })
+        );
+        assert!(registry.get("agent-delete-1").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn unregister_missing_agent_returns_error_payload() {
+        let Json(payload) = unregister_agent_handler(
+            State(SimpleAgentRegistry::new()),
+            Path("missing-agent".to_string()),
+        )
+        .await;
+
+        assert_eq!(
+            payload,
+            json!({
+                "status": "error",
+                "agent_id": "missing-agent",
+                "message": "Agent not found or already unregistered",
+            })
+        );
+    }
+}

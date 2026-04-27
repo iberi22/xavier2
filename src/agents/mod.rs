@@ -12,6 +12,7 @@ pub mod unregister_agent_handler;
 use std::collections::HashMap;
 
 pub use runtime::{AgentRuntime, RuntimeConfig};
+pub use unregister_agent_handler::unregister_agent_handler;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AgentStatus {
