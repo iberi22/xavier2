@@ -30,7 +30,7 @@ use xavier2::session::types::SessionEvent;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
 use xavier2::time::TimeMetricsStore;
-use xavier2::adapters::inbound::http::routes::{sync_check_handler, time_metric_handler};
+use xavier2::adapters::inbound::http::routes::{sync_check_handler, time_metric_handler, verify_save_handler};
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
@@ -195,8 +195,13 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/xavier2/agents/active", get(agent_active_handler))
         .route("/xavier2/agents/{id}/heartbeat", post(agent_heartbeat_handler))
         .route("/xavier2/agents/{id}/push", post(agent_push_context_handler))
+        .route(
+            "/xavier2/agents/{id}/unregister",
+            delete(agent_unregister_handler),
+        )
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
+        .route("/xavier2/verify/save", post(verify_save_handler))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));

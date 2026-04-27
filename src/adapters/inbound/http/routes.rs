@@ -114,7 +114,7 @@ pub struct VerifySaveResponse {
     pub match_score: f32,
 }
 
-async fn verify_save_handler(
+pub async fn verify_save_handler(
     Json(payload): Json<VerifySaveRequest>,
 ) -> Json<VerifySaveResponse> {
     let start = Instant::now();
