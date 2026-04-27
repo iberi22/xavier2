@@ -344,7 +344,12 @@ impl EntityGraph {
             primary.clone()
         };
 
-        for entity_id in data.relation_neighbors(&secondary_id) {
+        let neighbor_ids: Vec<String> = data
+            .relation_neighbors(&secondary_id)
+            .iter()
+            .cloned()
+            .collect();
+        for entity_id in neighbor_ids {
             if entity_id == primary_id {
                 continue;
             }
