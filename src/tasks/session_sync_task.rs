@@ -8,7 +8,7 @@
 //!
 //! Also provides on-demand sync check via POST /xavier2/sync/check
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -34,8 +34,11 @@ const DEFAULT_SAVE_OK_RATE_THRESHOLD: f64 = 0.95;
 /// Max health check retries before marking the sync check degraded.
 const DEFAULT_SYNC_MAX_RETRIES: u32 = 3;
 
-/// Delay between health check retries in milliseconds.
-const DEFAULT_SYNC_RETRY_DELAY_MS: u64 = 1_000;
+/// Minimum interval between health check attempts in milliseconds.
+const DEFAULT_SYNC_MIN_HEALTH_INTERVAL_MS: u64 = 1_000;
+
+/// Timeout for each health check attempt in milliseconds.
+const DEFAULT_SYNC_TIMEOUT_MS: u64 = 5_000;
 
 /// Last sync check result stored in memory (static)
 pub(crate) static LAST_CHECK_TIMESTAMP_MS: AtomicU64 = AtomicU64::new(0);
@@ -43,6 +46,9 @@ pub(crate) static LAST_CHECK_LAG_MS: AtomicU64 = AtomicU64::new(0);
 pub(crate) static LAST_CHECK_SAVE_OK_RATE: Mutex<f64> = Mutex::new(1.0);
 pub(crate) static LAST_CHECK_MATCH_SCORE: Mutex<f64> = Mutex::new(1.0);
 pub(crate) static LAST_CHECK_ACTIVE_AGENTS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static LAST_CHECK_STATUS: Mutex<String> = Mutex::new(String::new());
+pub(crate) static LAST_CHECK_ALERTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+static SYNC_CRON_STARTED: AtomicBool = AtomicBool::new(false);
 
 /// Sync check result
 #[derive(Debug, Clone)]
@@ -86,8 +92,10 @@ pub struct SessionSyncTask {
     save_ok_rate_threshold: f64,
     /// Max health check retries (configurable via XAVIER2_SYNC_MAX_RETRIES)
     max_retries: u32,
-    /// Delay between health check retries (configurable via XAVIER2_SYNC_RETRY_DELAY_MS)
-    retry_delay_ms: u64,
+    /// Minimum interval between health check attempts (configurable via XAVIER2_SYNC_MIN_HEALTH_INTERVAL_MS)
+    min_health_interval_ms: u64,
+    /// Timeout per health check attempt (configurable via XAVIER2_SYNC_TIMEOUT_MS)
+    timeout_ms: u64,
 }
 
 impl SessionSyncTask {
@@ -123,10 +131,16 @@ impl SessionSyncTask {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(DEFAULT_SYNC_MAX_RETRIES);
 
-        let retry_delay_ms =
-            read_env_or_legacy("XAVIER2_SYNC_RETRY_DELAY_MS", "SEVIER2_SYNC_RETRY_DELAY_MS")
+        let min_health_interval_ms = read_env_or_legacy(
+            "XAVIER2_SYNC_MIN_HEALTH_INTERVAL_MS",
+            "SEVIER2_SYNC_MIN_HEALTH_INTERVAL_MS",
+        )
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_SYNC_MIN_HEALTH_INTERVAL_MS);
+
+        let timeout_ms = read_env_or_legacy("XAVIER2_SYNC_TIMEOUT_MS", "SEVIER2_SYNC_TIMEOUT_MS")
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(DEFAULT_SYNC_RETRY_DELAY_MS);
+                .unwrap_or(DEFAULT_SYNC_TIMEOUT_MS);
 
         Self {
             interval_ms,
@@ -136,8 +150,26 @@ impl SessionSyncTask {
             lag_threshold_ms,
             save_ok_rate_threshold,
             max_retries,
-            retry_delay_ms,
+            min_health_interval_ms,
+            timeout_ms,
         }
+    }
+
+    /// Spawn the cron loop at most once per process.
+    /// Returns true when the task was spawned by this call.
+    pub fn spawn_cron_once(self) -> bool {
+        if SYNC_CRON_STARTED
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return false;
+        }
+
+        tokio::spawn(async move {
+            self.start_cron().await;
+        });
+
+        true
     }
 
     /// Run the sync check (shared logic for both cron and on-demand)
@@ -154,12 +186,17 @@ impl SessionSyncTask {
         let mut health_status = None;
         let mut last_error = None;
         for attempt in 0..=self.max_retries {
-            match self.health_port.check_health().await {
-                Ok(hs) => {
+            match timeout(
+                Duration::from_millis(self.timeout_ms),
+                self.health_port.check_health(),
+            )
+            .await
+            {
+                Ok(Ok(hs)) => {
                     health_status = Some(hs);
                     break;
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     tracing::debug!(
                         error = %e,
                         attempt = attempt + 1,
@@ -167,10 +204,20 @@ impl SessionSyncTask {
                         "Health check failed"
                     );
                     last_error = Some(e.to_string());
-                    if attempt < self.max_retries {
-                        sleep(Duration::from_millis(self.retry_delay_ms)).await;
-                    }
                 }
+                Err(_) => {
+                    tracing::debug!(
+                        timeout_ms = self.timeout_ms,
+                        attempt = attempt + 1,
+                        max_attempts = self.max_retries + 1,
+                        "Health check timed out"
+                    );
+                    last_error = Some(format!("health check timed out after {}ms", self.timeout_ms));
+                }
+            }
+
+            if attempt < self.max_retries {
+                sleep(Duration::from_millis(self.min_health_interval_ms)).await;
             }
         }
 
@@ -205,6 +252,14 @@ impl SessionSyncTask {
                     *r = 1.0;
                 }
                 LAST_CHECK_ACTIVE_AGENTS.store(0, Ordering::SeqCst);
+                {
+                    let mut s = LAST_CHECK_STATUS.lock().unwrap();
+                    *s = result.status.clone();
+                }
+                {
+                    let mut a = LAST_CHECK_ALERTS.lock().unwrap();
+                    *a = result.alerts.clone();
+                }
                 *self.last_check.write().await = Instant::now();
                 return result;
             }
@@ -267,6 +322,14 @@ impl SessionSyncTask {
             *r = match_score;
         }
         LAST_CHECK_ACTIVE_AGENTS.store(active_agents, Ordering::SeqCst);
+        {
+            let mut s = LAST_CHECK_STATUS.lock().unwrap();
+            *s = result.status.clone();
+        }
+        {
+            let mut a = LAST_CHECK_ALERTS.lock().unwrap();
+            *a = result.alerts.clone();
+        }
 
         // Update last_check timestamp
         *self.last_check.write().await = Instant::now();
@@ -396,12 +459,15 @@ impl Default for SessionSyncTask {
             max_retries: read_env_or_legacy("XAVIER2_SYNC_MAX_RETRIES", "SEVIER2_SYNC_MAX_RETRIES")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(DEFAULT_SYNC_MAX_RETRIES),
-            retry_delay_ms: read_env_or_legacy(
-                "XAVIER2_SYNC_RETRY_DELAY_MS",
-                "SEVIER2_SYNC_RETRY_DELAY_MS",
+            min_health_interval_ms: read_env_or_legacy(
+                "XAVIER2_SYNC_MIN_HEALTH_INTERVAL_MS",
+                "SEVIER2_SYNC_MIN_HEALTH_INTERVAL_MS",
             )
             .and_then(|v| v.parse().ok())
-            .unwrap_or(DEFAULT_SYNC_RETRY_DELAY_MS),
+            .unwrap_or(DEFAULT_SYNC_MIN_HEALTH_INTERVAL_MS),
+            timeout_ms: read_env_or_legacy("XAVIER2_SYNC_TIMEOUT_MS", "SEVIER2_SYNC_TIMEOUT_MS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(DEFAULT_SYNC_TIMEOUT_MS),
             health_port: Arc::new(
                 crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(
                     std::env::var("XAVIER2_URL")
@@ -416,14 +482,23 @@ impl Default for SessionSyncTask {
 
 /// Get last sync check result (for REST endpoint)
 pub fn get_last_sync_result() -> SyncCheckResult {
+    let status = {
+        let s = LAST_CHECK_STATUS.lock().unwrap();
+        if s.is_empty() {
+            "unknown".to_string()
+        } else {
+            s.clone()
+        }
+    };
+
     SyncCheckResult {
-        status: "ok".to_string(),
+        status,
         lag_ms: LAST_CHECK_LAG_MS.load(Ordering::SeqCst),
         save_ok_rate: *LAST_CHECK_SAVE_OK_RATE.lock().unwrap(),
         match_score: *LAST_CHECK_MATCH_SCORE.lock().unwrap(),
         active_agents: LAST_CHECK_ACTIVE_AGENTS.load(Ordering::SeqCst),
         timestamp_ms: LAST_CHECK_TIMESTAMP_MS.load(Ordering::SeqCst),
-        alerts: Vec::new(),
+        alerts: LAST_CHECK_ALERTS.lock().unwrap().clone(),
     }
 }
 

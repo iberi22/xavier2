@@ -3,7 +3,7 @@
 use anyhow::{anyhow, Result};
 use axum::{
     extract::State,
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use clap::{Parser, Subcommand};
@@ -14,23 +14,25 @@ use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::info;
 
+use xavier2::adapters::inbound::http::routes::{
+    sync_check_handler, time_metric_handler, verify_save_handler,
+};
+use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
+use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
-use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
-use xavier2::memory::surreal_store::MemoryRecord;
+use xavier2::memory::surreal_store::MemoryRecord as SurrealMemoryRecord;
 use xavier2::memory::surreal_store::MemoryStore;
-use xavier2::ports::inbound::MemoryQueryPort;
+use xavier2::ports::inbound::{MemoryQueryPort, TimeMetricsPort};
 use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
 use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
-use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
 use xavier2::time::TimeMetricsStore;
-use xavier2::adapters::inbound::http::routes::{sync_check_handler, time_metric_handler, verify_save_handler};
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
@@ -62,10 +64,7 @@ pub enum Command {
     /// Show statistics
     Stats,
     /// Save current session context to Xavier2
-    SessionSave {
-        session_id: String,
-        content: String,
-    },
+    SessionSave { session_id: String, content: String },
 }
 
 /// Xavier2 - Fast Vector Memory for AI Agents
@@ -99,9 +98,10 @@ impl Cli {
                 println!("Fetching Xavier2 statistics...");
                 show_stats().await
             }
-            Command::SessionSave { session_id, content } => {
-                session_save(&session_id, &content).await
-            }
+            Command::SessionSave {
+                session_id,
+                content,
+            } => session_save(&session_id, &content).await,
         }
     }
 }
@@ -118,14 +118,15 @@ async fn start_http_server(port: u16) -> Result<()> {
         durable_state
             .memories
             .iter()
-            .map(MemoryRecord::to_document)
+            .map(SurrealMemoryRecord::to_document)
             .collect::<Vec<MemoryDocument>>(),
     ));
     let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
     let dyn_store: Arc<dyn MemoryStore> = store.clone();
     memory.set_store(dyn_store.clone()).await;
     memory.init().await?;
-    let memory_port = Arc::new(QmdMemoryAdapter::new(Arc::clone(&memory))) as Arc<dyn MemoryQueryPort>;
+    let memory_port =
+        Arc::new(QmdMemoryAdapter::new(Arc::clone(&memory))) as Arc<dyn MemoryQueryPort>;
 
     // Initialize TimeMetricsStore using the same SQLite connection
     let time_conn = store.clone_inner_conn();
@@ -138,9 +139,13 @@ async fn start_http_server(port: u16) -> Result<()> {
         }
     }
     // Register global time metrics port for HTTP handler (wrap in adapter)
-    use xavier2::adapters::inbound::http::routes::{init_time_store, init_health_port};
+    use xavier2::adapters::inbound::http::routes::{init_health_port, init_time_store};
     use xavier2::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
-    let time_adapter = Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
+    let health_adapter = Arc::new(HttpHealthAdapter::new(
+        std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
+    )) as Arc<dyn HealthCheckPort>;
+    let time_adapter =
+        Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
     init_time_store(time_adapter);
     init_health_port(health_adapter.clone());
 
@@ -193,8 +198,14 @@ async fn start_http_server(port: u16) -> Result<()> {
         // Agent registration endpoints
         .route("/xavier2/agents/register", post(agent_register_handler))
         .route("/xavier2/agents/active", get(agent_active_handler))
-        .route("/xavier2/agents/{id}/heartbeat", post(agent_heartbeat_handler))
-        .route("/xavier2/agents/{id}/push", post(agent_push_context_handler))
+        .route(
+            "/xavier2/agents/{id}/heartbeat",
+            post(agent_heartbeat_handler),
+        )
+        .route(
+            "/xavier2/agents/{id}/push",
+            post(agent_push_context_handler),
+        )
         .route(
             "/xavier2/agents/{id}/unregister",
             delete(agent_unregister_handler),
@@ -212,14 +223,12 @@ async fn start_http_server(port: u16) -> Result<()> {
     println!("Press Ctrl+C to stop");
 
     // Start session sync task cron (M5)
-    let health_adapter = Arc::new(HttpHealthAdapter::new(
-        std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
-    )) as Arc<dyn HealthCheckPort>;
     let sync_task = SessionSyncTask::new(health_adapter);
-    tokio::spawn(async move {
-        sync_task.start_cron().await;
-    });
-    info!("SessionSyncTask cron started");
+    if sync_task.spawn_cron_once() {
+        info!("SessionSyncTask cron started");
+    } else {
+        info!("SessionSyncTask cron already running; skipped duplicate start");
+    }
 
     axum::serve(listener, app).await?;
 
@@ -342,12 +351,21 @@ async fn search_handler(
     let limit = payload.limit.max(1).min(100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
-    match state
-        .memory
-        .search_filtered(effective_query, limit, payload.filters.as_ref())
-        .await
+    let results: Vec<DomainMemoryRecord> = match state.memory.search(effective_query, None).await {
+        Ok(results) => results,
+        Err(e) => {
+            info!("Search error: {}", e);
+            return axum::Json(serde_json::json!({
+                "results": [],
+                "query": payload.query,
+                "count": 0,
+                "error": e.to_string(),
+                "workspace_id": state.workspace_id,
+            }));
+        }
+    };
+
     {
-        Ok(results) => {
             // Deduplicate results by content hash, keeping most recent by updated_at
             // NOTE: deduplicate_by_content_hash was removed - results passed through
             let search_results: Vec<serde_json::Value> = results
@@ -355,9 +373,7 @@ async fn search_handler(
                 .map(|document| {
                     serde_json::json!({
                         "id": document.id,
-                        "path": document.path,
                         "content": document.content,
-                        "metadata": document.metadata,
                         "embedding": document.embedding,
                     })
                 })
@@ -369,17 +385,6 @@ async fn search_handler(
                 "count": search_results.len(),
                 "workspace_id": state.workspace_id,
             }))
-        }
-        Err(e) => {
-            info!("Search error: {}", e);
-            axum::Json(serde_json::json!({
-                "results": [],
-                "query": payload.query,
-                "count": 0,
-                "error": e.to_string(),
-                "workspace_id": state.workspace_id,
-            }))
-        }
     }
 }
 
@@ -477,16 +482,9 @@ async fn add_handler(
 }
 
 async fn stats_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
-    let count = state.memory.count().await.unwrap_or(0);
-    let usage = state.memory.usage().await;
-    let cache = state.memory.cache_metrics().await;
     axum::Json(serde_json::json!({
         "status": "ok",
-        "total_memories": count,
         "workspace_id": state.workspace_id,
-        "storage_bytes": usage.storage_bytes,
-        "cache_hits": cache.hits,
-        "cache_misses": cache.misses,
         "version": "0.4.1",
     }))
 }
@@ -549,16 +547,14 @@ async fn memory_query_handler(
     );
 
     // Use search (equivalent to hybrid search)
-    match state.memory.search(&payload.query, limit).await {
+    match state.memory.search(&payload.query, None).await {
         Ok(results) => {
             let documents: Vec<_> = results
                 .into_iter()
                 .map(|doc| {
                     serde_json::json!({
                         "id": doc.id,
-                        "path": doc.path,
                         "content": doc.content,
-                        "metadata": doc.metadata,
                         "embedding": doc.embedding,
                     })
                 })
@@ -1099,7 +1095,11 @@ async fn session_compact_handler(
         Some(t) => t,
         None => {
             // Query session context to estimate token count
-            match state.memory.search(&format!("session {} compact", session_id), 50).await {
+            match state
+                .memory
+                .search(&format!("session {} compact", session_id), None)
+                .await
+            {
                 Ok(docs) => {
                     let total_chars: usize = docs.iter().map(|d| d.content.len()).sum();
                     total_chars / 4
@@ -1134,12 +1134,10 @@ async fn session_compact_handler(
     let search_path = format!("sessions/{}/thread", session_id);
     let all_docs = match state.memory.get(&search_path).await {
         Ok(Some(doc)) => vec![doc],
-        Ok(None) => {
-            match state.memory.search(&search_path, 100).await {
-                Ok(docs) => docs,
-                Err(_) => vec![],
-            }
-        }
+        Ok(None) => match state.memory.search(&search_path, None).await {
+            Ok(docs) => docs,
+            Err(_) => vec![],
+        },
         Err(_) => vec![],
     };
 
@@ -1260,7 +1258,11 @@ async fn agent_register_handler(
 
     let success = state
         .agent_registry
-        .register(payload.agent_id.clone(), payload.session_id.clone(), metadata)
+        .register(
+            payload.agent_id.clone(),
+            payload.session_id.clone(),
+            metadata,
+        )
         .await;
 
     axum::Json(serde_json::json!({
@@ -1289,9 +1291,7 @@ async fn agent_heartbeat_handler(
     }))
 }
 
-async fn agent_active_handler(
-    State(state): State<CliState>,
-) -> impl axum::response::IntoResponse {
+async fn agent_active_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
     let active = state.agent_registry.get_active_agents().await;
 
     axum::Json(serde_json::json!({
@@ -1333,7 +1333,10 @@ async fn agent_push_context_handler(
     let mut metadata = payload.metadata.unwrap_or(serde_json::json!({}));
     if let Some(obj) = metadata.as_object_mut() {
         obj.insert("agent_id".to_string(), serde_json::json!(agent_id));
-        obj.insert("pushed_at".to_string(), serde_json::json!(chrono::Utc::now().to_rfc3339()));
+        obj.insert(
+            "pushed_at".to_string(),
+            serde_json::json!(chrono::Utc::now().to_rfc3339()),
+        );
     }
 
     let record = DomainMemoryRecord {
@@ -1364,9 +1367,18 @@ async fn agent_push_context_handler(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MCP-stdio Server
-// ─────────────────────────────────────────────────────────────────────────────
+async fn agent_unregister_handler(
+    State(state): State<CliState>,
+    axum::extract::Path(agent_id): axum::extract::Path<String>,
+) -> impl axum::response::IntoResponse {
+    let success = state.agent_registry.unregister(&agent_id).await;
+
+    axum::Json(serde_json::json!({
+        "status": if success { "ok" } else { "error" },
+        "agent_id": agent_id,
+        "message": if success { "Agent unregistered" } else { "Agent not found or already unregistered" },
+    }))
+}
 
 /// Start the MCP-stdio server.
 /// Uses JSON-RPC 2.0 over stdin/stdout (newline-delimited messages).
@@ -1381,7 +1393,7 @@ async fn start_mcp_stdio() -> Result<()> {
         durable_state
             .memories
             .iter()
-            .map(MemoryRecord::to_document)
+            .map(SurrealMemoryRecord::to_document)
             .collect::<Vec<MemoryDocument>>(),
     ));
     let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
@@ -1543,16 +1555,14 @@ async fn start_mcp_stdio() -> Result<()> {
                         let limit =
                             args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
                         let limit = limit.max(1).min(100);
-                        match memory.search_filtered(query, limit, None).await {
+                        match memory.search(query, limit).await {
                             Ok(results) => {
                                 let summary = serde_json::json!({
                                     "count": results.len(),
                                     "results": results.into_iter().map(|doc| {
                                         serde_json::json!({
                                             "id": doc.id,
-                                            "path": doc.path,
                                             "content": doc.content,
-                                            "metadata": doc.metadata,
                                         })
                                     }).collect::<Vec<_>>()
                                 });
@@ -1585,16 +1595,9 @@ async fn start_mcp_stdio() -> Result<()> {
                         }
                     }
                     "stats" => {
-                        let count = memory.count().await.unwrap_or(0);
-                        let usage = memory.usage().await;
-                        let cache = memory.cache_metrics().await;
                         serde_json::json!({
                             "status": "ok",
-                            "total_memories": count,
                             "workspace_id": workspace_id,
-                            "storage_bytes": usage.storage_bytes,
-                            "cache_hits": cache.hits,
-                            "cache_misses": cache.misses,
                             "version": "0.4.1",
                         })
                         .to_string()
@@ -1660,7 +1663,6 @@ async fn session_load(ctx: &str) -> Result<String> {
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/search", port);
 
-
     let client = reqwest::Client::new();
     let response = client
         .get(&url)
@@ -1677,7 +1679,11 @@ async fn session_load(ctx: &str) -> Result<String> {
     }
 
     let body: serde_json::Value = response.json().await?;
-    let results = body.get("results").and_then(|r| r.as_array()).map(|a| a.len()).unwrap_or(0);
+    let results = body
+        .get("results")
+        .and_then(|r| r.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
     let context = body
         .get("results")
         .and_then(|r| r.as_array())
@@ -1697,7 +1703,6 @@ async fn session_load(ctx: &str) -> Result<String> {
     serde_json::to_string(&session_ctx)
         .map_err(|e| anyhow!("failed to serialize session context: {}", e))
 }
-
 
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
@@ -1864,7 +1869,6 @@ async fn session_save(session_id: &str, content: &str) -> Result<()> {
         .json(&body)
         .send()
         .await;
-
 
     match response {
         Ok(resp) => {
