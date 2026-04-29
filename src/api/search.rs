@@ -14,10 +14,22 @@ pub struct HybridSearchRequest {
     pub limit: usize,
     #[serde(default)]
     pub rrf_k: Option<u32>,
+    #[serde(default = "default_keyword_weight")]
+    pub keyword_weight: f32,
+    #[serde(default = "default_vector_weight")]
+    pub vector_weight: f32,
     #[serde(default)]
     pub filters: Option<MemoryQueryFilters>,
     #[serde(default)]
     pub include_embedding: Option<bool>,
+}
+
+fn default_keyword_weight() -> f32 {
+    0.5
+}
+
+fn default_vector_weight() -> f32 {
+    0.5
 }
 
 fn default_limit() -> usize {
@@ -47,9 +59,10 @@ pub async fn hybrid_search(
     Json(request): Json<HybridSearchRequest>,
 ) -> impl IntoResponse {
     let searcher = HybridSearcher {
-        keyword_weight: 0.5,
-        vector_weight: 0.5,
+        keyword_weight: request.keyword_weight,
+        vector_weight: request.vector_weight,
         rrf_k: request.rrf_k.unwrap_or(60),
+        hooks: crate::search::hooks::HookRegistry::new(),
     };
 
     let results = searcher

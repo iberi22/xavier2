@@ -325,6 +325,14 @@ pub struct HybridSearchRequest {
     pub search_type: Option<HybridSearchMode>,
     #[serde(default)]
     pub filters: Option<MemoryQueryFilters>,
+    #[serde(default = "default_weight")]
+    pub keyword_weight: f32,
+    #[serde(default = "default_weight")]
+    pub vector_weight: f32,
+}
+
+fn default_weight() -> f32 {
+    0.5
 }
 
 #[derive(Debug, Deserialize)]
