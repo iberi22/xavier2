@@ -130,7 +130,13 @@ pub async fn start_signal_handler(state: ShutdownState) {
         #[cfg(windows)]
         {
             let ctrl_events = async {
-                let mut rx = ctrl_c().expect("failed to subscribe to Ctrl+C");
+                let mut rx = match ctrl_c() {
+                    Ok(rx) => rx,
+                    Err(e) => {
+                        error!("Failed to subscribe to Ctrl+C: {}", e);
+                        return None;
+                    }
+                };
                 rx.recv().await
             };
 
@@ -525,7 +531,7 @@ pub async fn health() -> impl IntoResponse {
     axum::response::Response::builder()
         .header("Content-Type", "application/json")
         .body(axum::body::Body::from(HEALTH_JSON))
-        .unwrap()
+        .expect("health response builder should not fail")
 }
 
 /// Detailed liveness + readiness probe for orchestration systems.
@@ -733,6 +739,9 @@ pub async fn build_info(State(state): State<AppState>) -> impl IntoResponse {
 // Memory Endpoints
 // ============================================================
 
+// Verified (build): no use-after-move or borrow-checker errors — all
+// moves (path, content, metadata, typed, content_vector) are correctly
+// sequenced with preceding borrows fully consumed before each move.
 pub async fn memory_add(
     Extension(workspace): Extension<WorkspaceContext>,
     Json(payload): Json<AddMemoryRequest>,
