@@ -468,12 +468,21 @@ impl Default for SessionSyncTask {
             timeout_ms: read_env_or_legacy("XAVIER2_SYNC_TIMEOUT_MS", "SEVIER2_SYNC_TIMEOUT_MS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(DEFAULT_SYNC_TIMEOUT_MS),
-            health_port: Arc::new(
-                crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(
-                    std::env::var("XAVIER2_URL")
-                        .unwrap_or_else(|_| "http://localhost:8006".to_string()),
-                ),
-            ),
+            health_port: Arc::new({
+                let url_str = std::env::var("XAVIER2_URL")
+                    .unwrap_or_else(|_| "http://localhost:8006".to_string());
+
+                // Validate internal URL to prevent SSRF
+                let final_url = match crate::security::url_validator::validate_internal_url(&url_str) {
+                    Ok(_) => url_str,
+                    Err(e) => {
+                        tracing::error!("XAVIER2_URL validation failed in SessionSyncTask: {}. Falling back to localhost.", e);
+                        "http://localhost:8006".to_string()
+                    }
+                };
+
+                crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(final_url)
+            }),
             storage_port: None,
             last_check: Arc::new(RwLock::new(Instant::now())),
         }

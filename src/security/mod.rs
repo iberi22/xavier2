@@ -8,6 +8,7 @@ pub mod detections;
 pub mod layers;
 pub mod prompt_guard;
 pub mod scanner;
+pub mod url_validator;
 
 pub use anticipator::{Anticipator, AnticipatorConfig};
 pub use detections::{ScanResult as AnticipatorScanResult, Severity, Threat, ThreatCategory};

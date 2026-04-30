@@ -131,6 +131,17 @@ pub async fn verify_save_handler(
 
     let xavier2_url =
         std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string());
+
+    // Validate internal URL to prevent SSRF
+    if let Err(e) = crate::security::url_validator::validate_internal_url(&xavier2_url) {
+        tracing::error!("Internal URL validation failed: {}", e);
+        return Json(VerifySaveResponse {
+            save_ok: false,
+            latency_ms: start.elapsed().as_millis() as u64,
+            match_score: 0.0,
+        });
+    }
+
     let auth_token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
 
     let client = reqwest::Client::new();
