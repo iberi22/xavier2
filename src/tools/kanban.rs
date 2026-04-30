@@ -645,8 +645,6 @@ pub fn get_kanban_tools() -> Vec<KanbanTool> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
     async fn test_client_creation() {
         // Test requires PLANKA_* env vars - skip in unit tests
