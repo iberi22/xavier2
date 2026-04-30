@@ -17,6 +17,7 @@ use tracing::info;
 use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
+use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
@@ -110,7 +111,10 @@ async fn start_http_server(port: u16) -> Result<()> {
     info!("Starting Xavier2 HTTP server on port {}", port);
 
     // Initialize the memory store
-    let store = Arc::new(VecSqliteMemoryStore::from_env().await?);
+    let mut store_inner = VecSqliteMemoryStore::from_env().await?;
+    let (event_tx, _) = tokio::sync::broadcast::channel(100);
+    store_inner.set_event_tx(event_tx);
+    let store = Arc::new(store_inner);
     let workspace_id =
         std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
     let durable_state = store.load_workspace_state(&workspace_id).await?;
@@ -210,6 +214,7 @@ async fn start_http_server(port: u16) -> Result<()> {
             "/xavier2/agents/{id}/unregister",
             delete(agent_unregister_handler),
         )
+        .route("/xavier2/events/stream", get(ws_events_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
         .route("/xavier2/verify/save", post(verify_save_handler))

@@ -17,6 +17,7 @@ use rusqlite::ffi::sqlite3_auto_extension;
 use rusqlite::{params, Connection};
 use sha2::{Digest, Sha256};
 use tokio::fs;
+use tokio::sync::broadcast;
 
 use crate::checkpoint::Checkpoint;
 use crate::memory::belief_graph::BeliefRelation;
@@ -107,6 +108,7 @@ impl VecSqliteStoreConfig {
 pub struct VecSqliteMemoryStore {
     conn: Arc<Mutex<Connection>>,
     config: VecSqliteStoreConfig,
+    event_tx: Option<broadcast::Sender<crate::server::events::RealtimeEvent>>,
 }
 
 impl VecSqliteMemoryStore {
@@ -117,6 +119,10 @@ impl VecSqliteMemoryStore {
 
     pub async fn from_env() -> Result<Self> {
         Self::new(VecSqliteStoreConfig::from_env()).await
+    }
+
+    pub fn set_event_tx(&mut self, tx: broadcast::Sender<crate::server::events::RealtimeEvent>) {
+        self.event_tx = Some(tx);
     }
 
     pub async fn new(config: VecSqliteStoreConfig) -> Result<Self> {
@@ -154,6 +160,7 @@ impl VecSqliteMemoryStore {
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             config,
+            event_tx: None,
         })
     }
 
@@ -1039,6 +1046,7 @@ impl VecSqliteMemoryStore {
     }
 
     fn append_timeline_event(
+        &self,
         conn: &Connection,
         workspace_id: &str,
         record: &MemoryRecord,
@@ -1167,6 +1175,31 @@ impl VecSqliteMemoryStore {
                     serde_json::json!({"chain": "timeline"}).to_string()
                 ],
             )?;
+        }
+
+        // Broadcast event
+        if let Some(tx) = &self.event_tx {
+            let project_id = record
+                .metadata
+                .get("namespace")
+                .and_then(|ns| ns.get("project"))
+                .and_then(|p| p.as_str())
+                .or_else(|| record.metadata.get("project").and_then(|p| p.as_str()))
+                .map(|s| s.to_string());
+
+            let _ = tx.send(crate::server::events::RealtimeEvent {
+                workspace_id: workspace_id.to_string(),
+                event_id: event.id,
+                agent_id: event.agent_id,
+                project_id,
+                event_type: event.operation,
+                timestamp: event.timestamp,
+                payload: serde_json::json!({
+                    "memory_id": record.id,
+                    "path": record.path,
+                    "revision": record.revision,
+                }),
+            });
         }
 
         Ok(())
@@ -1678,7 +1711,7 @@ impl MemoryStore for VecSqliteMemoryStore {
                 "INSERT INTO memory_chain (id, prev_hash, content_hash) VALUES (?, ?, ?)",
                 params![chain_id, prev_hash, content_hash],
             )?;
-            Self::append_timeline_event(&conn, &record.workspace_id, &record)?;
+            self.append_timeline_event(&conn, &record.workspace_id, &record)?;
         }
 
         // Store vector in sqlite-vec virtual table

@@ -1329,6 +1329,27 @@ impl WorkspaceRegistry {
             })
     }
 
+    pub fn default_context_sync(&self) -> Option<WorkspaceContext> {
+        let preferred_id =
+            std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+        let workspaces = self.workspaces.blocking_read();
+
+        if let Some(workspace) = workspaces.get(&preferred_id).cloned() {
+            return Some(WorkspaceContext {
+                workspace_id: preferred_id,
+                workspace,
+            });
+        }
+
+        workspaces
+            .iter()
+            .next()
+            .map(|(id, workspace)| WorkspaceContext {
+                workspace_id: id.clone(),
+                workspace: workspace.clone(),
+            })
+    }
+
     pub async fn default_from_env(runtime_config: RuntimeConfig) -> Result<Self> {
         let registry = Self::new();
         let config = WorkspaceConfig::from_env();
