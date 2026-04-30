@@ -116,6 +116,8 @@ docker compose up -d
 
 ## Architecture
 
+Xavier2 is moving towards a multi-crate workspace for better reusability and faster builds. See our [Workspace Evolution Strategy](docs/ARCHITECTURE/ARCHITECTURE.md#workspace-evolution).
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   Xavier2                            │
