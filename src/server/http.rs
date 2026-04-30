@@ -4,6 +4,7 @@ use axum::{extract::State, response::IntoResponse, Extension, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tracing::{error, info};
 
@@ -34,7 +35,7 @@ use crate::{
 /// (the HTTP server, background tasks, etc.) share this state.
 #[derive(Clone)]
 pub struct ShutdownState {
-    /// Signal received — server should stop accepting new connections.
+    /// Unix timestamp when shutdown was signalled, or 0 before shutdown.
     pub shutdown_signalled: Arc<AtomicU64>,
     /// Broadcast channel for notifying all subsystems.
     /// All components that hold a Sender can signal shutdown.
@@ -52,8 +53,12 @@ impl ShutdownState {
 
     /// Request graceful shutdown. Idempotent — multiple calls are fine.
     pub fn request_shutdown(&self, reason: &'static str) {
-        let prev = self.shutdown_signalled.fetch_add(1, Ordering::SeqCst);
-        if prev == 0 {
+        let now = current_unix_timestamp_secs();
+        if self
+            .shutdown_signalled
+            .compare_exchange(0, now, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
             info!("Shutdown requested: {}", reason);
             // Ignore send error — receivers may have already dropped.
             let _ = self.shutdown_tx.send(());
@@ -79,9 +84,16 @@ impl ShutdownState {
             0
         } else {
             // We store the timestamp in the atomic as seconds-since-epoch.
-            val
+            current_unix_timestamp_secs().saturating_sub(val)
         }
     }
+}
+
+fn current_unix_timestamp_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0)
 }
 
 impl Default for ShutdownState {
@@ -1142,5 +1154,31 @@ pub async fn memory_reflect(
                 "error": e.to_string(),
             }))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shutdown_state_records_timestamp_once() {
+        let state = ShutdownState::new();
+
+        assert!(!state.is_shutdown_requested());
+        assert!(state.seconds_since_shutdown() <= 1);
+
+        state.request_shutdown("first");
+        let first_timestamp = state.shutdown_signalled.load(Ordering::SeqCst);
+
+        assert!(state.is_shutdown_requested());
+        assert!(first_timestamp > 1_000_000_000);
+        assert!(state.seconds_since_shutdown() <= 1);
+
+        state.request_shutdown("second");
+        assert_eq!(
+            state.shutdown_signalled.load(Ordering::SeqCst),
+            first_timestamp
+        );
     }
 }
