@@ -1,0 +1,19 @@
+fn extract_normalized_dia_id_from_path(path: &str) -> Option<String> {
+    LOCOMO_PATH_DIA_ID_RE
+        .captures(path)
+        .and_then(|captures| format_normalized_dia_id(&captures, 2, 3))
+}
+
+fn format_normalized_dia_id(
+    captures: &regex::Captures,
+    prefix_group: usize,
+    number_group: usize,
+) -> Option<String> {
+    let prefix = captures
+        .get(prefix_group)
+        .map(|value| value.as_str().to_ascii_uppercase())?;
+    let number = captures
+        .get(number_group)
+        .and_then(|value| value.as_str().parse::<u32>().ok())?;
+    Some(format!("{prefix}:{number}"))
+}

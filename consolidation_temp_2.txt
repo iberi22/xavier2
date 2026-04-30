@@ -1,0 +1,99 @@
+pub fn extract_answer(content: &str, category: &str) -> Option<String> {
+    let text = content.trim();
+    if text.is_empty() {
+        return None;
+    }
+
+    match category {
+        "2" => {
+            static DATE_RE: LazyLock<Regex> = LazyLock::new(|| {
+                Regex::new(r"(?i)\b(?:\d{1,2}\s+[A-Za-z]+\s+\d{4}|[A-Za-z]+\s+\d{1,2},\s+\d{4}|(19|20)\d{2})\b").unwrap()
+            });
+            DATE_RE.find(text).map(|m| m.as_str().trim().to_string())
+        }
+        "3" => {
+            let sentence = text
+                .split(['.', '!', '?'])
+                .map(str::trim)
+                .find(|sentence| {
+                    let lowered = sentence.to_lowercase();
+                    [
+                        "think",
+                        "believe",
+                        "feel",
+                        "guess",
+                        "suppose",
+                        "probably",
+                        "definitely",
+                        "maybe",
+                        "opinion",
+                        "view",
+                        "perspective",
+                        "seems",
+                        "appears",
+                        "likely",
+                        "certainly",
+                        "perhaps",
+                        "wonder",
+                    ]
+                    .iter()
+                    .any(|keyword| lowered.contains(keyword))
+                })
+                .or_else(|| {
+                    text.split(['.', '!', '?'])
+                        .map(str::trim)
+                        .find(|s| !s.is_empty())
+                })?;
+            Some(sentence.to_string())
+        }
+        "4" => {
+            let sentence = text
+                .split(['.', '!', '?'])
+                .map(str::trim)
+                .find(|sentence| {
+                    let lowered = sentence.to_lowercase();
+                    [
+                        "decided",
+                        "planning",
+                        "planned",
+                        "will",
+                        "going to",
+                        "intend",
+                        "promised",
+                        "try",
+                        "started",
+                        "beginning",
+                        "began",
+                        "going to start",
+                        "want to",
+                        "hoping to",
+                        "aiming to",
+                    ]
+                    .iter()
+                    .any(|keyword| lowered.contains(keyword))
+                })
+                .or_else(|| {
+                    text.split(['.', '!', '?'])
+                        .map(str::trim)
+                        .find(|s| !s.is_empty())
+                })?;
+            Some(sentence.to_string())
+        }
+        _ => text
+            .split(['.', '!', '?'])
+            .map(str::trim)
+            .find(|sentence| !sentence.is_empty())
+            .map(|sentence| sentence.to_string()),
+    }
+}
+
+/// Speaker-aware text preprocessing for conversation data (LoCoMo benchmark).
+///
+/// Detects speaker patterns like "Caroline:", "[Caroline]", "Speaker: Caroline",
+/// "Person: ..." and prepends a structured speakers summary to help the embedding
+/// model better capture who-said-what, improving retrieval for Q&A over conversations.
+///
+/// ENHANCED: Now includes:
+/// - Speaker turn-taking structure (who speaks when)
+/// - Quoted speech preservation (semantic quotes are often key answers)
+/// - Sequential context (previous speaker matters for multi-turn convos)

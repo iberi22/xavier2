@@ -1,0 +1,36 @@
+fn _deduplicate_by_content_hash(results: Vec<MemoryDocument>) -> Vec<MemoryDocument> {
+    use std::collections::HashMap;
+
+    // Group by content hash, tracking (document, latest_updated_at, original_index)
+    let mut hash_groups: HashMap<String, (MemoryDocument, Option<String>, usize)> = HashMap::new();
+    for (idx, doc) in results.into_iter().enumerate() {
+        let content_hash = _compute_content_hash(&doc.content);
+        let updated_at = doc
+            .metadata
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .or_else(|| {
+                doc.metadata
+                    .get("created_at")
+                    .and_then(|v| v.as_str())
+            })
+            .map(str::to_string);
+
+        hash_groups
+            .entry(content_hash)
+            .and_modify(|(existing_doc, existing_updated, existing_idx)| {
+                // Keep the one with more recent updated_at, or keep existing if tie
+                let is_newer = match (updated_at.as_ref(), existing_updated.as_ref()) {
+                    (Some(new), Some(old)) => new > old,
+                    (Some(_), None) => true, // new has timestamp, existing doesn't
+                    (None, Some(_)) => false, // existing has timestamp, new doesn't
+                    (None, None) => idx < *existing_idx, // tie-break by original order
+                };
+                if is_newer {
+                    *existing_doc = doc.clone();
+                    *existing_updated = updated_at.clone();
+                    *existing_idx = idx;
+                }
+            })
+            .or_insert((doc, updated_at.clone(), idx));
+    }

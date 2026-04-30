@@ -1,0 +1,7 @@
+static DIA_ID_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^([a-z]+\d+):0*([0-9]+)$").unwrap());
+static LOCOMO_PATH_DIA_ID_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)(/)([a-z]+\d+):0*([0-9]+)([#/]|$)").unwrap());
+
+/// CRITICAL FIX: Embedding cache with TTL to avoid re-embedding identical content
+/// Previously, every document was re-embedded on each access (~118ms per document)
