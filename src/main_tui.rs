@@ -37,7 +37,7 @@ impl Xavier2Client {
     pub fn new() -> Self {
         let base_url =
             std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8003".to_string());
-        let token = std::env::var("XAVIER2_TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+        let token = std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
         Self {
             client: Client::new(),
             base_url,

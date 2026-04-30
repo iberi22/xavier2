@@ -166,7 +166,7 @@ impl WorkspaceConfig {
         Self {
             id: std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID")
                 .unwrap_or_else(|_| "default".to_string()),
-            token: std::env::var("XAVIER2_TOKEN").unwrap_or_else(|_| "dev-token".to_string()),
+            token: std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set"),
             plan,
             memory_backend: std::env::var("XAVIER2_MEMORY_BACKEND")
                 .map(|value| MemoryBackend::from_env(&value))

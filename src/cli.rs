@@ -1707,7 +1707,7 @@ async fn session_load(ctx: &str) -> Result<String> {
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
     let limit = limit.max(1).min(100);
-    let token = std::env::var("XAVIER2_TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let token = std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/search", port);
 

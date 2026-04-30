@@ -220,6 +220,28 @@ impl PromptInjectionDetector {
             }
         }
 
+        // Check for zero-width character bypass attempts
+        let zw_chars = [
+            '\u{200b}', // zero-width space
+            '\u{200c}', // zero-width non-joiner
+            '\u{200d}', // zero-width joiner
+            '\u{2060}', // word joiner
+            '\u{feff}', // BOM
+            '\u{180e}', // Mongolian vowel separator
+        ];
+        for ch in zw_chars {
+            if input.contains(ch) {
+                highest_confidence = highest_confidence.max(0.6);
+                if detected_attack == AttackType::None {
+                    detected_attack = AttackType::IndirectPromptInjection;
+                    detection_message = format!(
+                        "Detected zero-width character bypass: U+{:04X}",
+                        ch as u32
+                    );
+                }
+            }
+        }
+
         // Apply threshold for detection
         let is_injection = highest_confidence >= 0.5;
 
@@ -285,6 +307,19 @@ impl PromptInjectionDetector {
             (r"(?i)jailbreak", "[FILTERED]"),
             (r"(\{\{.*\}\})", "[TEMPLATE_FILTERED]"),
             (r"(\{\%.*\%\})", "[TEMPLATE_FILTERED]"),
+            // Zero-width characters
+            (r"[\u200b]", ""),
+            (r"[\u200c]", ""),
+            (r"[\u200d]", ""),
+            (r"[\u2060]", ""),
+            (r"[\ufeff]", ""),
+            // Template injection variants
+            (r"(\$\{.*?\})", "[TEMPLATE_FILTERED]"),
+            // HTML script tag
+            (r"(?i)<script", "[HTML_FILTERED]"),
+            // Event handler injection
+            (r"(?i)onerror\s*=", "[EVENT_FILTERED]"),
+            (r"(?i)onload\s*=", "[EVENT_FILTERED]"),
         ];
 
         for (pattern, replacement) in dangerous_patterns {

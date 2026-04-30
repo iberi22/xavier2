@@ -219,14 +219,14 @@ mod event_mapper_tests {
 }
 
 #[cfg(test)]
-mod auto_verifier_tests {
+const TEST_AUTH_TOKEN: &str = "test-only-token-do-not-use-in-production";
     use super::*;
 
     #[tokio::test]
     async fn test_auto_verifier_save_retrieve_cycle() {
         let client = Client::new();
         let xavier2_url = "http://localhost:8006";
-        let auth_token = "dev-token";
+        let auth_token = TEST_AUTH_TOKEN;
         let path = format!("test/verification/{}", ulid::Ulid::new());
         let test_content = format!(
             "Verification test content {}",

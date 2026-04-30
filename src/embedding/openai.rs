@@ -1,15 +1,26 @@
+use std::fmt;
+use std::time::Duration;
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 use crate::embedding::{Embedder, EmbeddingError};
 
-#[derive(Debug)]
 pub struct OpenAIEmbedder {
     client: Client,
     api_key: String,
     model: String,
     endpoint: String,
+}
+
+impl fmt::Debug for OpenAIEmbedder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenAIEmbedder")
+            .field("api_key", &"<redacted>")
+            .field("model", &self.model)
+            .field("endpoint", &self.endpoint)
+            .finish()
+    }
 }
 
 impl OpenAIEmbedder {
