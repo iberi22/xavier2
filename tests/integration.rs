@@ -22,6 +22,8 @@ mod memory_test;
 mod scheduler_test;
 #[path = "integration/security_test.rs"]
 mod security_test;
+#[path = "integration/security_hardening_test.rs"]
+mod security_hardening_test;
 #[path = "integration/server_test.rs"]
 mod server_test;
 #[path = "integration/tasks_test.rs"]
