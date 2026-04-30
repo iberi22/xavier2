@@ -20,7 +20,7 @@ impl Default for PlankaConfig {
         Self {
             base_url: std::env::var("PLANKA_URL")
                 .unwrap_or_else(|_| "http://192.168.1.8:3000".to_string()),
-            email: std::env::var("PLANKA_EMAIL").unwrap_or_else(|_| "admin@swal.ai".to_string()),
+            email: std::env::var("PLANKA_EMAIL").unwrap_or_else(|_| "https://github.com/iberi22".to_string()),
             password: std::env::var("PLANKA_PASSWORD")
                 .unwrap_or_else(|_| "swaladmin2026".to_string()),
         }
