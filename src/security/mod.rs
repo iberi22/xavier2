@@ -4,6 +4,7 @@
 //! incluyendo detección de prompt injection, sanitización de inputs y filtrado de outputs.
 
 pub mod anticipator;
+pub mod auth;
 pub mod detections;
 pub mod layers;
 pub mod prompt_guard;
