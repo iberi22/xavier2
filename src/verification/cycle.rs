@@ -333,16 +333,21 @@ impl VerificationCycle {
 impl VerificationCycle {
     /// Create from XAVIER2_URL and XAVIER2_TOKEN env vars
     pub fn from_env() -> Result<Self, String> {
-        let url = std::env::var("XAVIER2_URL")
+        let url_str = std::env::var("XAVIER2_URL")
             .or_else(|_| std::env::var("XAVIER2_API_URL"))
             .map_err(|_| "XAVIER2_URL not set")?;
+
+        // Validate internal URL to prevent SSRF
+        let validated_url = crate::security::url_validator::validate_internal_url(&url_str)
+            .map_err(|e| format!("XAVIER2_URL validation failed: {}", e))?;
+
         let token = std::env::var("XAVIER2_TOKEN")
             .or_else(|_| std::env::var("XAVIER2_AUTH_TOKEN"))
             .map_err(|_| "XAVIER2_TOKEN not set")?;
 
         Ok(Self::new(
             Client::new(),
-            url.trim_end_matches('/'),
+            validated_url.as_str().trim_end_matches('/'),
             token,
         ))
     }
