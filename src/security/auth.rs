@@ -1,9 +1,6 @@
 //! Authentication Module for Xavier2
 //! JWT-based authentication and RBAC
 
-use anyhow::Result;
-use std::fmt;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
@@ -59,7 +56,7 @@ impl Default for UserRole {
 }
 
 /// User representation
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct User {
     pub id: String,
     pub email: String,

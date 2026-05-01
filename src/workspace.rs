@@ -11,7 +11,7 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs,
-    sync::{Mutex, RwLock},
+    sync::{broadcast, Mutex, RwLock},
 };
 
 use crate::{
@@ -713,6 +713,16 @@ impl WorkspaceState {
 
     pub async fn durable_store_health(&self) -> Result<String> {
         self.store.health().await
+    }
+
+    /// Safely extract event_tx from the underlying store if it's a VecSqliteMemoryStore
+    pub fn event_tx_channel(&self) -> Option<&broadcast::Sender<crate::server::events::RealtimeEvent>> {
+        // Use Any trait for safe downcasting
+        let store = match self.store.as_ref().as_any().downcast_ref::<VecSqliteMemoryStore>() {
+            Some(s) => s,
+            None => return None,
+        };
+        store.event_tx_ref()
     }
 
     pub async fn record_request(&self, event: UsageEvent) -> Result<()> {

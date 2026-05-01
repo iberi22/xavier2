@@ -133,13 +133,7 @@ pub async fn ws_events_handler(
     let rx = state
         .workspace_registry
         .default_context_sync()
-        .and_then(|ctx| {
-            ctx.workspace
-                .durable_store()
-                .downcast_ref::<VecSqliteMemoryStore>()
-        })
-        .and_then(|s| s.event_tx.as_ref())
-        .map(|tx: &broadcast::Sender<crate::server::events::RealtimeEvent>| tx.subscribe());
+        .and_then(|ctx| ctx.workspace.event_tx_channel().map(|tx| tx.subscribe()));
 
     ws.on_upgrade(move |socket| handle_ws_socket(socket, rx))
 }
@@ -163,7 +157,7 @@ async fn handle_ws_socket(
                                     if let Some(id) = event_type { subscriptions.event_types.insert(id); }
 
                                     let _ = socket.send(Message::Text(
-                                        serde_json::to_string(&WsEvent::SubscriptionConfirmed).unwrap_or_default()
+                                        serde_json::to_string(&WsEvent::SubscriptionConfirmed).unwrap_or_default().into()
                                     )).await;
                                 }
                                 WsMessage::Unsubscribe { agent_id, project_id, event_type } => {
@@ -172,7 +166,7 @@ async fn handle_ws_socket(
                                     if let Some(id) = event_type { subscriptions.event_types.remove(&id); }
 
                                     let _ = socket.send(Message::Text(
-                                        serde_json::to_string(&WsEvent::SubscriptionConfirmed).unwrap_or_default()
+                                        serde_json::to_string(&WsEvent::SubscriptionConfirmed).unwrap_or_default().into()
                                     )).await;
                                 }
                             }
@@ -192,7 +186,7 @@ async fn handle_ws_socket(
                 if let Some(event) = event_res {
                     if subscriptions.matches(&event) {
                         let _ = socket.send(Message::Text(
-                            serde_json::to_string(&WsEvent::Event(event)).unwrap_or_default()
+                            serde_json::to_string(&WsEvent::Event(event)).unwrap_or_default().into()
                         )).await;
                     }
                 }

@@ -4,6 +4,7 @@
 //! for semantic similarity matching on memory embeddings.
 
 use std::{
+    any::Any,
     collections::{HashMap, HashSet},
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -123,6 +124,11 @@ impl VecSqliteMemoryStore {
 
     pub fn set_event_tx(&mut self, tx: broadcast::Sender<crate::server::events::RealtimeEvent>) {
         self.event_tx = Some(tx);
+    }
+
+    /// Get a reference to the event broadcast sender if available
+    pub fn event_tx_ref(&self) -> Option<&broadcast::Sender<crate::server::events::RealtimeEvent>> {
+        self.event_tx.as_ref()
     }
 
     pub async fn new(config: VecSqliteStoreConfig) -> Result<Self> {
@@ -1640,6 +1646,10 @@ impl VecSqliteMemoryStore {
 impl MemoryStore for VecSqliteMemoryStore {
     fn backend(&self) -> MemoryBackend {
         MemoryBackend::Vec
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
     async fn health(&self) -> Result<String> {

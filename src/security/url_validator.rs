@@ -34,9 +34,14 @@ pub fn validate_internal_url(url_str: &str) -> Result<Url, String> {
         if ip.is_loopback() {
             // Allow loopback for local development if not explicitly forbidden
             // but we might want to toggle this via env.
-        } else if ip.is_link_local() {
-            return Err("Link-local addresses are forbidden".to_string());
-        } else if ip.is_multicast() {
+        } else if let IpAddr::V4(v4) = ip {
+            // Check for link-local (169.254.x.x)
+            if v4.is_link_local() {
+                return Err("Link-local addresses are forbidden".to_string());
+            }
+        }
+        // Also check if it's a multicast address
+        if ip.is_multicast() {
             return Err("Multicast addresses are forbidden".to_string());
         }
     }

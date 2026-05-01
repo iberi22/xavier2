@@ -1,4 +1,9 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    any::Any as StdAny,
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -287,6 +292,7 @@ impl SurrealStoreConfig {
 #[async_trait]
 pub trait MemoryStore: Send + Sync {
     fn backend(&self) -> MemoryBackend;
+    fn as_any(&self) -> &dyn StdAny;
     async fn health(&self) -> Result<String>;
     async fn put(&self, record: MemoryRecord) -> Result<()>;
     async fn get(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>>;
@@ -392,6 +398,10 @@ impl FileMemoryStore {
 impl MemoryStore for FileMemoryStore {
     fn backend(&self) -> MemoryBackend {
         MemoryBackend::File
+    }
+
+    fn as_any(&self) -> &dyn StdAny {
+        self
     }
 
     async fn health(&self) -> Result<String> {
@@ -618,6 +628,10 @@ impl InMemoryMemoryStore {
 impl MemoryStore for InMemoryMemoryStore {
     fn backend(&self) -> MemoryBackend {
         MemoryBackend::Memory
+    }
+
+    fn as_any(&self) -> &dyn StdAny {
+        self
     }
 
     async fn health(&self) -> Result<String> {
@@ -945,6 +959,10 @@ impl SurrealMemoryStore {
 impl MemoryStore for SurrealMemoryStore {
     fn backend(&self) -> MemoryBackend {
         MemoryBackend::Surreal
+    }
+
+    fn as_any(&self) -> &dyn StdAny {
+        self
     }
 
     async fn health(&self) -> Result<String> {

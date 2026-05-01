@@ -3,7 +3,7 @@
 //! Provides a persistent, ACID-compliant storage layer using SQLite.
 //! Used as a fallback when SurrealDB is unavailable.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{any::Any, path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -175,6 +175,10 @@ impl SqliteMemoryStore {
 impl MemoryStore for SqliteMemoryStore {
     fn backend(&self) -> MemoryBackend {
         MemoryBackend::Sqlite
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
     async fn health(&self) -> Result<String> {
