@@ -191,3 +191,15 @@ Security is applied at:
 - [Security](./SECURITY.md) - Detailed security documentation
 - [Benchmark Comparison](../BENCHMARK_COMPARISON.md) - Performance vs competitors
 - [ROADMAP](../ROADMAP.md) - Development roadmap
+
+## Workspace Evolution
+
+As of v0.4.1, Xavier2 operates as a single-member Cargo workspace (with `code-graph` as an external member). To improve reusability, build times, and allow for granular publishing of components, a transition to a multi-crate workspace is planned for v0.5.0+.
+
+### Proposed Crate Extraction:
+1. **`xavier2-common`**: Core utilities, crypto, and shared types.
+2. **`xavier2-security`**: The `SecurityService` and prompt injection detection layers.
+3. **`xavier2-memory-core`**: The `QmdMemory` domain and storage adapters.
+4. **`xavier2-a2a`**: Agent-to-Agent protocol and registry logic.
+
+The main `xavier2` crate will evolve into a thin wrapper providing the CLI and HTTP server, orchestrating these specialized components.
