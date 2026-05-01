@@ -1075,8 +1075,6 @@ async fn session_event_handler(
 
 use axum::extract::Query;
 
-use serde::Deserialize;
-
 #[derive(Debug, Deserialize)]
 pub struct TimelineQuery {
     pub since: String,
