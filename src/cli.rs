@@ -198,6 +198,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/memory/query", post(memory_query_handler))
         .route("/session/compact", post(session_compact_handler))
         .route("/xavier2/events/session", post(session_event_handler))
+        .route("/timeline/events", get(timeline_events_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
         // Agent registration endpoints
         .route("/xavier2/agents/register", post(agent_register_handler))
@@ -1062,6 +1063,40 @@ async fn session_event_handler(
             axum::Json(serde_json::json!({
                 "status": "error",
                 "error": e.to_string(),
+            }))
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Timeline Events Handler
+// Returns auditable timeline events for Gestalt integration
+// ─────────────────────────────────────────────────────────────────────────────
+
+use axum::extract::Query;
+
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+pub struct TimelineQuery {
+    pub since: String,
+}
+
+async fn timeline_events_handler(
+    State(state): State<CliState>,
+    Query(query): Query<TimelineQuery>,
+) -> impl axum::response::IntoResponse {
+    match state.store.list_timeline_events(&state.workspace_id, &query.since).await {
+        Ok(events) => axum::Json(serde_json::json!({
+            "status": "ok",
+            "events": events,
+            "count": events.len(),
+        })),
+        Err(e) => {
+            tracing::warn!(%e, "timeline_events query failed");
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "message": e.to_string(),
             }))
         }
     }

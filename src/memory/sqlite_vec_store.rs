@@ -2157,6 +2157,44 @@ impl MemoryStore for VecSqliteMemoryStore {
         )?;
         Ok(())
     }
+
+    async fn list_timeline_events(
+        &self,
+        workspace_id: &str,
+        since: &str,
+    ) -> Result<Vec<crate::server::events::RealtimeEvent>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, workspace_id, agent_id, timestamp, operation, prev_hash, curr_hash, payload \
+             FROM timeline_events \
+             WHERE workspace_id = ? AND timestamp > ? \
+             ORDER BY timestamp ASC",
+        )?;
+
+        let mut rows = stmt.query(params![workspace_id, since])?;
+        let mut events = Vec::new();
+        while let Some(row) = rows.next()? {
+            let id: String = row.get(0)?;
+            let workspace_id: String = row.get(1)?;
+            let agent_id: String = row.get(2)?;
+            let timestamp: String = row.get(3)?;
+            let operation: String = row.get(4)?;
+            let payload_str: String = row.get(7)?;
+            let payload: serde_json::Value =
+                serde_json::from_str(&payload_str).unwrap_or(serde_json::Value::Object(Default::default()));
+
+            events.push(crate::server::events::RealtimeEvent {
+                workspace_id,
+                event_id: id,
+                agent_id,
+                project_id: None,
+                event_type: operation,
+                timestamp,
+                payload,
+            });
+        }
+        Ok(events)
+    }
 }
 
 // Re-export filter_records from surreal_store for use in hybrid search

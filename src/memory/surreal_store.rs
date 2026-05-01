@@ -346,6 +346,18 @@ pub trait MemoryStore: Send + Sync {
     ) -> Result<Option<Checkpoint>>;
     async fn list_checkpoints(&self, workspace_id: &str, task_id: &str) -> Result<Vec<Checkpoint>>;
     async fn delete_checkpoint(&self, workspace_id: &str, task_id: &str, name: &str) -> Result<()>;
+    /// List timeline events for a workspace since the given ISO 8601 timestamp.
+    async fn list_timeline_events(
+        &self,
+        workspace_id: &str,
+        since: &str,
+    ) -> Result<Vec<crate::server::events::RealtimeEvent>> {
+        let _ = (workspace_id, since);
+        anyhow::bail!(
+            "timeline events are not supported by the {} backend",
+            self.backend().as_str()
+        )
+    }
 }
 
 #[derive(Clone)]
