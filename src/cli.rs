@@ -1023,7 +1023,7 @@ async fn session_event_handler(
         entry.role,
         entry.content
     );
-    let metadata = serde_json::json!({
+    let _metadata = serde_json::json!({
         "session_id": event.session_id,
         "role": entry.role,
         "event_type": entry.event_type,
@@ -1171,7 +1171,7 @@ async fn session_compact_handler(
     }
 
     let compact_path = format!("context/{}/compact", session_id);
-    let metadata = serde_json::json!({
+    let _metadata = serde_json::json!({
         "session_id": session_id,
         "original_entries": total_docs,
         "kept_entries": compact_docs.len(),
@@ -1679,7 +1679,7 @@ async fn session_load(ctx: &str) -> Result<String> {
     }
 
     let body: serde_json::Value = response.json().await?;
-    let results = body
+    let _results = body
         .get("results")
         .and_then(|r| r.as_array())
         .map(|a| a.len())
