@@ -210,14 +210,11 @@ async fn start_http_server(port: u16) -> Result<()> {
             "/xavier2/agents/{id}/push",
             post(agent_push_context_handler),
         )
-        .route(
-            "/xavier2/agents/{id}/unregister",
+        .route("/xavier2/agents/{id}/unregister",
             delete(agent_unregister_handler),
         )
-        .route("/xavier2/events/stream", get(ws_events_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
-        .route("/xavier2/verify/save", post(verify_save_handler))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
