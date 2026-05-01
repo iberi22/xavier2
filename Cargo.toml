@@ -55,7 +55,7 @@ ulid = "1.1"
 uuid = { version = "1.8", features = ["v4"] }
 
 # HTTP Server
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
 
 # Logging
@@ -123,11 +123,13 @@ hmac = "0.12"
 http-body-util = "0.1"
 
 [dev-dependencies]
-proptest = "1.6.0"
-tempfile = "3.10"
+proptest = "1.11.0"
+tempfile = "3.27.0"
 criterion = "0.5"
-axum = "0.8"
+axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
+tokio-tungstenite = "0.26"
+futures-util = "0.3"
 
 [[bin]]
 name = "xavier2"
