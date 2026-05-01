@@ -134,35 +134,50 @@ impl SecurityManager {
             .unwrap_or_else(|_| "default-secret-change-in-production".to_string());
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| anyhow!("hmac error: {}", e))?;
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let token_id = ulid::Ulid::new().to_string();
+
         mac.update(user_id.as_bytes());
-        mac.update(
-            &std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-                .to_le_bytes(),
-        );
-        let token = ulid::Ulid::new();
-        mac.update(token.to_string().as_bytes());
-        let signature = hex::encode(mac.finalize().into_bytes());
-        Ok(format!("xavier2.hmac.v1:{}.{}", token, signature))
+        mac.update(&timestamp.to_le_bytes());
+        mac.update(token_id.as_bytes());
+
+        let signature = hex_encode(&mac.finalize().into_bytes());
+        Ok(format!(
+            "xavier2.hmac.v1:{}:{}:{}:{}",
+            user_id, timestamp, token_id, signature
+        ))
     }
 
     pub fn validate_token(&self, token: &str) -> Result<()> {
         let parts: Vec<&str> = token.split(':').collect();
-        if parts.len() != 3 || parts[0] != "xavier2.hmac.v1" {
+        if parts.len() != 5 || parts[0] != "xavier2.hmac.v1" {
             return Err(anyhow!("invalid token format"));
         }
-        let signature = parts[2];
-        let mut mac = Hmac::<Sha256>::new_from_slice(
-            std::env::var("XAVIER2_TOKEN_SECRET")
-                .unwrap_or_else(|_| "default-secret-change-in-production".to_string())
-                .as_bytes(),
-        )
-        .map_err(|e| anyhow!("hmac error: {}", e))?;
-        mac.update(parts[1].as_bytes());
+
+        let user_id = parts[1];
+        let timestamp_str = parts[2];
+        let token_id = parts[3];
+        let signature = parts[4];
+
+        let timestamp: u64 = timestamp_str
+            .parse()
+            .map_err(|_| anyhow!("invalid timestamp in token"))?;
+
+        let secret = std::env::var("XAVIER2_TOKEN_SECRET")
+            .unwrap_or_else(|_| "default-secret-change-in-production".to_string());
+        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+            .map_err(|e| anyhow!("hmac error: {}", e))?;
+
+        mac.update(user_id.as_bytes());
+        mac.update(&timestamp.to_le_bytes());
+        mac.update(token_id.as_bytes());
+
         let expected =
-            hex::decode(signature).map_err(|e| anyhow!("invalid signature hex: {}", e))?;
+            hex_decode(signature).map_err(|e| anyhow!("invalid signature hex: {}", e))?;
         mac.verify_slice(&expected)
             .map_err(|e| anyhow!("invalid signature: {}", e))?;
         Ok(())
