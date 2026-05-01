@@ -27,7 +27,13 @@ impl SessionEvent {
     pub fn content_preview(&self) -> String {
         self.content
             .as_ref()
-            .map(|c| if c.len() > 200 { format!("{}...", &c[..200]) } else { c.clone() })
+            .map(|c| {
+                if c.len() > 200 {
+                    format!("{}...", &c[..200])
+                } else {
+                    c.clone()
+                }
+            })
             .unwrap_or_default()
     }
 }

@@ -3,7 +3,7 @@
 //! This implements `SecurityScanPort` by wrapping the concrete `security::SecurityService`.
 //! Handlers should use this through the port trait, not call `security::SecurityService` directly.
 
-use crate::domain::security::{ScanResult, Threat, ThreatCategory, ThreatLevel, Severity};
+use crate::domain::security::{ScanResult, Severity, Threat, ThreatCategory, ThreatLevel};
 use crate::ports::inbound::SecurityScanPort;
 use crate::security;
 use async_trait::async_trait;
@@ -29,11 +29,7 @@ impl SecurityService {
 impl SecurityScanPort for SecurityService {
     /// Scans the given target for security threats.
     /// Delegates to `security::SecurityService::process_input()`.
-    async fn scan(
-        &self,
-        target: &str,
-        _level: Option<ThreatLevel>,
-    ) -> anyhow::Result<ScanResult> {
+    async fn scan(&self, target: &str, _level: Option<ThreatLevel>) -> anyhow::Result<ScanResult> {
         let start = Instant::now();
 
         // The underlying service is sync; run it on the blocking thread pool.
@@ -118,9 +114,7 @@ fn detection_to_threats(detection: &security::ProcessResult, _target: &str) -> V
 
     let description = format!(
         "{} (confidence: {:.2}). Message: {}",
-        name,
-        detection.detection.confidence,
-        detection.detection.message
+        name, detection.detection.confidence, detection.detection.message
     );
 
     vec![Threat {
@@ -131,13 +125,11 @@ fn detection_to_threats(detection: &security::ProcessResult, _target: &str) -> V
         severity,
         description,
         affected_component: "xavier2".to_string(),
-        remediation: Some(
-            if detection.sanitized_input.is_some() {
-                "Input was sanitized. Review sanitized version before processing.".to_string()
-            } else {
-                "Consider enabling auto-sanitization for this input type.".to_string()
-            }
-        ),
+        remediation: Some(if detection.sanitized_input.is_some() {
+            "Input was sanitized. Review sanitized version before processing.".to_string()
+        } else {
+            "Consider enabling auto-sanitization for this input type.".to_string()
+        }),
         discovered_at: Utc::now(),
     }]
 }

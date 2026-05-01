@@ -17,7 +17,6 @@ use tracing::info;
 use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
-use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
@@ -30,6 +29,7 @@ use xavier2::memory::surreal_store::MemoryStore;
 use xavier2::ports::inbound::{MemoryQueryPort, TimeMetricsPort};
 use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
+use xavier2::server::http::ws_events_handler;
 use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
@@ -211,7 +211,8 @@ async fn start_http_server(port: u16) -> Result<()> {
             "/xavier2/agents/{id}/push",
             post(agent_push_context_handler),
         )
-        .route("/xavier2/agents/{id}/unregister",
+        .route(
+            "/xavier2/agents/{id}/unregister",
             delete(agent_unregister_handler),
         )
         .route("/xavier2/sync/check", post(sync_check_handler))
@@ -369,25 +370,25 @@ async fn search_handler(
     };
 
     {
-            // Deduplicate results by content hash, keeping most recent by updated_at
-            // NOTE: deduplicate_by_content_hash was removed - results passed through
-            let search_results: Vec<serde_json::Value> = results
-                .into_iter()
-                .map(|document| {
-                    serde_json::json!({
-                        "id": document.id,
-                        "content": document.content,
-                        "embedding": document.embedding,
-                    })
+        // Deduplicate results by content hash, keeping most recent by updated_at
+        // NOTE: deduplicate_by_content_hash was removed - results passed through
+        let search_results: Vec<serde_json::Value> = results
+            .into_iter()
+            .map(|document| {
+                serde_json::json!({
+                    "id": document.id,
+                    "content": document.content,
+                    "embedding": document.embedding,
                 })
-                .collect();
+            })
+            .collect();
 
-            axum::Json(serde_json::json!({
-                "results": search_results,
-                "query": payload.query,
-                "count": search_results.len(),
-                "workspace_id": state.workspace_id,
-            }))
+        axum::Json(serde_json::json!({
+            "results": search_results,
+            "query": payload.query,
+            "count": search_results.len(),
+            "workspace_id": state.workspace_id,
+        }))
     }
 }
 
@@ -1084,7 +1085,11 @@ async fn timeline_events_handler(
     State(state): State<CliState>,
     Query(query): Query<TimelineQuery>,
 ) -> impl axum::response::IntoResponse {
-    match state.store.list_timeline_events(&state.workspace_id, &query.since).await {
+    match state
+        .store
+        .list_timeline_events(&state.workspace_id, &query.since)
+        .await
+    {
         Ok(events) => axum::Json(serde_json::json!({
             "status": "ok",
             "events": events,
@@ -1629,14 +1634,12 @@ async fn start_mcp_stdio() -> Result<()> {
                             Err(e) => format!("{{\"error\": \"{}\"}}", e),
                         }
                     }
-                    "stats" => {
-                        serde_json::json!({
-                            "status": "ok",
-                            "workspace_id": workspace_id,
-                            "version": "0.4.1",
-                        })
-                        .to_string()
-                    }
+                    "stats" => serde_json::json!({
+                        "status": "ok",
+                        "workspace_id": workspace_id,
+                        "version": "0.4.1",
+                    })
+                    .to_string(),
                     _ => format!(
                         "Unknown tool: {}. Available tools: search, add, stats",
                         tool_name
@@ -1742,7 +1745,8 @@ async fn session_load(ctx: &str) -> Result<String> {
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
     let limit = limit.max(1).min(100);
-    let token = std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
+    let token =
+        std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/search", port);
 

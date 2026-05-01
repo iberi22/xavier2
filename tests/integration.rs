@@ -20,16 +20,16 @@ mod internal_benchmark_test;
 mod memory_test;
 #[path = "integration/scheduler_test.rs"]
 mod scheduler_test;
-#[path = "integration/security_test.rs"]
-mod security_test;
 #[path = "integration/security_hardening_test.rs"]
 mod security_hardening_test;
+#[path = "integration/security_test.rs"]
+mod security_test;
 #[path = "integration/server_test.rs"]
 mod server_test;
-#[path = "integration/tasks_test.rs"]
-mod tasks_test;
 #[path = "sevier2_stress_test.rs"]
 mod sevier2_stress_test;
+#[path = "integration/tasks_test.rs"]
+mod tasks_test;
 
 mod integration {
     use reqwest::Client;
@@ -64,10 +64,19 @@ mod integration {
 
         match response {
             Ok(resp) => {
-                assert!(resp.status().is_success() || resp.status().as_u16() == 200 || resp.status().as_u16() == 201,
-                    "Expected success status, got: {}", resp.status());
+                assert!(
+                    resp.status().is_success()
+                        || resp.status().as_u16() == 200
+                        || resp.status().as_u16() == 201,
+                    "Expected success status, got: {}",
+                    resp.status()
+                );
                 let body: serde_json::Value = resp.json().await.unwrap();
-                assert_eq!(body["status"], "ok", "Expected status 'ok', got: {:?}", body);
+                assert_eq!(
+                    body["status"], "ok",
+                    "Expected status 'ok', got: {:?}",
+                    body
+                );
                 assert_eq!(body["metric_type"], "agent_execution");
                 assert_eq!(body["agent_id"], "test-agent-001");
             }
@@ -98,13 +107,21 @@ mod integration {
         match response {
             Ok(resp) => {
                 let body: serde_json::Value = resp.json().await.unwrap();
-                assert!(body["save_ok"].as_bool().unwrap_or(false),
-                    "Expected save_ok=true, got: {:?}", body);
-                assert!(body["latency_ms"].as_u64().unwrap_or(0) > 0,
-                    "Expected latency_ms > 0, got: {:?}", body);
-                println!("✓ verify_save returned save_ok=true, latency={}ms, match={}",
+                assert!(
+                    body["save_ok"].as_bool().unwrap_or(false),
+                    "Expected save_ok=true, got: {:?}",
+                    body
+                );
+                assert!(
+                    body["latency_ms"].as_u64().unwrap_or(0) > 0,
+                    "Expected latency_ms > 0, got: {:?}",
+                    body
+                );
+                println!(
+                    "✓ verify_save returned save_ok=true, latency={}ms, match={}",
                     body["latency_ms"].as_u64().unwrap_or(0),
-                    body["match_score"].as_f64().unwrap_or(0.0));
+                    body["match_score"].as_f64().unwrap_or(0.0)
+                );
             }
             Err(e) => {
                 eprintln!("⚠️  Server not running (localhost:8006): {}", e);
@@ -136,12 +153,25 @@ mod integration {
 
         match response {
             Ok(resp) => {
-                assert!(resp.status().is_success(), "Expected success status, got: {}", resp.status());
+                assert!(
+                    resp.status().is_success(),
+                    "Expected success status, got: {}",
+                    resp.status()
+                );
                 let body: serde_json::Value = resp.json().await.unwrap();
-                assert_eq!(body["status"], "ok", "Expected status 'ok', got: {:?}", body);
-                assert!(body["mapped"].as_bool().is_some(), "Expected 'mapped' field in response");
-                println!("✓ session_event processed: status={}, mapped={}",
-                    body["status"], body["mapped"]);
+                assert_eq!(
+                    body["status"], "ok",
+                    "Expected status 'ok', got: {:?}",
+                    body
+                );
+                assert!(
+                    body["mapped"].as_bool().is_some(),
+                    "Expected 'mapped' field in response"
+                );
+                println!(
+                    "✓ session_event processed: status={}, mapped={}",
+                    body["status"], body["mapped"]
+                );
             }
             Err(e) => {
                 eprintln!("⚠️  Server not running (localhost:8006): {}", e);
@@ -163,12 +193,24 @@ mod integration {
 
         match response {
             Ok(resp) => {
-                assert!(resp.status().is_success(), "Expected success status, got: {}", resp.status());
+                assert!(
+                    resp.status().is_success(),
+                    "Expected success status, got: {}",
+                    resp.status()
+                );
                 let body: serde_json::Value = resp.json().await.unwrap();
-                assert!(body["status"].is_string(), "Expected 'status' field in response");
-                assert!(body["lag_ms"].is_number(), "Expected 'lag_ms' field in response");
-                println!("✓ sync_check status={}, lag_ms={}, save_ok_rate={}",
-                    body["status"], body["lag_ms"], body["save_ok_rate"]);
+                assert!(
+                    body["status"].is_string(),
+                    "Expected 'status' field in response"
+                );
+                assert!(
+                    body["lag_ms"].is_number(),
+                    "Expected 'lag_ms' field in response"
+                );
+                println!(
+                    "✓ sync_check status={}, lag_ms={}, save_ok_rate={}",
+                    body["status"], body["lag_ms"], body["save_ok_rate"]
+                );
             }
             Err(e) => {
                 eprintln!("⚠️  Server not running (localhost:8006): {}", e);
@@ -182,10 +224,7 @@ mod integration {
     async fn test_health_endpoint() {
         let client = Client::new();
 
-        let response = client
-            .get("http://localhost:8006/health")
-            .send()
-            .await;
+        let response = client.get("http://localhost:8006/health").send().await;
 
         match response {
             Ok(resp) => {

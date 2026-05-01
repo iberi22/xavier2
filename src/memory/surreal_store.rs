@@ -1,9 +1,4 @@
-use std::{
-    any::Any as StdAny,
-    collections::HashMap,
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{any::Any as StdAny, collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;

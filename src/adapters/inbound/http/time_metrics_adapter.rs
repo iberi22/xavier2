@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use async_trait::async_trait;
+use std::sync::Arc;
 
+use crate::adapters::inbound::http::dto::TimeMetricDto;
 use crate::ports::inbound::TimeMetricsPort;
 use crate::time::TimeMetricsStore;
-use crate::adapters::inbound::http::dto::TimeMetricDto;
 
 /// Inbound adapter that wraps TimeMetricsStore and implements TimeMetricsPort
 pub struct TimeMetricsAdapter {

@@ -908,7 +908,11 @@ pub async fn handle_tool_call(
             let tags = arguments
                 .get("tags")
                 .and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect::<Vec<_>>()
+                })
                 .unwrap_or_default();
             let importance = arguments
                 .get("importance")
@@ -969,10 +973,7 @@ pub async fn handle_tool_call(
             Ok(serde_json::to_value(MCPToolResult {
                 content: vec![MCPTextContent {
                     content_type: "text".to_string(),
-                    text: format!(
-                        "MemoryFragment saved successfully for agent {}",
-                        agent_id
-                    ),
+                    text: format!("MemoryFragment saved successfully for agent {}", agent_id),
                 }],
                 is_error: Some(false),
             })?)
@@ -993,7 +994,11 @@ pub async fn handle_tool_call(
             let tags = arguments
                 .get("tags")
                 .and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect::<Vec<_>>()
+                })
                 .unwrap_or_default();
             let limit = arguments
                 .get("limit")
@@ -1022,7 +1027,11 @@ pub async fn handle_tool_call(
                             .metadata
                             .get("tags")
                             .and_then(|v| v.as_array())
-                            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(String::from))
+                                    .collect()
+                            })
                             .unwrap_or_default();
                         if !tags.iter().any(|t| doc_tags.contains(t)) {
                             return false;

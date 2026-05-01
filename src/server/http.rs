@@ -13,7 +13,6 @@ use tracing::{error, info};
 
 use crate::{
     agents::provider::ModelProviderClient,
-    server::events::{WsEvent, WsMessage},
     agents::runtime::System3Mode,
     consistency::regularization::{CoherenceReport, RetentionRegularizer},
     consolidation::ConsolidationTask,
@@ -25,6 +24,7 @@ use crate::{
     memory::sqlite_vec_store::VecSqliteMemoryStore,
     memory::surreal_store::{GraphHopResult, HybridSearchMode},
     retrieval::gating::{AdaptiveGating, LayerWeights, SessionSummary},
+    server::events::{WsEvent, WsMessage},
     utils::crypto::sha256_hex,
     workspace::WorkspaceContext,
     AppState,

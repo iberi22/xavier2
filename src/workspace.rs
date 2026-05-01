@@ -166,7 +166,8 @@ impl WorkspaceConfig {
         Self {
             id: std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID")
                 .unwrap_or_else(|_| "default".to_string()),
-            token: std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set"),
+            token: std::env::var("XAVIER2_TOKEN")
+                .expect("XAVIER2_TOKEN environment variable must be set"),
             plan,
             memory_backend: std::env::var("XAVIER2_MEMORY_BACKEND")
                 .map(|value| MemoryBackend::from_env(&value))
@@ -716,9 +717,16 @@ impl WorkspaceState {
     }
 
     /// Safely extract event_tx from the underlying store if it's a VecSqliteMemoryStore
-    pub fn event_tx_channel(&self) -> Option<&broadcast::Sender<crate::server::events::RealtimeEvent>> {
+    pub fn event_tx_channel(
+        &self,
+    ) -> Option<&broadcast::Sender<crate::server::events::RealtimeEvent>> {
         // Use Any trait for safe downcasting
-        let store = match self.store.as_ref().as_any().downcast_ref::<VecSqliteMemoryStore>() {
+        let store = match self
+            .store
+            .as_ref()
+            .as_any()
+            .downcast_ref::<VecSqliteMemoryStore>()
+        {
             Some(s) => s,
             None => return None,
         };

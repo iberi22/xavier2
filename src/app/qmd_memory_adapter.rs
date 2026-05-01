@@ -2,8 +2,7 @@
 //! Wraps QmdMemory (the domain) behind the inbound port interface.
 
 use crate::domain::memory::{
-    EvidenceKind, MemoryKind, MemoryNamespace, MemoryProvenance, MemoryQueryFilters,
-    MemoryRecord,
+    EvidenceKind, MemoryKind, MemoryNamespace, MemoryProvenance, MemoryQueryFilters, MemoryRecord,
 };
 use crate::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use crate::ports::inbound::MemoryQueryPort;

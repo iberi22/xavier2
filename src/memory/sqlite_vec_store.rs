@@ -2180,8 +2180,8 @@ impl MemoryStore for VecSqliteMemoryStore {
             let timestamp: String = row.get(3)?;
             let operation: String = row.get(4)?;
             let payload_str: String = row.get(7)?;
-            let payload: serde_json::Value =
-                serde_json::from_str(&payload_str).unwrap_or(serde_json::Value::Object(Default::default()));
+            let payload: serde_json::Value = serde_json::from_str(&payload_str)
+                .unwrap_or(serde_json::Value::Object(Default::default()));
 
             events.push(crate::server::events::RealtimeEvent {
                 workspace_id,

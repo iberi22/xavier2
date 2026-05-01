@@ -25,7 +25,10 @@ pub fn validate_internal_url(url_str: &str) -> Result<Url, String> {
         "100.100.100.200", // Alibaba Cloud
     ];
 
-    if forbidden_hosts.iter().any(|&h| host.eq_ignore_ascii_case(h)) {
+    if forbidden_hosts
+        .iter()
+        .any(|&h| host.eq_ignore_ascii_case(h))
+    {
         return Err(format!("Forbidden host detected: {}", host));
     }
 
@@ -50,7 +53,10 @@ pub fn validate_internal_url(url_str: &str) -> Result<Url, String> {
     if let Ok(allowlist) = std::env::var("XAVIER2_ALLOWED_DOMAINS") {
         let domains: Vec<&str> = allowlist.split(',').collect();
         if !domains.iter().any(|&d| host.eq_ignore_ascii_case(d.trim())) {
-            return Err(format!("Host '{}' is not in the allowed domains list", host));
+            return Err(format!(
+                "Host '{}' is not in the allowed domains list",
+                host
+            ));
         }
     }
 
