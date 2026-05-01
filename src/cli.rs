@@ -22,7 +22,6 @@ use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
-use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier2::memory::surreal_store::MemoryRecord as SurrealMemoryRecord;
 use xavier2::memory::surreal_store::MemoryStore;
@@ -44,7 +43,6 @@ pub struct CliState {
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
     pub security: Arc<SecurityService>,
-    pub time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<SimpleAgentRegistry>,
 }
 
@@ -165,7 +163,6 @@ async fn start_http_server(port: u16) -> Result<()> {
         code_indexer,
         code_query,
         security: Arc::new(SecurityService::new()),
-        time_store: Some(time_store),
         agent_registry: SimpleAgentRegistry::new(),
     };
 
@@ -279,8 +276,6 @@ struct SearchPayload {
     query: String,
     #[serde(default = "default_limit")]
     limit: usize,
-    #[serde(default)]
-    filters: Option<MemoryQueryFilters>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -519,7 +514,6 @@ async fn security_scan_handler(
 struct MemoryQueryPayload {
     query: String,
     limit: Option<usize>,
-    filters: Option<serde_json::Value>,
 }
 
 async fn memory_query_handler(
@@ -1273,11 +1267,6 @@ async fn agent_register_handler(
     }))
 }
 
-#[derive(Debug, Deserialize)]
-struct AgentHeartbeatPayload {
-    agent_id: String,
-}
-
 async fn agent_heartbeat_handler(
     State(state): State<CliState>,
     axum::extract::Path(agent_id): axum::extract::Path<String>,
@@ -1647,62 +1636,6 @@ async fn start_mcp_stdio() -> Result<()> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Session Load - Restore context on session start
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// Session context returned by session_load
-#[derive(Debug, serde::Serialize)]
-struct SessionContext {
-    session_id: String,
-    context: Option<String>,
-    tokens_restored: usize,
-}
-
-/// Fetch session context from Xavier2 memory store.
-/// GETs from /memory/search with path: context/<session_id>/latest
-async fn session_load(ctx: &str) -> Result<String> {
-    let token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
-    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
-    let url = format!("http://localhost:{}/memory/search", port);
-
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&url)
-        .header("X-Cortex-Token", &token)
-        .json(&serde_json::json!({
-            "query": format!("path:context/{}/latest", ctx),
-            "limit": 1
-        }))
-        .send()
-        .await?;
-
-    if !response.status().is_success() {
-        return Err(anyhow!("session_load failed: {}", response.status()));
-    }
-
-    let body: serde_json::Value = response.json().await?;
-    let _results = body
-        .get("results")
-        .and_then(|r| r.as_array())
-        .map(|a| a.len())
-        .unwrap_or(0);
-    let context = body
-        .get("results")
-        .and_then(|r| r.as_array())
-        .and_then(|arr| arr.first())
-        .and_then(|doc| doc.get("content"))
-        .and_then(|c| c.as_str())
-        .map(String::from);
-
-    let tokens_restored = context.as_ref().map(|c| estimate_tokens(c)).unwrap_or(0);
-
-    let session_ctx = SessionContext {
-        session_id: ctx.to_string(),
-        context,
-        tokens_restored,
-    };
-
-    serde_json::to_string(&session_ctx)
-        .map_err(|e| anyhow!("failed to serialize session context: {}", e))
-}
 
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
