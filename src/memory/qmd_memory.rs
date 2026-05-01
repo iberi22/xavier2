@@ -229,6 +229,41 @@ impl QmdMemory {
         self.search_filtered(query_text, limit, None).await
     }
 
+    pub async fn bm25_search(
+        &self,
+        query: &str,
+        limit: usize,
+        filters: Option<&MemoryQueryFilters>,
+    ) -> Result<Vec<MemoryDocument>> {
+        let docs = self.all_documents().await;
+        let filtered_docs: Vec<MemoryDocument> = docs
+            .into_iter()
+            .filter(|doc| matches_filters(&doc.path, &doc.metadata, &self.workspace_id, filters))
+            .collect();
+
+        if filtered_docs.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let scored = crate::search::bm25::score_documents(
+            query,
+            &filtered_docs,
+            crate::search::bm25::Bm25Params::default(),
+        );
+
+        let mut results = Vec::new();
+        for (_, id) in scored.into_iter().take(limit) {
+            if let Some(doc) = filtered_docs
+                .iter()
+                .find(|d| d.id.as_deref() == Some(&id) || d.path == id)
+            {
+                results.push(doc.clone());
+            }
+        }
+
+        Ok(results)
+    }
+
     pub async fn search_filtered(
         &self,
         query_text: &str,
