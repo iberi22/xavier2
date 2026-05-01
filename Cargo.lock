@@ -2159,6 +2159,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "generic-array"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dab9e9188e97a93276e1fe7b56401b851e2b45a46d045ca658100c1303ada649"
+dependencies = [
+ "rustversion",
+ "typenum",
+]
+
+[[package]]
 name = "geo"
 version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8364,7 +8374,7 @@ dependencies = [
  "egui_extras",
  "flate2",
  "futures-util",
- "generic-array 0.14.7",
+ "generic-array 1.4.1",
  "hex",
  "hmac",
  "http-body-util",
