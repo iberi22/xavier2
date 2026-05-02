@@ -773,22 +773,18 @@ pub async fn handle_tool_call(
                 .get("project_id")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing project_id"))?;
-            let records = workspace.workspace.list_memory_records().await?;
+            let records = workspace
+                .workspace
+                .list_memory_records_filtered(
+                    MemoryQueryFilters {
+                        project: Some(project_id.to_string()),
+                        ..Default::default()
+                    },
+                    20,
+                )
+                .await?;
             let matching = records
                 .into_iter()
-                .filter(|record| {
-                    crate::memory::schema::resolve_metadata(
-                        &record.path,
-                        &record.metadata,
-                        &workspace.workspace_id,
-                        None,
-                    )
-                    .ok()
-                    .and_then(|resolved| resolved.namespace.project)
-                    .as_deref()
-                        == Some(project_id)
-                })
-                .take(20)
                 .map(|record| {
                     format!(
                         "Id: {}\nPath: {}\nRevision: {}\nContent: {}",
@@ -931,7 +927,8 @@ pub async fn handle_tool_call(
                 .and_then(|v| v.as_str())
                 .map(String::from);
 
-            let path = format!("gestalt/{}/{}", agent_id, context);
+            let unique_id = Ulid::new().to_string();
+            let path = format!("gestalt/{}/{}/{}", agent_id, context, unique_id);
             let mut metadata = serde_json::json!({
                 "gestalt_context": context,
                 "importance": importance,
@@ -1074,33 +1071,19 @@ pub async fn handle_tool_call(
                 .and_then(|v| v.as_u64())
                 .unwrap_or(10) as usize;
 
-            let records = workspace.workspace.list_memory_records().await?;
-            let matching: Vec<_> = records
-                .into_iter()
-                .filter(|record| {
-                    if let Ok(resolved) = crate::memory::schema::resolve_metadata(
-                        &record.path,
-                        &record.metadata,
-                        &workspace.workspace_id,
-                        None,
-                    ) {
-                        if resolved.namespace.agent_id.as_deref() != Some(agent_id) {
-                            return false;
-                        }
-                        if let Some(ctx) = &context {
-                            if resolved.namespace.scope.as_deref() != Some(ctx) {
-                                return false;
-                            }
-                        }
-                        return true;
-                    }
-                    false
-                })
-                .rev()
-                .take(limit)
-                .collect();
+            let records = workspace
+                .workspace
+                .list_memory_records_filtered(
+                    MemoryQueryFilters {
+                        agent_id: Some(agent_id.to_string()),
+                        scope: context,
+                        ..Default::default()
+                    },
+                    limit,
+                )
+                .await?;
 
-            let content = matching
+            let content = records
                 .into_iter()
                 .map(|record| MCPTextContent {
                     content_type: "text".to_string(),

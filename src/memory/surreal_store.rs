@@ -294,6 +294,19 @@ pub trait MemoryStore: Send + Sync {
     async fn update(&self, record: MemoryRecord) -> Result<()>;
     async fn delete(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>>;
     async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>>;
+    async fn list_filtered(
+        &self,
+        workspace_id: &str,
+        filters: &MemoryQueryFilters,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
+        // Default: load all records and filter in-memory (override in store for OOM-safe behavior)
+        let all = self.list(workspace_id).await?;
+        Ok(filter_records(all, workspace_id, "", Some(filters))?
+            .into_iter()
+            .take(limit)
+            .collect())
+    }
     async fn search(
         &self,
         workspace_id: &str,
@@ -1028,6 +1041,62 @@ impl MemoryStore for SurrealMemoryStore {
         self.select_workspace_rows(TABLE_MEMORIES, workspace_id)
             .await
     }
+
+    async fn list_filtered(
+        &self,
+        workspace_id: &str,
+        filters: &MemoryQueryFilters,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
+        let mut query = String::from(
+            "SELECT * FROM memory_records WHERE workspace_id = $workspace_id",
+        );
+
+        // Build query with optional filter clauses
+        if filters.project.is_some() {
+            query.push_str(" AND metadata.namespace.project = $project");
+        }
+        if filters.agent_id.is_some() {
+            query.push_str(" AND metadata.namespace.agent_id = $agent_id");
+        }
+        if filters.scope.is_some() {
+            query.push_str(" AND metadata.namespace.scope = $scope");
+        }
+        if filters.session_id.is_some() {
+            query.push_str(" AND metadata.namespace.session_id = $session_id");
+        }
+        if filters.source_app.is_some() {
+            query.push_str(" AND metadata.provenance.source_app = $source_app");
+        }
+
+        query.push_str(" ORDER BY updated_at DESC LIMIT ");
+        query.push_str(&limit.to_string());
+
+        // Build variable bindings using chained bind calls
+        let mut prepared = self.db.query(&query);
+        prepared = prepared.bind(("workspace_id", workspace_id.to_string()));
+
+        if let Some(ref project) = filters.project {
+            prepared = prepared.bind(("project", project.to_string()));
+        }
+        if let Some(ref agent_id) = filters.agent_id {
+            prepared = prepared.bind(("agent_id", agent_id.to_string()));
+        }
+        if let Some(ref scope) = filters.scope {
+            prepared = prepared.bind(("scope", scope.to_string()));
+        }
+        if let Some(ref session_id) = filters.session_id {
+            prepared = prepared.bind(("session_id", session_id.to_string()));
+        }
+        if let Some(ref source_app) = filters.source_app {
+            prepared = prepared.bind(("source_app", source_app.to_string()));
+        }
+
+        let mut response = prepared.await?;
+        let records: Vec<MemoryRecord> = response.take(0)?;
+        Ok(records)
+    }
+
 
     async fn search(
         &self,

@@ -3,6 +3,7 @@
 use anyhow::{anyhow, Result};
 use axum::{
     extract::State,
+    http::StatusCode,
     routing::{delete, get, post},
     Router,
 };
@@ -14,6 +15,7 @@ use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::info;
 
+use chrono::{DateTime, Utc};
 use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
@@ -47,6 +49,7 @@ pub struct CliState {
     pub security: Arc<SecurityService>,
     pub time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<SimpleAgentRegistry>,
+    pub auth_token: String,
 }
 
 #[derive(Subcommand)]
@@ -161,6 +164,9 @@ async fn start_http_server(port: u16) -> Result<()> {
     let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
     let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
 
+    let auth_token =
+        std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+
     let state = CliState {
         memory: memory_port,
         store,
@@ -171,6 +177,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         security: Arc::new(SecurityService::new()),
         time_store: Some(time_store),
         agent_registry: SimpleAgentRegistry::new(),
+        auth_token,
     };
 
     info!(
@@ -1075,6 +1082,14 @@ async fn session_event_handler(
 // ─────────────────────────────────────────────────────────────────────────────
 
 use axum::extract::Query;
+use chrono::{DateTime, Utc};
+
+/// Validates an ISO 8601 / RFC3339 timestamp string and returns it as UTC DateTime.
+fn validate_timestamp(s: &str) -> Result<DateTime<Utc>, String> {
+    DateTime::parse_from_rfc3339(s)
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(|_| "Invalid ISO 8601 timestamp".to_string())
+}
 
 #[derive(Debug, Deserialize)]
 pub struct TimelineQuery {
@@ -1085,6 +1100,17 @@ async fn timeline_events_handler(
     State(state): State<CliState>,
     Query(query): Query<TimelineQuery>,
 ) -> impl axum::response::IntoResponse {
+    // Validate the `since` timestamp before querying the store
+    if let Err(msg) = validate_timestamp(&query.since) {
+        return (
+            StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({
+                "status": "error",
+                "message": msg,
+            })),
+        );
+    }
+
     match state
         .store
         .list_timeline_events(&state.workspace_id, &query.since)
@@ -1288,8 +1314,21 @@ struct AgentRegisterPayload {
 
 async fn agent_register_handler(
     State(state): State<CliState>,
+    axum::extract::Extension(headers): axum::extract::Extension<axum::http::HeaderMap>,
     axum::Json(payload): axum::Json<AgentRegisterPayload>,
 ) -> impl axum::response::IntoResponse {
+    // Authenticate via X-Cortex-Token
+    let token = headers
+        .get("X-Cortex-Token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if token != state.auth_token {
+        return (axum::http::StatusCode::UNAUTHORIZED, axum::Json(serde_json::json!({
+            "error": "Unauthorized",
+            "message": "Invalid or missing X-Cortex-Token",
+        })));
+    }
+
     let metadata = xavier2::coordination::agent_registry::AgentMetadata {
         name: payload.name,
         capabilities: payload.capabilities.unwrap_or_default(),
@@ -1321,7 +1360,20 @@ struct AgentHeartbeatPayload {
 async fn agent_heartbeat_handler(
     State(state): State<CliState>,
     axum::extract::Path(agent_id): axum::extract::Path<String>,
+    axum::extract::Extension(headers): axum::extract::Extension<axum::http::HeaderMap>,
 ) -> impl axum::response::IntoResponse {
+    // Authenticate via X-Cortex-Token
+    let token = headers
+        .get("X-Cortex-Token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if token != state.auth_token {
+        return (axum::http::StatusCode::UNAUTHORIZED, axum::Json(serde_json::json!({
+            "error": "Unauthorized",
+            "message": "Invalid or missing X-Cortex-Token",
+        })));
+    }
+
     let success = state.agent_registry.heartbeat(&agent_id).await;
 
     axum::Json(serde_json::json!({
@@ -1357,8 +1409,21 @@ struct AgentPushContextPayload {
 async fn agent_push_context_handler(
     State(state): State<CliState>,
     axum::extract::Path(agent_id): axum::extract::Path<String>,
+    axum::extract::Extension(headers): axum::extract::Extension<axum::http::HeaderMap>,
     axum::Json(payload): axum::Json<AgentPushContextPayload>,
 ) -> impl axum::response::IntoResponse {
+    // Authenticate via X-Cortex-Token
+    let token = headers
+        .get("X-Cortex-Token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if token != state.auth_token {
+        return (axum::http::StatusCode::UNAUTHORIZED, axum::Json(serde_json::json!({
+            "error": "Unauthorized",
+            "message": "Invalid or missing X-Cortex-Token",
+        })));
+    }
+
     // Verify agent exists
     let agent = state.agent_registry.get(&agent_id).await;
     if agent.is_none() {
@@ -1410,7 +1475,20 @@ async fn agent_push_context_handler(
 async fn agent_unregister_handler(
     State(state): State<CliState>,
     axum::extract::Path(agent_id): axum::extract::Path<String>,
+    axum::extract::Extension(headers): axum::extract::Extension<axum::http::HeaderMap>,
 ) -> impl axum::response::IntoResponse {
+    // Authenticate via X-Cortex-Token
+    let token = headers
+        .get("X-Cortex-Token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if token != state.auth_token {
+        return (axum::http::StatusCode::UNAUTHORIZED, axum::Json(serde_json::json!({
+            "error": "Unauthorized",
+            "message": "Invalid or missing X-Cortex-Token",
+        })));
+    }
+
     let success = state.agent_registry.unregister(&agent_id).await;
 
     axum::Json(serde_json::json!({

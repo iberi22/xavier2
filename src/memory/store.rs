@@ -293,6 +293,19 @@ impl MemoryStore for SqliteMemoryStore {
         Ok(records)
     }
 
+    async fn list_filtered(
+        &self,
+        workspace_id: &str,
+        filters: &MemoryQueryFilters,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
+        let all = self.list(workspace_id).await?;
+        Ok(filter_records(all, workspace_id, "", Some(filters))?
+            .into_iter()
+            .take(limit)
+            .collect())
+    }
+
     async fn search(
         &self,
         workspace_id: &str,

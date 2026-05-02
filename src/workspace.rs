@@ -22,6 +22,7 @@ use crate::{
         embedder::EmbeddingClient,
         entity_graph::{EntityGraph, SharedEntityGraph},
         qmd_memory::{estimate_document_bytes, MemoryUsage, QmdMemory},
+        schema::MemoryQueryFilters,
         semantic::SemanticMemory,
         session_store::SessionStore,
         sqlite_vec_store::VecSqliteMemoryStore,
@@ -1003,6 +1004,16 @@ impl WorkspaceState {
 
     pub async fn list_memory_records(&self) -> Result<Vec<MemoryRecord>> {
         self.store.list(&self.config.id).await
+    }
+
+    pub async fn list_memory_records_filtered(
+        &self,
+        filters: MemoryQueryFilters,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
+        self.store
+            .list_filtered(&self.config.id, &filters, limit)
+            .await
     }
 
     pub async fn get_memory_record(&self, id_or_path: &str) -> Result<Option<MemoryRecord>> {
