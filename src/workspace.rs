@@ -11,7 +11,7 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs,
-    sync::{Mutex, RwLock},
+    sync::{broadcast, Mutex, RwLock},
 };
 
 use crate::{
@@ -22,6 +22,7 @@ use crate::{
         embedder::EmbeddingClient,
         entity_graph::{EntityGraph, SharedEntityGraph},
         qmd_memory::{estimate_document_bytes, MemoryUsage, QmdMemory},
+        schema::MemoryQueryFilters,
         semantic::SemanticMemory,
         session_store::SessionStore,
         sqlite_vec_store::VecSqliteMemoryStore,
@@ -166,7 +167,8 @@ impl WorkspaceConfig {
         Self {
             id: std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID")
                 .unwrap_or_else(|_| "default".to_string()),
-            token: std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set"),
+            token: std::env::var("XAVIER2_TOKEN")
+                .expect("XAVIER2_TOKEN environment variable must be set"),
             plan,
             memory_backend: std::env::var("XAVIER2_MEMORY_BACKEND")
                 .map(|value| MemoryBackend::from_env(&value))
@@ -715,6 +717,23 @@ impl WorkspaceState {
         self.store.health().await
     }
 
+    /// Safely extract event_tx from the underlying store if it's a VecSqliteMemoryStore
+    pub fn event_tx_channel(
+        &self,
+    ) -> Option<&broadcast::Sender<crate::server::events::RealtimeEvent>> {
+        // Use Any trait for safe downcasting
+        let store = match self
+            .store
+            .as_ref()
+            .as_any()
+            .downcast_ref::<VecSqliteMemoryStore>()
+        {
+            Some(s) => s,
+            None => return None,
+        };
+        store.event_tx_ref()
+    }
+
     pub async fn record_request(&self, event: UsageEvent) -> Result<()> {
         self.requests_used.fetch_add(1, Ordering::Relaxed);
         self.usage_metrics.record(event);
@@ -985,6 +1004,16 @@ impl WorkspaceState {
 
     pub async fn list_memory_records(&self) -> Result<Vec<MemoryRecord>> {
         self.store.list(&self.config.id).await
+    }
+
+    pub async fn list_memory_records_filtered(
+        &self,
+        filters: MemoryQueryFilters,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
+        self.store
+            .list_filtered(&self.config.id, &filters, limit)
+            .await
     }
 
     pub async fn get_memory_record(&self, id_or_path: &str) -> Result<Option<MemoryRecord>> {
