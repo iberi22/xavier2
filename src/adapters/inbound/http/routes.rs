@@ -1,5 +1,5 @@
 use axum::{
-    extract::Json,
+    extract::{Json, Path, State},
     routing::delete,
     routing::{get, post},
     Router,
@@ -9,25 +9,18 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::adapters::inbound::http::dto::TimeMetricDto;
-use crate::agents::unregister_agent_handler;
-use crate::coordination::SimpleAgentRegistry;
-use crate::ports::inbound::TimeMetricsPort;
+use crate::app::state::AppState;
+use crate::domain::memory::{
+    EvidenceKind, MemoryKind, MemoryNamespace, MemoryProvenance, MemoryRecord,
+};
 use crate::ports::outbound::HealthCheckPort;
 use crate::session::event_mapper::map_to_panel_thread;
 use crate::session::types::{SessionEvent, SessionEventType};
 use crate::tasks::session_sync_task::get_last_sync_result;
 use crate::verification::auto_verifier::AutoVerifier;
 
-// ─── Module-level TimeMetricsPort (initialized by CLI) ────────────────────────
-static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> = std::sync::OnceLock::new();
-
 /// Module-level HealthCheckPort (initialized by CLI)
 static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> = std::sync::OnceLock::new();
-
-/// Initialize the global time metrics port (call once at startup)
-pub fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
-    TIME_STORE.set(port).ok();
-}
 
 /// Initialize the global health check port (call once at startup)
 pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
@@ -36,11 +29,7 @@ pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
 
 // ─── Router ─────────────────────────────────────────────────────────────────
 
-pub fn create_router() -> Router {
-    create_router_with_agent_registry(SimpleAgentRegistry::new())
-}
-
-pub fn create_router_with_agent_registry(agent_registry: Arc<SimpleAgentRegistry>) -> Router {
+pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health_handler))
         .route("/xavier2/events/session", post(session_event_handler))
@@ -51,7 +40,7 @@ pub fn create_router_with_agent_registry(agent_registry: Arc<SimpleAgentRegistry
         .route("/xavier2/verify/save", post(verify_save_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
-        .with_state(agent_registry)
+        .with_state(state)
 }
 
 async fn health_handler() -> &'static str {
@@ -89,7 +78,8 @@ fn parse_event_type(s: &str) -> SessionEventType {
     }
 }
 
-async fn session_event_handler(
+pub async fn session_event_handler(
+    State(state): State<AppState>,
     Json(payload): Json<SessionEventRequest>,
 ) -> Json<SessionEventResponse> {
     let event = SessionEvent {
@@ -100,13 +90,49 @@ async fn session_event_handler(
         metadata: Some(payload.metadata),
     };
 
-    let mapped = map_to_panel_thread(event).is_some();
+    let mapped_entry = map_to_panel_thread(event);
+    let mapped = mapped_entry.is_some();
+
+    if let Some(entry) = mapped_entry {
+        let content = serde_json::to_string(&entry).unwrap_or_else(|_| entry.content.clone());
+        let record = MemoryRecord {
+            id: String::new(),
+            content,
+            kind: MemoryKind::Context,
+            namespace: MemoryNamespace::Global,
+            provenance: MemoryProvenance {
+                source: format!("sessions/{}/thread", entry.session_id),
+                evidence_kind: EvidenceKind::Direct,
+                confidence: 1.0,
+            },
+            embedding: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        if let Err(error) = state.memory.add(record).await {
+            tracing::warn!("failed to store session event: {}", error);
+        }
+    }
 
     Json(SessionEventResponse {
         status: if mapped { "ok" } else { "ignored" }.to_string(),
         session_id: payload.session_id,
         mapped,
     })
+}
+
+async fn unregister_agent_handler(
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> Json<serde_json::Value> {
+    let success = state.agent_registry.unregister(&agent_id).await;
+
+    Json(serde_json::json!({
+        "status": if success { "ok" } else { "error" },
+        "agent_id": agent_id,
+        "message": if success { "Agent unregistered" } else { "Agent not found or already unregistered" },
+    }))
 }
 
 // ─── Verification Endpoints ─────────────────────────────────────────────────
@@ -179,24 +205,27 @@ pub struct TimeMetricResponse {
     pub agent_id: String,
 }
 
-pub async fn time_metric_handler(Json(payload): Json<TimeMetricDto>) -> Json<TimeMetricResponse> {
+pub async fn time_metric_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<TimeMetricDto>,
+) -> Json<TimeMetricResponse> {
     let workspace_id =
         std::env::var("XAVIER2_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
 
-    // Try to save via TimeMetricsStore if available
-    if let Some(time_store) = TIME_STORE.get() {
-        let result = time_store.save_time_metric(&payload, &workspace_id).await;
-        match result {
-            Ok(()) => {
-                return Json(TimeMetricResponse {
-                    status: "saved".to_string(),
-                    metric_type: payload.metric_type,
-                    agent_id: payload.agent_id,
-                });
-            }
-            Err(e) => {
-                tracing::warn!("TimeMetricsStore save error: {}", e);
-            }
+    let result = state
+        .time_metrics
+        .save_time_metric(&payload, &workspace_id)
+        .await;
+    match result {
+        Ok(()) => {
+            return Json(TimeMetricResponse {
+                status: "saved".to_string(),
+                metric_type: payload.metric_type,
+                agent_id: payload.agent_id,
+            });
+        }
+        Err(e) => {
+            tracing::warn!("TimeMetricsStore save error: {}", e);
         }
     }
 
@@ -238,15 +267,87 @@ pub async fn sync_check_handler() -> Json<SyncCheckResponse> {
 
 #[cfg(test)]
 mod route_tests {
+    use async_trait::async_trait;
     use axum::{
         body::Body,
         http::{Method, Request, StatusCode},
     };
     use http_body_util::BodyExt;
+    use std::sync::Arc;
     use tower::util::ServiceExt;
 
-    use super::create_router_with_agent_registry;
+    use super::create_router;
+    use crate::adapters::inbound::http::dto::TimeMetricDto;
+    use crate::app::state::AppState;
     use crate::coordination::SimpleAgentRegistry;
+    use crate::domain::memory::{MemoryNamespace, MemoryRecord};
+    use crate::ports::inbound::{
+        AgentLifecyclePort, InputSecurityPort, MemoryQueryPort, TimeMetricsPort,
+    };
+    use crate::security::{ProcessResult, SecurityService};
+
+    struct NoopMemory;
+
+    #[async_trait]
+    impl MemoryQueryPort for NoopMemory {
+        async fn search(
+            &self,
+            _query: &str,
+            _filters: Option<crate::domain::memory::MemoryQueryFilters>,
+        ) -> anyhow::Result<Vec<MemoryRecord>> {
+            Ok(Vec::new())
+        }
+
+        async fn add(&self, _record: MemoryRecord) -> anyhow::Result<String> {
+            Ok("memory-id".to_string())
+        }
+
+        async fn delete(&self, _id: &str) -> anyhow::Result<Option<MemoryRecord>> {
+            Ok(None)
+        }
+
+        async fn get(&self, _id: &str) -> anyhow::Result<Option<MemoryRecord>> {
+            Ok(None)
+        }
+
+        async fn list(
+            &self,
+            _namespace: MemoryNamespace,
+            _limit: usize,
+        ) -> anyhow::Result<Vec<MemoryRecord>> {
+            Ok(Vec::new())
+        }
+    }
+
+    struct NoopTimeMetrics;
+
+    #[async_trait]
+    impl TimeMetricsPort for NoopTimeMetrics {
+        async fn save_time_metric(
+            &self,
+            _metric: &TimeMetricDto,
+            _workspace_id: &str,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    struct TestSecurity(SecurityService);
+
+    impl InputSecurityPort for TestSecurity {
+        fn process_input(&self, input: &str) -> ProcessResult {
+            self.0.process_input(input)
+        }
+    }
+
+    fn test_state(agent_registry: Arc<dyn AgentLifecyclePort>) -> AppState {
+        AppState {
+            memory: Arc::new(NoopMemory),
+            time_metrics: Arc::new(NoopTimeMetrics),
+            agent_registry,
+            security: Arc::new(TestSecurity(SecurityService::new())),
+        }
+    }
 
     fn delete(uri: &str) -> Request<Body> {
         Request::builder()
@@ -267,7 +368,7 @@ mod route_tests {
             )
             .await;
 
-        let response = create_router_with_agent_registry(registry.clone())
+        let response = create_router(test_state(registry.clone()))
             .oneshot(delete("/xavier2/agents/agent-delete-1/unregister"))
             .await
             .expect("request should complete");
@@ -290,7 +391,7 @@ mod route_tests {
 
     #[tokio::test]
     async fn unregister_route_returns_error_for_missing_agent() {
-        let response = create_router_with_agent_registry(SimpleAgentRegistry::new())
+        let response = create_router(test_state(SimpleAgentRegistry::new()))
             .oneshot(delete("/xavier2/agents/missing-agent/unregister"))
             .await
             .expect("request should complete");

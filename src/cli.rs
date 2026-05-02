@@ -15,11 +15,13 @@ use tokio::sync::RwLock;
 use tracing::info;
 
 use xavier2::adapters::inbound::http::routes::{
-    sync_check_handler, time_metric_handler, verify_save_handler,
+    session_event_handler as routes_session_event_handler, sync_check_handler, time_metric_handler,
+    verify_save_handler,
 };
 use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
+use xavier2::app::state::AppState;
 use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
@@ -27,7 +29,7 @@ use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier2::memory::surreal_store::MemoryRecord as SurrealMemoryRecord;
 use xavier2::memory::surreal_store::MemoryStore;
-use xavier2::ports::inbound::{MemoryQueryPort, TimeMetricsPort};
+use xavier2::ports::inbound::{InputSecurityPort, MemoryQueryPort, TimeMetricsPort};
 use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
 use xavier2::session::event_mapper::PanelThreadEntry;
@@ -38,6 +40,7 @@ use xavier2::time::TimeMetricsStore;
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
 pub struct CliState {
+    pub app_state: AppState,
     pub memory: Arc<dyn MemoryQueryPort>,
     pub store: Arc<dyn MemoryStore>,
     pub workspace_id: String,
@@ -47,6 +50,12 @@ pub struct CliState {
     pub security: Arc<SecurityService>,
     pub time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<SimpleAgentRegistry>,
+}
+
+impl axum::extract::FromRef<CliState> for AppState {
+    fn from_ref(state: &CliState) -> Self {
+        state.app_state.clone()
+    }
 }
 
 #[derive(Subcommand)]
@@ -143,14 +152,13 @@ async fn start_http_server(port: u16) -> Result<()> {
         }
     }
     // Register global time metrics port for HTTP handler (wrap in adapter)
-    use xavier2::adapters::inbound::http::routes::{init_health_port, init_time_store};
+    use xavier2::adapters::inbound::http::routes::init_health_port;
     use xavier2::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
     let health_adapter = Arc::new(HttpHealthAdapter::new(
         std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
     )) as Arc<dyn HealthCheckPort>;
     let time_adapter =
         Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
-    init_time_store(time_adapter);
     init_health_port(health_adapter.clone());
 
     let code_db_path = code_graph_db_path();
@@ -161,16 +169,27 @@ async fn start_http_server(port: u16) -> Result<()> {
     let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
     let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
 
+    let security = Arc::new(SecurityService::new());
+    let agent_registry = SimpleAgentRegistry::new();
+    let security_port: Arc<dyn InputSecurityPort> = security.clone();
+    let app_state = AppState {
+        memory: memory_port.clone(),
+        time_metrics: time_adapter,
+        agent_registry: agent_registry.clone(),
+        security: security_port,
+    };
+
     let state = CliState {
+        app_state,
         memory: memory_port,
         store,
         workspace_id,
         code_db,
         code_indexer,
         code_query,
-        security: Arc::new(SecurityService::new()),
+        security,
         time_store: Some(time_store),
-        agent_registry: SimpleAgentRegistry::new(),
+        agent_registry,
     };
 
     info!(
@@ -197,7 +216,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
         .route("/session/compact", post(session_compact_handler))
-        .route("/xavier2/events/session", post(session_event_handler))
+        .route("/xavier2/events/session", post(routes_session_event_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
         // Agent registration endpoints
         .route("/xavier2/agents/register", post(agent_register_handler))

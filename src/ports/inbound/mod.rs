@@ -1,10 +1,12 @@
 pub mod agent_lifecycle_port;
+pub mod input_security_port;
 pub mod memory_port;
 pub mod pattern_port;
 pub mod security_port;
 pub mod time_metrics_port;
 
 pub use agent_lifecycle_port::AgentLifecyclePort;
+pub use input_security_port::InputSecurityPort;
 pub use memory_port::MemoryQueryPort;
 pub use pattern_port::PatternDiscoverPort;
 pub use security_port::SecurityScanPort;
