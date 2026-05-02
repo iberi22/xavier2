@@ -1,17 +1,15 @@
-use std::sync::Arc;
-
 use axum::{
     extract::{Path, State},
     Json,
 };
 
-use crate::coordination::SimpleAgentRegistry;
+use crate::AppState;
 
 pub async fn unregister_agent_handler(
-    State(registry): State<Arc<SimpleAgentRegistry>>,
+    State(state): State<AppState>,
     Path(agent_id): Path<String>,
 ) -> Json<serde_json::Value> {
-    let success = registry.unregister(&agent_id).await;
+    let success = state.agent_registry.unregister(&agent_id).await;
 
     Json(serde_json::json!({
         "status": if success { "ok" } else { "error" },
@@ -27,9 +25,39 @@ pub async fn unregister_agent_handler(
 #[cfg(test)]
 mod tests {
     use super::unregister_agent_handler;
-    use crate::coordination::SimpleAgentRegistry;
-    use axum::{extract::{Path, State}, Json};
+    use crate::{
+        adapters::outbound::vec::pattern_adapter::PatternAdapter,
+        coordination::SimpleAgentRegistry,
+        memory::file_indexer::{FileIndexer, FileIndexerConfig},
+        ports::inbound::NoopTimeMetricsPort,
+        workspace::WorkspaceRegistry,
+        AppState,
+    };
+    use axum::{
+        extract::{Path, State},
+        Json,
+    };
     use serde_json::json;
+    use std::sync::Arc;
+
+    fn test_state(registry: Arc<SimpleAgentRegistry>) -> AppState {
+        let code_db = Arc::new(code_graph::db::CodeGraphDB::in_memory().unwrap());
+        let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
+        let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
+
+        AppState {
+            workspace_id: "test".to_string(),
+            workspace_registry: Arc::new(WorkspaceRegistry::new()),
+            indexer: FileIndexer::new(FileIndexerConfig::default(), Some(code_indexer.clone())),
+            code_indexer,
+            code_query,
+            code_db,
+            pattern_adapter: Arc::new(PatternAdapter::new()),
+            security_service: Arc::new(crate::app::security_service::SecurityService::new()),
+            time_metrics: Arc::new(NoopTimeMetricsPort),
+            agent_registry: registry,
+        }
+    }
 
     #[tokio::test]
     async fn unregister_existing_agent_returns_success_payload() {
@@ -43,7 +71,7 @@ mod tests {
             .await;
 
         let Json(payload) = unregister_agent_handler(
-            State(registry.clone()),
+            State(test_state(registry.clone())),
             Path("agent-delete-1".to_string()),
         )
         .await;
@@ -62,7 +90,7 @@ mod tests {
     #[tokio::test]
     async fn unregister_missing_agent_returns_error_payload() {
         let Json(payload) = unregister_agent_handler(
-            State(SimpleAgentRegistry::new()),
+            State(test_state(SimpleAgentRegistry::new())),
             Path("missing-agent".to_string()),
         )
         .await;

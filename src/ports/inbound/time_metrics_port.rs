@@ -11,3 +11,17 @@ pub trait TimeMetricsPort: Send + Sync {
         workspace_id: &str,
     ) -> Result<(), String>;
 }
+
+/// No-op implementation for contexts that do not persist time metrics.
+pub struct NoopTimeMetricsPort;
+
+#[async_trait]
+impl TimeMetricsPort for NoopTimeMetricsPort {
+    async fn save_time_metric(
+        &self,
+        _metric: &TimeMetricDto,
+        _workspace_id: &str,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+}

@@ -389,7 +389,9 @@ mod tests {
 
     use crate::{
         agents::RuntimeConfig,
+        coordination::SimpleAgentRegistry,
         memory::file_indexer::{FileIndexer, FileIndexerConfig},
+        ports::inbound::NoopTimeMetricsPort,
         workspace::{WorkspaceConfig, WorkspaceContext, WorkspaceRegistry, WorkspaceState},
         AppState,
     };
@@ -431,6 +433,7 @@ mod tests {
 
         (
             AppState {
+                workspace_id: "test".to_string(),
                 workspace_registry,
                 indexer: FileIndexer::new(FileIndexerConfig::default(), Some(code_indexer.clone())),
                 code_indexer,
@@ -440,6 +443,8 @@ mod tests {
                     crate::adapters::outbound::vec::pattern_adapter::PatternAdapter::new(),
                 ),
                 security_service: Arc::new(crate::app::security_service::SecurityService::new()),
+                time_metrics: Arc::new(NoopTimeMetricsPort),
+                agent_registry: SimpleAgentRegistry::new(),
             },
             workspace,
         )

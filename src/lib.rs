@@ -45,10 +45,13 @@ use workspace::WorkspaceRegistry;
 
 use crate::adapters::outbound::vec::pattern_adapter::PatternAdapter;
 use crate::app::security_service::SecurityService;
+use crate::coordination::SimpleAgentRegistry;
+use crate::ports::inbound::TimeMetricsPort;
 
 /// Application state for HTTP server
 #[derive(Clone)]
 pub struct AppState {
+    pub workspace_id: String,
     pub workspace_registry: Arc<WorkspaceRegistry>,
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
@@ -56,4 +59,6 @@ pub struct AppState {
     pub indexer: FileIndexer,
     pub pattern_adapter: Arc<PatternAdapter>,
     pub security_service: Arc<SecurityService>,
+    pub time_metrics: Arc<dyn TimeMetricsPort>,
+    pub agent_registry: Arc<SimpleAgentRegistry>,
 }

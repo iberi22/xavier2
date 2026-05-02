@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Result};
 use axum::{
-    extract::State,
+    extract::{FromRef, State},
     routing::{delete, get, post},
     Router,
 };
@@ -19,9 +19,11 @@ use xavier2::adapters::inbound::http::routes::{
 };
 use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
+use xavier2::adapters::outbound::vec::pattern_adapter::PatternAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
+use xavier2::memory::file_indexer::{FileIndexer, FileIndexerConfig};
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
@@ -34,10 +36,13 @@ use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
 use xavier2::time::TimeMetricsStore;
+use xavier2::workspace::WorkspaceRegistry;
+use xavier2::AppState;
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
 pub struct CliState {
+    pub app_state: AppState,
     pub memory: Arc<dyn MemoryQueryPort>,
     pub store: Arc<dyn MemoryStore>,
     pub workspace_id: String,
@@ -45,8 +50,13 @@ pub struct CliState {
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
     pub security: Arc<SecurityService>,
-    pub time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<SimpleAgentRegistry>,
+}
+
+impl FromRef<CliState> for AppState {
+    fn from_ref(state: &CliState) -> Self {
+        state.app_state.clone()
+    }
 }
 
 #[derive(Subcommand)]
@@ -142,15 +152,14 @@ async fn start_http_server(port: u16) -> Result<()> {
             info!("TimeMetricsStore schema init warning: {}", e);
         }
     }
-    // Register global time metrics port for HTTP handler (wrap in adapter)
-    use xavier2::adapters::inbound::http::routes::{init_health_port, init_time_store};
+    // Register global health port for sync checks.
+    use xavier2::adapters::inbound::http::routes::init_health_port;
     use xavier2::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
     let health_adapter = Arc::new(HttpHealthAdapter::new(
         std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
     )) as Arc<dyn HealthCheckPort>;
     let time_adapter =
         Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
-    init_time_store(time_adapter);
     init_health_port(health_adapter.clone());
 
     let code_db_path = code_graph_db_path();
@@ -161,7 +170,22 @@ async fn start_http_server(port: u16) -> Result<()> {
     let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
     let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
 
+    let agent_registry = SimpleAgentRegistry::new();
+    let app_state = AppState {
+        workspace_id: workspace_id.clone(),
+        workspace_registry: Arc::new(WorkspaceRegistry::new()),
+        indexer: FileIndexer::new(FileIndexerConfig::default(), Some(code_indexer.clone())),
+        code_indexer: code_indexer.clone(),
+        code_query: code_query.clone(),
+        code_db: code_db.clone(),
+        pattern_adapter: Arc::new(PatternAdapter::new()),
+        security_service: Arc::new(xavier2::app::security_service::SecurityService::new()),
+        time_metrics: time_adapter,
+        agent_registry: agent_registry.clone(),
+    };
+
     let state = CliState {
+        app_state,
         memory: memory_port,
         store,
         workspace_id,
@@ -169,8 +193,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         code_indexer,
         code_query,
         security: Arc::new(SecurityService::new()),
-        time_store: Some(time_store),
-        agent_registry: SimpleAgentRegistry::new(),
+        agent_registry,
     };
 
     info!(

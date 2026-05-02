@@ -8,4 +8,4 @@ pub use agent_lifecycle_port::AgentLifecyclePort;
 pub use memory_port::MemoryQueryPort;
 pub use pattern_port::PatternDiscoverPort;
 pub use security_port::SecurityScanPort;
-pub use time_metrics_port::TimeMetricsPort;
+pub use time_metrics_port::{NoopTimeMetricsPort, TimeMetricsPort};
