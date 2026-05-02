@@ -151,9 +151,11 @@ _Organized by phase. Each prompt is self-contained with full context._
 
 ## Phase 3: Future Preparation
 
-### 🟢 Prompt 7: qmd_memory.rs Modularization (#137)
+### 🟢 Prompt 7: qmd_memory.rs Modularization (#164)
 
-**Title:** [PERF] qmd_memory.rs is 105KB - needs modularization/split
+**Title:** [PERF] qmd_memory.rs modularization
+
+**New issue:** #164 (replaces failed #137)
 
 **Context:** `src/app/qmd_memory.rs` is 105KB, making it hard to navigate and maintain. It should be split into logical modules.
 
