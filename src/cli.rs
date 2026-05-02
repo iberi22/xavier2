@@ -199,6 +199,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/session/compact", post(session_compact_handler))
         .route("/xavier2/events/session", post(session_event_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
+        .route("/xavier2/verify/save", post(verify_save_handler))
         // Agent registration endpoints
         .route("/xavier2/agents/register", post(agent_register_handler))
         .route("/xavier2/agents/active", get(agent_active_handler))
