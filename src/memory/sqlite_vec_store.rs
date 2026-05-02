@@ -4,6 +4,7 @@
 //! for semantic similarity matching on memory embeddings.
 
 use std::{
+    any::Any,
     collections::{HashMap, HashSet},
     path::PathBuf,
     sync::{Arc, OnceLock},
@@ -123,6 +124,11 @@ impl VecSqliteMemoryStore {
 
     pub fn set_event_tx(&mut self, tx: broadcast::Sender<crate::server::events::RealtimeEvent>) {
         self.event_tx = Some(tx);
+    }
+
+    /// Get a reference to the event broadcast sender if available
+    pub fn event_tx_ref(&self) -> Option<&broadcast::Sender<crate::server::events::RealtimeEvent>> {
+        self.event_tx.as_ref()
     }
 
     pub async fn new(config: VecSqliteStoreConfig) -> Result<Self> {
@@ -1642,6 +1648,10 @@ impl MemoryStore for VecSqliteMemoryStore {
         MemoryBackend::Vec
     }
 
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     async fn health(&self) -> Result<String> {
         let conn = self.conn.lock();
         conn.execute("SELECT 1", [])?;
@@ -1836,6 +1846,19 @@ impl MemoryStore for VecSqliteMemoryStore {
             }
         }
         Ok(records)
+    }
+
+    async fn list_filtered(
+        &self,
+        workspace_id: &str,
+        filters: &MemoryQueryFilters,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
+        let all = self.list(workspace_id).await?;
+        Ok(filter_records(all, workspace_id, "", Some(filters))?
+            .into_iter()
+            .take(limit)
+            .collect())
     }
 
     async fn search(
@@ -2146,6 +2169,44 @@ impl MemoryStore for VecSqliteMemoryStore {
             [&checkpoint_key],
         )?;
         Ok(())
+    }
+
+    async fn list_timeline_events(
+        &self,
+        workspace_id: &str,
+        since: &str,
+    ) -> Result<Vec<crate::server::events::RealtimeEvent>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, workspace_id, agent_id, timestamp, operation, prev_hash, curr_hash, payload \
+             FROM timeline_events \
+             WHERE workspace_id = ? AND timestamp > ? \
+             ORDER BY timestamp ASC",
+        )?;
+
+        let mut rows = stmt.query(params![workspace_id, since])?;
+        let mut events = Vec::new();
+        while let Some(row) = rows.next()? {
+            let id: String = row.get(0)?;
+            let workspace_id: String = row.get(1)?;
+            let agent_id: String = row.get(2)?;
+            let timestamp: String = row.get(3)?;
+            let operation: String = row.get(4)?;
+            let payload_str: String = row.get(7)?;
+            let payload: serde_json::Value = serde_json::from_str(&payload_str)
+                .unwrap_or(serde_json::Value::Object(Default::default()));
+
+            events.push(crate::server::events::RealtimeEvent {
+                workspace_id,
+                event_id: id,
+                agent_id,
+                project_id: None,
+                event_type: operation,
+                timestamp,
+                payload,
+            });
+        }
+        Ok(events)
     }
 }
 

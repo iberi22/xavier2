@@ -234,10 +234,8 @@ impl PromptInjectionDetector {
                 highest_confidence = highest_confidence.max(0.6);
                 if detected_attack == AttackType::None {
                     detected_attack = AttackType::IndirectPromptInjection;
-                    detection_message = format!(
-                        "Detected zero-width character bypass: U+{:04X}",
-                        ch as u32
-                    );
+                    detection_message =
+                        format!("Detected zero-width character bypass: U+{:04X}", ch as u32);
                 }
             }
         }

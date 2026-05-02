@@ -6,9 +6,9 @@
 //! - Can work fully offline without Planka
 
 pub mod models;
+pub mod session_sync_task;
 pub mod store;
 pub mod sync;
-pub mod session_sync_task;
 
 use std::collections::VecDeque;
 

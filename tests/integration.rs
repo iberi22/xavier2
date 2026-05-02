@@ -20,202 +20,342 @@ mod internal_benchmark_test;
 mod memory_test;
 #[path = "integration/scheduler_test.rs"]
 mod scheduler_test;
-#[path = "integration/security_test.rs"]
-mod security_test;
 #[path = "integration/security_hardening_test.rs"]
 mod security_hardening_test;
+#[path = "integration/security_test.rs"]
+mod security_test;
 #[path = "integration/server_test.rs"]
 mod server_test;
-#[path = "integration/tasks_test.rs"]
-mod tasks_test;
 #[path = "sevier2_stress_test.rs"]
 mod sevier2_stress_test;
+#[path = "integration/tasks_test.rs"]
+mod tasks_test;
 
 mod integration {
     use reqwest::Client;
-    use serde_json::json;
+    use serde_json::{json, Value};
+    use tokio::{net::TcpListener, task::JoinHandle, time::Duration};
+    use xavier2::{
+        adapters::inbound::http::routes::create_router_with_agent_registry,
+        coordination::{agent_registry::AgentMetadata, SimpleAgentRegistry},
+    };
+
+    struct TestServer {
+        base_url: String,
+        client: Client,
+        registry: std::sync::Arc<SimpleAgentRegistry>,
+        handle: JoinHandle<()>,
+    }
+
+    impl Drop for TestServer {
+        fn drop(&mut self) {
+            self.handle.abort();
+        }
+    }
+
+    async fn spawn_test_server() -> TestServer {
+        let registry = SimpleAgentRegistry::new();
+        let app = create_router_with_agent_registry(registry.clone());
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind random test port");
+        let addr = listener.local_addr().expect("read local address");
+        let base_url = format!("http://{addr}");
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("test server should serve");
+        });
+
+        let client = Client::new();
+        wait_for_health(&client, &base_url).await;
+
+        TestServer {
+            base_url,
+            client,
+            registry,
+            handle,
+        }
+    }
+
+    async fn wait_for_health(client: &Client, base_url: &str) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Ok(response) = client.get(format!("{base_url}/health")).send().await {
+                if response.status().is_success() {
+                    return;
+                }
+            }
+
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "test server did not become healthy"
+            );
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    }
+
+    async fn post_json(server: &TestServer, path: &str, payload: Value) -> reqwest::Response {
+        server
+            .client
+            .post(format!("{}{}", server.base_url, path))
+            .json(&payload)
+            .send()
+            .await
+            .expect("request should reach test server")
+    }
 
     #[tokio::test]
-    #[ignore = "requires running xavier2 server on port 8006"]
     async fn test_time_metrics_endpoint() {
-        let client = Client::new();
+        let server = spawn_test_server().await;
         let metric = json!({
             "metric_type": "agent_execution",
             "agent_id": "test-agent-001",
-            "task_id": Some("task-123"),
+            "task_id": "task-123",
             "started_at": "2026-04-24T10:00:00Z",
             "completed_at": "2026-04-24T10:00:05Z",
             "duration_ms": 5000,
             "status": "success",
-            "error_message": None::<String>,
-            "provider": Some("minimax".to_string()),
-            "model": Some("MiniMax-M2.7".to_string()),
-            "tokens_used": Some(1500),
-            "task_category": Some("coding".to_string()),
+            "error_message": null,
+            "provider": "minimax",
+            "model": "MiniMax-M2.7",
+            "tokens_used": 1500,
+            "task_category": "coding",
             "metadata": {}
         });
 
-        let response = client
-            .post("http://localhost:8006/xavier2/time/metric")
-            .header("Content-Type", "application/json")
-            .json(&metric)
-            .send()
-            .await;
+        let response = post_json(&server, "/xavier2/time/metric", metric).await;
 
-        match response {
-            Ok(resp) => {
-                assert!(resp.status().is_success() || resp.status().as_u16() == 200 || resp.status().as_u16() == 201,
-                    "Expected success status, got: {}", resp.status());
-                let body: serde_json::Value = resp.json().await.unwrap();
-                assert_eq!(body["status"], "ok", "Expected status 'ok', got: {:?}", body);
-                assert_eq!(body["metric_type"], "agent_execution");
-                assert_eq!(body["agent_id"], "test-agent-001");
-            }
-            Err(e) => {
-                // Server not running - that's fine for CI
-                eprintln!("⚠️  Server not running (localhost:8006): {}", e);
-                println!("SKIPPED: test_time_metrics_endpoint (server not available)");
-            }
-        }
+        assert!(response.status().is_success());
+        let body: Value = response.json().await.expect("parse time metric response");
+        assert!(matches!(body["status"].as_str(), Some("ok" | "saved")));
+        assert_eq!(body["metric_type"], "agent_execution");
+        assert_eq!(body["agent_id"], "test-agent-001");
     }
 
     #[tokio::test]
-    #[ignore = "requires running xavier2 server on port 8006"]
     async fn test_verify_save_endpoint() {
-        let client = Client::new();
-        let payload = json!({
-            "path": "verification/test-$(date +%s)",
-            "content": "Xavier2 verification test content"
-        });
+        let server = spawn_test_server().await;
+        std::env::set_var("XAVIER2_URL", &server.base_url);
+        std::env::set_var("X-CORTEX-TOKEN", "dev-token");
 
-        let response = client
-            .post("http://localhost:8006/xavier2/verify/save")
-            .header("Content-Type", "application/json")
-            .json(&payload)
-            .send()
-            .await;
+        let response = post_json(
+            &server,
+            "/xavier2/verify/save",
+            json!({
+                "path": "verification/integration-test",
+                "content": "Xavier2 verification test content"
+            }),
+        )
+        .await;
 
-        match response {
-            Ok(resp) => {
-                let body: serde_json::Value = resp.json().await.unwrap();
-                assert!(body["save_ok"].as_bool().unwrap_or(false),
-                    "Expected save_ok=true, got: {:?}", body);
-                assert!(body["latency_ms"].as_u64().unwrap_or(0) > 0,
-                    "Expected latency_ms > 0, got: {:?}", body);
-                println!("✓ verify_save returned save_ok=true, latency={}ms, match={}",
-                    body["latency_ms"].as_u64().unwrap_or(0),
-                    body["match_score"].as_f64().unwrap_or(0.0));
-            }
-            Err(e) => {
-                eprintln!("⚠️  Server not running (localhost:8006): {}", e);
-                println!("SKIPPED: test_verify_save_endpoint (server not available)");
-            }
-        }
+        assert!(response.status().is_success());
+        let body: Value = response.json().await.expect("parse verify response");
+        assert!(body["save_ok"].is_boolean());
+        assert!(body["latency_ms"].is_number());
+        assert!(body["match_score"].is_number());
     }
 
     #[tokio::test]
-    #[ignore = "requires running xavier2 server on port 8006"]
     async fn test_session_event_endpoint() {
-        let client = Client::new();
-        let payload = json!({
-            "session_id": "session-test-$(ulid)",
-            "event_type": "message",
-            "content": "Test message from integration test",
-            "timestamp": "2026-04-24T10:00:00Z",
-            "metadata": {
-                "source": "integration-test"
-            }
-        });
+        let server = spawn_test_server().await;
 
-        let response = client
-            .post("http://localhost:8006/xavier2/events/session")
-            .header("Content-Type", "application/json")
-            .json(&payload)
-            .send()
-            .await;
+        let response = post_json(
+            &server,
+            "/xavier2/events/session",
+            json!({
+                "session_id": "session-test-001",
+                "event_type": "message",
+                "content": "Test message from integration test",
+                "timestamp": "2026-04-24T10:00:00Z",
+                "metadata": {
+                    "source": "integration-test"
+                }
+            }),
+        )
+        .await;
 
-        match response {
-            Ok(resp) => {
-                assert!(resp.status().is_success(), "Expected success status, got: {}", resp.status());
-                let body: serde_json::Value = resp.json().await.unwrap();
-                assert_eq!(body["status"], "ok", "Expected status 'ok', got: {:?}", body);
-                assert!(body["mapped"].as_bool().is_some(), "Expected 'mapped' field in response");
-                println!("✓ session_event processed: status={}, mapped={}",
-                    body["status"], body["mapped"]);
-            }
-            Err(e) => {
-                eprintln!("⚠️  Server not running (localhost:8006): {}", e);
-                println!("SKIPPED: test_session_event_endpoint (server not available)");
-            }
-        }
+        assert!(response.status().is_success());
+        let body: Value = response.json().await.expect("parse session response");
+        assert_eq!(body["status"], "ok");
+        assert_eq!(body["session_id"], "session-test-001");
+        assert_eq!(body["mapped"], true);
     }
 
     #[tokio::test]
-    #[ignore = "requires running xavier2 server on port 8006"]
     async fn test_sync_check_endpoint() {
-        let client = Client::new();
+        let server = spawn_test_server().await;
 
-        let response = client
-            .post("http://localhost:8006/xavier2/sync/check")
-            .header("Content-Type", "application/json")
+        let response = server
+            .client
+            .post(format!("{}/xavier2/sync/check", server.base_url))
             .send()
-            .await;
+            .await
+            .expect("sync check request should reach test server");
 
-        match response {
-            Ok(resp) => {
-                assert!(resp.status().is_success(), "Expected success status, got: {}", resp.status());
-                let body: serde_json::Value = resp.json().await.unwrap();
-                assert!(body["status"].is_string(), "Expected 'status' field in response");
-                assert!(body["lag_ms"].is_number(), "Expected 'lag_ms' field in response");
-                println!("✓ sync_check status={}, lag_ms={}, save_ok_rate={}",
-                    body["status"], body["lag_ms"], body["save_ok_rate"]);
-            }
-            Err(e) => {
-                eprintln!("⚠️  Server not running (localhost:8006): {}", e);
-                println!("SKIPPED: test_sync_check_endpoint (server not available)");
-            }
-        }
+        assert!(response.status().is_success());
+        let body: Value = response.json().await.expect("parse sync response");
+        assert!(body["status"].is_string());
+        assert!(body["lag_ms"].is_number());
+        assert!(body["save_ok_rate"].is_number());
+        assert!(body["match_score"].is_number());
+        assert!(body["active_agents"].is_number());
+        assert!(body["timestamp_ms"].is_number());
     }
 
     #[tokio::test]
-    #[ignore = "requires running xavier2 server on port 8006"]
     async fn test_health_endpoint() {
-        let client = Client::new();
+        let server = spawn_test_server().await;
 
-        let response = client
-            .get("http://localhost:8006/health")
+        let response = server
+            .client
+            .get(format!("{}/health", server.base_url))
             .send()
-            .await;
+            .await
+            .expect("health request should reach test server");
 
-        match response {
-            Ok(resp) => {
-                assert_eq!(resp.status(), 200, "Health endpoint should return 200");
-                let text = resp.text().await.unwrap();
-                assert_eq!(text.trim(), "ok", "Health endpoint should return 'ok'");
-                println!("✓ Health check passed: {}", text);
-            }
-            Err(e) => {
-                eprintln!("⚠️  Server not running (localhost:8006): {}", e);
-                println!("SKIPPED: test_health_endpoint (server not available)");
-            }
-        }
+        assert!(response.status().is_success());
+        assert_eq!(response.text().await.expect("read body").trim(), "ok");
     }
 
     #[tokio::test]
-    #[ignore = "integration scaffold pending real dependencies"]
     async fn test_full_memory_workflow() {
-        todo!("Implement with actual dependencies");
+        let server = spawn_test_server().await;
+
+        let session_response = post_json(
+            &server,
+            "/xavier2/events/session",
+            json!({
+                "session_id": "workflow-session",
+                "event_type": "message",
+                "content": "Workflow event with durable context",
+                "timestamp": "2026-04-24T10:00:00Z",
+                "metadata": {"workflow": true}
+            }),
+        )
+        .await;
+        assert!(session_response.status().is_success());
+        let session_body: Value = session_response
+            .json()
+            .await
+            .expect("parse workflow session response");
+        assert_eq!(session_body["mapped"], true);
+
+        let metric_response = post_json(
+            &server,
+            "/xavier2/time/metric",
+            json!({
+                "metric_type": "workflow_step",
+                "agent_id": "workflow-agent",
+                "task_id": "workflow-task",
+                "started_at": "2026-04-24T10:00:00Z",
+                "completed_at": "2026-04-24T10:00:01Z",
+                "duration_ms": 1000,
+                "status": "success",
+                "error_message": null,
+                "provider": null,
+                "model": null,
+                "tokens_used": null,
+                "task_category": "integration",
+                "metadata": {"session_id": "workflow-session"}
+            }),
+        )
+        .await;
+        assert!(metric_response.status().is_success());
+        let metric_body: Value = metric_response
+            .json()
+            .await
+            .expect("parse workflow metric response");
+        assert_eq!(metric_body["agent_id"], "workflow-agent");
+
+        let sync_response = server
+            .client
+            .post(format!("{}/xavier2/sync/check", server.base_url))
+            .send()
+            .await
+            .expect("workflow sync check should reach test server");
+        assert!(sync_response.status().is_success());
+        let sync_body: Value = sync_response.json().await.expect("parse workflow sync response");
+        assert!(sync_body["status"].is_string());
     }
 
     #[tokio::test]
-    #[ignore = "integration scaffold pending real dependencies"]
     async fn test_agent_memory_interaction() {
-        todo!("Implement");
+        let server = spawn_test_server().await;
+        let metadata = AgentMetadata {
+            name: Some("integration-agent".to_string()),
+            capabilities: vec!["memory".to_string(), "coordination".to_string()],
+            role: Some("worker".to_string()),
+        };
+
+        assert!(server
+            .registry
+            .register(
+                "agent-memory-1".to_string(),
+                "session-memory-1".to_string(),
+                metadata,
+            )
+            .await);
+        assert!(server.registry.heartbeat("agent-memory-1").await);
+
+        let response = server
+            .client
+            .delete(format!(
+                "{}/xavier2/agents/agent-memory-1/unregister",
+                server.base_url
+            ))
+            .send()
+            .await
+            .expect("unregister request should reach test server");
+
+        assert!(response.status().is_success());
+        let body: Value = response.json().await.expect("parse unregister response");
+        assert_eq!(body["status"], "ok");
+        assert_eq!(body["agent_id"], "agent-memory-1");
+        assert!(server.registry.get("agent-memory-1").await.is_none());
     }
 
     #[tokio::test]
-    #[ignore = "integration scaffold pending real dependencies"]
     async fn test_distributed_coordination() {
-        todo!("Implement");
+        let server = spawn_test_server().await;
+
+        for (agent_id, session_id, role) in [
+            ("coordinator-1", "session-coordinator", "coordinator"),
+            ("worker-1", "session-worker", "worker"),
+        ] {
+            assert!(server
+                .registry
+                .register(
+                    agent_id.to_string(),
+                    session_id.to_string(),
+                    AgentMetadata {
+                        name: Some(agent_id.to_string()),
+                        capabilities: vec!["sync".to_string()],
+                        role: Some(role.to_string()),
+                    },
+                )
+                .await);
+        }
+
+        assert!(server.registry.heartbeat("coordinator-1").await);
+        assert!(server.registry.heartbeat("worker-1").await);
+        let active_before = server.registry.get_active_agents().await;
+        assert_eq!(active_before.len(), 2);
+
+        let response = server
+            .client
+            .delete(format!(
+                "{}/xavier2/agents/worker-1/unregister",
+                server.base_url
+            ))
+            .send()
+            .await
+            .expect("unregister request should reach test server");
+        assert!(response.status().is_success());
+
+        let active_after = server.registry.get_active_agents().await;
+        assert_eq!(active_after.len(), 1);
+        assert_eq!(active_after[0].agent_id, "coordinator-1");
+        assert!(server.registry.get("worker-1").await.is_none());
     }
 }
