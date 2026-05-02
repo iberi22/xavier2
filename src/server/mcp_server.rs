@@ -200,6 +200,121 @@ pub fn get_xavier2_tools() -> Vec<MCPTool> {
                 "required": ["project_path"]
             }),
         },
+        // ============================================================================
+        // Gestalt MemoryFragment Tools (compatible with Gestalt MCP protocol)
+        // ============================================================================
+        MCPTool {
+            name: "memoryfragment_save".to_string(),
+            description: "Save a new memory fragment (Gestalt MemoryFragment compatible)".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "agent_id": {
+                        "type": "string",
+                        "description": "Agent identifier"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content of the memory fragment"
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "Category: conversation, task_result, observation"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional tags for this fragment"
+                    },
+                    "importance": {
+                        "type": "number",
+                        "description": "Importance score 0.0-1.0 for compaction"
+                    },
+                    "repo_url": {
+                        "type": "string",
+                        "description": "Optional repository URL"
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "Optional file path"
+                    },
+                    "chunk_id": {
+                        "type": "string",
+                        "description": "Optional chunk identifier"
+                    }
+                },
+                "required": ["agent_id", "content", "context"]
+            }),
+        },
+        MCPTool {
+            name: "memoryfragment_search".to_string(),
+            description: "Search memory fragments by content/tags/agent_id (Gestalt MemoryFragment compatible)".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "agent_id": {
+                        "type": "string",
+                        "description": "Optional agent ID filter"
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "Optional context filter (conversation, task_result, observation)"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional tag filters"
+                    },
+                    "limit": {
+                        "type": "number",
+                        "description": "Maximum results",
+                        "default": 10
+                    }
+                },
+                "required": ["query"]
+            }),
+        },
+        MCPTool {
+            name: "memoryfragment_recent".to_string(),
+            description: "Get recent memories for an agent (Gestalt MemoryFragment compatible)".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "agent_id": {
+                        "type": "string",
+                        "description": "Agent identifier"
+                    },
+                    "context": {
+                        "type": "string",
+                        "description": "Optional context filter"
+                    },
+                    "limit": {
+                        "type": "number",
+                        "description": "Maximum results",
+                        "default": 10
+                    }
+                },
+                "required": ["agent_id"]
+            }),
+        },
+        MCPTool {
+            name: "memoryfragment_get".to_string(),
+            description: "Get a specific memory fragment by ID (Gestalt MemoryFragment compatible)".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Memory fragment ID"
+                    }
+                },
+                "required": ["id"]
+            }),
+        },
     ]
 }
 
@@ -658,22 +773,18 @@ pub async fn handle_tool_call(
                 .get("project_id")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| anyhow::anyhow!("Missing project_id"))?;
-            let records = workspace.workspace.list_memory_records().await?;
+            let records = workspace
+                .workspace
+                .list_memory_records_filtered(
+                    MemoryQueryFilters {
+                        project: Some(project_id.to_string()),
+                        ..Default::default()
+                    },
+                    20,
+                )
+                .await?;
             let matching = records
                 .into_iter()
-                .filter(|record| {
-                    crate::memory::schema::resolve_metadata(
-                        &record.path,
-                        &record.metadata,
-                        &workspace.workspace_id,
-                        None,
-                    )
-                    .ok()
-                    .and_then(|resolved| resolved.namespace.project)
-                    .as_deref()
-                        == Some(project_id)
-                })
-                .take(20)
                 .map(|record| {
                     format!(
                         "Id: {}\nPath: {}\nRevision: {}\nContent: {}",
@@ -769,6 +880,249 @@ pub async fn handle_tool_call(
                     content_type: "text".to_string(),
                     text: format!(
                         "Synced GitCore documents from {project_path}\ncreated={created}\nupdated={updated}\nunchanged={unchanged}\nskipped={skipped}"
+                    ),
+                }],
+                is_error: Some(false),
+            })?)
+        }
+        // ============================================================================
+        // Gestalt MemoryFragment Tools
+        // ============================================================================
+        "memoryfragment_save" => {
+            let agent_id = arguments
+                .get("agent_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Missing agent_id"))?;
+            let content = arguments
+                .get("content")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Missing content"))?;
+            let context = arguments
+                .get("context")
+                .and_then(|v| v.as_str())
+                .unwrap_or("observation");
+            let tags = arguments
+                .get("tags")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let importance = arguments
+                .get("importance")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.5) as f32;
+            let repo_url = arguments
+                .get("repo_url")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let file_path = arguments
+                .get("file_path")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let chunk_id = arguments
+                .get("chunk_id")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+
+            let unique_id = Ulid::new().to_string();
+            let path = format!("gestalt/{}/{}/{}", agent_id, context, unique_id);
+            let mut metadata = serde_json::json!({
+                "gestalt_context": context,
+                "importance": importance,
+            });
+            if !tags.is_empty() {
+                metadata["tags"] = serde_json::json!(tags);
+            }
+            if let Some(url) = &repo_url {
+                metadata["repo_url"] = serde_json::json!(url);
+            }
+            if let Some(fp) = &file_path {
+                metadata["source_file_path"] = serde_json::json!(fp);
+            }
+            if let Some(cid) = &chunk_id {
+                metadata["chunk_id"] = serde_json::json!(cid);
+            }
+
+            let typed = Some(TypedMemoryPayload {
+                kind: Some(MemoryKind::Document),
+                evidence_kind: Some(EvidenceKind::Observation),
+                namespace: Some(MemoryNamespace {
+                    agent_id: Some(agent_id.to_string()),
+                    ..MemoryNamespace::default()
+                }),
+                provenance: Some(MemoryProvenance {
+                    source_app: Some("gestalt".to_string()),
+                    source_type: Some(context.to_string()),
+                    repo_url,
+                    file_path,
+                    ..MemoryProvenance::default()
+                }),
+            });
+
+            workspace
+                .workspace
+                .ingest_typed(path, content.to_string(), metadata, typed, None, false)
+                .await?;
+
+            Ok(serde_json::to_value(MCPToolResult {
+                content: vec![MCPTextContent {
+                    content_type: "text".to_string(),
+                    text: format!("MemoryFragment saved successfully for agent {}", agent_id),
+                }],
+                is_error: Some(false),
+            })?)
+        }
+        "memoryfragment_search" => {
+            let query = arguments
+                .get("query")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let agent_id = arguments
+                .get("agent_id")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let context = arguments
+                .get("context")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let tags = arguments
+                .get("tags")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let limit = arguments
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(10) as usize;
+
+            let mut filters = MemoryQueryFilters::default();
+            if let Some(aid) = agent_id {
+                filters.agent_id = Some(aid);
+            }
+            if let Some(ctx) = context {
+                filters.scope = Some(ctx);
+            }
+
+            let results = workspace
+                .workspace
+                .memory
+                .search_filtered(query, limit, Some(&filters))
+                .await?;
+
+            let filtered: Vec<_> = results
+                .into_iter()
+                .filter(|doc| {
+                    if !tags.is_empty() {
+                        let doc_tags: Vec<String> = doc
+                            .metadata
+                            .get("tags")
+                            .and_then(|v| v.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(String::from))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        if !tags.iter().any(|t| doc_tags.contains(t)) {
+                            return false;
+                        }
+                    }
+                    true
+                })
+                .collect();
+
+            let content = filtered
+                .into_iter()
+                .map(|doc| MCPTextContent {
+                    content_type: "text".to_string(),
+                    text: format!(
+                        "Path: {}\nContent: {}\nContext: {:?}\nTags: {:?}",
+                        doc.path,
+                        doc.content,
+                        doc.metadata.get("gestalt_context"),
+                        doc.metadata.get("tags")
+                    ),
+                })
+                .collect();
+
+            Ok(serde_json::to_value(MCPToolResult {
+                content,
+                is_error: Some(false),
+            })?)
+        }
+        "memoryfragment_recent" => {
+            let agent_id = arguments
+                .get("agent_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Missing agent_id"))?;
+            let context = arguments
+                .get("context")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let limit = arguments
+                .get("limit")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(10) as usize;
+
+            let records = workspace
+                .workspace
+                .list_memory_records_filtered(
+                    MemoryQueryFilters {
+                        agent_id: Some(agent_id.to_string()),
+                        scope: context,
+                        ..Default::default()
+                    },
+                    limit,
+                )
+                .await?;
+
+            let content = records
+                .into_iter()
+                .map(|record| MCPTextContent {
+                    content_type: "text".to_string(),
+                    text: format!(
+                        "Id: {}\nPath: {}\nContent: {}\nContext: {:?}",
+                        record.id,
+                        record.path,
+                        record.content,
+                        record.metadata.get("gestalt_context"),
+                    ),
+                })
+                .collect();
+
+            Ok(serde_json::to_value(MCPToolResult {
+                content,
+                is_error: Some(false),
+            })?)
+        }
+        "memoryfragment_get" => {
+            let id = arguments
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Missing id"))?;
+            let record = workspace
+                .workspace
+                .get_memory_record(id)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Memory not found: {}", id))?;
+
+            Ok(serde_json::to_value(MCPToolResult {
+                content: vec![MCPTextContent {
+                    content_type: "text".to_string(),
+                    text: format!(
+                        "Id: {}\nPath: {}\nRevision: {}\nContent: {}\nMetadata: {}",
+                        record.id,
+                        record.path,
+                        record.revision,
+                        record.content,
+                        serde_json::to_string_pretty(&record.metadata)?
                     ),
                 }],
                 is_error: Some(false),
@@ -1010,7 +1364,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let payload: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(payload["result"]["tools"].as_array().unwrap().len(), 6);
+        assert_eq!(payload["result"]["tools"].as_array().unwrap().len(), 10);
     }
 
     #[tokio::test]

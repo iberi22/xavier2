@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{any::Any as StdAny, collections::HashMap, path::PathBuf, sync::Arc};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -287,12 +287,26 @@ impl SurrealStoreConfig {
 #[async_trait]
 pub trait MemoryStore: Send + Sync {
     fn backend(&self) -> MemoryBackend;
+    fn as_any(&self) -> &dyn StdAny;
     async fn health(&self) -> Result<String>;
     async fn put(&self, record: MemoryRecord) -> Result<()>;
     async fn get(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>>;
     async fn update(&self, record: MemoryRecord) -> Result<()>;
     async fn delete(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>>;
     async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>>;
+    async fn list_filtered(
+        &self,
+        workspace_id: &str,
+        filters: &MemoryQueryFilters,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
+        // Default: load all records and filter in-memory (override in store for OOM-safe behavior)
+        let all = self.list(workspace_id).await?;
+        Ok(filter_records(all, workspace_id, "", Some(filters))?
+            .into_iter()
+            .take(limit)
+            .collect())
+    }
     async fn search(
         &self,
         workspace_id: &str,
@@ -340,6 +354,18 @@ pub trait MemoryStore: Send + Sync {
     ) -> Result<Option<Checkpoint>>;
     async fn list_checkpoints(&self, workspace_id: &str, task_id: &str) -> Result<Vec<Checkpoint>>;
     async fn delete_checkpoint(&self, workspace_id: &str, task_id: &str, name: &str) -> Result<()>;
+    /// List timeline events for a workspace since the given ISO 8601 timestamp.
+    async fn list_timeline_events(
+        &self,
+        workspace_id: &str,
+        since: &str,
+    ) -> Result<Vec<crate::server::events::RealtimeEvent>> {
+        let _ = (workspace_id, since);
+        anyhow::bail!(
+            "timeline events are not supported by the {} backend",
+            self.backend().as_str()
+        )
+    }
 }
 
 #[derive(Clone)]
@@ -392,6 +418,10 @@ impl FileMemoryStore {
 impl MemoryStore for FileMemoryStore {
     fn backend(&self) -> MemoryBackend {
         MemoryBackend::File
+    }
+
+    fn as_any(&self) -> &dyn StdAny {
+        self
     }
 
     async fn health(&self) -> Result<String> {
@@ -618,6 +648,10 @@ impl InMemoryMemoryStore {
 impl MemoryStore for InMemoryMemoryStore {
     fn backend(&self) -> MemoryBackend {
         MemoryBackend::Memory
+    }
+
+    fn as_any(&self) -> &dyn StdAny {
+        self
     }
 
     async fn health(&self) -> Result<String> {
@@ -947,6 +981,10 @@ impl MemoryStore for SurrealMemoryStore {
         MemoryBackend::Surreal
     }
 
+    fn as_any(&self) -> &dyn StdAny {
+        self
+    }
+
     async fn health(&self) -> Result<String> {
         self.db.health().await.with_context(|| {
             format!("SurrealDB health check failed for {}", self.config.detail())
@@ -1003,6 +1041,62 @@ impl MemoryStore for SurrealMemoryStore {
         self.select_workspace_rows(TABLE_MEMORIES, workspace_id)
             .await
     }
+
+    async fn list_filtered(
+        &self,
+        workspace_id: &str,
+        filters: &MemoryQueryFilters,
+        limit: usize,
+    ) -> Result<Vec<MemoryRecord>> {
+        let mut query = String::from(
+            "SELECT * FROM memory_records WHERE workspace_id = $workspace_id",
+        );
+
+        // Build query with optional filter clauses
+        if filters.project.is_some() {
+            query.push_str(" AND metadata.namespace.project = $project");
+        }
+        if filters.agent_id.is_some() {
+            query.push_str(" AND metadata.namespace.agent_id = $agent_id");
+        }
+        if filters.scope.is_some() {
+            query.push_str(" AND metadata.namespace.scope = $scope");
+        }
+        if filters.session_id.is_some() {
+            query.push_str(" AND metadata.namespace.session_id = $session_id");
+        }
+        if filters.source_app.is_some() {
+            query.push_str(" AND metadata.provenance.source_app = $source_app");
+        }
+
+        query.push_str(" ORDER BY updated_at DESC LIMIT ");
+        query.push_str(&limit.to_string());
+
+        // Build variable bindings using chained bind calls
+        let mut prepared = self.db.query(&query);
+        prepared = prepared.bind(("workspace_id", workspace_id.to_string()));
+
+        if let Some(ref project) = filters.project {
+            prepared = prepared.bind(("project", project.to_string()));
+        }
+        if let Some(ref agent_id) = filters.agent_id {
+            prepared = prepared.bind(("agent_id", agent_id.to_string()));
+        }
+        if let Some(ref scope) = filters.scope {
+            prepared = prepared.bind(("scope", scope.to_string()));
+        }
+        if let Some(ref session_id) = filters.session_id {
+            prepared = prepared.bind(("session_id", session_id.to_string()));
+        }
+        if let Some(ref source_app) = filters.source_app {
+            prepared = prepared.bind(("source_app", source_app.to_string()));
+        }
+
+        let mut response = prepared.await?;
+        let records: Vec<MemoryRecord> = response.take(0)?;
+        Ok(records)
+    }
+
 
     async fn search(
         &self,

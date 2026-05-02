@@ -31,17 +31,22 @@ impl SimpleAgentRegistry {
     }
 
     /// Register a new agent
-    pub async fn register(&self, agent_id: String, session_id: String, metadata: AgentMetadata) -> bool {
+    pub async fn register(
+        &self,
+        agent_id: String,
+        session_id: String,
+        metadata: AgentMetadata,
+    ) -> bool {
         let now = Utc::now();
         let mut agents = self.agents.write().await;
-        
+
         let entry = AgentEntry {
             agent_id: agent_id.clone(),
             session_id,
             last_heartbeat: now,
             metadata,
         };
-        
+
         agents.insert(agent_id, entry);
         true
     }
@@ -67,7 +72,7 @@ impl SimpleAgentRegistry {
     pub async fn get_active_agents(&self) -> Vec<AgentEntry> {
         let now = Utc::now();
         let agents = self.agents.read().await;
-        
+
         agents
             .values()
             .filter(|entry| {
@@ -126,31 +131,33 @@ mod tests {
     #[tokio::test]
     async fn test_register_and_heartbeat() {
         let registry = SimpleAgentRegistry::new();
-        
+
         // Register an agent
         let meta = AgentMetadata {
             name: Some("test-agent".to_string()),
             capabilities: vec!["coding".to_string()],
             role: Some("worker".to_string()),
         };
-        
-        let result = registry.register("agent-1".to_string(), "session-abc".to_string(), meta).await;
+
+        let result = registry
+            .register("agent-1".to_string(), "session-abc".to_string(), meta)
+            .await;
         assert!(result);
-        
+
         // Get active agents
         let active = registry.get_active_agents().await;
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].agent_id, "agent-1");
         assert_eq!(active[0].session_id, "session-abc");
-        
+
         // Heartbeat
         let result = registry.heartbeat("agent-1").await;
         assert!(result);
-        
+
         // Unregister
         let result = registry.unregister("agent-1").await;
         assert!(result);
-        
+
         let active = registry.get_active_agents().await;
         assert!(active.is_empty());
     }
@@ -158,16 +165,20 @@ mod tests {
     #[tokio::test]
     async fn test_get_active_agents_filters_stale() {
         let registry = SimpleAgentRegistry::new();
-        
+
         let meta = AgentMetadata::default();
-        registry.register("agent-1".to_string(), "s1".to_string(), meta.clone()).await;
-        
+        registry
+            .register("agent-1".to_string(), "s1".to_string(), meta.clone())
+            .await;
+
         // Add another agent
-        registry.register("agent-2".to_string(), "s2".to_string(), meta.clone()).await;
-        
+        registry
+            .register("agent-2".to_string(), "s2".to_string(), meta.clone())
+            .await;
+
         let active = registry.get_active_agents().await;
         assert_eq!(active.len(), 2);
-        
+
         // Manually expire one agent (modify its heartbeat in the map)
         {
             let mut agents = registry.agents.write().await;
@@ -175,7 +186,7 @@ mod tests {
                 entry.last_heartbeat = Utc::now() - chrono::Duration::seconds(400);
             }
         }
-        
+
         let active = registry.get_active_agents().await;
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].agent_id, "agent-2");

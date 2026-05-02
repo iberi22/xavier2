@@ -25,7 +25,10 @@ pub fn validate_internal_url(url_str: &str) -> Result<Url, String> {
         "100.100.100.200", // Alibaba Cloud
     ];
 
-    if forbidden_hosts.iter().any(|&h| host.eq_ignore_ascii_case(h)) {
+    if forbidden_hosts
+        .iter()
+        .any(|&h| host.eq_ignore_ascii_case(h))
+    {
         return Err(format!("Forbidden host detected: {}", host));
     }
 
@@ -34,9 +37,14 @@ pub fn validate_internal_url(url_str: &str) -> Result<Url, String> {
         if ip.is_loopback() {
             // Allow loopback for local development if not explicitly forbidden
             // but we might want to toggle this via env.
-        } else if ip.is_link_local() {
-            return Err("Link-local addresses are forbidden".to_string());
-        } else if ip.is_multicast() {
+        } else if let IpAddr::V4(v4) = ip {
+            // Check for link-local (169.254.x.x)
+            if v4.is_link_local() {
+                return Err("Link-local addresses are forbidden".to_string());
+            }
+        }
+        // Also check if it's a multicast address
+        if ip.is_multicast() {
             return Err("Multicast addresses are forbidden".to_string());
         }
     }
@@ -45,7 +53,10 @@ pub fn validate_internal_url(url_str: &str) -> Result<Url, String> {
     if let Ok(allowlist) = std::env::var("XAVIER2_ALLOWED_DOMAINS") {
         let domains: Vec<&str> = allowlist.split(',').collect();
         if !domains.iter().any(|&d| host.eq_ignore_ascii_case(d.trim())) {
-            return Err(format!("Host '{}' is not in the allowed domains list", host));
+            return Err(format!(
+                "Host '{}' is not in the allowed domains list",
+                host
+            ));
         }
     }
 

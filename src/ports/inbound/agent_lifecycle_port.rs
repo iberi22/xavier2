@@ -7,12 +7,8 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait AgentLifecyclePort: Send + Sync {
     /// Register a new agent with metadata.
-    async fn register(
-        &self,
-        agent_id: String,
-        session_id: String,
-        metadata: AgentMetadata,
-    ) -> bool;
+    async fn register(&self, agent_id: String, session_id: String, metadata: AgentMetadata)
+        -> bool;
 
     /// Unregister an agent by ID.
     async fn unregister(&self, agent_id: &str) -> bool;

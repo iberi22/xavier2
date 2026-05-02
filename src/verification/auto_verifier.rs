@@ -16,6 +16,60 @@ impl VerificationResult {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{AutoVerifier, VerificationResult};
+
+    #[test]
+    fn exact_match_scores_one() {
+        let original = "Verification content with a long stable signature";
+
+        assert_eq!(
+            AutoVerifier::compute_match_score_from_text(original, original),
+            1.0
+        );
+    }
+
+    #[test]
+    fn strong_partial_match_can_satisfy_healthy_threshold() {
+        let original = "Verification content with a long stable signature and original suffix";
+        let retrieved = "Verification content with a long stable signature and changed suffix";
+        let match_score = AutoVerifier::compute_match_score_from_text(retrieved, original);
+
+        assert_eq!(match_score, 0.9);
+        assert!(VerificationResult {
+            path: "test/path".to_string(),
+            save_ok: true,
+            retrieve_ok: true,
+            match_score,
+            latency_ms: 10,
+        }
+        .is_healthy());
+    }
+
+    #[test]
+    fn moderate_partial_match_scores_below_healthy_threshold() {
+        let original = "Verification content with a long stable signature and original suffix";
+        let retrieved = "Verification content with a long stable";
+
+        assert_eq!(
+            AutoVerifier::compute_match_score_from_text(retrieved, original),
+            0.7
+        );
+    }
+
+    #[test]
+    fn weak_length_only_partial_scores_low() {
+        let original = "Verification content with a long stable signature and original suffix";
+        let retrieved = "Different content with enough length to be weakly related";
+
+        assert_eq!(
+            AutoVerifier::compute_match_score_from_text(retrieved, original),
+            0.3
+        );
+    }
+}
+
 pub struct AutoVerifier;
 
 impl AutoVerifier {
@@ -106,25 +160,22 @@ impl AutoVerifier {
         let orig_sig = &original[..sig_len];
 
         if retrieved.starts_with(orig_sig) || retrieved.contains(orig_sig) {
-            // Partial match based on content overlap
-            let overlap = retrieved.len().min(original.len());
-            let match_chars = overlap as f32;
-            let total_chars = (retrieved.len() + original.len()) as f32;
-            return match_chars / total_chars * 2.0; // Scale to 0-1
+            if len_ratio > 0.8 {
+                return 0.9;
+            }
+
+            return 0.7;
         }
 
         // Fallback: simple length-based partial score
         if len_ratio >= 0.5 {
-            return 0.5;
+            return 0.3;
         }
 
         0.0
     }
 
-    async fn compute_match_score(
-        resp: reqwest::Response,
-        original: &str,
-    ) -> f32 {
+    async fn compute_match_score(resp: reqwest::Response, original: &str) -> f32 {
         match resp.json::<serde_json::Value>().await {
             Ok(json) => {
                 let results = json.get("results").and_then(|r| r.as_array());
@@ -138,7 +189,7 @@ impl AutoVerifier {
                             .or_else(|| first.get("value"))
                             .and_then(|v| v.as_str())
                             .unwrap_or("");
-                        
+
                         Self::compute_match_score_from_text(retrieved, original)
                     }
                     _ => 0.0,

@@ -1,0 +1,4 @@
+﻿# Security advisories to ignore
+# Reason: No patched version available for these dependencies
+RUSTSEC-2023-0071  # rsa: Marvin attack - transitive dep through jsonwebtoken/surrealdb
+RUSTSEC-2026-0002  # lru: IterMut unsoundness - ratatui dependency, no fix yet

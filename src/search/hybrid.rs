@@ -178,8 +178,22 @@ mod tests {
     #[tokio::test]
     async fn test_hybrid_search_basic() {
         let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
-        memory.add_document("doc1".to_string(), "the quick brown fox".to_string(), serde_json::json!({})).await.unwrap();
-        memory.add_document("doc2".to_string(), "the lazy dog".to_string(), serde_json::json!({})).await.unwrap();
+        memory
+            .add_document(
+                "doc1".to_string(),
+                "the quick brown fox".to_string(),
+                serde_json::json!({}),
+            )
+            .await
+            .unwrap();
+        memory
+            .add_document(
+                "doc2".to_string(),
+                "the lazy dog".to_string(),
+                serde_json::json!({}),
+            )
+            .await
+            .unwrap();
 
         let searcher = HybridSearcher::new();
         let results = searcher.search(&memory, "quick", 10, None).await.unwrap();
@@ -191,8 +205,14 @@ mod tests {
     struct QueryExpander;
     #[async_trait::async_trait]
     impl crate::search::hooks::SearchHook for QueryExpander {
-        fn name(&self) -> &str { "expander" }
-        async fn pre_query(&self, query: &mut String, _filters: &mut Option<MemoryQueryFilters>) -> anyhow::Result<()> {
+        fn name(&self) -> &str {
+            "expander"
+        }
+        async fn pre_query(
+            &self,
+            query: &mut String,
+            _filters: &mut Option<MemoryQueryFilters>,
+        ) -> anyhow::Result<()> {
             if query == "fast" {
                 *query = "quick".to_string();
             }
@@ -203,7 +223,14 @@ mod tests {
     #[tokio::test]
     async fn test_hybrid_search_with_hooks() {
         let memory = QmdMemory::new(Arc::new(RwLock::new(Vec::new())));
-        memory.add_document("doc1".to_string(), "the quick brown fox".to_string(), serde_json::json!({})).await.unwrap();
+        memory
+            .add_document(
+                "doc1".to_string(),
+                "the quick brown fox".to_string(),
+                serde_json::json!({}),
+            )
+            .await
+            .unwrap();
 
         let mut searcher = HybridSearcher::new();
         searcher.hooks.add_hook(Arc::new(QueryExpander));
