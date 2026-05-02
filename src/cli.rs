@@ -17,12 +17,14 @@ use tracing::info;
 use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
+use xavier2::agents::unregister_agent_handler;
 use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::domain::agent::AgentMetadata;
 use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
+use xavier2::memory::file_indexer::{FileIndexer, FileIndexerConfig};
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
@@ -31,10 +33,13 @@ use xavier2::memory::surreal_store::MemoryStore;
 use xavier2::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
 use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
+use xavier2::server::mcp_stdio::run_stdio_loop;
 use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
 use xavier2::time::TimeMetricsStore;
+use xavier2::workspace::{WorkspaceConfig, WorkspaceRegistry, WorkspaceState};
+use xavier2::AppState;
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
@@ -213,9 +218,9 @@ async fn start_http_server(port: u16) -> Result<()> {
         )
         .route(
             "/xavier2/agents/{id}/unregister",
-            delete(agent_unregister_handler),
+            delete(unregister_agent_handler_cli),
         )
-        .route("/xavier2/events/stream", get(ws_events_handler))
+        .route("/xavier2/events/stream", get(ws_events_handler_cli))
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
         .route("/xavier2/verify/save", post(verify_save_handler))
@@ -1373,281 +1378,94 @@ async fn agent_push_context_handler(
     }
 }
 
-async fn agent_unregister_handler(
+async fn unregister_agent_handler_cli(
     State(state): State<CliState>,
-    axum::extract::Path(agent_id): axum::extract::Path<String>,
+    path: axum::extract::Path<String>,
 ) -> impl axum::response::IntoResponse {
-    let success = state.agent_registry.unregister(&agent_id).await;
+    unregister_agent_handler(State(state.agent_registry), path).await
+}
 
-    axum::Json(serde_json::json!({
-        "status": if success { "ok" } else { "error" },
-        "agent_id": agent_id,
-        "message": if success { "Agent unregistered" } else { "Agent not found or already unregistered" },
-    }))
+async fn ws_events_handler_cli(
+    ws: axum::extract::WebSocketUpgrade,
+    State(state): State<CliState>,
+) -> impl axum::response::IntoResponse {
+    use axum::extract::ws::Message;
+
+    let rx = state.store.as_any()
+        .downcast_ref::<VecSqliteMemoryStore>()
+        .and_then(|s| s.event_tx_ref().map(|tx| tx.subscribe()));
+
+    ws.on_upgrade(move |socket| handle_ws_socket_cli(socket, rx))
+}
+
+async fn handle_ws_socket_cli(
+    mut socket: axum::extract::ws::WebSocket,
+    mut event_rx: Option<tokio::sync::broadcast::Receiver<xavier2::server::events::RealtimeEvent>>,
+) {
+    use axum::extract::ws::Message;
+    loop {
+        tokio::select! {
+            msg = socket.recv() => {
+                if let Some(Ok(Message::Close(_))) | None = msg {
+                    break;
+                }
+            }
+            event_res = async {
+                if let Some(rx) = &mut event_rx {
+                    rx.recv().await.ok()
+                } else {
+                    None
+                }
+            } => {
+                if let Some(event) = event_res {
+                    let _ = socket.send(Message::Text(
+                        serde_json::to_string(&xavier2::server::events::WsEvent::Event(event)).unwrap_or_default().into()
+                    )).await;
+                }
+            }
+        }
+    }
 }
 
 /// Start the MCP-stdio server.
 /// Uses JSON-RPC 2.0 over stdin/stdout (newline-delimited messages).
 /// This call blocks indefinitely, processing MCP protocol messages.
 async fn start_mcp_stdio() -> Result<()> {
-    // Initialize memory store directly (same as HTTP server)
-    let store: Arc<dyn MemoryStore> = Arc::new(VecSqliteMemoryStore::from_env().await?);
-    let workspace_id =
-        std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
-    let durable_state = store.load_workspace_state(&workspace_id).await?;
-    let docs = Arc::new(RwLock::new(
-        durable_state
-            .memories
-            .iter()
-            .map(SurrealMemoryRecord::to_document)
-            .collect::<Vec<MemoryDocument>>(),
-    ));
-    let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
-    memory.set_store(Arc::clone(&store)).await;
-    memory.init().await?;
+    info!("Starting Xavier2 MCP-stdio server");
 
-    // Async stdin/stdout
-    let stdin = tokio::io::stdin();
-    let stdout = tokio::io::stdout();
-    let mut reader = BufReader::new(stdin).lines();
-    let mut writer = tokio::io::BufWriter::new(stdout);
-
-    const JSONRPC: &str = "2.0";
-
-    loop {
-        // Read next line (blocking until client sends something)
-        let line = match reader.next_line().await {
-            Ok(Some(l)) => l,
-            Ok(None) => break, // EOF
-            Err(_e) => {
-                // Read error - bail out silently
-                break;
-            }
-        };
-
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        // Parse JSON-RPC request
-        let request: serde_json::Value = match serde_json::from_str(trimmed) {
-            Ok(v) => v,
-            Err(e) => {
-                // Parse error - respond and continue
-                let resp = serde_json::json!({
-                    "jsonrpc": JSONRPC,
-                    "id": serde_json::Value::Null,
-                    "error": {
-                        "code": -32700,
-                        "message": format!("Parse error: {}", e)
-                    }
-                });
-                let line = format!("{}\n", resp);
-                let _ = writer.write_all(line.as_bytes()).await;
-                let _ = writer.flush().await;
-                continue;
-            }
-        };
-
-        let method = request.get("method").and_then(|v| v.as_str());
-        let id = request.get("id").clone();
-        // A notification has id === null or no id field
-        let is_notification = id.as_ref().map_or(true, |v| v.is_null());
-
-        let response: Option<serde_json::Value> = match method {
-            None => Some(serde_json::json!({
-                "jsonrpc": JSONRPC,
-                "id": serde_json::Value::Null,
-                "error": {
-                    "code": -32600,
-                    "message": "Invalid Request: method is required"
-                }
-            })),
-
-            // ── initialize ──────────────────────────────────────────────
-            Some("initialize") => {
-                // initialized = true;  // MCP spec: remember to enforce pre-init rejection if needed
-                Some(serde_json::json!({
-                    "jsonrpc": JSONRPC,
-                    "id": id,
-                    "result": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": { "tools": {} },
-                        "serverInfo": {
-                            "name": "xavier2",
-                            "version": "0.4.1"
-                        }
-                    }
-                }))
-            }
-
-            // ── initialized (notification - no response) ───────────────
-            Some("initialized") if is_notification => None,
-
-            // ── tools/list ──────────────────────────────────────────────
-            Some("tools/list") => Some(serde_json::json!({
-                "jsonrpc": JSONRPC,
-                "id": id,
-                "result": {
-                    "tools": [
-                        {
-                            "name": "search",
-                            "description": "Search memories in Xavier2 vector store",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "query": {
-                                        "type": "string",
-                                        "description": "Search query string"
-                                    },
-                                    "limit": {
-                                        "type": "number",
-                                        "description": "Max results (default 10, max 100)",
-                                        "default": 10
-                                    }
-                                },
-                                "required": ["query"]
-                            }
-                        },
-                        {
-                            "name": "add",
-                            "description": "Add a memory to Xavier2",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "content": {
-                                        "type": "string",
-                                        "description": "Memory content text"
-                                    },
-                                    "title": {
-                                        "type": "string",
-                                        "description": "Optional title"
-                                    }
-                                },
-                                "required": ["content"]
-                            }
-                        },
-                        {
-                            "name": "stats",
-                            "description": "Get Xavier2 memory statistics (total count, cache metrics)",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {}
-                            }
-                        }
-                    ]
-                }
-            })),
-
-            // ── tools/call ──────────────────────────────────────────────
-            Some("tools/call") => {
-                let args = request
-                    .get("params")
-                    .and_then(|p| p.get("arguments"))
-                    .and_then(|a| a.as_object())
-                    .cloned()
-                    .unwrap_or_default();
-
-                let tool_name = request
-                    .get("params")
-                    .and_then(|p| p.get("name"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-
-                let text = match tool_name {
-                    "search" => {
-                        let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                        let limit =
-                            args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-                        let limit = limit.max(1).min(100);
-                        match memory.search(query, limit).await {
-                            Ok(results) => {
-                                let summary = serde_json::json!({
-                                    "count": results.len(),
-                                    "results": results.into_iter().map(|doc| {
-                                        serde_json::json!({
-                                            "id": doc.id,
-                                            "content": doc.content,
-                                        })
-                                    }).collect::<Vec<_>>()
-                                });
-                                serde_json::to_string_pretty(&summary).unwrap_or_default()
-                            }
-                            Err(e) => format!("{{\"error\": \"{}\"}}", e),
-                        }
-                    }
-                    "add" => {
-                        let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
-                        let title = args.get("title").and_then(|v| v.as_str());
-                        let path = format!("memory/{}", ulid::Ulid::new());
-                        let mut metadata = serde_json::json!({});
-                        if let Some(t) = title {
-                            if let Some(obj) = metadata.as_object_mut() {
-                                obj.insert("title".to_string(), serde_json::json!(t));
-                            }
-                        }
-                        match memory
-                            .add_document(path.clone(), content.to_string(), metadata)
-                            .await
-                        {
-                            Ok(id) => serde_json::json!({
-                                "status": "ok",
-                                "path": path,
-                                "id": id,
-                            })
-                            .to_string(),
-                            Err(e) => format!("{{\"error\": \"{}\"}}", e),
-                        }
-                    }
-                    "stats" => {
-                        serde_json::json!({
-                            "status": "ok",
-                            "workspace_id": workspace_id,
-                            "version": "0.4.1",
-                        })
-                        .to_string()
-                    }
-                    _ => format!(
-                        "Unknown tool: {}. Available tools: search, add, stats",
-                        tool_name
-                    ),
-                };
-
-                Some(serde_json::json!({
-                    "jsonrpc": JSONRPC,
-                    "id": id,
-                    "result": {
-                        "content": [{
-                            "type": "text",
-                            "text": text
-                        }]
-                    }
-                }))
-            }
-
-            // ── Unknown method ──────────────────────────────────────────
-            Some(m) => Some(serde_json::json!({
-                "jsonrpc": JSONRPC,
-                "id": id,
-                "error": {
-                    "code": -32601,
-                    "message": format!("Method not found: {}", m)
-                }
-            })),
-        };
-
-        // Send response only if not a notification
-        if !is_notification {
-            if let Some(resp) = response {
-                let line = format!("{}\n", resp);
-                let _ = writer.write_all(line.as_bytes()).await;
-                let _ = writer.flush().await;
-            }
-        }
+    let code_db_path = code_graph_db_path();
+    if let Some(parent) = code_db_path.parent() {
+        std::fs::create_dir_all(parent)?;
     }
+    let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&code_db_path)?);
+    let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
+    let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
 
-    Ok(())
+    let runtime_config = xavier2::agents::RuntimeConfig::default();
+    let registry = WorkspaceRegistry::new();
+    let config = WorkspaceConfig::from_env();
+    let panel_root = PathBuf::from("data").join("workspaces").join(&config.id);
+    let workspace = WorkspaceState::new(config, runtime_config, panel_root).await?;
+    registry.insert(workspace).await?;
+
+    let context = registry
+        .default_context()
+        .await
+        .ok_or_else(|| anyhow!("No workspace context available for MCP"))?;
+
+    let state = AppState {
+        workspace_registry: Arc::new(registry),
+        code_indexer: Arc::clone(&code_indexer),
+        code_query,
+        code_db,
+        indexer: FileIndexer::new(FileIndexerConfig::default(), Some(code_indexer)),
+        pattern_adapter: Arc::new(
+            xavier2::adapters::outbound::vec::pattern_adapter::PatternAdapter::new(),
+        ),
+        security_service: Arc::new(xavier2::app::security_service::SecurityService::new()),
+    };
+
+    run_stdio_loop(state, context).await
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
