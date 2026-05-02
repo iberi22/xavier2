@@ -22,7 +22,11 @@ use xavier2::adapters::inbound::http::routes::{
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
-use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
+use xavier2::domain::memory::{
+    MemoryKind as DomainMemoryKind, MemoryNamespace as DomainMemoryNamespace,
+    MemoryProvenance as DomainMemoryProvenance, MemoryQueryFilters as DomainMemoryQueryFilters,
+    MemoryRecord as DomainMemoryRecord,
+};
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
@@ -333,6 +337,46 @@ fn default_limit() -> usize {
     10
 }
 
+fn domain_query_filters(
+    limit: usize,
+    filters: Option<&MemoryQueryFilters>,
+) -> DomainMemoryQueryFilters {
+    let mut domain_filters = DomainMemoryQueryFilters {
+        namespace: None,
+        kinds: None,
+        limit: Some(limit.max(1).min(100)),
+        min_confidence: None,
+    };
+
+    if let Some(filters) = filters {
+        domain_filters.kinds = filters.kinds.as_ref().map(|kinds| {
+            kinds
+                .iter()
+                .map(|kind| match kind {
+                    xavier2::memory::schema::MemoryKind::Fact => DomainMemoryKind::Fact,
+                    xavier2::memory::schema::MemoryKind::Task => DomainMemoryKind::Task,
+                    xavier2::memory::schema::MemoryKind::Session => {
+                        DomainMemoryKind::Conversation
+                    }
+                    _ => DomainMemoryKind::Context,
+                })
+                .collect()
+        });
+
+        domain_filters.namespace = if filters.session_id.is_some() {
+            Some(DomainMemoryNamespace::Session)
+        } else if filters.project.is_some() {
+            Some(DomainMemoryNamespace::Project)
+        } else if filters.scope.as_deref() == Some("ephemeral") {
+            Some(DomainMemoryNamespace::Ephemeral)
+        } else {
+            None
+        };
+    }
+
+    domain_filters
+}
+
 async fn search_handler(
     State(state): State<CliState>,
     axum::Json(payload): axum::Json<SearchPayload>,
@@ -363,7 +407,8 @@ async fn search_handler(
     let limit = payload.limit.max(1).min(100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
-    let results: Vec<DomainMemoryRecord> = match state.memory.search(effective_query, None).await {
+    let filters = domain_query_filters(limit, payload.filters.as_ref());
+    let results: Vec<DomainMemoryRecord> = match state.memory.search(effective_query, Some(filters)).await {
         Ok(results) => results,
         Err(e) => {
             info!("Search error: {}", e);
@@ -559,7 +604,12 @@ async fn memory_query_handler(
     );
 
     // Use search (equivalent to hybrid search)
-    match state.memory.search(&payload.query, None).await {
+    let schema_filters = payload
+        .filters
+        .as_ref()
+        .and_then(|filters| serde_json::from_value::<MemoryQueryFilters>(filters.clone()).ok());
+    let filters = domain_query_filters(limit, schema_filters.as_ref());
+    match state.memory.search(&payload.query, Some(filters)).await {
         Ok(results) => {
             let documents: Vec<_> = results
                 .into_iter()
@@ -1518,6 +1568,8 @@ async fn start_mcp_stdio() -> Result<()> {
     let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
     memory.set_store(Arc::clone(&store)).await;
     memory.init().await?;
+    let memory_port =
+        Arc::new(QmdMemoryAdapter::new(Arc::clone(&memory))) as Arc<dyn MemoryQueryPort>;
 
     // Async stdin/stdout
     let stdin = tokio::io::stdin();
@@ -1674,7 +1726,13 @@ async fn start_mcp_stdio() -> Result<()> {
                         let limit =
                             args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
                         let limit = limit.max(1).min(100);
-                        match memory.search(query, limit).await {
+                        let filters = DomainMemoryQueryFilters {
+                            namespace: None,
+                            kinds: None,
+                            limit: Some(limit),
+                            min_confidence: None,
+                        };
+                        match memory_port.search(query, Some(filters)).await {
                             Ok(results) => {
                                 let summary = serde_json::json!({
                                     "count": results.len(),
@@ -1700,10 +1758,21 @@ async fn start_mcp_stdio() -> Result<()> {
                                 obj.insert("title".to_string(), serde_json::json!(t));
                             }
                         }
-                        match memory
-                            .add_document(path.clone(), content.to_string(), metadata)
-                            .await
-                        {
+                        let record = DomainMemoryRecord {
+                            id: String::new(),
+                            content: content.to_string(),
+                            kind: DomainMemoryKind::Context,
+                            namespace: DomainMemoryNamespace::Global,
+                            provenance: DomainMemoryProvenance {
+                                source: path.clone(),
+                                evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
+                                confidence: 1.0,
+                            },
+                            embedding: None,
+                            created_at: chrono::Utc::now(),
+                            updated_at: chrono::Utc::now(),
+                        };
+                        match memory_port.add(record).await {
                             Ok(id) => serde_json::json!({
                                 "status": "ok",
                                 "path": path,
