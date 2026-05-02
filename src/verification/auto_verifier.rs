@@ -121,10 +121,7 @@ impl AutoVerifier {
         0.0
     }
 
-    async fn compute_match_score(
-        resp: reqwest::Response,
-        original: &str,
-    ) -> f32 {
+    async fn compute_match_score(resp: reqwest::Response, original: &str) -> f32 {
         match resp.json::<serde_json::Value>().await {
             Ok(json) => {
                 let results = json.get("results").and_then(|r| r.as_array());
@@ -138,7 +135,7 @@ impl AutoVerifier {
                             .or_else(|| first.get("value"))
                             .and_then(|v| v.as_str())
                             .unwrap_or("");
-                        
+
                         Self::compute_match_score_from_text(retrieved, original)
                     }
                     _ => 0.0,

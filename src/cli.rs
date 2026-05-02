@@ -371,25 +371,25 @@ async fn search_handler(
     };
 
     {
-            // Deduplicate results by content hash, keeping most recent by updated_at
-            // NOTE: deduplicate_by_content_hash was removed - results passed through
-            let search_results: Vec<serde_json::Value> = results
-                .into_iter()
-                .map(|document| {
-                    serde_json::json!({
-                        "id": document.id,
-                        "content": document.content,
-                        "embedding": document.embedding,
-                    })
+        // Deduplicate results by content hash, keeping most recent by updated_at
+        // NOTE: deduplicate_by_content_hash was removed - results passed through
+        let search_results: Vec<serde_json::Value> = results
+            .into_iter()
+            .map(|document| {
+                serde_json::json!({
+                    "id": document.id,
+                    "content": document.content,
+                    "embedding": document.embedding,
                 })
-                .collect();
+            })
+            .collect();
 
-            axum::Json(serde_json::json!({
-                "results": search_results,
-                "query": payload.query,
-                "count": search_results.len(),
-                "workspace_id": state.workspace_id,
-            }))
+        axum::Json(serde_json::json!({
+            "results": search_results,
+            "query": payload.query,
+            "count": search_results.len(),
+            "workspace_id": state.workspace_id,
+        }))
     }
 }
 
@@ -1599,14 +1599,12 @@ async fn start_mcp_stdio() -> Result<()> {
                             Err(e) => format!("{{\"error\": \"{}\"}}", e),
                         }
                     }
-                    "stats" => {
-                        serde_json::json!({
-                            "status": "ok",
-                            "workspace_id": workspace_id,
-                            "version": "0.4.1",
-                        })
-                        .to_string()
-                    }
+                    "stats" => serde_json::json!({
+                        "status": "ok",
+                        "workspace_id": workspace_id,
+                        "version": "0.4.1",
+                    })
+                    .to_string(),
                     _ => format!(
                         "Unknown tool: {}. Available tools: search, add, stats",
                         tool_name
@@ -1712,7 +1710,8 @@ async fn session_load(ctx: &str) -> Result<String> {
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
     let limit = limit.max(1).min(100);
-    let token = std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
+    let token =
+        std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/search", port);
 

@@ -120,9 +120,10 @@ impl PlankaClient {
 
     /// Create with environment config
     pub fn from_env() -> Self {
-        Self::new(PlankaConfig::from_env().expect(
-            "PLANKA_URL, PLANKA_EMAIL, PLANKA_PASSWORD must be set"
-        ))
+        Self::new(
+            PlankaConfig::from_env()
+                .expect("PLANKA_URL, PLANKA_EMAIL, PLANKA_PASSWORD must be set"),
+        )
     }
 
     /// Login and get access token

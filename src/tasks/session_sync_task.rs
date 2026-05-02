@@ -139,8 +139,8 @@ impl SessionSyncTask {
         .unwrap_or(DEFAULT_SYNC_MIN_HEALTH_INTERVAL_MS);
 
         let timeout_ms = read_env_or_legacy("XAVIER2_SYNC_TIMEOUT_MS", "SEVIER2_SYNC_TIMEOUT_MS")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(DEFAULT_SYNC_TIMEOUT_MS);
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_SYNC_TIMEOUT_MS);
 
         Self {
             interval_ms,
@@ -212,7 +212,10 @@ impl SessionSyncTask {
                         max_attempts = self.max_retries + 1,
                         "Health check timed out"
                     );
-                    last_error = Some(format!("health check timed out after {}ms", self.timeout_ms));
+                    last_error = Some(format!(
+                        "health check timed out after {}ms",
+                        self.timeout_ms
+                    ));
                 }
             }
 
