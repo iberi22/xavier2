@@ -86,9 +86,9 @@ pub struct SessionSyncTask {
     storage_port: Option<Arc<dyn StoragePort>>,
     /// Last successful check timestamp
     last_check: Arc<RwLock<Instant>>,
-    /// Lag threshold in ms (configurable via XAVIER2_SYNC_LAG_THRESHOLD_MS)
+    /// Lag threshold in ms (configurable via XAVIER2_SYNC_LAG_THRESHOLD_MS or SEVIER2_LAG_THRESHOLD_MS)
     lag_threshold_ms: u64,
-    /// Save ok rate threshold (configurable via XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD)
+    /// Save ok rate threshold (configurable via XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD or SEVIER2_SAVE_OK_RATE_THRESHOLD)
     save_ok_rate_threshold: f64,
     /// Max health check retries (configurable via XAVIER2_SYNC_MAX_RETRIES)
     max_retries: u32,
