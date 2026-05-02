@@ -373,45 +373,32 @@ impl SessionSyncTask {
         }
     }
 
-    /// Estimate index lag by querying session memory records and comparing
-    /// the most recent record's updated_at timestamp with the current time.
-    /// Falls back to time-since-last-check if storage is unavailable.
+    /// Estimate index lag by querying indexed session records and comparing
+    /// the original event timestamp with the timestamp at which the record was indexed.
     async fn estimate_index_lag(&self) -> u64 {
-        use std::time::SystemTime;
-
-        // Try to query session records from storage
         if let Some(ref storage) = self.storage_port {
             let records = match storage.list("session", 1000).await {
                 Ok(recs) => recs,
                 Err(e) => {
                     tracing::warn!(error = %e, "Failed to list session records for lag estimation");
-                    return self.fallback_lag().await;
+                    return 0;
                 }
             };
 
-            let now = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .map(|d| d.as_millis() as u64)
-                .unwrap_or(0);
-
-            if let Some(lag) = records
+            if let Some((event_ts, indexed_ts)) = records
                 .iter()
                 .filter(|r| r.namespace == MemoryNamespace::Session)
-                .map(|r| r.updated_at.timestamp_millis() as u64)
-                .max()
-                .map(|last_updated| now.saturating_sub(last_updated))
+                .filter_map(|record| {
+                    session_event_timestamp_ms(&record.content)
+                        .map(|ts| (ts, record.updated_at.timestamp_millis()))
+                })
+                .max_by_key(|(event_ts, _)| *event_ts)
             {
-                return lag.min(60_000); // cap at 60s
+                return indexed_ts.saturating_sub(event_ts).max(0) as u64;
             }
         }
 
-        self.fallback_lag().await
-    }
-
-    /// Fallback lag estimation using time since last successful check.
-    async fn fallback_lag(&self) -> u64 {
-        let last = *self.last_check.read().await;
-        last.elapsed().as_millis() as u64
+        0
     }
 
     /// Get save_ok_rate from stored metrics
@@ -515,4 +502,34 @@ fn read_env_or_legacy(primary: &str, legacy: &str) -> Option<String> {
     std::env::var(primary)
         .ok()
         .or_else(|| std::env::var(legacy).ok())
+}
+
+fn session_event_timestamp_ms(content: &str) -> Option<i64> {
+    let value: serde_json::Value = serde_json::from_str(content).ok()?;
+    timestamp_ms_from_json(&value)
+}
+
+fn timestamp_ms_from_json(value: &serde_json::Value) -> Option<i64> {
+    let object = value.as_object()?;
+
+    for key in ["timestamp", "event_timestamp", "created_at"] {
+        if let Some(timestamp) = object.get(key).and_then(parse_timestamp_ms) {
+            return Some(timestamp);
+        }
+    }
+
+    object
+        .get("metadata")
+        .and_then(timestamp_ms_from_json)
+}
+
+fn parse_timestamp_ms(value: &serde_json::Value) -> Option<i64> {
+    if let Some(milliseconds) = value.as_i64() {
+        return Some(milliseconds);
+    }
+
+    let timestamp = value.as_str()?;
+    chrono::DateTime::parse_from_rfc3339(timestamp)
+        .ok()
+        .map(|dt| dt.timestamp_millis())
 }
