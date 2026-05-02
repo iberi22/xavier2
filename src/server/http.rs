@@ -2,6 +2,7 @@
 
 use axum::{
     extract::{ws::Message, ws::WebSocket, State, WebSocketUpgrade},
+    http::StatusCode,
     response::IntoResponse,
     Extension, Json,
 };
@@ -247,8 +248,13 @@ pub async fn start_signal_handler(state: ShutdownState) {
         #[cfg(windows)]
         {
             let ctrl_events = async {
-                let mut rx = ctrl_c().expect("failed to subscribe to Ctrl+C");
-                rx.recv().await
+                match ctrl_c() {
+                    Ok(mut rx) => rx.recv().await,
+                    Err(error) => {
+                        error!(%error, "Failed to register Ctrl+C handler");
+                        None
+                    }
+                }
             };
 
             let reason = ctrl_events.await;
@@ -647,10 +653,23 @@ pub async fn health() -> impl IntoResponse {
         env!("CARGO_PKG_VERSION"),
         "\"}"
     );
-    axum::response::Response::builder()
+    match axum::response::Response::builder()
         .header("Content-Type", "application/json")
         .body(axum::body::Body::from(HEALTH_JSON))
-        .unwrap()
+    {
+        Ok(response) => response,
+        Err(error) => {
+            error!(%error, "failed to build health response");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "status": "error",
+                    "message": "failed to build health response"
+                })),
+            )
+                .into_response()
+        }
+    }
 }
 
 /// Detailed liveness + readiness probe for orchestration systems.
