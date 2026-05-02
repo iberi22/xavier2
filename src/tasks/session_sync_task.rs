@@ -476,7 +476,9 @@ impl Default for SessionSyncTask {
                     .unwrap_or_else(|_| "http://localhost:8006".to_string());
 
                 // Validate internal URL to prevent SSRF
-                let final_url = match crate::security::url_validator::validate_internal_url(&url_str) {
+                let final_url = match crate::security::url_validator::validate_internal_url(
+                    &url_str,
+                ) {
                     Ok(_) => url_str,
                     Err(e) => {
                         tracing::error!("XAVIER2_URL validation failed in SessionSyncTask: {}. Falling back to localhost.", e);

@@ -79,7 +79,7 @@ impl SecurityScanPort for SecurityService {
 }
 
 /// Converts a security `DetectionResult` into domain `Threat` entities.
-fn detection_to_threats(detection: &security::ProcessResult, target: &str) -> Vec<Threat> {
+fn detection_to_threats(detection: &security::ProcessResult, _target: &str) -> Vec<Threat> {
     if !detection.detection.is_injection && detection.detection.confidence < 0.1 {
         return Vec::new();
     }

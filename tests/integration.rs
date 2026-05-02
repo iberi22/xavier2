@@ -20,10 +20,10 @@ mod internal_benchmark_test;
 mod memory_test;
 #[path = "integration/scheduler_test.rs"]
 mod scheduler_test;
-#[path = "integration/security_test.rs"]
-mod security_test;
 #[path = "integration/security_hardening_test.rs"]
 mod security_hardening_test;
+#[path = "integration/security_test.rs"]
+mod security_test;
 #[path = "integration/server_test.rs"]
 mod server_test;
 #[path = "sevier2_stress_test.rs"]

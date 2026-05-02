@@ -69,13 +69,7 @@ impl FusedScore {
 /// After fusion, deduplicates by canonical path — when the same path appears
 /// multiple times, keeps only the entry with the most recent `updated_at`.
 pub fn reciprocal_rank_fusion(result_sets: Vec<Vec<ScoredResult>>, k: u32) -> Vec<ScoredResult> {
-    reciprocal_rank_fusion_weighted(
-        result_sets
-            .into_iter()
-            .map(|set| (set, 1.0))
-            .collect(),
-        k,
-    )
+    reciprocal_rank_fusion_weighted(result_sets.into_iter().map(|set| (set, 1.0)).collect(), k)
 }
 
 /// Reciprocal Rank Fusion with weights for each result set.
