@@ -52,10 +52,17 @@ impl StoragePort for MockStoragePort {
 }
 
 fn make_session_record(seconds_ago: i64) -> MemoryRecord {
-    let updated_at = Utc::now() - chrono::Duration::seconds(seconds_ago);
+    let event_at = Utc::now() - chrono::Duration::seconds(seconds_ago);
+    let indexed_at = Utc::now();
     MemoryRecord {
         id: "session-1".to_string(),
-        content: "test".to_string(),
+        content: serde_json::json!({
+            "session_id": "session-1",
+            "event_type": "message",
+            "timestamp": event_at,
+            "content": "test",
+        })
+        .to_string(),
         kind: MemoryKind::Context,
         namespace: MemoryNamespace::Session,
         provenance: MemoryProvenance {
@@ -64,8 +71,8 @@ fn make_session_record(seconds_ago: i64) -> MemoryRecord {
             confidence: 1.0,
         },
         embedding: None,
-        created_at: updated_at,
-        updated_at,
+        created_at: event_at,
+        updated_at: indexed_at,
     }
 }
 

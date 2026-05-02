@@ -41,10 +41,7 @@ impl HealthCheckPort for HttpHealthAdapter {
             .unwrap_or("ok")
             .to_string();
 
-        let lag_ms = body
-            .get("lag_ms")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let lag_ms = body.get("lag_ms").and_then(|v| v.as_u64()).unwrap_or(0);
 
         let active_agents = body
             .get("active_agents")

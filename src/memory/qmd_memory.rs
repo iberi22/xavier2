@@ -2842,11 +2842,7 @@ fn _deduplicate_by_content_hash(results: Vec<MemoryDocument>) -> Vec<MemoryDocum
             .metadata
             .get("updated_at")
             .and_then(|v| v.as_str())
-            .or_else(|| {
-                doc.metadata
-                    .get("created_at")
-                    .and_then(|v| v.as_str())
-            })
+            .or_else(|| doc.metadata.get("created_at").and_then(|v| v.as_str()))
             .map(str::to_string);
 
         hash_groups

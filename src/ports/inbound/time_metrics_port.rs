@@ -1,5 +1,5 @@
-use async_trait::async_trait;
 use crate::adapters::inbound::http::dto::TimeMetricDto;
+use async_trait::async_trait;
 
 /// Port for time metrics operations (inbound)
 #[async_trait]

@@ -1,8 +1,8 @@
 //! Integration tests for Security Hardening Phase 1
 
-use xavier2::security::prompt_guard::{detect_injection, AttackType};
-use xavier2::security::auth::{User, UserRole, LoginRequest, LoginResponse};
 use std::env;
+use xavier2::security::auth::{LoginRequest, LoginResponse, User, UserRole};
+use xavier2::security::prompt_guard::{detect_injection, AttackType};
 
 #[test]
 fn test_security_hardening_prompt_injection() {
@@ -15,7 +15,10 @@ fn test_security_hardening_prompt_injection() {
     // Template injection attempt
     let input2 = "Process this: {{system.config}}";
     let result2 = detect_injection(input2);
-    assert!(result2.is_injection, "Template injection should be detected");
+    assert!(
+        result2.is_injection,
+        "Template injection should be detected"
+    );
 }
 
 #[test]
@@ -27,8 +30,14 @@ fn test_security_hardening_debug_redaction() {
         UserRole::Admin,
     );
     let debug_output = format!("{:?}", user);
-    assert!(!debug_output.contains(&user.api_key), "User API key leaked in Debug output");
-    assert!(debug_output.contains("<redacted>"), "User API key not redacted in Debug output");
+    assert!(
+        !debug_output.contains(&user.api_key),
+        "User API key leaked in Debug output"
+    );
+    assert!(
+        debug_output.contains("<redacted>"),
+        "User API key not redacted in Debug output"
+    );
 
     // Login request redaction
     let login_req = LoginRequest {
@@ -36,7 +45,10 @@ fn test_security_hardening_debug_redaction() {
         password: "SuperSecretPassword123".to_string(),
     };
     let debug_output = format!("{:?}", login_req);
-    assert!(!debug_output.contains("SuperSecretPassword123"), "Login password leaked in Debug output");
+    assert!(
+        !debug_output.contains("SuperSecretPassword123"),
+        "Login password leaked in Debug output"
+    );
 }
 
 #[test]

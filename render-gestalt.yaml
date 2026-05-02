@@ -1,0 +1,19 @@
+# Gestalt MCP Server on Render
+# IA C pipeline: GitHub → Render (Rust build) → Jules (auto-fix on failure)
+
+services:
+  - name: gestalt-mcp-server
+    runtime: rust
+    region: oregon
+    plan: free
+    repo: https://github.com/iberi22/gestalt
+    branch: main
+    rootDir: gestalt_cli
+    buildCommand: cargo build --release -p gestalt_cli
+    startCommand: ./target/release/gestalt_cli serve --host 0.0.0.0 --port 10000
+    healthCheckPath: /health
+    envVars:
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: RUST_LOG
+        value: info

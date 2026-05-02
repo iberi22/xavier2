@@ -28,7 +28,10 @@ pub async fn unregister_agent_handler(
 mod tests {
     use super::unregister_agent_handler;
     use crate::coordination::SimpleAgentRegistry;
-    use axum::{extract::{Path, State}, Json};
+    use axum::{
+        extract::{Path, State},
+        Json,
+    };
     use serde_json::json;
 
     #[tokio::test]
@@ -42,11 +45,9 @@ mod tests {
             )
             .await;
 
-        let Json(payload) = unregister_agent_handler(
-            State(registry.clone()),
-            Path("agent-delete-1".to_string()),
-        )
-        .await;
+        let Json(payload) =
+            unregister_agent_handler(State(registry.clone()), Path("agent-delete-1".to_string()))
+                .await;
 
         assert_eq!(
             payload,

@@ -3,10 +3,10 @@
 //! Provides a way to plug in custom logic at different stages of the search process,
 //! such as query expansion, result reranking, or logging.
 
-use std::sync::Arc;
-use async_trait::async_trait;
-use crate::memory::schema::MemoryQueryFilters;
 use super::rrf::ScoredResult;
+use crate::memory::schema::MemoryQueryFilters;
+use async_trait::async_trait;
+use std::sync::Arc;
 
 /// A hook that can be executed during the search lifecycle.
 #[async_trait]
@@ -27,11 +27,7 @@ pub trait SearchHook: Send + Sync {
 
     /// Called after search results are obtained.
     /// Can modify or rerank the results.
-    async fn post_query(
-        &self,
-        query: &str,
-        results: &mut Vec<ScoredResult>,
-    ) -> anyhow::Result<()> {
+    async fn post_query(&self, query: &str, results: &mut Vec<ScoredResult>) -> anyhow::Result<()> {
         let _ = (query, results);
         Ok(())
     }
@@ -141,7 +137,10 @@ mod tests {
 
         let mut query = "original".to_string();
         let mut filters = None;
-        registry.execute_pre_query(&mut query, &mut filters).await.unwrap();
+        registry
+            .execute_pre_query(&mut query, &mut filters)
+            .await
+            .unwrap();
         assert_eq!(query, "original expanded");
 
         let mut results = vec![ScoredResult {
@@ -152,7 +151,10 @@ mod tests {
             path: "path".to_string(),
             updated_at: None,
         }];
-        registry.execute_post_query(&query, &mut results).await.unwrap();
+        registry
+            .execute_post_query(&query, &mut results)
+            .await
+            .unwrap();
         assert_eq!(results[0].score, 1.5);
     }
 }

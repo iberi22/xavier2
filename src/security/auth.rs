@@ -1,9 +1,6 @@
 //! Authentication Module for Xavier2
 //! JWT-based authentication and RBAC
 
-use anyhow::Result;
-use std::fmt;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
@@ -11,11 +8,11 @@ use serde::{Deserialize, Serialize};
 /// JWT Claims for authentication
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,        // User ID
-    pub email: String,      // User email
-    pub role: UserRole,     // User role
-    pub exp: u64,          // Expiration timestamp
-    pub iat: u64,          // Issued at
+    pub sub: String,    // User ID
+    pub email: String,  // User email
+    pub role: UserRole, // User role
+    pub exp: u64,       // Expiration timestamp
+    pub iat: u64,       // Issued at
 }
 
 impl Claims {
@@ -59,7 +56,7 @@ impl Default for UserRole {
 }
 
 /// User representation
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct User {
     pub id: String,
     pub email: String,
@@ -164,8 +161,12 @@ pub trait Permission {
 }
 
 impl Permission for UserRole {
-    fn can_view_dashboard(&self) -> bool { true }
-    fn can_search_memory(&self) -> bool { true }
+    fn can_view_dashboard(&self) -> bool {
+        true
+    }
+    fn can_search_memory(&self) -> bool {
+        true
+    }
 
     fn can_add_memory(&self) -> bool {
         matches!(self, UserRole::Admin | UserRole::User)
@@ -183,7 +184,9 @@ impl Permission for UserRole {
         matches!(self, UserRole::Admin | UserRole::User)
     }
 
-    fn can_view_config(&self) -> bool { true }
+    fn can_view_config(&self) -> bool {
+        true
+    }
 
     fn can_edit_config(&self) -> bool {
         matches!(self, UserRole::Admin)
@@ -227,10 +230,9 @@ impl RateLimiter {
 
         // Clean old entries
         let window_start = now - self.window_seconds;
-        requests.entry(key.to_string())
-            .and_modify(|times| {
-                times.retain(|&t| t > window_start);
-            });
+        requests.entry(key.to_string()).and_modify(|times| {
+            times.retain(|&t| t > window_start);
+        });
 
         // Check limit
         let count = requests.get(key).map(|v| v.len()).unwrap_or(0);
@@ -240,7 +242,8 @@ impl RateLimiter {
         }
 
         // Add current request
-        requests.entry(key.to_string())
+        requests
+            .entry(key.to_string())
             .or_insert_with(Vec::new)
             .push(now);
 

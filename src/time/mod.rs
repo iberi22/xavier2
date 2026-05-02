@@ -75,13 +75,10 @@ impl TimeMetricsStore {
         // Build path: metrics/time/{YYYY-MM-DD}/{metric_type}/{agent_id}
         let path = format!(
             "metrics/time/{}/{}/{}",
-            date,
-            metric.metric_type,
-            metric.agent_id
+            date, metric.metric_type, metric.agent_id
         );
 
-        let metadata_json =
-            serde_json::to_string(&metric.metadata).map_err(|e| e.to_string())?;
+        let metadata_json = serde_json::to_string(&metric.metadata).map_err(|e| e.to_string())?;
 
         let conn = self.conn.lock();
         conn.execute(
