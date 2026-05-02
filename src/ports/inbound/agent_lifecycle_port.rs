@@ -1,4 +1,4 @@
-use crate::coordination::agent_registry::{AgentEntry, AgentMetadata};
+use crate::domain::agent::{AgentEntry, AgentMetadata};
 use async_trait::async_trait;
 
 /// Port for agent lifecycle management.

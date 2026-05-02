@@ -18,8 +18,8 @@ use tower::ServiceExt;
 use xavier2::adapters::inbound::http::dto::TimeMetricDto;
 use xavier2::adapters::inbound::http::routes::create_router;
 use xavier2::adapters::inbound::http::routes::create_router_with_agent_registry;
-use xavier2::coordination::agent_registry::AgentMetadata;
 use xavier2::coordination::SimpleAgentRegistry;
+use xavier2::domain::agent::AgentMetadata;
 use xavier2::time::TimeMetricsStore;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

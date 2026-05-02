@@ -3,7 +3,6 @@
 use anyhow::{anyhow, Result};
 use axum::{
     extract::State,
-    http::StatusCode,
     routing::{delete, get, post},
     Router,
 };
@@ -15,27 +14,23 @@ use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::info;
 
-use chrono::{DateTime, Utc};
 use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
+use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
-use xavier2::domain::memory::{
-    MemoryKind as DomainMemoryKind, MemoryNamespace as DomainMemoryNamespace,
-    MemoryProvenance as DomainMemoryProvenance, MemoryQueryFilters as DomainMemoryQueryFilters,
-    MemoryRecord as DomainMemoryRecord,
-};
+use xavier2::domain::agent::AgentMetadata;
+use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier2::memory::surreal_store::MemoryRecord as SurrealMemoryRecord;
 use xavier2::memory::surreal_store::MemoryStore;
-use xavier2::ports::inbound::{MemoryQueryPort, TimeMetricsPort};
+use xavier2::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
 use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
-use xavier2::server::http::ws_events_handler;
 use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
@@ -52,8 +47,7 @@ pub struct CliState {
     pub code_query: Arc<code_graph::query::QueryEngine>,
     pub security: Arc<SecurityService>,
     pub time_store: Option<Arc<TimeMetricsStore>>,
-    pub agent_registry: Arc<SimpleAgentRegistry>,
-    pub auth_token: String,
+    pub agent_registry: Arc<dyn AgentLifecyclePort>,
 }
 
 #[derive(Subcommand)]
@@ -168,9 +162,6 @@ async fn start_http_server(port: u16) -> Result<()> {
     let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
     let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
 
-    let auth_token =
-        std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
-
     let state = CliState {
         memory: memory_port,
         store,
@@ -180,8 +171,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         code_query,
         security: Arc::new(SecurityService::new()),
         time_store: Some(time_store),
-        agent_registry: SimpleAgentRegistry::new(),
-        auth_token,
+        agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
     };
 
     info!(
@@ -209,9 +199,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/memory/query", post(memory_query_handler))
         .route("/session/compact", post(session_compact_handler))
         .route("/xavier2/events/session", post(session_event_handler))
-        .route("/timeline/events", get(timeline_events_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
-        .route("/xavier2/verify/save", post(verify_save_handler))
         // Agent registration endpoints
         .route("/xavier2/agents/register", post(agent_register_handler))
         .route("/xavier2/agents/active", get(agent_active_handler))
@@ -227,8 +215,10 @@ async fn start_http_server(port: u16) -> Result<()> {
             "/xavier2/agents/{id}/unregister",
             delete(agent_unregister_handler),
         )
+        .route("/xavier2/events/stream", get(ws_events_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
+        .route("/xavier2/verify/save", post(verify_save_handler))
         .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -337,46 +327,6 @@ fn default_limit() -> usize {
     10
 }
 
-fn domain_query_filters(
-    limit: usize,
-    filters: Option<&MemoryQueryFilters>,
-) -> DomainMemoryQueryFilters {
-    let mut domain_filters = DomainMemoryQueryFilters {
-        namespace: None,
-        kinds: None,
-        limit: Some(limit.max(1).min(100)),
-        min_confidence: None,
-    };
-
-    if let Some(filters) = filters {
-        domain_filters.kinds = filters.kinds.as_ref().map(|kinds| {
-            kinds
-                .iter()
-                .map(|kind| match kind {
-                    xavier2::memory::schema::MemoryKind::Fact => DomainMemoryKind::Fact,
-                    xavier2::memory::schema::MemoryKind::Task => DomainMemoryKind::Task,
-                    xavier2::memory::schema::MemoryKind::Session => {
-                        DomainMemoryKind::Conversation
-                    }
-                    _ => DomainMemoryKind::Context,
-                })
-                .collect()
-        });
-
-        domain_filters.namespace = if filters.session_id.is_some() {
-            Some(DomainMemoryNamespace::Session)
-        } else if filters.project.is_some() {
-            Some(DomainMemoryNamespace::Project)
-        } else if filters.scope.as_deref() == Some("ephemeral") {
-            Some(DomainMemoryNamespace::Ephemeral)
-        } else {
-            None
-        };
-    }
-
-    domain_filters
-}
-
 async fn search_handler(
     State(state): State<CliState>,
     axum::Json(payload): axum::Json<SearchPayload>,
@@ -407,8 +357,7 @@ async fn search_handler(
     let limit = payload.limit.max(1).min(100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
-    let filters = domain_query_filters(limit, payload.filters.as_ref());
-    let results: Vec<DomainMemoryRecord> = match state.memory.search(effective_query, Some(filters)).await {
+    let results: Vec<DomainMemoryRecord> = match state.memory.search(effective_query, None).await {
         Ok(results) => results,
         Err(e) => {
             info!("Search error: {}", e);
@@ -423,25 +372,25 @@ async fn search_handler(
     };
 
     {
-        // Deduplicate results by content hash, keeping most recent by updated_at
-        // NOTE: deduplicate_by_content_hash was removed - results passed through
-        let search_results: Vec<serde_json::Value> = results
-            .into_iter()
-            .map(|document| {
-                serde_json::json!({
-                    "id": document.id,
-                    "content": document.content,
-                    "embedding": document.embedding,
+            // Deduplicate results by content hash, keeping most recent by updated_at
+            // NOTE: deduplicate_by_content_hash was removed - results passed through
+            let search_results: Vec<serde_json::Value> = results
+                .into_iter()
+                .map(|document| {
+                    serde_json::json!({
+                        "id": document.id,
+                        "content": document.content,
+                        "embedding": document.embedding,
+                    })
                 })
-            })
-            .collect();
+                .collect();
 
-        axum::Json(serde_json::json!({
-            "results": search_results,
-            "query": payload.query,
-            "count": search_results.len(),
-            "workspace_id": state.workspace_id,
-        }))
+            axum::Json(serde_json::json!({
+                "results": search_results,
+                "query": payload.query,
+                "count": search_results.len(),
+                "workspace_id": state.workspace_id,
+            }))
     }
 }
 
@@ -604,12 +553,7 @@ async fn memory_query_handler(
     );
 
     // Use search (equivalent to hybrid search)
-    let schema_filters = payload
-        .filters
-        .as_ref()
-        .and_then(|filters| serde_json::from_value::<MemoryQueryFilters>(filters.clone()).ok());
-    let filters = domain_query_filters(limit, schema_filters.as_ref());
-    match state.memory.search(&payload.query, Some(filters)).await {
+    match state.memory.search(&payload.query, None).await {
         Ok(results) => {
             let documents: Vec<_> = results
                 .into_iter()
@@ -1128,61 +1072,6 @@ async fn session_event_handler(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Timeline Events Handler
-// Returns auditable timeline events for Gestalt integration
-// ─────────────────────────────────────────────────────────────────────────────
-
-use axum::extract::Query;
-use chrono::{DateTime, Utc};
-
-/// Validates an ISO 8601 / RFC3339 timestamp string and returns it as UTC DateTime.
-fn validate_timestamp(s: &str) -> Result<DateTime<Utc>, String> {
-    DateTime::parse_from_rfc3339(s)
-        .map(|dt| dt.with_timezone(&Utc))
-        .map_err(|_| "Invalid ISO 8601 timestamp".to_string())
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TimelineQuery {
-    pub since: String,
-}
-
-async fn timeline_events_handler(
-    State(state): State<CliState>,
-    Query(query): Query<TimelineQuery>,
-) -> impl axum::response::IntoResponse {
-    // Validate the `since` timestamp before querying the store
-    if let Err(msg) = validate_timestamp(&query.since) {
-        return (
-            StatusCode::BAD_REQUEST,
-            axum::Json(serde_json::json!({
-                "status": "error",
-                "message": msg,
-            })),
-        );
-    }
-
-    match state
-        .store
-        .list_timeline_events(&state.workspace_id, &query.since)
-        .await
-    {
-        Ok(events) => axum::Json(serde_json::json!({
-            "status": "ok",
-            "events": events,
-            "count": events.len(),
-        })),
-        Err(e) => {
-            tracing::warn!(%e, "timeline_events query failed");
-            axum::Json(serde_json::json!({
-                "status": "error",
-                "message": e.to_string(),
-            }))
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Session Compaction Handler
 // Auto-triggers context compaction when token usage exceeds 80%
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1365,21 +1254,8 @@ struct AgentRegisterPayload {
 
 async fn agent_register_handler(
     State(state): State<CliState>,
-    axum::extract::Extension(headers): axum::extract::Extension<axum::http::HeaderMap>,
     axum::Json(payload): axum::Json<AgentRegisterPayload>,
 ) -> impl axum::response::IntoResponse {
-    // Authenticate via X-Cortex-Token
-    let token = headers
-        .get("X-Cortex-Token")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    if token != state.auth_token {
-        return (axum::http::StatusCode::UNAUTHORIZED, axum::Json(serde_json::json!({
-            "error": "Unauthorized",
-            "message": "Invalid or missing X-Cortex-Token",
-        })));
-    }
-
     let metadata = xavier2::coordination::agent_registry::AgentMetadata {
         name: payload.name,
         capabilities: payload.capabilities.unwrap_or_default(),
@@ -1411,20 +1287,7 @@ struct AgentHeartbeatPayload {
 async fn agent_heartbeat_handler(
     State(state): State<CliState>,
     axum::extract::Path(agent_id): axum::extract::Path<String>,
-    axum::extract::Extension(headers): axum::extract::Extension<axum::http::HeaderMap>,
 ) -> impl axum::response::IntoResponse {
-    // Authenticate via X-Cortex-Token
-    let token = headers
-        .get("X-Cortex-Token")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    if token != state.auth_token {
-        return (axum::http::StatusCode::UNAUTHORIZED, axum::Json(serde_json::json!({
-            "error": "Unauthorized",
-            "message": "Invalid or missing X-Cortex-Token",
-        })));
-    }
-
     let success = state.agent_registry.heartbeat(&agent_id).await;
 
     axum::Json(serde_json::json!({
@@ -1460,21 +1323,8 @@ struct AgentPushContextPayload {
 async fn agent_push_context_handler(
     State(state): State<CliState>,
     axum::extract::Path(agent_id): axum::extract::Path<String>,
-    axum::extract::Extension(headers): axum::extract::Extension<axum::http::HeaderMap>,
     axum::Json(payload): axum::Json<AgentPushContextPayload>,
 ) -> impl axum::response::IntoResponse {
-    // Authenticate via X-Cortex-Token
-    let token = headers
-        .get("X-Cortex-Token")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    if token != state.auth_token {
-        return (axum::http::StatusCode::UNAUTHORIZED, axum::Json(serde_json::json!({
-            "error": "Unauthorized",
-            "message": "Invalid or missing X-Cortex-Token",
-        })));
-    }
-
     // Verify agent exists
     let agent = state.agent_registry.get(&agent_id).await;
     if agent.is_none() {
@@ -1526,20 +1376,7 @@ async fn agent_push_context_handler(
 async fn agent_unregister_handler(
     State(state): State<CliState>,
     axum::extract::Path(agent_id): axum::extract::Path<String>,
-    axum::extract::Extension(headers): axum::extract::Extension<axum::http::HeaderMap>,
 ) -> impl axum::response::IntoResponse {
-    // Authenticate via X-Cortex-Token
-    let token = headers
-        .get("X-Cortex-Token")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    if token != state.auth_token {
-        return (axum::http::StatusCode::UNAUTHORIZED, axum::Json(serde_json::json!({
-            "error": "Unauthorized",
-            "message": "Invalid or missing X-Cortex-Token",
-        })));
-    }
-
     let success = state.agent_registry.unregister(&agent_id).await;
 
     axum::Json(serde_json::json!({
@@ -1568,8 +1405,6 @@ async fn start_mcp_stdio() -> Result<()> {
     let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
     memory.set_store(Arc::clone(&store)).await;
     memory.init().await?;
-    let memory_port =
-        Arc::new(QmdMemoryAdapter::new(Arc::clone(&memory))) as Arc<dyn MemoryQueryPort>;
 
     // Async stdin/stdout
     let stdin = tokio::io::stdin();
@@ -1726,13 +1561,7 @@ async fn start_mcp_stdio() -> Result<()> {
                         let limit =
                             args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
                         let limit = limit.max(1).min(100);
-                        let filters = DomainMemoryQueryFilters {
-                            namespace: None,
-                            kinds: None,
-                            limit: Some(limit),
-                            min_confidence: None,
-                        };
-                        match memory_port.search(query, Some(filters)).await {
+                        match memory.search(query, limit).await {
                             Ok(results) => {
                                 let summary = serde_json::json!({
                                     "count": results.len(),
@@ -1758,21 +1587,10 @@ async fn start_mcp_stdio() -> Result<()> {
                                 obj.insert("title".to_string(), serde_json::json!(t));
                             }
                         }
-                        let record = DomainMemoryRecord {
-                            id: String::new(),
-                            content: content.to_string(),
-                            kind: DomainMemoryKind::Context,
-                            namespace: DomainMemoryNamespace::Global,
-                            provenance: DomainMemoryProvenance {
-                                source: path.clone(),
-                                evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
-                                confidence: 1.0,
-                            },
-                            embedding: None,
-                            created_at: chrono::Utc::now(),
-                            updated_at: chrono::Utc::now(),
-                        };
-                        match memory_port.add(record).await {
+                        match memory
+                            .add_document(path.clone(), content.to_string(), metadata)
+                            .await
+                        {
                             Ok(id) => serde_json::json!({
                                 "status": "ok",
                                 "path": path,
@@ -1782,12 +1600,14 @@ async fn start_mcp_stdio() -> Result<()> {
                             Err(e) => format!("{{\"error\": \"{}\"}}", e),
                         }
                     }
-                    "stats" => serde_json::json!({
-                        "status": "ok",
-                        "workspace_id": workspace_id,
-                        "version": "0.4.1",
-                    })
-                    .to_string(),
+                    "stats" => {
+                        serde_json::json!({
+                            "status": "ok",
+                            "workspace_id": workspace_id,
+                            "version": "0.4.1",
+                        })
+                        .to_string()
+                    }
                     _ => format!(
                         "Unknown tool: {}. Available tools: search, add, stats",
                         tool_name
@@ -1893,8 +1713,7 @@ async fn session_load(ctx: &str) -> Result<String> {
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
     let limit = limit.max(1).min(100);
-    let token =
-        std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
+    let token = std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/search", port);
 

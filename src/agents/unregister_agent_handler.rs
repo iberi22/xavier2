@@ -5,10 +5,10 @@ use axum::{
     Json,
 };
 
-use crate::coordination::SimpleAgentRegistry;
+use crate::ports::inbound::AgentLifecyclePort;
 
 pub async fn unregister_agent_handler(
-    State(registry): State<Arc<SimpleAgentRegistry>>,
+    State(registry): State<Arc<dyn AgentLifecyclePort>>,
     Path(agent_id): Path<String>,
 ) -> Json<serde_json::Value> {
     let success = registry.unregister(&agent_id).await;
@@ -28,11 +28,13 @@ pub async fn unregister_agent_handler(
 mod tests {
     use super::unregister_agent_handler;
     use crate::coordination::SimpleAgentRegistry;
+    use crate::ports::inbound::AgentLifecyclePort;
     use axum::{
         extract::{Path, State},
         Json,
     };
     use serde_json::json;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn unregister_existing_agent_returns_success_payload() {
@@ -45,9 +47,11 @@ mod tests {
             )
             .await;
 
-        let Json(payload) =
-            unregister_agent_handler(State(registry.clone()), Path("agent-delete-1".to_string()))
-                .await;
+        let Json(payload) = unregister_agent_handler(
+            State(registry.clone() as Arc<dyn AgentLifecyclePort>),
+            Path("agent-delete-1".to_string()),
+        )
+        .await;
 
         assert_eq!(
             payload,
@@ -63,7 +67,7 @@ mod tests {
     #[tokio::test]
     async fn unregister_missing_agent_returns_error_payload() {
         let Json(payload) = unregister_agent_handler(
-            State(SimpleAgentRegistry::new()),
+            State(SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>),
             Path("missing-agent".to_string()),
         )
         .await;
