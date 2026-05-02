@@ -7,16 +7,14 @@ use axum::{
     Router,
 };
 use clap::{Parser, Subcommand};
-use serde::Deserialize;
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use serde::{Deserialize, Serialize};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Instant};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::info;
 
-use xavier2::adapters::inbound::http::routes::{
-    sync_check_handler, time_metric_handler, verify_save_handler,
-};
+use xavier2::adapters::inbound::http::dto::TimeMetricDto;
 use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
@@ -32,8 +30,20 @@ use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
 use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
-use xavier2::tasks::session_sync_task::SessionSyncTask;
+use xavier2::tasks::session_sync_task::{get_last_sync_result, SessionSyncTask};
 use xavier2::time::TimeMetricsStore;
+use xavier2::verification::auto_verifier::AutoVerifier;
+
+static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> = std::sync::OnceLock::new();
+static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> = std::sync::OnceLock::new();
+
+fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
+    TIME_STORE.set(port).ok();
+}
+
+fn init_health_port(port: Arc<dyn HealthCheckPort>) {
+    HEALTH_PORT.set(port).ok();
+}
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
@@ -143,7 +153,6 @@ async fn start_http_server(port: u16) -> Result<()> {
         }
     }
     // Register global time metrics port for HTTP handler (wrap in adapter)
-    use xavier2::adapters::inbound::http::routes::{init_health_port, init_time_store};
     use xavier2::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
     let health_adapter = Arc::new(HttpHealthAdapter::new(
         std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
@@ -198,6 +207,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/memory/query", post(memory_query_handler))
         .route("/session/compact", post(session_compact_handler))
         .route("/xavier2/events/session", post(session_event_handler))
+        .route("/xavier2/verify/save", post(verify_save_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
         // Agent registration endpoints
         .route("/xavier2/agents/register", post(agent_register_handler))
@@ -249,6 +259,124 @@ fn code_graph_db_path() -> PathBuf {
 // HTTP Handlers
 async fn health_handler() -> &'static str {
     r#"{"status":"ok","service":"xavier2","version":"0.4.1"}"#
+}
+
+#[derive(Debug, Deserialize)]
+struct VerifySaveRequest {
+    path: String,
+    content: String,
+}
+
+#[derive(Debug, Serialize)]
+struct VerifySaveResponse {
+    save_ok: bool,
+    latency_ms: u64,
+    match_score: f32,
+}
+
+async fn verify_save_handler(
+    axum::Json(payload): axum::Json<VerifySaveRequest>,
+) -> axum::Json<VerifySaveResponse> {
+    let start = Instant::now();
+
+    let xavier2_url =
+        std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string());
+
+    if let Err(e) = xavier2::security::url_validator::validate_internal_url(&xavier2_url) {
+        tracing::error!("Internal URL validation failed: {}", e);
+        return axum::Json(VerifySaveResponse {
+            save_ok: false,
+            latency_ms: start.elapsed().as_millis() as u64,
+            match_score: 0.0,
+        });
+    }
+
+    let auth_token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let client = reqwest::Client::new();
+    let result = AutoVerifier::verify_save(
+        &client,
+        &xavier2_url,
+        &auth_token,
+        &payload.path,
+        &payload.content,
+    )
+    .await;
+
+    let elapsed = start.elapsed().as_millis() as u64;
+    match result {
+        Ok(vr) => axum::Json(VerifySaveResponse {
+            save_ok: vr.save_ok,
+            latency_ms: elapsed,
+            match_score: vr.match_score,
+        }),
+        Err(_) => axum::Json(VerifySaveResponse {
+            save_ok: false,
+            latency_ms: elapsed,
+            match_score: 0.0,
+        }),
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct TimeMetricResponse {
+    status: String,
+    metric_type: String,
+    agent_id: String,
+}
+
+async fn time_metric_handler(
+    axum::Json(payload): axum::Json<TimeMetricDto>,
+) -> axum::Json<TimeMetricResponse> {
+    let workspace_id =
+        std::env::var("XAVIER2_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+
+    if let Some(time_store) = TIME_STORE.get() {
+        let result = time_store.save_time_metric(&payload, &workspace_id).await;
+        match result {
+            Ok(()) => {
+                return axum::Json(TimeMetricResponse {
+                    status: "saved".to_string(),
+                    metric_type: payload.metric_type,
+                    agent_id: payload.agent_id,
+                });
+            }
+            Err(e) => {
+                tracing::warn!("TimeMetricsStore save error: {}", e);
+            }
+        }
+    }
+
+    axum::Json(TimeMetricResponse {
+        status: "ok".to_string(),
+        metric_type: payload.metric_type,
+        agent_id: payload.agent_id,
+    })
+}
+
+#[derive(Debug, Serialize)]
+struct SyncCheckResponse {
+    status: String,
+    lag_ms: u64,
+    save_ok_rate: f64,
+    match_score: f64,
+    active_agents: u64,
+    timestamp_ms: u64,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    alerts: Vec<String>,
+}
+
+async fn sync_check_handler() -> axum::Json<SyncCheckResponse> {
+    let result = get_last_sync_result();
+
+    axum::Json(SyncCheckResponse {
+        status: result.status,
+        lag_ms: result.lag_ms,
+        save_ok_rate: result.save_ok_rate,
+        match_score: result.match_score,
+        active_agents: result.active_agents,
+        timestamp_ms: result.timestamp_ms,
+        alerts: result.alerts,
+    })
 }
 
 async fn readiness_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
