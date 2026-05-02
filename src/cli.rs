@@ -21,13 +21,14 @@ use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
+use xavier2::domain::agent::AgentMetadata;
 use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier2::memory::surreal_store::MemoryRecord as SurrealMemoryRecord;
 use xavier2::memory::surreal_store::MemoryStore;
-use xavier2::ports::inbound::{MemoryQueryPort, TimeMetricsPort};
+use xavier2::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
 use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
 use xavier2::session::event_mapper::PanelThreadEntry;
@@ -46,7 +47,7 @@ pub struct CliState {
     pub code_query: Arc<code_graph::query::QueryEngine>,
     pub security: Arc<SecurityService>,
     pub time_store: Option<Arc<TimeMetricsStore>>,
-    pub agent_registry: Arc<SimpleAgentRegistry>,
+    pub agent_registry: Arc<dyn AgentLifecyclePort>,
 }
 
 #[derive(Subcommand)]
@@ -170,7 +171,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         code_query,
         security: Arc::new(SecurityService::new()),
         time_store: Some(time_store),
-        agent_registry: SimpleAgentRegistry::new(),
+        agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
     };
 
     info!(

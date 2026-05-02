@@ -7,30 +7,14 @@
 //! - Store/retrieve agent context in memory
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::ports::inbound::AgentLifecyclePort;
 
-/// Active agent entry
-#[derive(Debug, Clone)]
-pub struct AgentEntry {
-    pub agent_id: String,
-    pub session_id: String,
-    pub last_heartbeat: DateTime<Utc>,
-    pub metadata: AgentMetadata,
-}
-
-/// Additional agent metadata
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct AgentMetadata {
-    pub name: Option<String>,
-    pub capabilities: Vec<String>,
-    pub role: Option<String>,
-}
+pub use crate::domain::agent::{AgentEntry, AgentMetadata};
 
 const HEARTBEAT_TIMEOUT_SECS: i64 = 300; // 5 minutes
 

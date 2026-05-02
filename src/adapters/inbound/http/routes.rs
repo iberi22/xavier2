@@ -11,7 +11,7 @@ use std::time::Instant;
 use crate::adapters::inbound::http::dto::TimeMetricDto;
 use crate::agents::unregister_agent_handler;
 use crate::coordination::SimpleAgentRegistry;
-use crate::ports::inbound::TimeMetricsPort;
+use crate::ports::inbound::{AgentLifecyclePort, TimeMetricsPort};
 use crate::ports::outbound::HealthCheckPort;
 use crate::session::event_mapper::map_to_panel_thread;
 use crate::session::types::{SessionEvent, SessionEventType};
@@ -40,7 +40,7 @@ pub fn create_router() -> Router {
     create_router_with_agent_registry(SimpleAgentRegistry::new())
 }
 
-pub fn create_router_with_agent_registry(agent_registry: Arc<SimpleAgentRegistry>) -> Router {
+pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecyclePort>) -> Router {
     Router::new()
         .route("/health", get(health_handler))
         .route("/xavier2/events/session", post(session_event_handler))
