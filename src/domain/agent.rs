@@ -16,4 +16,5 @@ pub struct AgentMetadata {
     pub name: Option<String>,
     pub capabilities: Vec<String>,
     pub role: Option<String>,
+    pub endpoint: Option<String>,
 }

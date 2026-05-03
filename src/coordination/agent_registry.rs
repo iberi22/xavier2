@@ -137,6 +137,7 @@ mod tests {
             name: Some("test-agent".to_string()),
             capabilities: vec!["coding".to_string()],
             role: Some("worker".to_string()),
+            endpoint: None,
         };
 
         let result = registry

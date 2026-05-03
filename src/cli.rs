@@ -3,7 +3,7 @@
 use anyhow::{anyhow, Result};
 use axum::{
     extract::State,
-    routing::{delete, get, post},
+    routing::{get, post},
     Router,
 };
 use clap::{Parser, Subcommand};
@@ -17,11 +17,9 @@ use tracing::info;
 use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
-use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
-use xavier2::domain::agent::AgentMetadata;
 use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
@@ -213,9 +211,8 @@ async fn start_http_server(port: u16) -> Result<()> {
         )
         .route(
             "/xavier2/agents/{id}/unregister",
-            delete(agent_unregister_handler),
+            post(agent_unregister_handler),
         )
-        .route("/xavier2/events/stream", get(ws_events_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
         .route("/xavier2/verify/save", post(verify_save_handler))
@@ -1246,10 +1243,11 @@ async fn session_compact_handler(
 #[derive(Debug, Deserialize)]
 struct AgentRegisterPayload {
     agent_id: String,
-    session_id: String,
+    session_id: Option<String>,
     name: Option<String>,
     capabilities: Option<Vec<String>>,
     role: Option<String>,
+    endpoint: Option<String>,
 }
 
 async fn agent_register_handler(
@@ -1260,21 +1258,21 @@ async fn agent_register_handler(
         name: payload.name,
         capabilities: payload.capabilities.unwrap_or_default(),
         role: payload.role,
+        endpoint: payload.endpoint,
     };
+    let session_id = payload
+        .session_id
+        .unwrap_or_else(|| payload.agent_id.clone());
 
     let success = state
         .agent_registry
-        .register(
-            payload.agent_id.clone(),
-            payload.session_id.clone(),
-            metadata,
-        )
+        .register(payload.agent_id.clone(), session_id.clone(), metadata)
         .await;
 
     axum::Json(serde_json::json!({
         "status": if success { "ok" } else { "error" },
         "agent_id": payload.agent_id,
-        "session_id": payload.session_id,
+        "session_id": session_id,
         "message": if success { "Agent registered successfully" } else { "Registration failed" },
     }))
 }
@@ -1310,6 +1308,7 @@ async fn agent_active_handler(State(state): State<CliState>) -> impl axum::respo
             "name": a.metadata.name,
             "capabilities": a.metadata.capabilities,
             "role": a.metadata.role,
+            "endpoint": a.metadata.endpoint,
         })).collect::<Vec<_>>(),
     }))
 }

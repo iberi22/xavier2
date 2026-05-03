@@ -67,6 +67,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 
 ENV XAVIER2_PORT=8006 \
     XAVIER2_HOST=0.0.0.0 \
+    XAVIER2_URL=http://localhost:8006 \
+    X-CORTEX-TOKEN=dev-token \
     RUST_LOG=info \
     XAVIER2_VERSION=${XAVIER2_VERSION} \
     XAVIER2_WORKSPACE_ID=default
