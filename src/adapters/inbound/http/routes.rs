@@ -1,6 +1,5 @@
 use axum::{
     extract::Json,
-    routing::delete,
     routing::{get, post},
     Router,
 };
@@ -46,7 +45,7 @@ pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecycleP
         .route("/xavier2/events/session", post(session_event_handler))
         .route(
             "/xavier2/agents/{id}/unregister",
-            delete(unregister_agent_handler),
+            post(unregister_agent_handler),
         )
         .route("/xavier2/verify/save", post(verify_save_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
@@ -248,12 +247,12 @@ mod route_tests {
     use super::create_router_with_agent_registry;
     use crate::coordination::SimpleAgentRegistry;
 
-    fn delete(uri: &str) -> Request<Body> {
+    fn post_request(uri: &str) -> Request<Body> {
         Request::builder()
             .uri(uri)
-            .method(Method::DELETE)
+            .method(Method::POST)
             .body(Body::empty())
-            .expect("build DELETE request")
+            .expect("build POST request")
     }
 
     #[tokio::test]
@@ -268,7 +267,7 @@ mod route_tests {
             .await;
 
         let response = create_router_with_agent_registry(registry.clone())
-            .oneshot(delete("/xavier2/agents/agent-delete-1/unregister"))
+            .oneshot(post_request("/xavier2/agents/agent-delete-1/unregister"))
             .await
             .expect("request should complete");
 
@@ -291,7 +290,7 @@ mod route_tests {
     #[tokio::test]
     async fn unregister_route_returns_error_for_missing_agent() {
         let response = create_router_with_agent_registry(SimpleAgentRegistry::new())
-            .oneshot(delete("/xavier2/agents/missing-agent/unregister"))
+            .oneshot(post_request("/xavier2/agents/missing-agent/unregister"))
             .await
             .expect("request should complete");
 

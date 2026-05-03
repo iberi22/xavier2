@@ -3,7 +3,7 @@
 use anyhow::{anyhow, Result};
 use axum::{
     extract::State,
-    routing::{delete, get, post},
+    routing::{get, post},
     Router,
 };
 use clap::{Parser, Subcommand};
@@ -213,7 +213,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         )
         .route(
             "/xavier2/agents/{id}/unregister",
-            delete(agent_unregister_handler),
+            post(agent_unregister_handler),
         )
         .route("/xavier2/events/stream", get(ws_events_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))

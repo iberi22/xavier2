@@ -55,13 +55,13 @@ fn get(uri: &str) -> Request<Body> {
         .expect("build GET request")
 }
 
-/// Build a DELETE request.
-fn delete(uri: &str) -> Request<Body> {
+/// Build a POST request.
+fn post_empty(uri: &str) -> Request<Body> {
     Request::builder()
         .uri(uri)
-        .method(axum::http::Method::DELETE)
+        .method(axum::http::Method::POST)
         .body(Body::empty())
-        .expect("build DELETE request")
+        .expect("build POST request")
 }
 
 /// Assert status is 2xx.
@@ -397,7 +397,7 @@ async fn test_unregister_endpoint_removes_existing_agent() {
 
     let router = create_router_with_agent_registry(registry.clone());
     let response = router
-        .oneshot(delete("/xavier2/agents/agent-delete-1/unregister"))
+        .oneshot(post_empty("/xavier2/agents/agent-delete-1/unregister"))
         .await
         .expect("request should complete");
 
@@ -422,7 +422,7 @@ async fn test_unregister_endpoint_removes_existing_agent() {
 async fn test_unregister_endpoint_returns_error_for_missing_agent() {
     let router = create_router_with_agent_registry(SimpleAgentRegistry::new());
     let response = router
-        .oneshot(delete("/xavier2/agents/missing-agent/unregister"))
+        .oneshot(post_empty("/xavier2/agents/missing-agent/unregister"))
         .await
         .expect("request should complete");
 

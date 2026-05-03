@@ -300,7 +300,7 @@ mod integration {
 
         let response = server
             .client
-            .delete(format!(
+            .post(format!(
                 "{}/xavier2/agents/agent-memory-1/unregister",
                 server.base_url
             ))
@@ -344,7 +344,7 @@ mod integration {
 
         let response = server
             .client
-            .delete(format!(
+            .post(format!(
                 "{}/xavier2/agents/worker-1/unregister",
                 server.base_url
             ))
