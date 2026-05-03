@@ -4,7 +4,6 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, RwLock};
-use surrealdb_types::SurrealValue;
 use tokio::sync::RwLock as AsyncRwLock;
 use tracing::info;
 
@@ -67,7 +66,7 @@ pub struct BeliefNode {
 }
 
 /// A relation between nodes.
-#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BeliefRelation {
     pub id: String,
     pub source: String,

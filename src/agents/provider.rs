@@ -241,7 +241,9 @@ impl ModelProviderClient {
             ModelProviderKind::Gemini => self.generate_gemini(system_prompt, &user_prompt).await,
             ModelProviderKind::OpenAI => self.generate_openai(system_prompt, &user_prompt).await,
             ModelProviderKind::MiniMax => self.generate_minimax(system_prompt, &user_prompt).await,
-            ModelProviderKind::DeepSeek => self.generate_deepseek(system_prompt, &user_prompt).await,
+            ModelProviderKind::DeepSeek => {
+                self.generate_deepseek(system_prompt, &user_prompt).await
+            }
             ModelProviderKind::Local => self.generate_local(system_prompt, &user_prompt).await,
             ModelProviderKind::Anthropic => {
                 Err(anyhow!("anthropic provider is not implemented yet"))
@@ -262,7 +264,9 @@ impl ModelProviderClient {
             ModelProviderKind::Gemini => self.generate_gemini(system_prompt, &user_prompt).await,
             ModelProviderKind::OpenAI => self.generate_openai(system_prompt, &user_prompt).await,
             ModelProviderKind::MiniMax => self.generate_minimax(system_prompt, &user_prompt).await,
-            ModelProviderKind::DeepSeek => self.generate_deepseek(system_prompt, &user_prompt).await,
+            ModelProviderKind::DeepSeek => {
+                self.generate_deepseek(system_prompt, &user_prompt).await
+            }
             ModelProviderKind::Local => self.generate_local(system_prompt, &user_prompt).await,
             ModelProviderKind::Anthropic => {
                 Err(anyhow!("anthropic provider is not implemented yet"))

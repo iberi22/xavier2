@@ -37,8 +37,9 @@ RUN mkdir -p /data
 # Environment defaults
 ENV XAVIER2_PORT=8006
 ENV XAVIER2_HOST=0.0.0.0
-ENV XAVIER2_TOKEN=dev-token
 ENV XAVIER2_DEV_MODE=false
+
+# Required: set XAVIER2_TOKEN to a secure random value
 
 # Expose port
 EXPOSE 8006

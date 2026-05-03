@@ -494,7 +494,6 @@ fn overlay_namespace(namespace: &mut MemoryNamespace, metadata: &Value) {
         .or_else(|| string_value(metadata, "gestalt_context"));
 }
 
-
 fn overlay_provenance(provenance: &mut MemoryProvenance, metadata: &Value, path: &str) {
     provenance.source_app = provenance
         .source_app

@@ -25,11 +25,11 @@ use crate::{
         schema::MemoryQueryFilters,
         semantic::SemanticMemory,
         session_store::SessionStore,
+        sqlite_store::SqliteMemoryStore,
         sqlite_vec_store::VecSqliteMemoryStore,
-        store::SqliteMemoryStore,
-        surreal_store::{
+        store::{
             FileMemoryStore, InMemoryMemoryStore, MemoryBackend, MemoryRecord, MemoryStore,
-            SessionTokenRecord, SurrealMemoryStore,
+            SessionTokenRecord,
         },
     },
 };
@@ -587,17 +587,6 @@ impl WorkspaceState {
                 false,
                 "ephemeral in-memory backend".to_string(),
             ),
-            MemoryBackend::Surreal => {
-                let store: Arc<dyn MemoryStore> = Arc::new(SurrealMemoryStore::from_env().await?);
-                let migration = migrate_file_store_if_needed(
-                    &config.id,
-                    &file_store_path,
-                    &migration_marker_path,
-                    Arc::clone(&store),
-                )
-                .await?;
-                (store, migration.migrated, migration.detail)
-            }
             MemoryBackend::Sqlite => {
                 let store: Arc<dyn MemoryStore> = Arc::new(SqliteMemoryStore::from_env().await?);
                 let migration = migrate_file_store_if_needed(

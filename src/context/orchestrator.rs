@@ -28,6 +28,7 @@ pub struct ExecutionPlan {
 pub struct Orchestrator {
     classifier: ContextClassifier,
     search: HybridContextSearch,
+    budgets: ContextBudgetConfig,
 }
 
 impl Default for Orchestrator {
@@ -41,6 +42,15 @@ impl Orchestrator {
         Self {
             classifier: ContextClassifier::new(),
             search: HybridContextSearch::default(),
+            budgets: ContextBudgetConfig::from_env(),
+        }
+    }
+
+    pub fn with_budgets(budgets: ContextBudgetConfig) -> Self {
+        Self {
+            classifier: ContextClassifier::new(),
+            search: HybridContextSearch::default(),
+            budgets,
         }
     }
 
@@ -76,7 +86,7 @@ impl Orchestrator {
             .cloned()
             .collect();
 
-        let config = config_for(hook, level);
+        let config = self.budgets.plan(hook, level);
         let query = build_query(prompt, level, hook);
         let selected = self
             .search
@@ -138,6 +148,109 @@ impl Orchestrator {
     }
 }
 
+/// Default budget constants for context regeneration.
+pub const DEFAULT_SS_MIN_DOCS: usize = 3;
+pub const DEFAULT_SS_MIN_TOKENS: usize = 600;
+pub const DEFAULT_SS_MED_DOCS: usize = 5;
+pub const DEFAULT_SS_MED_TOKENS: usize = 1_200;
+pub const DEFAULT_SS_MAX_DOCS: usize = 8;
+pub const DEFAULT_SS_MAX_TOKENS: usize = 2_400;
+pub const DEFAULT_PC_MIN_DOCS: usize = 4;
+pub const DEFAULT_PC_MIN_TOKENS: usize = 800;
+pub const DEFAULT_PC_MED_DOCS: usize = 7;
+pub const DEFAULT_PC_MED_TOKENS: usize = 1_600;
+pub const DEFAULT_PC_MAX_DOCS: usize = 10;
+pub const DEFAULT_PC_MAX_TOKENS: usize = 3_200;
+
+/// In-memory configuration for context regeneration budgets.
+///
+/// # Environment variables
+/// - `XAVIER2_CTX_SS_MIN_DOCS` / `XAVIER2_CTX_SS_MIN_TOKENS` (SessionStart Minimal)
+/// - `XAVIER2_CTX_SS_MED_DOCS` / `XAVIER2_CTX_SS_MED_TOKENS` (SessionStart Medium)
+/// - `XAVIER2_CTX_SS_MAX_DOCS` / `XAVIER2_CTX_SS_MAX_TOKENS` (SessionStart Maximum)
+/// - `XAVIER2_CTX_PC_MIN_DOCS` / `XAVIER2_CTX_PC_MIN_TOKENS` (Precompact Minimal)
+/// - `XAVIER2_CTX_PC_MED_DOCS` / `XAVIER2_CTX_PC_MED_TOKENS` (Precompact Medium)
+/// - `XAVIER2_CTX_PC_MAX_DOCS` / `XAVIER2_CTX_PC_MAX_TOKENS` (Precompact Maximum)
+#[derive(Debug, Clone, Copy)]
+pub struct ContextBudgetConfig {
+    pub session_start_min_docs: usize,
+    pub session_start_min_tokens: usize,
+    pub session_start_med_docs: usize,
+    pub session_start_med_tokens: usize,
+    pub session_start_max_docs: usize,
+    pub session_start_max_tokens: usize,
+    pub precompact_min_docs: usize,
+    pub precompact_min_tokens: usize,
+    pub precompact_med_docs: usize,
+    pub precompact_med_tokens: usize,
+    pub precompact_max_docs: usize,
+    pub precompact_max_tokens: usize,
+}
+
+impl Default for ContextBudgetConfig {
+    fn default() -> Self {
+        Self {
+            session_start_min_docs: DEFAULT_SS_MIN_DOCS,
+            session_start_min_tokens: DEFAULT_SS_MIN_TOKENS,
+            session_start_med_docs: DEFAULT_SS_MED_DOCS,
+            session_start_med_tokens: DEFAULT_SS_MED_TOKENS,
+            session_start_max_docs: DEFAULT_SS_MAX_DOCS,
+            session_start_max_tokens: DEFAULT_SS_MAX_TOKENS,
+            precompact_min_docs: DEFAULT_PC_MIN_DOCS,
+            precompact_min_tokens: DEFAULT_PC_MIN_TOKENS,
+            precompact_med_docs: DEFAULT_PC_MED_DOCS,
+            precompact_med_tokens: DEFAULT_PC_MED_TOKENS,
+            precompact_max_docs: DEFAULT_PC_MAX_DOCS,
+            precompact_max_tokens: DEFAULT_PC_MAX_TOKENS,
+        }
+    }
+}
+
+impl ContextBudgetConfig {
+    /// Load from environment variables with validated defaults.
+    pub fn from_env() -> Self {
+        let def = Self::default();
+        Self {
+            session_start_min_docs: env_or("XAVIER2_CTX_SS_MIN_DOCS", def.session_start_min_docs),
+            session_start_min_tokens: env_or("XAVIER2_CTX_SS_MIN_TOKENS", def.session_start_min_tokens),
+            session_start_med_docs: env_or("XAVIER2_CTX_SS_MED_DOCS", def.session_start_med_docs),
+            session_start_med_tokens: env_or("XAVIER2_CTX_SS_MED_TOKENS", def.session_start_med_tokens),
+            session_start_max_docs: env_or("XAVIER2_CTX_SS_MAX_DOCS", def.session_start_max_docs),
+            session_start_max_tokens: env_or("XAVIER2_CTX_SS_MAX_TOKENS", def.session_start_max_tokens),
+            precompact_min_docs: env_or("XAVIER2_CTX_PC_MIN_DOCS", def.precompact_min_docs),
+            precompact_min_tokens: env_or("XAVIER2_CTX_PC_MIN_TOKENS", def.precompact_min_tokens),
+            precompact_med_docs: env_or("XAVIER2_CTX_PC_MED_DOCS", def.precompact_med_docs),
+            precompact_med_tokens: env_or("XAVIER2_CTX_PC_MED_TOKENS", def.precompact_med_tokens),
+            precompact_max_docs: env_or("XAVIER2_CTX_PC_MAX_DOCS", def.precompact_max_docs),
+            precompact_max_tokens: env_or("XAVIER2_CTX_PC_MAX_TOKENS", def.precompact_max_tokens),
+        }
+    }
+
+    fn plan(&self, hook: HookKind, level: ContextLevel) -> PlanConfig {
+        let (max_documents, max_tokens) = match (hook, level) {
+            (HookKind::SessionStart, ContextLevel::Minimal) => (self.session_start_min_docs, self.session_start_min_tokens),
+            (HookKind::SessionStart, ContextLevel::Medium) => (self.session_start_med_docs, self.session_start_med_tokens),
+            (HookKind::SessionStart, ContextLevel::Maximum) => (self.session_start_max_docs, self.session_start_max_tokens),
+            (HookKind::Precompact, ContextLevel::Minimal) => (self.precompact_min_docs, self.precompact_min_tokens),
+            (HookKind::Precompact, ContextLevel::Medium) => (self.precompact_med_docs, self.precompact_med_tokens),
+            (HookKind::Precompact, ContextLevel::Maximum) => (self.precompact_max_docs, self.precompact_max_tokens),
+        };
+        // SessionStart Minimal excludes tool_calls/metadata by default; all others include them.
+        let (include_tool_calls, include_metadata) = match (hook, level) {
+            (HookKind::SessionStart, ContextLevel::Minimal) => (false, false),
+            _ => (true, true),
+        };
+        PlanConfig { max_documents, max_tokens, include_tool_calls, include_metadata }
+    }
+}
+
+fn env_or<T: std::str::FromStr>(key: &str, default: T) -> T {
+    std::env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
 #[derive(Debug, Clone, Copy)]
 struct PlanConfig {
     max_documents: usize,
@@ -147,44 +260,9 @@ struct PlanConfig {
 }
 
 fn config_for(hook: HookKind, level: ContextLevel) -> PlanConfig {
-    match (hook, level) {
-        (HookKind::SessionStart, ContextLevel::Minimal) => PlanConfig {
-            max_documents: 3,
-            max_tokens: 600,
-            include_tool_calls: false,
-            include_metadata: false,
-        },
-        (HookKind::SessionStart, ContextLevel::Medium) => PlanConfig {
-            max_documents: 5,
-            max_tokens: 1_200,
-            include_tool_calls: true,
-            include_metadata: false,
-        },
-        (HookKind::SessionStart, ContextLevel::Maximum) => PlanConfig {
-            max_documents: 8,
-            max_tokens: 2_400,
-            include_tool_calls: true,
-            include_metadata: true,
-        },
-        (HookKind::Precompact, ContextLevel::Minimal) => PlanConfig {
-            max_documents: 4,
-            max_tokens: 800,
-            include_tool_calls: true,
-            include_metadata: false,
-        },
-        (HookKind::Precompact, ContextLevel::Medium) => PlanConfig {
-            max_documents: 7,
-            max_tokens: 1_600,
-            include_tool_calls: true,
-            include_metadata: true,
-        },
-        (HookKind::Precompact, ContextLevel::Maximum) => PlanConfig {
-            max_documents: 10,
-            max_tokens: 3_200,
-            include_tool_calls: true,
-            include_metadata: true,
-        },
-    }
+    // Backward-compatible: uses hardcoded defaults when ContextBudgetConfig is not injected.
+    // Callers should prefer Orchestrator::with_budgets() for configurability.
+    ContextBudgetConfig::default().plan(hook, level)
 }
 
 fn build_query(prompt: &str, level: ContextLevel, hook: HookKind) -> String {

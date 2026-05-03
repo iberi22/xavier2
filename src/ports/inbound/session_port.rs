@@ -1,5 +1,5 @@
-use async_trait::async_trait;
 use crate::session::types::SessionEvent;
+use async_trait::async_trait;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -13,5 +13,8 @@ pub struct SessionEventResult {
 #[async_trait]
 pub trait SessionPort: Send + Sync {
     async fn handle_event(&self, event: SessionEvent) -> bool;
-    async fn handle_and_index_event(&self, event: SessionEvent) -> anyhow::Result<SessionEventResult>;
+    async fn handle_and_index_event(
+        &self,
+        event: SessionEvent,
+    ) -> anyhow::Result<SessionEventResult>;
 }

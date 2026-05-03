@@ -22,10 +22,11 @@ use crate::memory::schema::{
     matches_filters, normalize_metadata, resolve_metadata, EvidenceKind, MemoryKind,
     MemoryQueryFilters, TypedMemoryPayload,
 };
-use crate::memory::surreal_store::{MemoryRecord, MemoryStore};
+use crate::memory::store::{MemoryRecord, MemoryStore};
 use crate::utils::crypto::hex_encode;
 
 /// Compute a stable SHA256 content hash for deduplication.
+// TODO: Dead code - remove or restore content-hash deduplication.
 #[allow(dead_code)]
 fn _compute_content_hash(content: &str) -> String {
     hex_encode(Sha256::digest(content.as_bytes()).as_slice())
@@ -204,8 +205,7 @@ impl QmdMemory {
     }
 
     /// Load workspace state from persistent store on startup.
-    /// This is CRITICAL for persistence - without this, data written to SurrealDB
-    /// (or file store) before a restart would be lost on restart.
+    /// This is CRITICAL for persistence - without this, data written to the configured store before a restart would be lost on restart.
     pub async fn init(&self) -> Result<()> {
         if let Some(store) = self.store().await {
             let state = store.load_workspace_state(&self.workspace_id).await?;
@@ -2830,6 +2830,7 @@ pub async fn query_with_embedding_filtered(
 /// Groups documents by SHA256 content hash, then selects the document with the latest
 /// `updated_at` metadata field (or `created_at` as fallback). Preserves original order
 /// by keeping the first occurrence of each hash group.
+// TODO: Dead code - remove or restore content-hash deduplication.
 #[allow(dead_code)]
 fn _deduplicate_by_content_hash(results: Vec<MemoryDocument>) -> Vec<MemoryDocument> {
     use std::collections::HashMap;

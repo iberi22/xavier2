@@ -1,5 +1,5 @@
+use crate::context::{ContextDocument, ContextLevel};
 use serde::{Deserialize, Serialize};
-use crate::context::{ContextLevel, ContextDocument};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextBuilderConfig {
@@ -98,7 +98,7 @@ impl ContextBuilder {
         context.push_str("# Recent Messages\n");
         let limit = self.config.recent_messages_limit.min(messages.len());
         let start = messages.len() - limit;
-        
+
         for msg in &messages[start..] {
             context.push_str(&format!("{}: {}\n", msg.role, msg.content));
         }

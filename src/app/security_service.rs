@@ -2,10 +2,11 @@
 //!
 //! This implements both `SecurityScanPort` and `InputSecurityPort` by wrapping the concrete `security::SecurityService`.
 //! Handlers should use these through port traits, not call `security::SecurityService` directly.
+// TODO: HexArch - depends on concrete crate::security::SecurityService, should use a port abstraction
 
 use crate::domain::security::{ScanResult, Severity, Threat, ThreatCategory, ThreatLevel};
-use crate::ports::inbound::{SecurityScanPort, InputSecurityPort};
 use crate::ports::inbound::security_port::SecureInputResult;
+use crate::ports::inbound::{InputSecurityPort, SecurityScanPort};
 use crate::security;
 use async_trait::async_trait;
 use chrono::Utc;

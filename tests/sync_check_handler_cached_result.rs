@@ -5,8 +5,8 @@ use chrono::Utc;
 
 use xavier2::adapters::inbound::http::routes::sync_check_handler;
 use xavier2::memory::schema::MemoryQueryFilters;
-use xavier2::memory::surreal_store::{
-    MemoryRecord, MemoryStore, RevisionedRecord, SessionTokenRecord, DurableWorkspaceState,
+use xavier2::memory::store::{
+    DurableWorkspaceState, MemoryRecord, MemoryStore, SessionTokenRecord,
 };
 use xavier2::ports::outbound::health_check_port::HealthStatus;
 use xavier2::ports::outbound::HealthCheckPort;
@@ -35,7 +35,11 @@ impl MemoryStore for MockMemoryStore {
         Ok(())
     }
 
-    async fn get(&self, _workspace_id: &str, _id_or_path: &str) -> anyhow::Result<Option<MemoryRecord>> {
+    async fn get(
+        &self,
+        _workspace_id: &str,
+        _id_or_path: &str,
+    ) -> anyhow::Result<Option<MemoryRecord>> {
         Ok(None)
     }
 
@@ -43,19 +47,36 @@ impl MemoryStore for MockMemoryStore {
         Ok(self.records.clone())
     }
 
-    async fn list_filtered(&self, _workspace_id: &str, _filters: &MemoryQueryFilters, _limit: usize) -> anyhow::Result<Vec<MemoryRecord>> {
+    async fn update(&self, _record: MemoryRecord) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn list_filtered(
+        &self,
+        _workspace_id: &str,
+        _filters: &MemoryQueryFilters,
+        _limit: usize,
+    ) -> anyhow::Result<Vec<MemoryRecord>> {
         Ok(self.records.clone())
     }
 
-    async fn search(&self, _workspace_id: &str, _query: &str, _limit: usize) -> anyhow::Result<Vec<MemoryRecord>> {
+    async fn search(
+        &self,
+        _workspace_id: &str,
+        _query: &str,
+        _filters: Option<&MemoryQueryFilters>,
+    ) -> anyhow::Result<Vec<MemoryRecord>> {
         Ok(Vec::new())
     }
 
-    async fn delete(&self, _workspace_id: &str, _id: &str) -> anyhow::Result<Option<MemoryRecord>> {
+    async fn delete(&self, _workspace_id: &str, _id_or_path: &str) -> anyhow::Result<Option<MemoryRecord>> {
         Ok(None)
     }
 
-    async fn load_workspace_state(&self, _workspace_id: &str) -> anyhow::Result<DurableWorkspaceState> {
+    async fn load_workspace_state(
+        &self,
+        _workspace_id: &str,
+    ) -> anyhow::Result<DurableWorkspaceState> {
         Ok(DurableWorkspaceState {
             memories: self.records.clone(),
             beliefs: Vec::new(),
@@ -64,32 +85,62 @@ impl MemoryStore for MockMemoryStore {
         })
     }
 
-    async fn save_beliefs(&self, _workspace_id: &str, _beliefs: Vec<crate::memory::belief_graph::BeliefRelation>) -> anyhow::Result<()> {
+    async fn save_beliefs(
+        &self,
+        _workspace_id: &str,
+        _beliefs: Vec<xavier2::memory::belief_graph::BeliefRelation>,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    async fn save_session_token(&self, _workspace_id: &str, _token: SessionTokenRecord) -> anyhow::Result<()> {
+    async fn save_session_token(
+        &self,
+        _workspace_id: &str,
+        _token: SessionTokenRecord,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    async fn is_session_token_valid(&self, _workspace_id: &str, _token: &str) -> anyhow::Result<bool> {
+    async fn is_session_token_valid(
+        &self,
+        _workspace_id: &str,
+        _token: &str,
+    ) -> anyhow::Result<bool> {
         Ok(true)
     }
 
-    async fn save_checkpoint(&self, _workspace_id: &str, _checkpoint: crate::checkpoint::Checkpoint) -> anyhow::Result<()> {
+    async fn save_checkpoint(
+        &self,
+        _workspace_id: &str,
+        _checkpoint: xavier2::checkpoint::Checkpoint,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    async fn load_checkpoint(&self, _workspace_id: &str, _task_id: String, _name: String) -> anyhow::Result<Option<crate::checkpoint::Checkpoint>> {
+    async fn load_checkpoint(
+        &self,
+        _workspace_id: &str,
+        _task_id: &str,
+        _name: &str,
+    ) -> anyhow::Result<Option<xavier2::checkpoint::Checkpoint>> {
         Ok(None)
     }
 
-    async fn delete_checkpoint(&self, _workspace_id: &str, _task_id: String, _name: String) -> anyhow::Result<()> {
+    async fn list_checkpoints(&self, _workspace_id: &str, _task_id: &str) -> anyhow::Result<Vec<xavier2::checkpoint::Checkpoint>> {
+        Ok(Vec::new())
+    }
+
+    async fn delete_checkpoint(
+        &self,
+        _workspace_id: &str,
+        _task_id: &str,
+        _name: &str,
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn backend(&self) -> crate::memory::surreal_store::MemoryBackend {
-        crate::memory::surreal_store::MemoryBackend::Memory
+    fn backend(&self) -> xavier2::memory::store::MemoryBackend {
+        xavier2::memory::store::MemoryBackend::Memory
     }
 
     async fn health(&self) -> anyhow::Result<String> {

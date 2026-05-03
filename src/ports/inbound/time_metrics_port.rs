@@ -1,4 +1,4 @@
-use crate::adapters::inbound::http::dto::TimeMetricDto;
+use crate::domain::memory::TimeMetric;
 use async_trait::async_trait;
 
 /// Port for time metrics operations (inbound)
@@ -7,7 +7,7 @@ pub trait TimeMetricsPort: Send + Sync {
     /// Save a time metric record
     async fn save_time_metric(
         &self,
-        metric: &TimeMetricDto,
+        metric: &TimeMetric,
         workspace_id: &str,
     ) -> Result<(), String>;
 }

@@ -14,7 +14,7 @@ async fn test_hierarchical_curation_and_retrieval() {
         id: "test-curation".to_string(),
         token: "test-token".to_string(),
         plan: PlanTier::Personal,
-        memory_backend: xavier2::memory::surreal_store::MemoryBackend::File,
+        memory_backend: xavier2::memory::store::MemoryBackend::File,
         storage_limit_bytes: Some(10 * 1024 * 1024),
         request_limit: Some(1000),
         request_unit_limit: Some(2000),

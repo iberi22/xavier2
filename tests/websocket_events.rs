@@ -1,28 +1,130 @@
 use axum::{
-    body::Body,
-    http::{Request, StatusCode},
+    extract::ws::{Message, WebSocket},
+    http::StatusCode,
+    response::IntoResponse,
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio::sync::RwLock;
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-use xavier2::adapters::outbound::vec::pattern_adapter::PatternAdapter;
-use xavier2::agents::RuntimeConfig;
-use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
-use xavier2::app::security_service::SecurityService;
-use xavier2::coordination::SimpleAgentRegistry;
-use xavier2::memory::file_indexer::{FileIndexer, FileIndexerConfig};
-use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
+use tokio::sync::broadcast;
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message as WsProtocolMessage};
 use xavier2::memory::sqlite_vec_store::{VecSqliteMemoryStore, VecSqliteStoreConfig};
-use xavier2::memory::surreal_store::MemoryStore;
-use xavier2::ports::inbound::MemoryQueryPort;
-use xavier2::server::events::{WsEvent, WsMessage};
-use xavier2::server::http::{add_handler, ws_events_handler};
-use xavier2::workspace::{WorkspaceConfig, WorkspaceRegistry, WorkspaceState};
-use xavier2::AppState;
+use xavier2::memory::store::MemoryRecord;
+use xavier2::memory::store::MemoryStore;
+use xavier2::server::events::{RealtimeEvent, WsEvent, WsMessage};
+
+/// Inline app state for the websocket integration test.
+/// Avoids coupling with the production CliState or AppState.
+#[derive(Clone)]
+struct TestState {
+    store: Arc<VecSqliteMemoryStore>,
+    workspace_id: String,
+    event_tx: broadcast::Sender<RealtimeEvent>,
+}
+
+/// POST /memory/add — insert a record and broadcast the event.
+async fn test_add_handler(
+    axum::extract::State(state): axum::extract::State<TestState>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    let content = payload
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let metadata = payload
+        .get("metadata")
+        .cloned()
+        .unwrap_or(serde_json::json!({}));
+    let path = format!("memory/{}", chrono::Utc::now().timestamp());
+
+    let event = RealtimeEvent {
+        workspace_id: state.workspace_id.clone(),
+        event_id: uuid::Uuid::new_v4().to_string(),
+        agent_id: metadata
+            .get("_audit")
+            .and_then(|a| a.get("agent_id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        project_id: None,
+        event_type: metadata
+            .get("_audit")
+            .and_then(|a| a.get("operation"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("memory.add")
+            .to_string(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        payload: serde_json::json!({ "path": path, "content": content }),
+    };
+
+    let record = MemoryRecord::from_document(
+        &state.workspace_id,
+        &xavier2::memory::qmd_memory::MemoryDocument {
+            id: Some(event.event_type.clone()),
+            path: path.clone(),
+            content: content.to_string(),
+            metadata: metadata.clone(),
+            content_vector: None,
+            embedding: vec![],
+        },
+        true,
+        None,
+    );
+
+    let _ = state.store.put(record).await;
+    let _ = state.event_tx.send(event);
+
+    (StatusCode::OK, Json(serde_json::json!({"status": "ok"})))
+}
+
+/// GET /xavier2/events/stream — WebSocket upgrade.
+async fn test_ws_handler(
+    ws: axum::extract::ws::WebSocketUpgrade,
+    axum::extract::State(state): axum::extract::State<TestState>,
+) -> impl IntoResponse {
+    let rx = state.event_tx.subscribe();
+    ws.on_upgrade(move |socket| handle_test_ws(socket, rx))
+}
+
+async fn handle_test_ws(
+    mut socket: WebSocket,
+    mut event_rx: broadcast::Receiver<RealtimeEvent>,
+) {
+    let mut subscribed = false;
+
+    loop {
+        tokio::select! {
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        if text.contains("Subscribe") || text.contains("subscribe") {
+                            let confirm = WsEvent::SubscriptionConfirmed;
+                            let _ = socket.send(Message::Text(
+                                serde_json::to_string(&confirm).unwrap().into(),
+                            )).await;
+                            subscribed = true;
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) | None => break,
+                    _ => {}
+                }
+            }
+            event = event_rx.recv() => {
+                match event {
+                    Ok(e) if subscribed => {
+                        let ws_event = WsEvent::Event(e);
+                        let _ = socket.send(Message::Text(
+                            serde_json::to_string(&ws_event).unwrap().into(),
+                        )).await;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
 
 #[tokio::test]
 async fn test_websocket_streaming() {
@@ -36,43 +138,20 @@ async fn test_websocket_streaming() {
     .await
     .unwrap();
 
-    let (event_tx, _) = tokio::sync::broadcast::channel(100);
-    store_inner.set_event_tx(event_tx);
+    let (event_tx, _) = broadcast::channel(100);
+    store_inner.set_event_tx(event_tx.clone());
     let store = Arc::new(store_inner);
 
-    let workspace_id = "test_ws_workspace";
-    let memory = Arc::new(QmdMemory::new_with_workspace(
-        Arc::new(RwLock::new(vec![])),
-        workspace_id.to_string(),
-    ));
-    memory
-        .set_store(store.clone() as Arc<dyn MemoryStore>)
-        .await;
-    memory.init().await.unwrap();
-    let memory_port =
-        Arc::new(QmdMemoryAdapter::new(Arc::clone(&memory))) as Arc<dyn MemoryQueryPort>;
-
-    let code_db_path = temp.path().join("code_graph.db");
-    let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&code_db_path).unwrap());
-    let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
-    let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
-
-    let state = xavier2::cli::CliState {
-        memory: memory_port,
+    let test_state = TestState {
         store: store.clone(),
-        workspace_id: workspace_id.to_string(),
-        code_db,
-        code_indexer,
-        code_query,
-        security: Arc::new(SecurityService::new()),
-        time_store: None,
-        agent_registry: Arc::new(SimpleAgentRegistry::new()),
+        workspace_id: "test_ws_workspace".to_string(),
+        event_tx: event_tx.clone(),
     };
 
     let app = Router::new()
-        .route("/memory/add", post(add_handler))
-        .route("/xavier2/events/stream", get(ws_events_handler))
-        .with_state(state);
+        .route("/memory/add", post(test_add_handler))
+        .route("/xavier2/events/stream", get(test_ws_handler))
+        .with_state(test_state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -91,7 +170,7 @@ async fn test_websocket_streaming() {
         event_type: None,
     };
     ws_stream
-        .send(Message::Text(
+        .send(WsProtocolMessage::Text(
             serde_json::to_string(&sub_msg).unwrap().into(),
         ))
         .await

@@ -1,298 +1,272 @@
-//! SQLite backend for Xavier2 memory store.
+//! Core memory store trait and shared types for Xavier2.
 //!
-//! Provides a persistent, ACID-compliant storage layer using SQLite.
-//! Used as a fallback when SurrealDB is unavailable.
+//! Defines the MemoryStore trait and all shared data structures
+//! used by concrete store implementations (SqliteMemoryStore in sqlite_store.rs,
+//! VecSqliteMemoryStore in sqlite_vec_store.rs, etc.).
 
-use std::{any::Any, path::PathBuf, sync::Arc};
+use std::{any::Any as StdAny, collections::HashMap, path::PathBuf, sync::Arc};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use parking_lot::Mutex;
-use rusqlite::{params, Connection};
-use tokio::fs;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use tokio::{fs, sync::RwLock};
 
 use crate::checkpoint::Checkpoint;
 use crate::memory::belief_graph::BeliefRelation;
-use crate::memory::schema::MemoryQueryFilters;
-use crate::memory::surreal_store::{
-    filter_records, revisioned_record, stable_key, DurableWorkspaceState, MemoryBackend,
-    MemoryRecord, MemoryStore, SessionTokenRecord, SessionTokenRow, TABLE_BELIEFS,
-    TABLE_CHECKPOINTS, TABLE_MEMORIES, TABLE_SESSION_TOKENS,
-};
+use crate::memory::qmd_memory::MemoryDocument;
+use crate::memory::schema::{resolve_metadata, MemoryQueryFilters};
+use crate::utils::crypto::hex_encode;
 
-const DB_FILENAME: &str = "xavier2_memory.db";
+// ---------------------------------------------------------------------------
+// Backend enum
+// ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
-pub struct SqliteStoreConfig {
-    pub path: PathBuf,
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryBackend {
+    File,
+    Memory,
+    Sqlite,
+    Vec, // SQLite + sqlite-vec vector search
 }
 
-impl SqliteStoreConfig {
-    pub fn from_env() -> Self {
-        let data_dir = std::env::var("XAVIER2_DATA_DIR").unwrap_or_else(|_| "/data".to_string());
+impl MemoryBackend {
+    pub fn from_env(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "memory" => Self::Memory,
+            "sqlite" => Self::Sqlite,
+            "vec" | "sqlite-vec" => Self::Vec,
+            "file" => Self::File,
+            _ => Self::File,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::File => "file",
+            Self::Memory => "memory",
+            Self::Sqlite => "sqlite",
+            Self::Vec => "vec",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Core data types
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryRevision {
+    pub revision: u64,
+    pub recorded_at: DateTime<Utc>,
+    pub path: String,
+    pub content: String,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryRecord {
+    pub id: String,
+    pub workspace_id: String,
+    pub path: String,
+    pub content: String,
+    pub metadata: serde_json::Value,
+    pub embedding: Vec<f32>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub revision: u64,
+    pub primary: bool,
+    pub parent_id: Option<String>,
+    #[serde(default)]
+    pub revisions: Vec<MemoryRevision>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum HybridSearchMode {
+    Text,
+    Vector,
+    #[default]
+    Both,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HybridSearchResult {
+    pub record: MemoryRecord,
+    pub score: f32,
+    #[serde(default)]
+    pub vector_score: f32,
+    #[serde(default)]
+    pub lexical_score: f32,
+    #[serde(default)]
+    pub kg_score: f32,
+    #[serde(default)]
+    pub bm25: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphHopPath {
+    pub entity_id: String,
+    pub entity_name: String,
+    pub depth: usize,
+    pub entity_path: String,
+    pub relation_path: String,
+    #[serde(default)]
+    pub memory_hits: Vec<MemoryRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphHopResult {
+    pub source: MemoryRecord,
+    pub hops: usize,
+    pub query: String,
+    pub paths: Vec<GraphHopPath>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionTokenRecord {
+    pub token: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DurableWorkspaceState {
+    #[serde(default)]
+    pub memories: Vec<MemoryRecord>,
+    #[serde(default)]
+    pub beliefs: Vec<BeliefRelation>,
+    #[serde(default)]
+    pub session_tokens: Vec<SessionTokenRecord>,
+    #[serde(default)]
+    pub checkpoints: Vec<Checkpoint>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub(crate) struct DurableStoreFile {
+    #[serde(default)]
+    pub workspaces: HashMap<String, DurableWorkspaceState>,
+}
+
+// ---------------------------------------------------------------------------
+// MemoryRecord helpers
+// ---------------------------------------------------------------------------
+
+impl MemoryRecord {
+    pub fn from_document(
+        workspace_id: &str,
+        document: &MemoryDocument,
+        primary: bool,
+        parent_id: Option<String>,
+    ) -> Self {
+        let now = Utc::now();
+        let revision = document
+            .metadata
+            .get("revision")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(1);
+        let created_at = document
+            .metadata
+            .get("created_at")
+            .and_then(|value| value.as_str())
+            .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.with_timezone(&Utc))
+            .unwrap_or(now);
+        let updated_at = document
+            .metadata
+            .get("updated_at")
+            .and_then(|value| value.as_str())
+            .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.with_timezone(&Utc))
+            .unwrap_or(now);
+
+        let id = document
+            .id
+            .clone()
+            .unwrap_or_else(|| stable_key("memory", &[workspace_id, &document.path]));
+
         Self {
-            path: PathBuf::from(data_dir).join(DB_FILENAME),
+            id,
+            workspace_id: workspace_id.to_string(),
+            path: document.path.clone(),
+            content: document.content.clone(),
+            metadata: document.metadata.clone(),
+            embedding: document
+                .content_vector
+                .clone()
+                .unwrap_or_else(|| document.embedding.clone()),
+            created_at,
+            updated_at,
+            revision,
+            primary,
+            parent_id,
+            revisions: vec![MemoryRevision {
+                revision,
+                recorded_at: updated_at,
+                path: document.path.clone(),
+                content: document.content.clone(),
+                metadata: document.metadata.clone(),
+            }],
         }
     }
 
-    fn detail(&self) -> String {
-        self.path.display().to_string()
-    }
-}
-
-#[derive(Clone)]
-pub struct SqliteMemoryStore {
-    conn: Arc<Mutex<Connection>>,
-    config: SqliteStoreConfig,
-}
-
-impl SqliteMemoryStore {
-    pub async fn from_env() -> Result<Self> {
-        Self::new(SqliteStoreConfig::from_env()).await
-    }
-
-    pub async fn new(config: SqliteStoreConfig) -> Result<Self> {
-        if let Some(parent) = config.path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-
-        let conn = Connection::open(&config.path).with_context(|| {
-            format!(
-                "failed to open SQLite database at {}",
-                config.path.display()
-            )
-        })?;
-
-        // Enable WAL mode for better concurrency
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")?;
-
-        // Initialize schema
-        conn.execute_batch(&format!(
-            r#"
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                path TEXT NOT NULL,
-                content TEXT NOT NULL,
-                metadata TEXT NOT NULL DEFAULT '{{}}',
-                embedding BLOB,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                revision INTEGER NOT NULL DEFAULT 1,
-                primary_flag INTEGER NOT NULL DEFAULT 1,
-                parent_id TEXT,
-                revisions TEXT NOT NULL DEFAULT '[]'
+    pub fn to_document(&self) -> MemoryDocument {
+        let mut metadata = self.metadata.clone();
+        if let Some(object) = metadata.as_object_mut() {
+            object.insert("revision".to_string(), serde_json::json!(self.revision));
+            object.insert(
+                "created_at".to_string(),
+                serde_json::json!(self.created_at.to_rfc3339()),
             );
-
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                beliefs TEXT NOT NULL DEFAULT '[]',
-                updated_at TEXT NOT NULL
+            object.insert(
+                "updated_at".to_string(),
+                serde_json::json!(self.updated_at.to_rfc3339()),
             );
-
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                token TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                expires_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                task_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                data TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_memories_workspace ON {}(workspace_id);
-            CREATE INDEX IF NOT EXISTS idx_memories_path ON {}(workspace_id, path);
-            CREATE INDEX IF NOT EXISTS idx_session_tokens_workspace ON {}(workspace_id);
-            CREATE INDEX IF NOT EXISTS idx_checkpoints_workspace ON {}(workspace_id);
-            CREATE INDEX IF NOT EXISTS idx_checkpoints_task ON {}(workspace_id, task_id);
-            "#,
-            TABLE_MEMORIES,
-            TABLE_BELIEFS,
-            TABLE_SESSION_TOKENS,
-            TABLE_CHECKPOINTS,
-            TABLE_MEMORIES,
-            TABLE_MEMORIES,
-            TABLE_SESSION_TOKENS,
-            TABLE_CHECKPOINTS,
-            TABLE_CHECKPOINTS
-        ))?;
-
-        Ok(Self {
-            conn: Arc::new(Mutex::new(conn)),
-            config,
-        })
-    }
-
-    fn serialize_embedding(embedding: &[f32]) -> Vec<u8> {
-        embedding.iter().flat_map(|v| v.to_le_bytes()).collect()
-    }
-
-    fn deserialize_embedding(data: &[u8]) -> Vec<f32> {
-        data.chunks_exact(4)
-            .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
-            .collect()
-    }
-
-    fn row_key(workspace_id: &str, memory_id: &str) -> String {
-        stable_key("sqlite_mem", &[workspace_id, memory_id])
-    }
-
-    fn deserialize_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
-        let metadata_str: String = row.get(3)?;
-        let revisions_str: String = row.get(12)?;
-        let embedding_blob: Vec<u8> = row.get(5)?;
-
-        Ok(MemoryRecord {
-            id: row.get(0)?,
-            workspace_id: row.get(1)?,
-            path: row.get(2)?,
-            content: row.get(3)?,
-            metadata: serde_json::from_str(&metadata_str).unwrap_or_default(),
-            embedding: Self::deserialize_embedding(&embedding_blob),
-            created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(6)?)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now()),
-            updated_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(7)?)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now()),
-            revision: row.get(8)?,
-            primary: row.get::<_, i32>(9)? != 0,
-            parent_id: row.get(10)?,
-            revisions: serde_json::from_str(&revisions_str).unwrap_or_default(),
-        })
-    }
-}
-
-#[async_trait]
-impl MemoryStore for SqliteMemoryStore {
-    fn backend(&self) -> MemoryBackend {
-        MemoryBackend::Sqlite
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    async fn health(&self) -> Result<String> {
-        let conn = self.conn.lock();
-        conn.execute("SELECT 1", [])?;
-        Ok(format!("sqlite {}", self.config.detail()))
-    }
-
-    async fn put(&self, record: MemoryRecord) -> Result<()> {
-        let conn = self.conn.lock();
-        conn.execute(
-            &format!(
-                "INSERT OR REPLACE INTO {} (id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-                TABLE_MEMORIES
-            ),
-            params![
-                record.id,
-                record.workspace_id,
-                record.path,
-                record.content,
-                serde_json::to_string(&record.metadata).unwrap_or_default(),
-                Self::serialize_embedding(&record.embedding),
-                record.created_at.to_rfc3339(),
-                record.updated_at.to_rfc3339(),
-                record.revision,
-                record.primary as i32,
-                record.parent_id,
-                serde_json::to_string(&record.revisions).unwrap_or_default(),
-            ],
-        )?;
-        Ok(())
-    }
-
-    async fn get(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
-        let conn = self.conn.lock();
-
-        // Try by id first (O(1) lookup)
-        let key = Self::row_key(workspace_id, id_or_path);
-        let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE id = ?",
-            TABLE_MEMORIES
-        ))?;
-
-        let mut rows = stmt.query([&key])?;
-        if let Some(row) = rows.next()? {
-            return Ok(Some(Self::deserialize_record(row)?));
-        }
-        drop(rows);
-        drop(stmt);
-
-        // Fallback: try by path
-        let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ? AND path = ?",
-            TABLE_MEMORIES
-        ))?;
-
-        let mut rows = stmt.query(params![workspace_id, id_or_path])?;
-        if let Some(row) = rows.next()? {
-            Ok(Some(Self::deserialize_record(row)?))
-        } else {
-            Ok(None)
-        }
-    }
-
-    async fn update(&self, record: MemoryRecord) -> Result<()> {
-        let record = if let Some(existing) = self.get(&record.workspace_id, &record.id).await? {
-            revisioned_record(existing, record)
-        } else if let Some(existing) = self.get(&record.workspace_id, &record.path).await? {
-            revisioned_record(existing, record)
-        } else {
-            record
-        };
-        self.put(record).await
-    }
-
-    async fn delete(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
-        let removed = self.get(workspace_id, id_or_path).await?;
-        if let Some(record) = &removed {
-            let key = Self::row_key(workspace_id, &record.id);
-            let conn = self.conn.lock();
-            conn.execute(
-                &format!("DELETE FROM {} WHERE id = ?", TABLE_MEMORIES),
-                [&key],
-            )?;
-
-            // Also delete children
-            conn.execute(
-                &format!(
-                    "DELETE FROM {} WHERE workspace_id = ? AND parent_id = ?",
-                    TABLE_MEMORIES
-                ),
-                params![workspace_id, &record.id],
-            )?;
-        }
-        Ok(removed)
-    }
-
-    async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ?",
-            TABLE_MEMORIES
-        ))?;
-
-        let mut rows = stmt.query([workspace_id])?;
-        let mut records = Vec::new();
-        while let Some(row) = rows.next()? {
-            if let Ok(record) = Self::deserialize_record(row) {
-                records.push(record);
+            object.insert("primary".to_string(), serde_json::json!(self.primary));
+            if let Some(parent_id) = &self.parent_id {
+                object.insert("parent_id".to_string(), serde_json::json!(parent_id));
             }
         }
-        Ok(records)
+
+        MemoryDocument {
+            id: Some(self.id.clone()),
+            path: self.path.clone(),
+            content: self.content.clone(),
+            metadata,
+            content_vector: Some(self.embedding.clone()),
+            embedding: self.embedding.clone(),
+        }
     }
 
+    pub fn matches_query(&self, query: &str) -> bool {
+        let lowered = query.trim().to_ascii_lowercase();
+        lowered.is_empty()
+            || self.path.to_ascii_lowercase().contains(&lowered)
+            || self.content.to_ascii_lowercase().contains(&lowered)
+            || self
+                .metadata
+                .to_string()
+                .to_ascii_lowercase()
+                .contains(&lowered)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// MemoryStore trait
+// ---------------------------------------------------------------------------
+
+#[async_trait]
+pub trait MemoryStore: Send + Sync {
+    fn backend(&self) -> MemoryBackend;
+    fn as_any(&self) -> &dyn StdAny;
+    async fn health(&self) -> Result<String>;
+    async fn put(&self, record: MemoryRecord) -> Result<()>;
+    async fn get(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>>;
+    async fn update(&self, record: MemoryRecord) -> Result<()>;
+    async fn delete(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>>;
+    async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>>;
     async fn list_filtered(
         &self,
         workspace_id: &str,
@@ -305,6 +279,221 @@ impl MemoryStore for SqliteMemoryStore {
             .take(limit)
             .collect())
     }
+    async fn search(
+        &self,
+        workspace_id: &str,
+        query: &str,
+        filters: Option<&MemoryQueryFilters>,
+    ) -> Result<Vec<MemoryRecord>>;
+    async fn hybrid_search(
+        &self,
+        workspace_id: &str,
+        query: &str,
+        mode: HybridSearchMode,
+        filters: Option<&MemoryQueryFilters>,
+        limit: usize,
+    ) -> Result<Vec<HybridSearchResult>> {
+        let _ = (workspace_id, query, mode, filters, limit);
+        anyhow::bail!(
+            "hybrid search is not supported by the {} backend",
+            self.backend().as_str()
+        )
+    }
+    async fn graph_hops(
+        &self,
+        workspace_id: &str,
+        path_or_id: &str,
+        hops: usize,
+        query: &str,
+    ) -> Result<GraphHopResult> {
+        let _ = (workspace_id, path_or_id, hops, query);
+        anyhow::bail!(
+            "graph hop traversal is not supported by the {} backend",
+            self.backend().as_str()
+        )
+    }
+    async fn load_workspace_state(&self, workspace_id: &str) -> Result<DurableWorkspaceState>;
+    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()>;
+    async fn save_session_token(
+        &self,
+        workspace_id: &str,
+        token: SessionTokenRecord,
+    ) -> Result<()>;
+    async fn is_session_token_valid(&self, workspace_id: &str, token: &str) -> Result<bool>;
+    async fn save_checkpoint(&self, workspace_id: &str, checkpoint: Checkpoint) -> Result<()>;
+    async fn load_checkpoint(
+        &self,
+        workspace_id: &str,
+        task_id: &str,
+        name: &str,
+    ) -> Result<Option<Checkpoint>>;
+    async fn list_checkpoints(
+        &self,
+        workspace_id: &str,
+        task_id: &str,
+    ) -> Result<Vec<Checkpoint>>;
+    async fn delete_checkpoint(
+        &self,
+        workspace_id: &str,
+        task_id: &str,
+        name: &str,
+    ) -> Result<()>;
+    /// List timeline events for a workspace since the given ISO 8601 timestamp.
+    async fn list_timeline_events(
+        &self,
+        workspace_id: &str,
+        since: &str,
+    ) -> Result<Vec<crate::server::events::RealtimeEvent>> {
+        let _ = (workspace_id, since);
+        anyhow::bail!(
+            "timeline events are not supported by the {} backend",
+            self.backend().as_str()
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FileMemoryStore
+// ---------------------------------------------------------------------------
+
+#[derive(Clone)]
+pub struct FileMemoryStore {
+    path: PathBuf,
+    state: Arc<RwLock<DurableStoreFile>>,
+}
+
+impl FileMemoryStore {
+    pub async fn new(path: impl Into<PathBuf>) -> Result<Self> {
+        let path = path.into();
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+
+        let state = if fs::try_exists(&path).await.unwrap_or(false) {
+            let payload = fs::read_to_string(&path).await?;
+            serde_json::from_str(&payload).unwrap_or_default()
+        } else {
+            DurableStoreFile::default()
+        };
+
+        Ok(Self {
+            path,
+            state: Arc::new(RwLock::new(state)),
+        })
+    }
+
+    pub async fn persist(&self) -> Result<()> {
+        let payload = {
+            let state = self.state.read().await;
+            serde_json::to_vec_pretty(&*state)?
+        };
+        fs::write(&self.path, payload).await?;
+        Ok(())
+    }
+
+    fn workspace_mut<'a>(
+        state: &'a mut DurableStoreFile,
+        workspace_id: &str,
+    ) -> &'a mut DurableWorkspaceState {
+        state
+            .workspaces
+            .entry(workspace_id.to_string())
+            .or_default()
+    }
+}
+
+#[async_trait]
+impl MemoryStore for FileMemoryStore {
+    fn backend(&self) -> MemoryBackend {
+        MemoryBackend::File
+    }
+
+    fn as_any(&self) -> &dyn StdAny {
+        self
+    }
+
+    async fn health(&self) -> Result<String> {
+        Ok(format!("file store at {}", self.path.display()))
+    }
+
+    async fn put(&self, record: MemoryRecord) -> Result<()> {
+        let workspace_id = record.workspace_id.clone();
+        {
+            let mut state = self.state.write().await;
+            let workspace = Self::workspace_mut(&mut state, &workspace_id);
+            workspace.memories.retain(|item| item.id != record.id);
+            workspace.memories.push(record);
+        }
+        self.persist().await
+    }
+
+    async fn get(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .and_then(|workspace| {
+                workspace
+                    .memories
+                    .iter()
+                    .find(|item| item.id == id_or_path || item.path == id_or_path)
+            })
+            .cloned())
+    }
+
+    async fn update(&self, record: MemoryRecord) -> Result<()> {
+        let workspace_id = record.workspace_id.clone();
+        {
+            let mut state = self.state.write().await;
+            let workspace = Self::workspace_mut(&mut state, &workspace_id);
+            if let Some(existing) = workspace
+                .memories
+                .iter_mut()
+                .find(|item| item.id == record.id || item.path == record.path)
+            {
+                *existing = revisioned_record(existing.clone(), record);
+            } else {
+                workspace.memories.push(record);
+            }
+        }
+        self.persist().await
+    }
+
+    async fn delete(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
+        let removed = {
+            let mut state = self.state.write().await;
+            let workspace = Self::workspace_mut(&mut state, workspace_id);
+            let removed = workspace
+                .memories
+                .iter()
+                .position(|item| item.id == id_or_path || item.path == id_or_path)
+                .map(|index| workspace.memories.remove(index));
+
+            if let Some(removed_record) = removed.as_ref() {
+                workspace.memories.retain(|item| {
+                    item.parent_id.as_deref() != Some(&removed_record.id)
+                        && item.parent_id.as_deref() != Some(&removed_record.path)
+                });
+            }
+
+            removed
+        };
+
+        if removed.is_some() {
+            self.persist().await?;
+        }
+
+        Ok(removed)
+    }
+
+    async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>> {
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .map(|workspace| workspace.memories.clone())
+            .unwrap_or_default())
+    }
 
     async fn search(
         &self,
@@ -316,105 +505,225 @@ impl MemoryStore for SqliteMemoryStore {
     }
 
     async fn load_workspace_state(&self, workspace_id: &str) -> Result<DurableWorkspaceState> {
-        let conn = self.conn.lock();
-
-        // Load memories
-        let mut memories = Vec::new();
-        {
-            let mut stmt = conn.prepare(&format!(
-                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ?",
-                TABLE_MEMORIES
-            ))?;
-            let mut rows = stmt.query([workspace_id])?;
-            while let Some(row) = rows.next()? {
-                if let Ok(record) = Self::deserialize_record(row) {
-                    memories.push(record);
-                }
-            }
-        }
-
-        // Load beliefs
-        let beliefs = {
-            let belief_key = stable_key("belief_row", &[workspace_id]);
-            let mut stmt = conn.prepare(&format!(
-                "SELECT beliefs FROM {} WHERE id = ?",
-                TABLE_BELIEFS
-            ))?;
-            match stmt.query_row([&belief_key], |row| {
-                let beliefs_str: String = row.get(0)?;
-                Ok(beliefs_str)
-            }) {
-                Ok(beliefs_str) => serde_json::from_str(&beliefs_str).unwrap_or_default(),
-                Err(_) => Vec::new(),
-            }
-        };
-
-        // Load session tokens (filter expired)
-        let now = Utc::now();
-        let session_tokens = {
-            let mut stmt = conn.prepare(&format!(
-                "SELECT id, workspace_id, token, created_at, expires_at FROM {} WHERE workspace_id = ?",
-                TABLE_SESSION_TOKENS
-            ))?;
-            let mut rows = stmt.query([workspace_id])?;
-            let mut tokens = Vec::new();
-            while let Some(row) = rows.next()? {
-                let token_row = SessionTokenRow {
-                    storage_id: row.get(0)?,
-                    workspace_id: row.get(1)?,
-                    token: row.get(2)?,
-                    created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
-                    expires_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(4)?)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
-                };
-                if token_row.expires_at > now {
-                    tokens.push(SessionTokenRecord::from(token_row));
-                }
-            }
-            tokens
-        };
-
-        // Load checkpoints
-        let checkpoints = {
-            let mut stmt = conn.prepare(&format!(
-                "SELECT task_id, name, data FROM {} WHERE workspace_id = ?",
-                TABLE_CHECKPOINTS
-            ))?;
-            let mut rows = stmt.query([workspace_id])?;
-            let mut checkpoints = Vec::new();
-            while let Some(row) = rows.next()? {
-                checkpoints.push(Checkpoint {
-                    task_id: row.get(0)?,
-                    name: row.get(1)?,
-                    data: serde_json::from_str(&row.get::<_, String>(2)?).unwrap_or_default(),
-                });
-            }
-            checkpoints
-        };
-
-        Ok(DurableWorkspaceState {
-            memories,
-            beliefs,
-            session_tokens,
-            checkpoints,
-        })
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()> {
-        let belief_key = stable_key("belief_row", &[workspace_id]);
-        let conn = self.conn.lock();
-        let beliefs_json = serde_json::to_string(&beliefs)?;
+        {
+            let mut state = self.state.write().await;
+            let workspace = Self::workspace_mut(&mut state, workspace_id);
+            workspace.beliefs = beliefs;
+        }
+        self.persist().await
+    }
 
-        conn.execute(
-            &format!(
-                "INSERT OR REPLACE INTO {} (id, workspace_id, beliefs, updated_at) VALUES (?, ?, ?, ?)",
-                TABLE_BELIEFS
-            ),
-            params![belief_key, workspace_id, beliefs_json, Utc::now().to_rfc3339()],
-        )?;
+    async fn save_session_token(
+        &self,
+        workspace_id: &str,
+        token: SessionTokenRecord,
+    ) -> Result<()> {
+        {
+            let mut state = self.state.write().await;
+            let workspace = Self::workspace_mut(&mut state, workspace_id);
+            workspace
+                .session_tokens
+                .retain(|item| item.expires_at > Utc::now() && item.token != token.token);
+            workspace.session_tokens.push(token);
+        }
+        self.persist().await
+    }
+
+    async fn is_session_token_valid(&self, workspace_id: &str, token: &str) -> Result<bool> {
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .map(|workspace| {
+                workspace
+                    .session_tokens
+                    .iter()
+                    .any(|item| item.token == token && item.expires_at > Utc::now())
+            })
+            .unwrap_or(false))
+    }
+
+    async fn save_checkpoint(&self, workspace_id: &str, checkpoint: Checkpoint) -> Result<()> {
+        {
+            let mut state = self.state.write().await;
+            let workspace = Self::workspace_mut(&mut state, workspace_id);
+            workspace.checkpoints.retain(|item| {
+                !(item.task_id == checkpoint.task_id && item.name == checkpoint.name)
+            });
+            workspace.checkpoints.push(checkpoint);
+        }
+        self.persist().await
+    }
+
+    async fn load_checkpoint(
+        &self,
+        workspace_id: &str,
+        task_id: &str,
+        name: &str,
+    ) -> Result<Option<Checkpoint>> {
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .and_then(|workspace| {
+                workspace
+                    .checkpoints
+                    .iter()
+                    .find(|item| item.task_id == task_id && item.name == name)
+            })
+            .cloned())
+    }
+
+    async fn list_checkpoints(
+        &self,
+        workspace_id: &str,
+        task_id: &str,
+    ) -> Result<Vec<Checkpoint>> {
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .map(|workspace| {
+                workspace
+                    .checkpoints
+                    .iter()
+                    .filter(|item| item.task_id == task_id)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    async fn delete_checkpoint(
+        &self,
+        workspace_id: &str,
+        task_id: &str,
+        name: &str,
+    ) -> Result<()> {
+        {
+            let mut state = self.state.write().await;
+            let workspace = Self::workspace_mut(&mut state, workspace_id);
+            workspace
+                .checkpoints
+                .retain(|item| !(item.task_id == task_id && item.name == name));
+        }
+        self.persist().await
+    }
+}
+
+// ---------------------------------------------------------------------------
+// InMemoryMemoryStore
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Default)]
+pub struct InMemoryMemoryStore {
+    state: Arc<RwLock<DurableStoreFile>>,
+}
+
+impl InMemoryMemoryStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[async_trait]
+impl MemoryStore for InMemoryMemoryStore {
+    fn backend(&self) -> MemoryBackend {
+        MemoryBackend::Memory
+    }
+
+    fn as_any(&self) -> &dyn StdAny {
+        self
+    }
+
+    async fn health(&self) -> Result<String> {
+        Ok("in-memory store".to_string())
+    }
+
+    async fn put(&self, record: MemoryRecord) -> Result<()> {
+        let workspace_id = record.workspace_id.clone();
+        let mut state = self.state.write().await;
+        let workspace = state.workspaces.entry(workspace_id).or_default();
+        workspace.memories.retain(|item| item.id != record.id);
+        workspace.memories.push(record);
+        Ok(())
+    }
+
+    async fn get(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
+        let state = self.state.read().await;
+        Ok(state.workspaces.get(workspace_id).and_then(|workspace| {
+            workspace
+                .memories
+                .iter()
+                .find(|item| item.id == id_or_path || item.path == id_or_path)
+                .cloned()
+        }))
+    }
+
+    async fn update(&self, record: MemoryRecord) -> Result<()> {
+        self.put(record).await
+    }
+
+    async fn delete(
+        &self,
+        workspace_id: &str,
+        id_or_path: &str,
+    ) -> Result<Option<MemoryRecord>> {
+        let mut state = self.state.write().await;
+        let Some(workspace) = state.workspaces.get_mut(workspace_id) else {
+            return Ok(None);
+        };
+        let previous_len = workspace.memories.len();
+        workspace
+            .memories
+            .retain(|item| item.id != id_or_path && item.path != id_or_path);
+        if workspace.memories.len() == previous_len {
+            return Ok(None);
+        }
+        Ok(None)
+    }
+
+    async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>> {
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .map(|workspace| workspace.memories.clone())
+            .unwrap_or_default())
+    }
+
+    async fn search(
+        &self,
+        workspace_id: &str,
+        query: &str,
+        filters: Option<&MemoryQueryFilters>,
+    ) -> Result<Vec<MemoryRecord>> {
+        let records = self.list(workspace_id).await?;
+        filter_records(records, workspace_id, query, filters)
+    }
+
+    async fn load_workspace_state(&self, workspace_id: &str) -> Result<DurableWorkspaceState> {
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()> {
+        let mut state = self.state.write().await;
+        let workspace = state.workspaces.entry(workspace_id.to_string()).or_default();
+        workspace.beliefs = beliefs;
         Ok(())
     }
 
@@ -423,67 +732,37 @@ impl MemoryStore for SqliteMemoryStore {
         workspace_id: &str,
         token: SessionTokenRecord,
     ) -> Result<()> {
-        let token_key = stable_key("session_token_row", &[workspace_id, &token.token]);
-        let conn = self.conn.lock();
-
-        // Delete expired tokens first
-        conn.execute(
-            &format!(
-                "DELETE FROM {} WHERE workspace_id = ? AND expires_at <= ?",
-                TABLE_SESSION_TOKENS
-            ),
-            params![workspace_id, Utc::now().to_rfc3339()],
-        )?;
-
-        // Insert new token
-        conn.execute(
-            &format!(
-                "INSERT OR REPLACE INTO {} (id, workspace_id, token, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
-                TABLE_SESSION_TOKENS
-            ),
-            params![
-                token_key,
-                workspace_id,
-                token.token,
-                token.created_at.to_rfc3339(),
-                token.expires_at.to_rfc3339(),
-            ],
-        )?;
+        let mut state = self.state.write().await;
+        let workspace = state.workspaces.entry(workspace_id.to_string()).or_default();
+        workspace
+            .session_tokens
+            .retain(|existing| existing.token != token.token);
+        workspace.session_tokens.push(token);
         Ok(())
     }
 
     async fn is_session_token_valid(&self, workspace_id: &str, token: &str) -> Result<bool> {
-        let token_key = stable_key("session_token_row", &[workspace_id, token]);
-        let conn = self.conn.lock();
-        let now = Utc::now().to_rfc3339();
-
-        let count: i32 = conn.query_row(
-            &format!(
-                "SELECT COUNT(*) FROM {} WHERE id = ? AND expires_at > ?",
-                TABLE_SESSION_TOKENS
-            ),
-            params![token_key, now],
-            |row| row.get(0),
-        )?;
-
-        Ok(count > 0)
+        let now = Utc::now();
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .map(|workspace| {
+                workspace
+                    .session_tokens
+                    .iter()
+                    .any(|item| item.token == token && item.expires_at > now)
+            })
+            .unwrap_or(false))
     }
 
     async fn save_checkpoint(&self, workspace_id: &str, checkpoint: Checkpoint) -> Result<()> {
-        let checkpoint_key = stable_key(
-            "checkpoint_row",
-            &[workspace_id, &checkpoint.task_id, &checkpoint.name],
-        );
-        let conn = self.conn.lock();
-        let data_json = serde_json::to_string(&checkpoint.data)?;
-
-        conn.execute(
-            &format!(
-                "INSERT OR REPLACE INTO {} (id, workspace_id, task_id, name, data) VALUES (?, ?, ?, ?, ?)",
-                TABLE_CHECKPOINTS
-            ),
-            params![checkpoint_key, workspace_id, checkpoint.task_id, checkpoint.name, data_json],
-        )?;
+        let mut state = self.state.write().await;
+        let workspace = state.workspaces.entry(workspace_id.to_string()).or_default();
+        workspace
+            .checkpoints
+            .retain(|item| !(item.task_id == checkpoint.task_id && item.name == checkpoint.name));
+        workspace.checkpoints.push(checkpoint);
         Ok(())
     }
 
@@ -493,53 +772,114 @@ impl MemoryStore for SqliteMemoryStore {
         task_id: &str,
         name: &str,
     ) -> Result<Option<Checkpoint>> {
-        let conn = self.conn.lock();
-
-        let mut stmt = conn.prepare(&format!(
-            "SELECT data FROM {} WHERE workspace_id = ? AND task_id = ? AND name = ?",
-            TABLE_CHECKPOINTS
-        ))?;
-
-        match stmt.query_row(params![workspace_id, task_id, name], |row| {
-            let data_str: String = row.get(0)?;
-            Ok(serde_json::from_str(&data_str).unwrap_or_default())
-        }) {
-            Ok(data) => Ok(Some(Checkpoint {
-                task_id: task_id.to_string(),
-                name: name.to_string(),
-                data,
-            })),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(anyhow::anyhow!("SQLite query failed: {}", e)),
-        }
+        let state = self.state.read().await;
+        Ok(state.workspaces.get(workspace_id).and_then(|workspace| {
+            workspace
+                .checkpoints
+                .iter()
+                .find(|item| item.task_id == task_id && item.name == name)
+                .cloned()
+        }))
     }
 
-    async fn list_checkpoints(&self, workspace_id: &str, task_id: &str) -> Result<Vec<Checkpoint>> {
-        let conn = self.conn.lock();
-        let mut stmt = conn.prepare(&format!(
-            "SELECT task_id, name, data FROM {} WHERE workspace_id = ? AND task_id = ?",
-            TABLE_CHECKPOINTS
-        ))?;
-
-        let mut rows = stmt.query(params![workspace_id, task_id])?;
-        let mut checkpoints = Vec::new();
-        while let Some(row) = rows.next()? {
-            checkpoints.push(Checkpoint {
-                task_id: row.get(0)?,
-                name: row.get(1)?,
-                data: serde_json::from_str(&row.get::<_, String>(2)?).unwrap_or_default(),
-            });
-        }
-        Ok(checkpoints)
+    async fn list_checkpoints(
+        &self,
+        workspace_id: &str,
+        task_id: &str,
+    ) -> Result<Vec<Checkpoint>> {
+        let state = self.state.read().await;
+        Ok(state
+            .workspaces
+            .get(workspace_id)
+            .map(|workspace| {
+                workspace
+                    .checkpoints
+                    .iter()
+                    .filter(|item| item.task_id == task_id)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default())
     }
 
-    async fn delete_checkpoint(&self, workspace_id: &str, task_id: &str, name: &str) -> Result<()> {
-        let checkpoint_key = stable_key("checkpoint_row", &[workspace_id, task_id, name]);
-        let conn = self.conn.lock();
-        conn.execute(
-            &format!("DELETE FROM {} WHERE id = ?", TABLE_CHECKPOINTS),
-            [&checkpoint_key],
-        )?;
+    async fn delete_checkpoint(
+        &self,
+        workspace_id: &str,
+        task_id: &str,
+        name: &str,
+    ) -> Result<()> {
+        let mut state = self.state.write().await;
+        if let Some(workspace) = state.workspaces.get_mut(workspace_id) {
+            workspace
+                .checkpoints
+                .retain(|item| !(item.task_id == task_id && item.name == name));
+        }
         Ok(())
     }
+}
+
+// ---------------------------------------------------------------------------
+// Shared helper functions
+// ---------------------------------------------------------------------------
+
+pub(crate) fn revisioned_record(
+    existing: MemoryRecord,
+    mut next: MemoryRecord,
+) -> MemoryRecord {
+    next.id = existing.id;
+    next.created_at = existing.created_at;
+    next.updated_at = Utc::now();
+    next.revision = existing.revision + 1;
+    next.revisions = existing.revisions.clone();
+    next.revisions.push(MemoryRevision {
+        revision: next.revision,
+        recorded_at: next.updated_at,
+        path: next.path.clone(),
+        content: next.content.clone(),
+        metadata: next.metadata.clone(),
+    });
+    next
+}
+
+pub(crate) fn filter_records(
+    records: Vec<MemoryRecord>,
+    workspace_id: &str,
+    query: &str,
+    filters: Option<&MemoryQueryFilters>,
+) -> Result<Vec<MemoryRecord>> {
+    Ok(records
+        .into_iter()
+        .filter(|record| {
+            if !record.matches_query(query) {
+                return false;
+            }
+            filters.is_none_or(|filters| {
+                resolve_metadata(&record.path, &record.metadata, workspace_id, None)
+                    .map(|resolved| {
+                        filters.workspace_id.as_deref().is_none_or(|value| {
+                            resolved.namespace.workspace_id.as_deref() == Some(value)
+                        }) && filters.project.as_deref().is_none_or(|value| {
+                            resolved.namespace.project.as_deref() == Some(value)
+                        }) && filters
+                            .scope
+                            .as_deref()
+                            .is_none_or(|value| resolved.namespace.scope.as_deref() == Some(value))
+                            && filters.session_id.as_deref().is_none_or(|value| {
+                                resolved.namespace.session_id.as_deref() == Some(value)
+                            })
+                    })
+                    .unwrap_or(false)
+            })
+        })
+        .collect())
+}
+
+pub(crate) fn stable_key(kind: &str, parts: &[&str]) -> String {
+    let mut digest = Sha256::new();
+    digest.update(kind.as_bytes());
+    for part in parts {
+        digest.update([0u8]);
+        digest.update(part.as_bytes());
+    }
+    hex_encode(&digest.finalize())
 }

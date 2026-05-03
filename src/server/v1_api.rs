@@ -413,7 +413,7 @@ mod tests {
                 id: "test".to_string(),
                 token: "test-token".to_string(),
                 plan: crate::workspace::PlanTier::Personal,
-                memory_backend: crate::memory::surreal_store::MemoryBackend::File,
+                memory_backend: crate::memory::store::MemoryBackend::File,
                 storage_limit_bytes: Some(10 * 1024 * 1024),
                 request_limit: Some(10_000),
                 request_unit_limit: Some(20_000),

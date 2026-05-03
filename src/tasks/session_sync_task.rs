@@ -17,7 +17,7 @@ use tokio::time::{interval, sleep, timeout};
 use tracing::{info, warn};
 
 use crate::memory::schema::{MemoryKind, MemoryQueryFilters};
-use crate::memory::surreal_store::MemoryStore;
+use crate::memory::store::MemoryStore;
 use crate::ports::outbound::HealthCheckPort;
 
 /// Interval in milliseconds between sync checks.

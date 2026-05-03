@@ -1,8 +1,8 @@
-use std::path::{PathBuf};
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use tokio::fs;
 use walkdir::WalkDir;
-use anyhow::{Result};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Skill {
@@ -59,9 +59,9 @@ impl SkillLoader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use std::fs::File;
     use std::io::Write;
+    use tempfile::tempdir;
 
     #[tokio::test]
     async fn loads_valid_skills() {

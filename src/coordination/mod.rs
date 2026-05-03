@@ -95,6 +95,7 @@ impl Coordinator {
 }
 
 pub struct DistributedLock {
+    // TODO: Dead code - remove or expose the resource id in lock state reporting.
     #[allow(dead_code)]
     resource_id: String,
     owner: RwLock<Option<String>>,

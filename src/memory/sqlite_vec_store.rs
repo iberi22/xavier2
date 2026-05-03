@@ -24,10 +24,12 @@ use crate::checkpoint::Checkpoint;
 use crate::memory::belief_graph::BeliefRelation;
 use crate::memory::embedder::EmbeddingClient;
 use crate::memory::schema::MemoryQueryFilters;
-use crate::memory::surreal_store::{
+use crate::memory::sqlite_store::{
+    TABLE_BELIEFS, TABLE_CHECKPOINTS, TABLE_MEMORIES, TABLE_SESSION_TOKENS,
+};
+use crate::memory::store::{
     stable_key, DurableWorkspaceState, GraphHopPath, GraphHopResult, HybridSearchMode,
     HybridSearchResult, MemoryBackend, MemoryRecord, MemoryStore, SessionTokenRecord,
-    SessionTokenRow, TABLE_BELIEFS, TABLE_CHECKPOINTS, TABLE_MEMORIES, TABLE_SESSION_TOKENS,
 };
 
 const DB_FILENAME: &str = "xavier2_memory_vec.db";
@@ -39,6 +41,22 @@ const DEFAULT_KG_WEIGHT: f32 = 0.25;
 const DEFAULT_QJL_THRESHOLD: usize = 30_000;
 const QJL_MAGIC: &[u8; 4] = b"QJL2";
 static SQLITE_VEC_EXTENSION_INIT: OnceLock<Result<(), String>> = OnceLock::new();
+
+struct SessionTokenRow {
+    token: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+    expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl From<SessionTokenRow> for SessionTokenRecord {
+    fn from(value: SessionTokenRow) -> Self {
+        Self {
+            token: value.token,
+            created_at: value.created_at,
+            expires_at: value.expires_at,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 enum FusionSource {
@@ -1765,9 +1783,9 @@ impl MemoryStore for VecSqliteMemoryStore {
 
     async fn update(&self, record: MemoryRecord) -> Result<()> {
         let record = if let Some(existing) = self.get(&record.workspace_id, &record.id).await? {
-            crate::memory::surreal_store::revisioned_record(existing, record)
+            crate::memory::store::revisioned_record(existing, record)
         } else if let Some(existing) = self.get(&record.workspace_id, &record.path).await? {
-            crate::memory::surreal_store::revisioned_record(existing, record)
+            crate::memory::store::revisioned_record(existing, record)
         } else {
             record
         };
@@ -1977,8 +1995,6 @@ impl MemoryStore for VecSqliteMemoryStore {
             let mut tokens = Vec::new();
             while let Some(row) = rows.next()? {
                 let token_row = SessionTokenRow {
-                    storage_id: row.get(0)?,
-                    workspace_id: row.get(1)?,
                     token: row.get(2)?,
                     created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
                         .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -2210,14 +2226,14 @@ impl MemoryStore for VecSqliteMemoryStore {
     }
 }
 
-// Re-export filter_records from surreal_store for use in hybrid search
+// Re-export filter_records from store for use in hybrid search
 fn filter_records(
     records: Vec<MemoryRecord>,
     workspace_id: &str,
     query: &str,
     filters: Option<&MemoryQueryFilters>,
 ) -> Result<Vec<MemoryRecord>> {
-    crate::memory::surreal_store::filter_records(records, workspace_id, query, filters)
+    crate::memory::store::filter_records(records, workspace_id, query, filters)
 }
 
 #[cfg(test)]

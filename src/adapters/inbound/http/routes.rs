@@ -23,12 +23,16 @@ static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> = std::sync::O
 
 /// Initialize the global time metrics port (call once at startup)
 pub fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
-    TIME_STORE.set(port).ok();
+    if TIME_STORE.set(port).is_err() {
+        tracing::error!("TIME_STORE global already initialized (called init_time_store twice)");
+    }
 }
 
 /// Initialize the global health check port (call once at startup)
 pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
-    HEALTH_PORT.set(port).ok();
+    if HEALTH_PORT.set(port).is_err() {
+        tracing::error!("HEALTH_PORT global already initialized (called init_health_port twice)");
+    }
 }
 
 // ─── Router ─────────────────────────────────────────────────────────────────
@@ -50,8 +54,8 @@ pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecycleP
         .with_state(agent_registry)
 }
 
-async fn health_handler() -> &'static str {
-    "ok"
+async fn health_handler() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "status": "ok" }))
 }
 
 // ─── Verification Endpoints ─────────────────────────────────────────────────
@@ -87,7 +91,17 @@ pub async fn verify_save_handler(
         });
     }
 
-    let auth_token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let auth_token = match std::env::var("XAVIER2_TOKEN") {
+        Ok(token) => token,
+        Err(_) => {
+            tracing::error!("XAVIER2_TOKEN is required for verification requests");
+            return Json(VerifySaveResponse {
+                save_ok: false,
+                latency_ms: start.elapsed().as_millis() as u64,
+                match_score: 0.0,
+            });
+        }
+    };
 
     let client = reqwest::Client::new();
     let result = AutoVerifier::verify_save(
@@ -130,7 +144,8 @@ pub async fn time_metric_handler(Json(payload): Json<TimeMetricDto>) -> Json<Tim
 
     // Try to save via TimeMetricsStore if available
     if let Some(time_store) = TIME_STORE.get() {
-        let result = time_store.save_time_metric(&payload, &workspace_id).await;
+        let domain_metric: crate::domain::memory::TimeMetric = payload.clone().into();
+        let result = time_store.save_time_metric(&domain_metric, &workspace_id).await;
         match result {
             Ok(()) => {
                 return Json(TimeMetricResponse {

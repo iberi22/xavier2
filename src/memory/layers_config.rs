@@ -5,7 +5,12 @@
 //!
 //! # Environment Variables
 //! - `XAVIER2_WORKING_MEMORY_CAPACITY` - Max items in working memory (default: 100)
+//! - `XAVIER2_WORKING_LRU_THRESHOLD` - Access count for LRU exemption (default: 2)
+//! - `XAVIER2_WORKING_BM25_K1` - Working memory BM25 k1 parameter (default: 1.5)
+//! - `XAVIER2_WORKING_BM25_B` - Working memory BM25 b parameter (default: 0.75)
+//! - `XAVIER2_EPISODIC_SUMMARY_WINDOW` - Turns before episodic summary (default: 10)
 //! - `XAVIER2_MAX_EPISODIC_SESSIONS` - Max sessions in episodic memory (default: 50)
+//! - `XAVIER2_EPISODIC_MIN_EVENT_IMPORTANCE` - Minimum key event importance (default: 0.5)
 
 use serde::{Deserialize, Serialize};
 
@@ -52,35 +57,26 @@ pub struct WorkingMemoryLayerConfig {
 
 impl Default for WorkingMemoryLayerConfig {
     fn default() -> Self {
+        let core = crate::memory::working::WorkingMemoryConfig::default();
         Self {
-            capacity: 100,
-            lru_exempt_access_threshold: 2,
-            bm25_k1: 1.5,
-            bm25_b: 0.75,
+            capacity: core.capacity,
+            lru_exempt_access_threshold: core.lru_exempt_access_threshold,
+            bm25_k1: core.bm25_k1,
+            bm25_b: core.bm25_b,
         }
     }
 }
 
 impl WorkingMemoryLayerConfig {
     /// Load configuration from environment variables
+    /// Delegates to WorkingMemoryConfig::from_env() for shared parsing + validation.
     pub fn from_env() -> Self {
+        let core = crate::memory::working::WorkingMemoryConfig::from_env();
         Self {
-            capacity: std::env::var("XAVIER2_WORKING_MEMORY_CAPACITY")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(100),
-            lru_exempt_access_threshold: std::env::var("XAVIER2_WORKING_LRU_THRESHOLD")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(2),
-            bm25_k1: std::env::var("XAVIER2_WORKING_BM25_K1")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(1.5),
-            bm25_b: std::env::var("XAVIER2_WORKING_BM25_B")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(0.75),
+            capacity: core.capacity,
+            lru_exempt_access_threshold: core.lru_exempt_access_threshold,
+            bm25_k1: core.bm25_k1,
+            bm25_b: core.bm25_b,
         }
     }
 }
@@ -109,19 +105,20 @@ impl Default for EpisodicMemoryLayerConfig {
 impl EpisodicMemoryLayerConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Self {
+        let default = Self::default();
         Self {
             summary_window: std::env::var("XAVIER2_EPISODIC_SUMMARY_WINDOW")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(10),
+                .unwrap_or(default.summary_window),
             max_sessions: std::env::var("XAVIER2_MAX_EPISODIC_SESSIONS")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(50),
+                .unwrap_or(default.max_sessions),
             min_event_importance: std::env::var("XAVIER2_EPISODIC_MIN_EVENT_IMPORTANCE")
                 .ok()
                 .and_then(|v| v.parse().ok())
-                .unwrap_or(0.5),
+                .unwrap_or(default.min_event_importance),
         }
     }
 }

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use crate::adapters::inbound::http::dto::TimeMetricDto;
+use crate::domain::memory::TimeMetric;
 use crate::ports::inbound::TimeMetricsPort;
 use crate::time::TimeMetricsStore;
 
@@ -20,9 +20,10 @@ impl TimeMetricsAdapter {
 impl TimeMetricsPort for TimeMetricsAdapter {
     async fn save_time_metric(
         &self,
-        metric: &TimeMetricDto,
+        metric: &TimeMetric,
         workspace_id: &str,
     ) -> Result<(), String> {
-        self.store.save_time_metric(metric, workspace_id).await
+        let dto = metric.clone().into();
+        self.store.save_time_metric(&dto, workspace_id).await
     }
 }

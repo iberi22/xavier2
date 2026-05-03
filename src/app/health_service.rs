@@ -20,7 +20,7 @@ impl Default for HealthService {
 impl HealthPort for HealthService {
     async fn get_health_status(&self) -> HealthStatus {
         let result = get_last_sync_result();
-        
+
         HealthStatus {
             status: result.status,
             lag_ms: result.lag_ms,

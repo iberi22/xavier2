@@ -44,7 +44,7 @@ impl LayerWeights {
     /// Validate that weights sum to approximately 1.0
     pub fn is_valid(&self) -> bool {
         let sum = self.working + self.episodic + self.semantic;
-        (sum - 1.0).abs() < 0.001
+        (sum - 1.0).abs() < config::WEIGHT_SUM_TOLERANCE
     }
 
     /// Get weight for a specific layer by name

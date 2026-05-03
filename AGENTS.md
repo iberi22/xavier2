@@ -207,6 +207,52 @@ Think of it like a human reviewing their journal and updating their mental model
 
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
 
+## Multi-Agent Workflow (git worktrees)
+
+When multiple agents (Gemini, Codex, Claude Code, etc.) work on the same repo **in parallel**, use **git worktrees** to avoid file overwrites and `target/` lock conflicts.
+
+### Why worktrees?
+Without worktrees, parallel sessions in the same repo will:
+- Overwrite each other's files (race conditions)
+- Lock/corrupt the shared `target/` directory during compilation
+- Cause merge conflicts from interleaved edits
+
+### Standard workflow
+
+```powershell
+# 1. From the main workspace, create a worktree per agent/task
+cd E:\scripts-python\xavier2
+git worktree add ..\..\temp\fix-codescan -b fix/codescan main
+git worktree add ..\..\temp\review-gemini -b review/gemini main
+
+# 2. Launch each agent in its own worktree
+exec pty:true workdir:E:\temp\fix-codescan command:"codex exec 'Fix X'
+exec pty:true workdir:E:\temp\review-gemini command:"gemini -p 'Review Y'
+
+# 3. Review + merge (diff back to main worktree or push)
+git -C E:\temp\fix-codescan diff main --stat
+
+# 4. Cleanup after merge
+git worktree remove E:\temp\fix-codescan
+git worktree remove E:\temp\review-gemini
+git branch -D fix/codescan
+```
+
+### Rules
+1. **Never** checkout branches in the main workspace — that's where I run
+2. **Always** use `git worktree add` with `-b <branch-name>` (creates branch + worktree in one step)
+3. **Keep worktrees outside** the repo tree (e.g., `E:\temp\`)
+4. **Clean up** after merge: `git worktree remove <path>`
+5. For **one-shot analysis only** (no edits), worktrees are optional — but for edits they're required
+6. **Shared target/ directory**: Use `.cargo/config.toml` in worktrees to set `build.target-dir` to a unique path per worktree, or accept sequential compilation
+
+### Troubleshooting
+| Problem | Solution |
+|---|---|
+| Worktree locked | `git worktree remove <path> --force` |
+| Branch already exists | Use a unique branch name per task |
+| Merge conflicts | Resolve in main workspace after merge |
+
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.

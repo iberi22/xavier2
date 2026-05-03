@@ -1,9 +1,10 @@
 //! QmdMemory adapter that implements MemoryQueryPort.
 //! Wraps QmdMemory (the domain) behind the inbound port interface.
+// TODO: HexArch - depends on concrete crate::memory::qmd_memory, should use a port abstraction
 
 use crate::memory::qmd_memory::QmdMemory;
 use crate::memory::schema::MemoryQueryFilters;
-use crate::memory::surreal_store::MemoryRecord;
+use crate::memory::store::MemoryRecord;
 use crate::ports::inbound::MemoryQueryPort;
 use async_trait::async_trait;
 use std::sync::Arc;

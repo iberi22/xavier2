@@ -1,5 +1,5 @@
 //! Task Store - Persistence layer for tasks
-//! Can use different backends (SQLite, SurrealDB, in-memory)
+//! Can use different backends (SQLite, file, in-memory)
 
 use crate::tasks::models::{Priority, Project, Task, TaskFilter, TaskStats, TaskStatus};
 use anyhow::Result;

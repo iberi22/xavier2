@@ -1,5 +1,5 @@
-use async_trait::async_trait;
 pub use crate::ports::inbound::security_port::SecureInputResult;
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait InputSecurityPort: Send + Sync {

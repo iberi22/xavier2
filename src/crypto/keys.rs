@@ -14,7 +14,7 @@ use crate::crypto::{DEK_SIZE, SALT_SIZE};
 #[derive(Debug, thiserror::Error)]
 pub enum KeyError {
     #[error("Argon2 error: {0}")]
-    Argon2(#[from] argon2::password_hash::Error),
+    Argon2(String),
 
     #[error("Invalid password or key")]
     InvalidPassword,
@@ -28,6 +28,12 @@ pub enum KeyError {
 
 /// Result type for key operations
 pub type KeyResult<T> = Result<T, KeyError>;
+
+impl From<argon2::password_hash::Error> for KeyError {
+    fn from(value: argon2::password_hash::Error) -> Self {
+        Self::Argon2(value.to_string())
+    }
+}
 
 /// Salt for Argon2 key derivation
 #[derive(Debug, Clone)]

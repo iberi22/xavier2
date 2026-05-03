@@ -1,5 +1,5 @@
-use async_trait::async_trait;
 use crate::tasks::session_sync_task::SyncCheckResult;
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait SessionSyncPort: Send + Sync {

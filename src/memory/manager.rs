@@ -290,6 +290,7 @@ impl Default for MemoryManagerConfig {
 /// Intelligent Memory Manager - manages memory lifecycle autonomously
 pub struct MemoryManager {
     memory: Arc<QmdMemory>,
+    // TODO: Dead code - remove or use belief graph during memory consolidation.
     #[allow(dead_code)]
     belief_graph: Option<crate::memory::belief_graph::SharedBeliefGraph>,
     config: MemoryManagerConfig,

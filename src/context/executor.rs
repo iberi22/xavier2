@@ -17,7 +17,7 @@ impl SkillExecutor {
         loop {
             match timeout(Duration::from_secs(5), self.run_skill(skill, input)).await {
                 Ok(Ok(output)) => return Ok(self.sanitize_output(output)),
-                Ok(Err(e)) if attempt < max_retries => {
+                Ok(Err(_e)) if attempt < max_retries => {
                     attempt += 1;
                     continue;
                 }

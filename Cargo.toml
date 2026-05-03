@@ -30,7 +30,8 @@ path = "src/lib.rs"
 members = ["code-graph"]
 
 [features]
-default = []
+default = ["cli-interactive"]
+cli-interactive = ["ratatui", "crossterm"]
 egui = ["dep:egui", "dep:eframe", "dep:egui_extras"]
 egui-standalone = ["egui"]
 wasm = ["dep:wasm-bindgen", "dep:web-sys", "dep:js-sys", "dep:egui", "dep:eframe"]
@@ -67,15 +68,12 @@ clap = { version = "4", features = ["derive"] }
 pico-args = "0.5"
 
 # TUI Dashboard
-ratatui = "0.29"
-crossterm = "0.28"
+ratatui = { version = "0.29", optional = true }
+crossterm = { version = "0.28", optional = true }
 
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 cron = "0.15"
-surrealdb = { version = "3.0.5", features = ["protocol-ws"] }
-surrealdb-types = "3.0.5"
-
 # State management
 parking_lot = "0.12"
 rusqlite = { version = "0.32.0", features = ["bundled", "load_extension"] }
@@ -143,6 +141,7 @@ required-features = ["egui-standalone"]
 [[bin]]
 name = "xavier2-tui"
 path = "src/main_tui.rs"
+required-features = ["cli-interactive"]
 
 [profile.release]
 opt-level = 3

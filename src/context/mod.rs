@@ -20,7 +20,7 @@ pub use executor::SkillExecutor;
 pub use indexer::ContextIndexer;
 pub use manager::ContextManager;
 pub use monitoring::ContextMetrics;
-pub use orchestrator::{ExecutionPlan, HookKind, Orchestrator};
+pub use orchestrator::{ContextBudgetConfig, ExecutionPlan, HookKind, Orchestrator};
 pub use skills::{Skill, SkillLoader};
 
 /// Canonical unit used by context regeneration.

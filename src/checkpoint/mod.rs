@@ -1,4 +1,5 @@
 pub mod session;
+// TODO: Dead code - remove or wire checkpoint state into runtime recovery.
 #[allow(dead_code)]
 pub mod state;
 
@@ -7,14 +8,13 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use surrealdb_types::SurrealValue;
 use tokio::sync::RwLock;
 
-use crate::memory::surreal_store::MemoryStore;
+use crate::memory::store::MemoryStore;
 
 pub use session::{SessionCheckpoint, SessionCheckpointInput, MAX_SESSION_CHECKPOINT_BYTES};
 
-#[derive(Debug, Clone, Serialize, Deserialize, SurrealValue)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Checkpoint {
     pub task_id: String,
     pub name: String,

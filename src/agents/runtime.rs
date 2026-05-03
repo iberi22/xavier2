@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{debug, info};
 
+use crate::context::orchestrator::Orchestrator;
+
 use crate::utils::crypto::sha256_hex;
 
 use crate::agents::router::{RouteCategory, Router};
@@ -184,6 +186,7 @@ pub struct AgentRuntime {
     config: RuntimeConfig,
     checkpoint_manager: Option<Arc<CheckpointManager>>,
     scheduler: Option<Arc<tokio::sync::Mutex<JobScheduler>>>,
+    orchestrator: Option<Orchestrator>,
 }
 
 impl AgentRuntime {
@@ -206,6 +209,7 @@ impl AgentRuntime {
             config,
             checkpoint_manager: None,
             scheduler: None,
+            orchestrator: None,
         })
     }
 
@@ -216,6 +220,11 @@ impl AgentRuntime {
 
     pub fn with_scheduler(mut self, scheduler: JobScheduler) -> Self {
         self.scheduler = Some(Arc::new(tokio::sync::Mutex::new(scheduler)));
+        self
+    }
+
+    pub fn with_orchestrator(mut self, orchestrator: Orchestrator) -> Self {
+        self.orchestrator = Some(orchestrator);
         self
     }
 
@@ -273,6 +282,12 @@ impl AgentRuntime {
         let start = std::time::Instant::now();
         let session_id = session_id.unwrap_or_else(|| ulid::Ulid::new().to_string());
         let query_fingerprint = query_fingerprint(query);
+
+        // Fire session_start hook into context orchestrator (fire-and-forget)
+        if let Some(ref orch) = self.orchestrator {
+            orch.session_start(&session_id, query, &[]);
+            debug!(session_id = %session_id, "context_orchestrator: session_start");
+        }
 
         info!("🚀 Starting agent runtime for session: {}", session_id);
         if let Some(provider) = &self.config.model_provider {
@@ -434,6 +449,13 @@ impl AgentRuntime {
                 "⚠️ System 2 confidence too low ({:.2}). Auto-reflecting and expanding query...",
                 reasoning_result.confidence
             );
+
+            // Fire precompact hook before expanding context
+            if let Some(ref orch) = self.orchestrator {
+                orch.precompact(&session_id, &current_query, &[]);
+                debug!(session_id = %session_id, "context_orchestrator: precompact");
+            }
+
             current_query = format!("{} (expanded context needed)", current_query);
             retries += 1;
         };

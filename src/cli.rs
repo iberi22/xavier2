@@ -3,16 +3,19 @@
 use anyhow::{anyhow, Result};
 use axum::{
     extract::State,
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
 use clap::{Parser, Subcommand};
+use rand::{rngs::OsRng, RngCore};
 use serde::Deserialize;
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::{info, warn};
 
 use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
@@ -21,11 +24,10 @@ use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::agents::{Agent, AgentConfig};
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
-use xavier2::memory::surreal_store::MemoryRecord as SurrealMemoryRecord;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
-use xavier2::memory::surreal_store::MemoryStore;
+use xavier2::memory::store::{MemoryRecord, MemoryStore};
 use xavier2::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
 use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
@@ -44,7 +46,7 @@ pub struct CliState {
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
     pub security: Arc<SecurityService>,
-    pub time_store: Option<Arc<TimeMetricsStore>>,
+    pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
 }
 
@@ -86,14 +88,14 @@ pub enum Command {
 #[command(about = "Xavier2 - Fast Vector Memory for AI Agents", long_about = None)]
 pub struct Cli {
     #[command(subcommand)]
-    pub cmd: Command,
+    pub cmd: Option<Command>,
 }
 
 impl Cli {
     pub async fn run(&self) -> Result<()> {
-        match &self.cmd {
+        match self.cmd.as_ref().unwrap_or(&Command::Http { port: None }) {
             Command::Http { port } => {
-                let port = port.unwrap_or(8006);
+                let port = port.unwrap_or_else(resolve_http_port);
                 start_http_server(port).await
             }
             Command::Mcp => start_mcp_stdio().await,
@@ -137,6 +139,8 @@ impl Cli {
 
 async fn start_http_server(port: u16) -> Result<()> {
     info!("Starting Xavier2 HTTP server on port {}", port);
+    let token = resolve_http_token();
+    std::env::set_var("XAVIER2_TOKEN", &token);
 
     // Initialize the memory store
     let mut store_inner = VecSqliteMemoryStore::from_env().await?;
@@ -150,7 +154,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         durable_state
             .memories
             .iter()
-            .map(SurrealMemoryRecord::to_document)
+            .map(MemoryRecord::to_document)
             .collect::<Vec<MemoryDocument>>(),
     ));
     let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
@@ -197,7 +201,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         code_indexer,
         code_query,
         security: Arc::new(SecurityService::new()),
-        time_store: Some(time_store),
+        _time_store: Some(time_store),
         agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
     };
 
@@ -222,6 +226,8 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/code/context", post(code_context_handler))
         .route("/code/stats", get(code_stats_handler))
         .route("/ready", get(readiness_handler))
+        .route("/readiness", get(readiness_handler))
+        .route("/v1/account/usage", get(account_usage_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
         .route("/session/compact", post(session_compact_handler))
@@ -277,6 +283,28 @@ async fn start_http_server(port: u16) -> Result<()> {
     Ok(())
 }
 
+fn resolve_http_token() -> String {
+    std::env::var("XAVIER2_TOKEN").unwrap_or_else(|_| {
+        let mut bytes = [0u8; 16];
+        OsRng.fill_bytes(&mut bytes);
+        let token = hex::encode(bytes);
+        warn!("XAVIER2_TOKEN not set, generated random token: {}", token);
+        token
+    })
+}
+
+fn resolve_http_port() -> u16 {
+    std::env::var("XAVIER2_PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(8006)
+}
+
+fn require_xavier2_token() -> Result<String> {
+    std::env::var("XAVIER2_TOKEN")
+        .map_err(|_| anyhow!("XAVIER2_TOKEN environment variable must be set"))
+}
+
 fn code_graph_db_path() -> PathBuf {
     std::env::var("XAVIER2_CODE_GRAPH_DB_PATH")
         .map(PathBuf::from)
@@ -284,11 +312,18 @@ fn code_graph_db_path() -> PathBuf {
 }
 
 // HTTP Handlers
-async fn health_handler() -> &'static str {
-    r#"{"status":"ok","service":"xavier2","version":"0.4.1"}"#
+async fn health_handler() -> Response {
+    json_response(
+        StatusCode::OK,
+        serde_json::json!({
+            "status": "ok",
+            "service": "xavier2",
+            "version": env!("CARGO_PKG_VERSION"),
+        }),
+    )
 }
 
-async fn readiness_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
+async fn readiness_handler(State(state): State<CliState>) -> Response {
     let health = state.store.health().await.unwrap_or_else(|e| e.to_string());
     let code_graph = state
         .code_db
@@ -308,12 +343,71 @@ async fn readiness_handler(State(state): State<CliState>) -> impl axum::response
             })
         });
 
-    axum::Json(serde_json::json!({
+    json_response(StatusCode::OK, serde_json::json!({
         "status": "ok",
+        "service": "xavier2",
         "workspace_id": state.workspace_id,
         "memory_store": health,
         "code_graph": code_graph,
     }))
+}
+
+async fn account_usage_handler(
+    State(_state): State<CliState>,
+    headers: HeaderMap,
+) -> Response {
+    let expected_token = match std::env::var("XAVIER2_TOKEN") {
+        Ok(token) => token,
+        Err(_) => {
+            return json_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                serde_json::json!({
+                    "status": "error",
+                    "message": "XAVIER2_TOKEN is not configured",
+                }),
+            )
+        }
+    };
+
+    let provided_token = headers
+        .get("X-Xavier2-Token")
+        .and_then(|value| value.to_str().ok());
+    if provided_token != Some(expected_token.as_str()) {
+        return json_response(
+            StatusCode::UNAUTHORIZED,
+            serde_json::json!({
+                "status": "error",
+                "message": "Unauthorized",
+            }),
+        );
+    }
+
+    json_response(
+        StatusCode::OK,
+        serde_json::json!({
+            "status": "ok",
+            "optimization": {
+                "router_direct_count": 0,
+                "semantic_cache_hits": 0,
+                "semantic_cache_misses": 0,
+            },
+        }),
+    )
+}
+
+fn json_response(status: StatusCode, body: serde_json::Value) -> Response {
+    Response::builder()
+        .status(status)
+        .header("content-type", "application/json")
+        .header("x-request-id", uuid::Uuid::new_v4().to_string())
+        .body(axum::body::Body::from(body.to_string()))
+        .unwrap_or_else(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                serde_json::json!({"status":"error"}).to_string(),
+            )
+                .into_response()
+        })
 }
 
 #[derive(Debug, Deserialize)]
@@ -321,8 +415,8 @@ struct SearchPayload {
     query: String,
     #[serde(default = "default_limit")]
     limit: usize,
-    #[serde(default)]
-    filters: Option<MemoryQueryFilters>,
+    #[serde(default, rename = "filters")]
+    _filters: Option<MemoryQueryFilters>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -393,7 +487,7 @@ async fn search_handler(
     let limit = payload.limit.max(1).min(100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
-    let results: Vec<SurrealMemoryRecord> = match state.memory.search(effective_query, None).await {
+    let results: Vec<MemoryRecord> = match state.memory.search(effective_query, None).await {
         Ok(results) => results,
         Err(e) => {
             info!("Search error: {}", e);
@@ -484,7 +578,7 @@ async fn add_handler(
         effective_content.len()
     );
 
-    let record = SurrealMemoryRecord {
+    let record = MemoryRecord {
         id: String::new(),
         workspace_id: state.workspace_id.clone(),
         path: path.clone(),
@@ -561,7 +655,8 @@ async fn security_scan_handler(
 struct MemoryQueryPayload {
     query: String,
     limit: Option<usize>,
-    filters: Option<serde_json::Value>,
+    #[serde(default, rename = "filters")]
+    _filters: Option<serde_json::Value>,
 }
 
 async fn memory_query_handler(
@@ -1065,7 +1160,7 @@ async fn session_event_handler(
         entry.role,
         entry.content
     );
-    let metadata = serde_json::json!({
+    let _metadata = serde_json::json!({
         "session_id": event.session_id,
         "role": entry.role,
         "event_type": entry.event_type,
@@ -1073,7 +1168,7 @@ async fn session_event_handler(
     });
 
     let record_path = format!("sessions/{}/thread", event.session_id);
-    let record = SurrealMemoryRecord {
+    let record = MemoryRecord {
         id: String::new(),
         workspace_id: state.workspace_id.clone(),
         path: record_path.clone(),
@@ -1213,7 +1308,7 @@ async fn session_compact_handler(
     }
 
     let compact_path = format!("context/{}/compact", session_id);
-    let metadata = serde_json::json!({
+    let _metadata = serde_json::json!({
         "session_id": session_id,
         "original_entries": total_docs,
         "kept_entries": compact_docs.len(),
@@ -1222,7 +1317,7 @@ async fn session_compact_handler(
         "threshold_percent": threshold,
         "kind": "session_compact",
     });
-    let record = SurrealMemoryRecord {
+    let record = MemoryRecord {
         id: String::new(),
         workspace_id: state.workspace_id.clone(),
         path: compact_path.clone(),
@@ -1316,6 +1411,8 @@ async fn agent_register_handler(
     }))
 }
 
+// TODO: Dead code - remove or implement heartbeat payload deserialization.
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct AgentHeartbeatPayload {
     agent_id: String,
@@ -1383,7 +1480,7 @@ async fn agent_push_context_handler(
         );
     }
 
-    let record = SurrealMemoryRecord {
+    let record = MemoryRecord {
         id: String::new(),
         workspace_id: state.workspace_id.clone(),
         path: path.clone(),
@@ -1437,7 +1534,7 @@ async fn start_mcp_stdio() -> Result<()> {
         durable_state
             .memories
             .iter()
-            .map(SurrealMemoryRecord::to_document)
+            .map(MemoryRecord::to_document)
             .collect::<Vec<MemoryDocument>>(),
     ));
     let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
@@ -1693,6 +1790,8 @@ async fn start_mcp_stdio() -> Result<()> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Session context returned by session_load
+// TODO: Dead code - remove or wire session_load into the CLI.
+#[allow(dead_code)]
 #[derive(Debug, serde::Serialize)]
 struct SessionContext {
     session_id: String,
@@ -1702,15 +1801,17 @@ struct SessionContext {
 
 /// Fetch session context from Xavier2 memory store.
 /// GETs from /memory/search with path: context/<session_id>/latest
+// TODO: Dead code - remove or expose this as a CLI command.
+#[allow(dead_code)]
 async fn session_load(ctx: &str) -> Result<String> {
-    let token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let token = require_xavier2_token()?;
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/search", port);
 
     let client = reqwest::Client::new();
     let response = client
         .get(&url)
-        .header("X-Cortex-Token", &token)
+        .header("X-Xavier2-Token", &token)
         .json(&serde_json::json!({
             "query": format!("path:context/{}/latest", ctx),
             "limit": 1
@@ -1723,7 +1824,7 @@ async fn session_load(ctx: &str) -> Result<String> {
     }
 
     let body: serde_json::Value = response.json().await?;
-    let results = body
+    let _results = body
         .get("results")
         .and_then(|r| r.as_array())
         .map(|a| a.len())
@@ -1751,7 +1852,7 @@ async fn session_load(ctx: &str) -> Result<String> {
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
     let limit = limit.max(1).min(100);
-    let token = std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
+    let token = require_xavier2_token()?;
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/search", port);
 
@@ -1790,7 +1891,7 @@ async fn add_memory(content: &str, title: Option<&str>) -> Result<()> {
     let title = title
         .map(|title| secure_cli_input("memory title", title, 512))
         .transpose()?;
-    let token = std::env::var("XAVIER2_TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let token = require_xavier2_token()?;
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/add", port);
 
@@ -1857,7 +1958,7 @@ fn secure_cli_input(label: &str, input: &str, max_chars: usize) -> Result<String
 }
 
 async fn show_stats() -> Result<()> {
-    let token = std::env::var("XAVIER2_TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let token = require_xavier2_token()?;
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/stats", port);
 
@@ -1888,12 +1989,12 @@ async fn show_stats() -> Result<()> {
 }
 
 /// Save current session context to Xavier2 memory
-/// POSTs to localhost:8006/memory/add with X-Cortex-Token: dev-token
+/// POSTs to localhost:8006/memory/add with X-Xavier2-Token.
 /// Path: context/<session_id>/save
 /// Content: current context
 async fn session_save(session_id: &str, content: &str) -> Result<()> {
     let content = secure_cli_input("session content", content, 10_000_000)?;
-    let token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
+    let token = require_xavier2_token()?;
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/add", port);
 
@@ -1909,7 +2010,7 @@ async fn session_save(session_id: &str, content: &str) -> Result<()> {
     let client = reqwest::Client::new();
     let response = client
         .post(&url)
-        .header("X-Cortex-Token", &token)
+        .header("X-Xavier2-Token", &token)
         .json(&body)
         .send()
         .await;

@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 #[derive(Debug, Default)]
 pub struct ContextMetrics {
@@ -22,14 +22,17 @@ impl ContextMetrics {
         } else {
             self.cache_misses.fetch_add(1, Ordering::Relaxed);
         }
-        
-        debug!("Context request recorded: tokens={}, cache_hit={}", tokens, cache_hit);
+
+        debug!(
+            "Context request recorded: tokens={}, cache_hit={}",
+            tokens, cache_hit
+        );
     }
 
     pub fn get_hit_rate(&self) -> f64 {
         let total = self.total_requests.load(Ordering::Relaxed);
         let hits = self.cache_hits.load(Ordering::Relaxed);
-        
+
         if total > 0 {
             (hits as f64 / total as f64) * 100.0
         } else {
@@ -41,7 +44,7 @@ impl ContextMetrics {
         let total = self.total_requests.load(Ordering::Relaxed);
         let hits = self.cache_hits.load(Ordering::Relaxed);
         let tokens = self.total_tokens_used.load(Ordering::Relaxed);
-        
+
         info!("--- Context Monitoring Report ---");
         info!("Total Requests: {}", total);
         info!("Cache Hits: {} ({:.2}%)", hits, self.get_hit_rate());

@@ -29,14 +29,9 @@ impl VerificationPort for VerificationService {
         path: &str,
         test_content: &str,
     ) -> Result<VerificationResult, String> {
-        let result = AutoVerifier::verify_save(
-            &self.client,
-            xavier2_url,
-            auth_token,
-            path,
-            test_content,
-        )
-        .await?;
+        let result =
+            AutoVerifier::verify_save(&self.client, xavier2_url, auth_token, path, test_content)
+                .await?;
 
         Ok(VerificationResult {
             path: result.path,

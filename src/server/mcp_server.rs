@@ -1245,7 +1245,7 @@ mod tests {
                 id: "test".to_string(),
                 token: "test-token".to_string(),
                 plan: crate::workspace::PlanTier::Personal,
-                memory_backend: crate::memory::surreal_store::MemoryBackend::File,
+                memory_backend: crate::memory::store::MemoryBackend::File,
                 storage_limit_bytes: Some(10 * 1024 * 1024),
                 request_limit: Some(10_000),
                 request_unit_limit: Some(20_000),
@@ -1437,7 +1437,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let payload: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(payload["result"]["tools"].as_array().unwrap().len(), 10);
+        assert_eq!(payload["result"]["tools"].as_array().unwrap().len(), 14);
     }
 
     #[tokio::test]

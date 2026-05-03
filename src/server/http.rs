@@ -23,7 +23,7 @@ use crate::{
     memory::qmd_memory::MemoryDocument,
     memory::schema::{MemoryQueryFilters, TypedMemoryPayload},
     memory::sqlite_vec_store::VecSqliteMemoryStore,
-    memory::surreal_store::{GraphHopResult, HybridSearchMode},
+    memory::store::{GraphHopResult, HybridSearchMode},
     retrieval::gating::{AdaptiveGating, LayerWeights, SessionSummary},
     server::events::{WsEvent, WsMessage},
     utils::crypto::sha256_hex,
@@ -347,6 +347,7 @@ impl HttpConfig {
 }
 
 pub struct HttpServer {
+    // TODO: Dead code - remove or use config when serve() is implemented.
     #[allow(dead_code)]
     config: HttpConfig,
 }
@@ -357,6 +358,7 @@ impl HttpServer {
     }
 
     pub async fn serve(&self) {
+        tracing::warn!("HttpServer::serve() is a stub - does not actually start a server");
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
 }
@@ -851,7 +853,7 @@ pub async fn build_info(State(state): State<AppState>) -> impl IntoResponse {
             .unwrap_or(MemoryStoreBuildInfo {
                 selected_backend: std::env::var("XAVIER2_MEMORY_BACKEND")
                     .map(|value| {
-                        crate::memory::surreal_store::MemoryBackend::from_env(&value)
+                        crate::memory::store::MemoryBackend::from_env(&value)
                             .as_str()
                             .to_string()
                     })

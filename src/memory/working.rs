@@ -64,26 +64,84 @@ pub struct ScoredResult {
     pub score: f32,
 }
 
+/// Default capacity for working memory
+pub const DEFAULT_CAPACITY: usize = 100;
+/// Default LRU exemption access threshold
+pub const DEFAULT_LRU_THRESHOLD: u32 = 2;
+/// Default BM25 k1 parameter
+pub const DEFAULT_BM25_K1: f32 = 1.5;
+/// Default BM25 b parameter
+pub const DEFAULT_BM25_B: f32 = 0.75;
+
 /// Working Memory configuration
 #[derive(Debug, Clone)]
 pub struct WorkingMemoryConfig {
-    /// Maximum number of items in working memory (default: 100)
+    /// Maximum number of items in working memory
     pub capacity: usize,
-    /// Minimum access count to qualify for LRU exemption (default: 2)
+    /// Minimum access count to qualify for LRU exemption
     pub lru_exempt_access_threshold: u32,
-    /// BM25 k1 parameter (default: 1.5)
+    /// BM25 k1 parameter
     pub bm25_k1: f32,
-    /// BM25 b parameter (default: 0.75)
+    /// BM25 b parameter
     pub bm25_b: f32,
 }
 
 impl Default for WorkingMemoryConfig {
     fn default() -> Self {
         Self {
-            capacity: 100,
-            lru_exempt_access_threshold: 2,
-            bm25_k1: 1.5,
-            bm25_b: 0.75,
+            capacity: DEFAULT_CAPACITY,
+            lru_exempt_access_threshold: DEFAULT_LRU_THRESHOLD,
+            bm25_k1: DEFAULT_BM25_K1,
+            bm25_b: DEFAULT_BM25_B,
+        }
+    }
+}
+
+impl WorkingMemoryConfig {
+    /// Load configuration from environment variables
+    ///
+    /// Reads XAVIER2_WORKING_MEMORY_CAPACITY, XAVIER2_WORKING_LRU_THRESHOLD,
+    /// XAVIER2_WORKING_BM25_K1, XAVIER2_WORKING_BM25_B with validated defaults.
+    pub fn from_env() -> Self {
+        let default = Self::default();
+        Self {
+            capacity: Self::parse_or("XAVIER2_WORKING_MEMORY_CAPACITY", default.capacity, |v| *v > 0),
+            lru_exempt_access_threshold: Self::parse_or("XAVIER2_WORKING_LRU_THRESHOLD", default.lru_exempt_access_threshold, |v| *v > 0),
+            bm25_k1: Self::parse_or("XAVIER2_WORKING_BM25_K1", default.bm25_k1, |v| *v > 0.0),
+            bm25_b: Self::parse_or("XAVIER2_WORKING_BM25_B", default.bm25_b, |v| *v > 0.0),
+        }
+    }
+
+    /// Parse an env var with validation; logs warning on invalid input
+    fn parse_or<T: std::str::FromStr + std::fmt::Display + PartialOrd>(
+        key: &str,
+        default: T,
+        validate: fn(&T) -> bool,
+    ) -> T {
+        match std::env::var(key) {
+            Ok(val) => match val.parse::<T>() {
+                Ok(parsed) if validate(&parsed) => parsed,
+                Ok(_) => {
+                    tracing::warn!("{} value '{}' is out of valid range, using default '{}'", key, val, default);
+                    default
+                }
+                Err(_) => {
+                    tracing::warn!("{} value '{}' is not a valid number, using default '{}'", key, val, default);
+                    default
+                }
+            },
+            Err(_) => default,
+        }
+    }
+}
+
+impl From<WorkingMemoryConfig> for crate::memory::layers_config::WorkingMemoryLayerConfig {
+    fn from(cfg: WorkingMemoryConfig) -> Self {
+        Self {
+            capacity: cfg.capacity,
+            lru_exempt_access_threshold: cfg.lru_exempt_access_threshold,
+            bm25_k1: cfg.bm25_k1,
+            bm25_b: cfg.bm25_b,
         }
     }
 }

@@ -21,8 +21,11 @@ pub mod card;
 #[cfg(feature = "egui")]
 pub mod state;
 
+#[cfg(feature = "cli-interactive")]
 pub mod dashboard;
+#[cfg(feature = "cli-interactive")]
 pub mod log_stream;
+#[cfg(feature = "cli-interactive")]
 pub mod memory_view;
 
 #[cfg(feature = "egui")]

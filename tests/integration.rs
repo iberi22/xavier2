@@ -275,7 +275,10 @@ mod integration {
             .await
             .expect("workflow sync check should reach test server");
         assert!(sync_response.status().is_success());
-        let sync_body: Value = sync_response.json().await.expect("parse workflow sync response");
+        let sync_body: Value = sync_response
+            .json()
+            .await
+            .expect("parse workflow sync response");
         assert!(sync_body["status"].is_string());
     }
 
@@ -289,14 +292,16 @@ mod integration {
             endpoint: None,
         };
 
-        assert!(server
-            .registry
-            .register(
-                "agent-memory-1".to_string(),
-                "session-memory-1".to_string(),
-                metadata,
-            )
-            .await);
+        assert!(
+            server
+                .registry
+                .register(
+                    "agent-memory-1".to_string(),
+                    "session-memory-1".to_string(),
+                    metadata,
+                )
+                .await
+        );
         assert!(server.registry.heartbeat("agent-memory-1").await);
 
         let response = server
@@ -324,19 +329,21 @@ mod integration {
             ("coordinator-1", "session-coordinator", "coordinator"),
             ("worker-1", "session-worker", "worker"),
         ] {
-            assert!(server
-                .registry
-                .register(
-                    agent_id.to_string(),
-                    session_id.to_string(),
-                    AgentMetadata {
-                        name: Some(agent_id.to_string()),
-                        capabilities: vec!["sync".to_string()],
-                        role: Some(role.to_string()),
-                        endpoint: None,
-                    },
-                )
-                .await);
+            assert!(
+                server
+                    .registry
+                    .register(
+                        agent_id.to_string(),
+                        session_id.to_string(),
+                        AgentMetadata {
+                            name: Some(agent_id.to_string()),
+                            capabilities: vec!["sync".to_string()],
+                            role: Some(role.to_string()),
+                            endpoint: None,
+                        },
+                    )
+                    .await
+            );
         }
 
         assert!(server.registry.heartbeat("coordinator-1").await);

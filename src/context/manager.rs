@@ -1,6 +1,6 @@
+use crate::context::ContextLevel;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use crate::context::ContextLevel;
 
 pub struct CachedContext {
     pub content: String,
@@ -41,11 +41,14 @@ impl ContextManager {
             content
         };
 
-        self.cache.insert(session_id.to_string(), CachedContext {
-            content: sanitized_content,
-            level,
-            expires_at: Instant::now() + self.ttl,
-        });
+        self.cache.insert(
+            session_id.to_string(),
+            CachedContext {
+                content: sanitized_content,
+                level,
+                expires_at: Instant::now() + self.ttl,
+            },
+        );
     }
 
     pub fn clear_expired(&mut self) {
@@ -62,9 +65,9 @@ mod tests {
     fn context_caching_and_expiration() {
         let mut manager = ContextManager::new(1, 100);
         manager.put("s1", "some context".to_string(), ContextLevel::Medium);
-        
+
         assert_eq!(manager.get("s1").unwrap(), "some context");
-        
+
         // Wait for expiration
         std::thread::sleep(Duration::from_secs(2));
         assert!(manager.get("s1").is_none());
@@ -74,7 +77,7 @@ mod tests {
     fn context_size_limit() {
         let mut manager = ContextManager::new(60, 5);
         manager.put("s1", "long context".to_string(), ContextLevel::Minimal);
-        
+
         assert_eq!(manager.get("s1").unwrap(), "long ");
     }
 }

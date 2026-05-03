@@ -2,7 +2,8 @@
 //! JWT-based authentication and RBAC
 
 use tokio::sync::RwLock;
-
+use rand::rngs::OsRng;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 /// JWT Claims for authentication
@@ -19,7 +20,7 @@ impl Claims {
     pub fn new(user_id: String, email: String, role: UserRole, expires_in: u64) -> Self {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime::duration_since failed - clock is before UNIX epoch")
             .as_secs();
 
         Self {
@@ -34,7 +35,7 @@ impl Claims {
     pub fn is_expired(&self) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime::duration_since failed - clock is before UNIX epoch")
             .as_secs();
         now > self.exp
     }
@@ -71,7 +72,7 @@ impl User {
     pub fn new(email: String, name: String, role: UserRole) -> Self {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime::duration_since failed - clock is before UNIX epoch")
             .as_secs();
 
         Self {
@@ -79,7 +80,11 @@ impl User {
             email,
             name,
             role,
-            api_key: ulid::Ulid::new().to_string(),
+            api_key: {
+                let mut bytes = [0u8; 32];
+                OsRng.fill_bytes(&mut bytes);
+                hex::encode(bytes)
+            },
             created_at: now,
             updated_at: now,
         }
@@ -223,7 +228,7 @@ impl RateLimiter {
     pub async fn check(&self, key: &str) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime::duration_since failed - clock is before UNIX epoch")
             .as_secs();
 
         let mut requests = self.requests.write().await;
