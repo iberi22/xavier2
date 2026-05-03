@@ -48,7 +48,7 @@ pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
 
 pub fn create_router() -> Router {
     // This is a fallback/legacy creator. Real one should use create_router_with_state
-    let agent_registry = Arc::new(SimpleAgentRegistry::new());
+    let agent_registry = SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>;
     create_router_with_agent_registry(agent_registry)
 }
 
@@ -65,7 +65,7 @@ pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecycleP
             .cloned()
             .unwrap_or_else(|| Arc::new(crate::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter::new(
                 Arc::new(crate::time::TimeMetricsStore::new(
-                    Arc::new(std::sync::Mutex::new(rusqlite::Connection::open_memory().unwrap()))
+                    Arc::new(parking_lot::Mutex::new(rusqlite::Connection::open_in_memory().unwrap()))
                 ))
             ))),
     };

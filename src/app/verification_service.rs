@@ -1,7 +1,6 @@
 use crate::ports::inbound::verification_port::{VerificationPort, VerificationResult};
 use crate::verification::auto_verifier::AutoVerifier;
 use async_trait::async_trait;
-use std::sync::Arc;
 
 pub struct VerificationService {
     client: reqwest::Client,

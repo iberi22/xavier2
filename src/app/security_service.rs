@@ -77,8 +77,10 @@ impl SecurityScanPort for SecurityService {
             "paranoid_mode": config.paranoid_mode,
         }))
     }
+}
 
-    /// Processes input and returns a secure result.
+#[async_trait]
+impl InputSecurityPort for SecurityService {
     async fn process_input(&self, input: &str) -> anyhow::Result<SecureInputResult> {
         let input = input.to_string();
         let result = tokio::task::spawn_blocking(move || {
@@ -95,14 +97,6 @@ impl SecurityScanPort for SecurityService {
             is_injection: result.detection.is_injection,
             attack_type: result.detection.attack_type.as_str().to_string(),
         })
-    }
-}
-
-#[async_trait]
-impl InputSecurityPort for SecurityService {
-    async fn process_input(&self, input: &str) -> anyhow::Result<SecureInputResult> {
-        // Reuse the implementation from SecurityScanPort
-        SecurityScanPort::process_input(self, input).await
     }
 
     async fn process_output(&self, output: &str) -> anyhow::Result<String> {

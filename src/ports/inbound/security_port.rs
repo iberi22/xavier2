@@ -16,5 +16,4 @@ pub struct SecureInputResult {
 pub trait SecurityScanPort: Send + Sync {
     async fn scan(&self, target: &str, level: Option<ThreatLevel>) -> anyhow::Result<ScanResult>;
     async fn get_config(&self) -> anyhow::Result<serde_json::Value>;
-    async fn process_input(&self, input: &str) -> anyhow::Result<SecureInputResult>;
 }
