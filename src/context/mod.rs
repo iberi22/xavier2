@@ -1,10 +1,4 @@
 //! Context regeneration system.
-//!
-//! Sprint 1 covers:
-//! - Phase 0: prompt classification (`Minimal`, `Medium`, `Maximum`)
-//! - Phase 1: lexical retrieval with whitespace-tokenized BM25
-//! - Phase 2: hybrid fusion with Reciprocal Rank Fusion (`k = 60`)
-//! - Hook-based orchestration for `session_start` and `precompact`
 
 pub mod bm25;
 pub mod builder;
