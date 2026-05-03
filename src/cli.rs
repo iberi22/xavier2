@@ -124,8 +124,8 @@ impl Cli {
             } => {
                 spawn_agents(
                     *count,
-                    provider,
-                    model,
+                    provider.clone(),
+                    model.clone(),
                     skills,
                     context,
                 )
@@ -1943,10 +1943,7 @@ async fn spawn_agents(
 
     // Get available providers if none specified
     let available_providers = if providers.is_empty() {
-        crate::agents::provider::ModelProviderConfig::get_all_configured()
-            .into_iter()
-            .map(|c| c.kind.as_str().to_string())
-            .collect::<Vec<_>>()
+        vec!["openclaw".to_string()]
     } else {
         providers.clone()
     };
