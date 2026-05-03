@@ -22,6 +22,14 @@ cargo build --release
 # Start HTTP server (default port 8006)
 xavier2 http
 
+# Local-first recommended setup (Ollama OpenAI-compatible API)
+export XAVIER2_MODEL_PROVIDER=local
+export XAVIER2_API_FLAVOR=openai-compatible
+export XAVIER2_LOCAL_LLM_URL=http://localhost:11434/v1
+export XAVIER2_LOCAL_LLM_MODEL=qwen3-coder
+export XAVIER2_EMBEDDING_ENDPOINT=http://localhost:11434/v1/embeddings
+export XAVIER2_EMBEDDING_MODEL=embeddinggemma
+
 # Search via CLI
 xavier2 search "your query"
 
@@ -35,6 +43,7 @@ xavier2 stats
 ## Features
 
 - **7ms average vector search** — SQLite-vec powered, no external services
+- **Local-first model routing** — OpenAI-compatible by default for Ollama, vLLM, or cloud fallbacks
 - **MCP-stdio interface** — Connect to Claude Desktop, Cursor, Windsurf, and other MCP clients
 - **CLI tool** — Human-friendly commands for search, add, and stats
 - **RRF fusion** — Reciprocal Rank Fusion combines vector + keyword + graph signals
@@ -110,8 +119,14 @@ docker compose up -d
 |---------------------|---------|-------------|
 | `XAVIER2_PORT` | `8006` | HTTP server port |
 | `XAVIER2_HOST` | `0.0.0.0` | Bind address |
-| `XAVIER2_TOKEN` | `dev-token` | Authentication token |
+| `XAVIER2_TOKEN` | generated at startup if unset | Authentication token |
 | `XAVIER2_DEV_MODE` | `false` | Skip auth (dev only) |
+| `XAVIER2_MODEL_PROVIDER` | `local` | Provider mode: `local`, `cloud`, `disabled` |
+| `XAVIER2_API_FLAVOR` | `openai-compatible` | Canonical wire format for LLM calls |
+| `XAVIER2_LOCAL_LLM_URL` | `http://localhost:11434/v1` | Ollama/vLLM chat endpoint |
+| `XAVIER2_LOCAL_LLM_MODEL` | `qwen3-coder` | Local coding model |
+| `XAVIER2_EMBEDDING_ENDPOINT` | `http://localhost:11434/v1/embeddings` | OpenAI-compatible embeddings endpoint |
+| `XAVIER2_EMBEDDING_MODEL` | `embeddinggemma` | Local embedding model |
 | `XAVIER2_LOG_LEVEL` | `info` | Log level |
 
 ## Architecture

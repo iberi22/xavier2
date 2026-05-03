@@ -6,25 +6,32 @@ use serde::{Deserialize, Serialize};
 
 use crate::embedding::{Embedder, EmbeddingError};
 
-pub struct OpenAIEmbedder {
+pub struct OpenAICompatibleEmbedder {
     client: Client,
-    api_key: String,
+    api_key: Option<String>,
     model: String,
     endpoint: String,
+    dimension: usize,
 }
 
-impl fmt::Debug for OpenAIEmbedder {
+impl fmt::Debug for OpenAICompatibleEmbedder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OpenAIEmbedder")
-            .field("api_key", &"<redacted>")
+        f.debug_struct("OpenAICompatibleEmbedder")
+            .field("api_key", &self.api_key.as_ref().map(|_| "<redacted>"))
             .field("model", &self.model)
             .field("endpoint", &self.endpoint)
+            .field("dimension", &self.dimension)
             .finish()
     }
 }
 
-impl OpenAIEmbedder {
-    pub fn new(api_key: String, model: String, endpoint: String) -> Result<Self, EmbeddingError> {
+impl OpenAICompatibleEmbedder {
+    pub fn new(
+        api_key: Option<String>,
+        model: String,
+        endpoint: String,
+        dimension: usize,
+    ) -> Result<Self, EmbeddingError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
@@ -32,9 +39,10 @@ impl OpenAIEmbedder {
 
         Ok(Self {
             client,
-            api_key,
+            api_key: api_key.filter(|value| !value.trim().is_empty()),
             model,
             endpoint: endpoint.trim_end_matches('/').to_string(),
+            dimension,
         })
     }
 }
@@ -47,7 +55,9 @@ struct EmbeddingRequest<'a> {
 
 #[derive(Debug, Deserialize)]
 struct EmbeddingResponse {
+    #[serde(default)]
     data: Vec<EmbeddingData>,
+    embedding: Option<Vec<f32>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -55,14 +65,26 @@ struct EmbeddingData {
     embedding: Vec<f32>,
 }
 
+impl EmbeddingResponse {
+    fn first_embedding(self) -> Option<Vec<f32>> {
+        self.embedding
+            .or_else(|| self.data.into_iter().next().map(|item| item.embedding))
+    }
+}
+
 #[async_trait::async_trait]
-impl Embedder for OpenAIEmbedder {
+impl Embedder for OpenAICompatibleEmbedder {
     async fn encode(&self, text: &str) -> Result<Vec<f32>, EmbeddingError> {
-        let response = self
+        let mut request = self
             .client
             .post(&self.endpoint)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
+            .header("Content-Type", "application/json");
+
+        if let Some(api_key) = &self.api_key {
+            request = request.header("Authorization", format!("Bearer {}", api_key));
+        }
+
+        let response = request
             .json(&EmbeddingRequest {
                 input: text,
                 model: &self.model,
@@ -78,19 +100,10 @@ impl Embedder for OpenAIEmbedder {
             .await
             .map_err(|error| EmbeddingError::Parse(error.to_string()))?;
 
-        Ok(body
-            .data
-            .into_iter()
-            .next()
-            .map(|item| item.embedding)
-            .unwrap_or_default())
+        Ok(body.first_embedding().unwrap_or_default())
     }
 
     fn dimension(&self) -> usize {
-        match self.model.as_str() {
-            "text-embedding-3-large" => 3072,
-            "text-embedding-ada-002" => 1536,
-            _ => 1536,
-        }
+        self.dimension
     }
 }

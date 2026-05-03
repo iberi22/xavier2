@@ -674,7 +674,7 @@ pub async fn health() -> impl IntoResponse {
 pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
     let workspace_context = state.workspace_registry.default_context().await;
     let workspace_ready = workspace_context.is_some();
-    let embedding_configured = std::env::var("XAVIER2_EMBEDDING_URL").is_ok();
+    let embedding_configured = crate::memory::embedder::EmbeddingClient::is_configured_from_env();
     let embeddings = match crate::memory::embedder::EmbeddingClient::from_env() {
         Ok(client) if embedding_configured => match client.health().await {
             Ok(true) => ReadinessComponent {

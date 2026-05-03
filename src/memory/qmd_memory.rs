@@ -2328,11 +2328,7 @@ pub(crate) fn cosine_similarity(left: &[f32], right: &[f32]) -> f32 {
 /// 1. Embedding cache: Avoids re-embedding identical content (~118ms savings per document)
 /// 2. Exponential backoff: Replaces fixed 250ms retries with 100ms→200ms→400ms→800ms→1600ms (max 2s)
 async fn generate_embedding(text: &str) -> Result<Vec<f32>> {
-    let new_embedder_configured =
-        std::env::var("XAVIER2_EMBEDDER").is_ok() || std::env::var("OPENAI_API_KEY").is_ok();
-    let legacy_embedder_configured = std::env::var("XAVIER2_EMBEDDING_URL").is_ok();
-
-    if !new_embedder_configured && !legacy_embedder_configured {
+    if !crate::memory::embedder::EmbeddingClient::is_configured_from_env() {
         return Ok(Vec::new());
     }
     let preprocessed = preprocess_for_embedding(text);
@@ -2354,66 +2350,29 @@ async fn generate_embedding(text: &str) -> Result<Vec<f32>> {
     let mut delay_ms: u64 = 100;
     let max_delay_ms: u64 = 2000;
 
-    if new_embedder_configured {
-        if let Ok(embedder) = crate::embedding::build_embedder_from_env().await {
-            if embedder.dimension() > 0 {
-                for attempt in 0..3 {
-                    match embedder.encode(&preprocessed).await {
-                        Ok(vector) => {
-                            let mut cache = EMBEDDING_CACHE.write().await;
-                            cache.insert(
-                                cache_key,
-                                EmbeddingCacheEntry {
-                                    vector: vector.clone(),
-                                    cached_at: Instant::now(),
-                                },
-                            );
-                            if cache.len() % 10 == 0 {
-                                drop(cache);
-                                clean_embedding_cache().await;
-                            }
-                            return Ok(vector);
-                        }
-                        Err(error) => {
-                            last_error = Some(anyhow::anyhow!(error.to_string()));
-                            if attempt < 2 {
-                                tokio::time::sleep(std::time::Duration::from_millis(delay_ms))
-                                    .await;
-                                delay_ms = (delay_ms * 2).min(max_delay_ms);
-                            }
-                        }
-                    }
+    let embedder = crate::adapters::outbound::embedding::embedding_adapter::build_embedding_port_from_env()?;
+    for attempt in 0..3 {
+        match embedder.embed(&preprocessed).await {
+            Ok(vector) => {
+                let mut cache = EMBEDDING_CACHE.write().await;
+                cache.insert(
+                    cache_key,
+                    EmbeddingCacheEntry {
+                        vector: vector.clone(),
+                        cached_at: Instant::now(),
+                    },
+                );
+                if cache.len() % 10 == 0 {
+                    drop(cache);
+                    clean_embedding_cache().await;
                 }
+                return Ok(vector);
             }
-        }
-    }
-
-    if legacy_embedder_configured {
-        let client = crate::memory::embedder::EmbeddingClient::from_env()?;
-
-        for attempt in 0..3 {
-            match client.embed(&preprocessed).await {
-                Ok(vector) => {
-                    let mut cache = EMBEDDING_CACHE.write().await;
-                    cache.insert(
-                        cache_key,
-                        EmbeddingCacheEntry {
-                            vector: vector.clone(),
-                            cached_at: Instant::now(),
-                        },
-                    );
-                    if cache.len() % 10 == 0 {
-                        drop(cache);
-                        clean_embedding_cache().await;
-                    }
-                    return Ok(vector);
-                }
-                Err(error) => {
-                    last_error = Some(error);
-                    if attempt < 2 {
-                        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-                        delay_ms = (delay_ms * 2).min(max_delay_ms);
-                    }
+            Err(error) => {
+                last_error = Some(error);
+                if attempt < 2 {
+                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                    delay_ms = (delay_ms * 2).min(max_delay_ms);
                 }
             }
         }

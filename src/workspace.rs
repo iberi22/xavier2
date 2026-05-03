@@ -818,9 +818,11 @@ impl WorkspaceState {
     }
 
     pub async fn embedding_provider_snapshot(&self) -> EmbeddingProviderSnapshot {
-        let configured_url = std::env::var("XAVIER2_EMBEDDING_URL").ok();
+        let configured_url = std::env::var("XAVIER2_EMBEDDING_ENDPOINT")
+            .ok()
+            .or_else(|| std::env::var("XAVIER2_EMBEDDING_URL").ok());
         let configured_model = std::env::var("XAVIER2_EMBEDDING_MODEL").ok();
-        let configured = configured_url.is_some();
+        let configured = crate::memory::embedder::EmbeddingClient::is_configured_from_env();
         let (available, last_error) = if configured {
             match EmbeddingClient::from_env() {
                 Ok(client) => match client.health().await {

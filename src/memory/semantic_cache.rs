@@ -33,6 +33,17 @@ impl QueryEmbedder for EmbeddingClient {
     }
 }
 
+struct NoopQueryEmbedder;
+
+impl QueryEmbedder for NoopQueryEmbedder {
+    fn embed<'a>(
+        &'a self,
+        _input: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<f32>>> + Send + 'a>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+}
+
 pub struct SemanticCache {
     entries: Arc<RwLock<Vec<CachedResponse>>>,
     similarity_threshold: f32,
@@ -41,10 +52,21 @@ pub struct SemanticCache {
 
 impl SemanticCache {
     pub fn new(similarity_threshold: f32) -> Result<Self> {
+        let embedder: Arc<dyn QueryEmbedder> = match EmbeddingClient::from_env() {
+            Ok(client) => Arc::new(client),
+            Err(error) => {
+                tracing::warn!(
+                    "SemanticCache embedding backend unavailable, using no-op embedder: {}",
+                    error
+                );
+                Arc::new(NoopQueryEmbedder)
+            }
+        };
+
         Ok(Self {
             entries: Arc::new(RwLock::new(Vec::new())),
             similarity_threshold,
-            embedder: Arc::new(EmbeddingClient::from_env()?),
+            embedder,
         })
     }
 
