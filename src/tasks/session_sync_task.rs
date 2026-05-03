@@ -16,8 +16,9 @@ use tokio::sync::RwLock;
 use tokio::time::{interval, sleep, timeout};
 use tracing::{info, warn};
 
-use crate::domain::memory::MemoryNamespace;
-use crate::ports::outbound::{HealthCheckPort, StoragePort};
+use crate::memory::schema::{MemoryKind, MemoryQueryFilters};
+use crate::memory::surreal_store::MemoryStore;
+use crate::ports::outbound::HealthCheckPort;
 
 /// Interval in milliseconds between sync checks.
 /// Default: 5 minutes (300_000 ms)
@@ -82,8 +83,8 @@ pub struct SessionSyncTask {
     interval_ms: u64,
     /// Health check port for Xavier2
     health_port: Arc<dyn HealthCheckPort>,
-    /// Storage port for querying memory records (optional, falls back if None)
-    storage_port: Option<Arc<dyn StoragePort>>,
+    /// Memory store for querying memory records (optional, falls back if None)
+    memory_store: Option<Arc<dyn MemoryStore>>,
     /// Last successful check timestamp
     last_check: Arc<RwLock<Instant>>,
     /// Lag threshold in ms (configurable via XAVIER2_SYNC_LAG_THRESHOLD_MS or SEVIER2_LAG_THRESHOLD_MS)
@@ -104,10 +105,10 @@ impl SessionSyncTask {
         Self::with_storage(health_port, None)
     }
 
-    /// Create a new SessionSyncTask with the given health and optional storage port.
+    /// Create a new SessionSyncTask with the given health and optional memory store.
     pub fn with_storage(
         health_port: Arc<dyn HealthCheckPort>,
-        storage_port: Option<Arc<dyn StoragePort>>,
+        memory_store: Option<Arc<dyn MemoryStore>>,
     ) -> Self {
         let interval_ms =
             read_env_or_legacy("XAVIER2_SYNC_INTERVAL_MS", "SEVIER2_SYNC_INTERVAL_MS")
@@ -145,7 +146,7 @@ impl SessionSyncTask {
         Self {
             interval_ms,
             health_port,
-            storage_port,
+            memory_store,
             last_check: Arc::new(RwLock::new(Instant::now())),
             lag_threshold_ms,
             save_ok_rate_threshold,
@@ -379,8 +380,14 @@ impl SessionSyncTask {
     /// Estimate index lag by querying indexed session records and comparing
     /// the original event timestamp with the timestamp at which the record was indexed.
     async fn estimate_index_lag(&self) -> u64 {
-        if let Some(ref storage) = self.storage_port {
-            let records = match storage.list("session", 1000).await {
+        if let Some(ref storage) = self.memory_store {
+            let workspace_id = std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+            let filters = MemoryQueryFilters {
+                kinds: Some(vec![MemoryKind::Session]),
+                ..MemoryQueryFilters::default()
+            };
+            
+            let records = match storage.list_filtered(&workspace_id, &filters, 100).await {
                 Ok(recs) => recs,
                 Err(e) => {
                     tracing::warn!(error = %e, "Failed to list session records for lag estimation");
@@ -390,7 +397,6 @@ impl SessionSyncTask {
 
             if let Some((event_ts, indexed_ts)) = records
                 .iter()
-                .filter(|r| r.namespace == MemoryNamespace::Session)
                 .filter_map(|record| {
                     session_event_timestamp_ms(&record.content)
                         .map(|ts| (ts, record.updated_at.timestamp_millis()))
@@ -475,7 +481,7 @@ impl Default for SessionSyncTask {
 
                 crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(final_url)
             }),
-            storage_port: None,
+            memory_store: None,
             last_check: Arc::new(RwLock::new(Instant::now())),
         }
     }

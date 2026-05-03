@@ -22,11 +22,10 @@ use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::domain::agent::AgentMetadata;
-use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
-use xavier2::memory::surreal_store::MemoryRecord as SurrealMemoryRecord;
+use xavier2::memory::surreal_store::MemoryRecord;
 use xavier2::memory::surreal_store::MemoryStore;
 use xavier2::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
 use xavier2::ports::outbound::HealthCheckPort;
@@ -123,7 +122,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         durable_state
             .memories
             .iter()
-            .map(SurrealMemoryRecord::to_document)
+            .map(MemoryRecord::to_document)
             .collect::<Vec<MemoryDocument>>(),
     ));
     let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
@@ -357,7 +356,7 @@ async fn search_handler(
     let limit = payload.limit.max(1).min(100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
-    let results: Vec<DomainMemoryRecord> = match state.memory.search(effective_query, None).await {
+    let results: Vec<MemoryRecord> = match state.memory.search(effective_query, None).await {
         Ok(results) => results,
         Err(e) => {
             info!("Search error: {}", e);
@@ -448,19 +447,19 @@ async fn add_handler(
         effective_content.len()
     );
 
-    let record = DomainMemoryRecord {
-        id: String::new(),
+    let record = MemoryRecord {
+        id: ulid::Ulid::new().to_string(),
+        workspace_id: state.workspace_id.clone(),
+        path: path.clone(),
         content: effective_content.to_string(),
-        kind: xavier2::domain::memory::MemoryKind::Context,
-        namespace: xavier2::domain::memory::MemoryNamespace::Global,
-        provenance: xavier2::domain::memory::MemoryProvenance {
-            source: path.clone(),
-            evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
-            confidence: 1.0,
-        },
-        embedding: None,
+        metadata,
+        embedding: vec![],
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
+        revision: 1,
+        primary: true,
+        parent_id: None,
+        revisions: vec![],
     };
     match state.memory.add(record).await {
         Ok(id) => {
@@ -1037,19 +1036,19 @@ async fn session_event_handler(
     });
 
     let record_path = format!("sessions/{}/thread", event.session_id);
-    let record = DomainMemoryRecord {
-        id: String::new(),
+    let record = MemoryRecord {
+        id: ulid::Ulid::new().to_string(),
+        workspace_id: state.workspace_id.clone(),
+        path: record_path.clone(),
         content,
-        kind: xavier2::domain::memory::MemoryKind::Context,
-        namespace: xavier2::domain::memory::MemoryNamespace::Session,
-        provenance: xavier2::domain::memory::MemoryProvenance {
-            source: record_path.clone(),
-            evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
-            confidence: 1.0,
-        },
-        embedding: None,
+        metadata,
+        embedding: vec![],
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
+        revision: 1,
+        primary: true,
+        parent_id: None,
+        revisions: vec![],
     };
     match state.memory.add(record).await {
         Ok(id) => {
@@ -1186,19 +1185,19 @@ async fn session_compact_handler(
         "threshold_percent": threshold,
         "kind": "session_compact",
     });
-    let record = DomainMemoryRecord {
-        id: String::new(),
+    let record = MemoryRecord {
+        id: ulid::Ulid::new().to_string(),
+        workspace_id: state.workspace_id.clone(),
+        path: compact_path.clone(),
         content: compacted_content.clone(),
-        kind: xavier2::domain::memory::MemoryKind::Context,
-        namespace: xavier2::domain::memory::MemoryNamespace::Session,
-        provenance: xavier2::domain::memory::MemoryProvenance {
-            source: compact_path.clone(),
-            evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
-            confidence: 1.0,
-        },
-        embedding: None,
+        metadata,
+        embedding: vec![],
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
+        revision: 1,
+        primary: true,
+        parent_id: None,
+        revisions: vec![],
     };
     match state.memory.add(record).await {
         Ok(id) => {
@@ -1345,19 +1344,19 @@ async fn agent_push_context_handler(
         );
     }
 
-    let record = DomainMemoryRecord {
-        id: String::new(),
+    let record = MemoryRecord {
+        id: ulid::Ulid::new().to_string(),
+        workspace_id: state.workspace_id.clone(),
+        path: path.clone(),
         content: payload.context.clone(),
-        kind: xavier2::domain::memory::MemoryKind::Context,
-        namespace: xavier2::domain::memory::MemoryNamespace::Session,
-        provenance: xavier2::domain::memory::MemoryProvenance {
-            source: path.clone(),
-            evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
-            confidence: 1.0,
-        },
-        embedding: None,
+        metadata,
+        embedding: vec![],
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
+        revision: 1,
+        primary: true,
+        parent_id: None,
+        revisions: vec![],
     };
     match state.memory.add(record).await {
         Ok(doc_id) => axum::Json(serde_json::json!({
@@ -1399,7 +1398,7 @@ async fn start_mcp_stdio() -> Result<()> {
         durable_state
             .memories
             .iter()
-            .map(SurrealMemoryRecord::to_document)
+            .map(MemoryRecord::to_document)
             .collect::<Vec<MemoryDocument>>(),
     ));
     let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
