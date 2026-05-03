@@ -3,6 +3,7 @@ use crate::{
         EvidenceKind, MemoryKind, MemoryNamespace, MemoryProvenance, MemoryQueryFilters,
         TypedMemoryPayload,
     },
+    ports::inbound::SecurityScanPort,
     utils::crypto::hex_encode,
     workspace::WorkspaceContext,
     AppState,
@@ -204,7 +205,7 @@ pub fn get_xavier2_tools() -> Vec<MCPTool> {
         // Gestalt MemoryFragment Tools (compatible with Gestalt MCP protocol)
         // ============================================================================
         MCPTool {
-            name: "memoryfragment_save".to_string(),
+            name: "save_fragment".to_string(),
             description: "Save a new memory fragment (Gestalt MemoryFragment compatible)".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -247,7 +248,12 @@ pub fn get_xavier2_tools() -> Vec<MCPTool> {
             }),
         },
         MCPTool {
-            name: "memoryfragment_search".to_string(),
+            name: "memoryfragment_save".to_string(),
+            description: "Alias for save_fragment".to_string(),
+            input_schema: json!({ "type": "object" }),
+        },
+        MCPTool {
+            name: "search_fragments".to_string(),
             description: "Search memory fragments by content/tags/agent_id (Gestalt MemoryFragment compatible)".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -279,7 +285,12 @@ pub fn get_xavier2_tools() -> Vec<MCPTool> {
             }),
         },
         MCPTool {
-            name: "memoryfragment_recent".to_string(),
+            name: "memoryfragment_search".to_string(),
+            description: "Alias for search_fragments".to_string(),
+            input_schema: json!({ "type": "object" }),
+        },
+        MCPTool {
+            name: "get_recent_fragments".to_string(),
             description: "Get recent memories for an agent (Gestalt MemoryFragment compatible)".to_string(),
             input_schema: json!({
                 "type": "object",
@@ -300,6 +311,11 @@ pub fn get_xavier2_tools() -> Vec<MCPTool> {
                 },
                 "required": ["agent_id"]
             }),
+        },
+        MCPTool {
+            name: "memoryfragment_recent".to_string(),
+            description: "Alias for get_recent_fragments".to_string(),
+            input_schema: json!({ "type": "object" }),
         },
         MCPTool {
             name: "memoryfragment_get".to_string(),
@@ -605,11 +621,25 @@ fn error_response(id: Option<Value>, code: i32, message: String) -> Option<MCPRe
 }
 
 pub async fn handle_tool_call(
-    _state: AppState,
+    state: AppState,
     workspace: WorkspaceContext,
     name: &str,
     arguments: Value,
 ) -> anyhow::Result<Value> {
+    // Security scanning for all tool calls
+    for (key, value) in arguments.as_object().unwrap_or(&serde_json::Map::new()) {
+        if let Some(text) = value.as_str() {
+            let scan_result = state.security_service.scan(text, None).await?;
+            if !scan_result.threats.is_empty() {
+                return Err(anyhow::anyhow!(
+                    "Security policy violation detected in argument '{}': {}",
+                    key,
+                    scan_result.threats[0].description
+                ));
+            }
+        }
+    }
+
     match name {
         "search_memory" => {
             let query = arguments
@@ -888,7 +918,7 @@ pub async fn handle_tool_call(
         // ============================================================================
         // Gestalt MemoryFragment Tools
         // ============================================================================
-        "memoryfragment_save" => {
+        "save_fragment" | "memoryfragment_save" => {
             let agent_id = arguments
                 .get("agent_id")
                 .and_then(|v| v.as_str())
@@ -975,7 +1005,7 @@ pub async fn handle_tool_call(
                 is_error: Some(false),
             })?)
         }
-        "memoryfragment_search" => {
+        "search_fragments" | "memoryfragment_search" => {
             let query = arguments
                 .get("query")
                 .and_then(|v| v.as_str())
@@ -1057,7 +1087,7 @@ pub async fn handle_tool_call(
                 is_error: Some(false),
             })?)
         }
-        "memoryfragment_recent" => {
+        "get_recent_fragments" | "memoryfragment_recent" => {
             let agent_id = arguments
                 .get("agent_id")
                 .and_then(|v| v.as_str())
