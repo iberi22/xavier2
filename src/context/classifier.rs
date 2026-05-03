@@ -4,8 +4,11 @@ use super::bm25::tokenize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContextLevel {
+    /// minimo -> only system prompt
     Minimal,
+    /// medio -> system + recent context
     Medium,
+    /// maximo -> full retrieval + skills
     Maximum,
 }
 
@@ -21,19 +24,22 @@ impl ContextClassifier {
         let token_count = tokenize(prompt).len();
         let lowered = prompt.to_lowercase();
 
-        if contains_any(&lowered, &MAXIMUM_KEYWORDS) || token_count >= 80 {
+        // maximo: full retrieval + skills (architecture, debug, deep dive, etc)
+        if contains_any(&lowered, &MAXIMUM_KEYWORDS) || token_count >= 100 {
             return ContextLevel::Maximum;
         }
 
+        // medio: system + recent context (follow up, continue, etc)
         if contains_any(&lowered, &MEDIUM_KEYWORDS) || token_count >= 20 {
             return ContextLevel::Medium;
         }
 
+        // minimo: only system prompt
         ContextLevel::Minimal
     }
 }
 
-const MEDIUM_KEYWORDS: [&str; 8] = [
+const MEDIUM_KEYWORDS: [&str; 10] = [
     "continue",
     "resume",
     "follow up",
@@ -42,9 +48,11 @@ const MEDIUM_KEYWORDS: [&str; 8] = [
     "previous",
     "prior",
     "tool",
+    "yesterday",
+    "last message",
 ];
 
-const MAXIMUM_KEYWORDS: [&str; 10] = [
+const MAXIMUM_KEYWORDS: [&str; 15] = [
     "debug",
     "incident",
     "root cause",
@@ -55,6 +63,11 @@ const MAXIMUM_KEYWORDS: [&str; 10] = [
     "codebase",
     "full context",
     "deep dive",
+    "implement",
+    "search",
+    "find",
+    "analyze",
+    "skill",
 ];
 
 fn contains_any(input: &str, keywords: &[&str]) -> bool {
@@ -75,7 +88,7 @@ mod tests {
     fn classifies_contextual_prompt_as_medium() {
         let classifier = ContextClassifier::new();
         assert_eq!(
-            classifier.classify("continue from previous context and tool outputs"),
+            classifier.classify("continue from previous context"),
             ContextLevel::Medium
         );
     }
@@ -85,6 +98,15 @@ mod tests {
         let classifier = ContextClassifier::new();
         assert_eq!(
             classifier.classify("need a deep dive into the codebase to debug a regression"),
+            ContextLevel::Maximum
+        );
+    }
+
+    #[test]
+    fn classifies_skill_request_as_maximum() {
+        let classifier = ContextClassifier::new();
+        assert_eq!(
+            classifier.classify("how do I use the memory skill?"),
             ContextLevel::Maximum
         );
     }

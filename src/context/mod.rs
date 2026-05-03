@@ -1,23 +1,27 @@
 //! Context regeneration system.
-//!
-//! Sprint 1 covers:
-//! - Phase 0: prompt classification (`Minimal`, `Medium`, `Maximum`)
-//! - Phase 1: lexical retrieval with whitespace-tokenized BM25
-//! - Phase 2: hybrid fusion with Reciprocal Rank Fusion (`k = 60`)
-//! - Hook-based orchestration for `session_start` and `precompact`
 
 pub mod bm25;
+pub mod builder;
 pub mod classifier;
+pub mod executor;
 pub mod hybrid;
 pub mod indexer;
+pub mod manager;
+pub mod monitoring;
 pub mod orchestrator;
+pub mod skills;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub use builder::{ContextBuilder, ContextBuilderConfig};
 pub use classifier::{ContextClassifier, ContextLevel};
+pub use executor::SkillExecutor;
 pub use indexer::ContextIndexer;
+pub use manager::ContextManager;
+pub use monitoring::ContextMetrics;
 pub use orchestrator::{ExecutionPlan, HookKind, Orchestrator};
+pub use skills::{Skill, SkillLoader};
 
 /// Canonical unit used by context regeneration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
