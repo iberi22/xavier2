@@ -286,6 +286,7 @@ mod integration {
             name: Some("integration-agent".to_string()),
             capabilities: vec!["memory".to_string(), "coordination".to_string()],
             role: Some("worker".to_string()),
+            endpoint: None,
         };
 
         assert!(server
@@ -332,6 +333,7 @@ mod integration {
                         name: Some(agent_id.to_string()),
                         capabilities: vec!["sync".to_string()],
                         role: Some(role.to_string()),
+                        endpoint: None,
                     },
                 )
                 .await);

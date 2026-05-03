@@ -1246,10 +1246,11 @@ async fn session_compact_handler(
 #[derive(Debug, Deserialize)]
 struct AgentRegisterPayload {
     agent_id: String,
-    session_id: String,
+    session_id: Option<String>,
     name: Option<String>,
     capabilities: Option<Vec<String>>,
     role: Option<String>,
+    endpoint: Option<String>,
 }
 
 async fn agent_register_handler(
@@ -1260,21 +1261,21 @@ async fn agent_register_handler(
         name: payload.name,
         capabilities: payload.capabilities.unwrap_or_default(),
         role: payload.role,
+        endpoint: payload.endpoint,
     };
+    let session_id = payload
+        .session_id
+        .unwrap_or_else(|| payload.agent_id.clone());
 
     let success = state
         .agent_registry
-        .register(
-            payload.agent_id.clone(),
-            payload.session_id.clone(),
-            metadata,
-        )
+        .register(payload.agent_id.clone(), session_id.clone(), metadata)
         .await;
 
     axum::Json(serde_json::json!({
         "status": if success { "ok" } else { "error" },
         "agent_id": payload.agent_id,
-        "session_id": payload.session_id,
+        "session_id": session_id,
         "message": if success { "Agent registered successfully" } else { "Registration failed" },
     }))
 }
@@ -1310,6 +1311,7 @@ async fn agent_active_handler(State(state): State<CliState>) -> impl axum::respo
             "name": a.metadata.name,
             "capabilities": a.metadata.capabilities,
             "role": a.metadata.role,
+            "endpoint": a.metadata.endpoint,
         })).collect::<Vec<_>>(),
     }))
 }
