@@ -23,17 +23,28 @@ pub enum AgentStatus {
 #[derive(Debug, Clone, Default)]
 pub struct AgentConfig {
     pub name: String,
+    pub provider: Option<String>,
     pub model: Option<String>,
     pub tools: Vec<String>,
+    pub context: HashMap<String, String>,
+    pub skills: Vec<String>,
 }
 
 impl AgentConfig {
     pub fn new(name: String) -> Self {
         Self {
             name,
+            provider: None,
             model: None,
             tools: Vec::new(),
+            context: HashMap::new(),
+            skills: Vec::new(),
         }
+    }
+
+    pub fn with_provider(mut self, provider: String) -> Self {
+        self.provider = Some(provider);
+        self
     }
 
     pub fn with_model(mut self, model: String) -> Self {
@@ -45,13 +56,26 @@ impl AgentConfig {
         self.tools = tools;
         self
     }
+
+    pub fn with_context(mut self, context: HashMap<String, String>) -> Self {
+        self.context = context;
+        self
+    }
+
+    pub fn with_skills(mut self, skills: Vec<String>) -> Self {
+        self.skills = skills;
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Agent {
     pub name: String,
+    pub provider: Option<String>,
     pub model: Option<String>,
     pub tools: Vec<String>,
+    pub context: HashMap<String, String>,
+    pub skills: Vec<String>,
     pub status: AgentStatus,
 }
 
@@ -59,8 +83,11 @@ impl Agent {
     pub fn new(config: AgentConfig) -> Self {
         Self {
             name: config.name,
+            provider: config.provider,
             model: config.model,
             tools: config.tools,
+            context: config.context,
+            skills: config.skills,
             status: AgentStatus::Idle,
         }
     }
