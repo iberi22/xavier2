@@ -3,6 +3,7 @@
 pub mod bm25;
 pub mod builder;
 pub mod classifier;
+pub mod executor;
 pub mod hybrid;
 pub mod indexer;
 pub mod orchestrator;
@@ -13,6 +14,7 @@ use serde::{Deserialize, Serialize};
 
 pub use builder::{ContextBuilder, ContextBuilderConfig};
 pub use classifier::{ContextClassifier, ContextLevel};
+pub use executor::SkillExecutor;
 pub use indexer::ContextIndexer;
 pub use orchestrator::{ExecutionPlan, HookKind, Orchestrator};
 pub use skills::{Skill, SkillLoader};
