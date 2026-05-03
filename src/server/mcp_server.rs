@@ -331,6 +331,20 @@ pub fn get_xavier2_tools() -> Vec<MCPTool> {
                 "required": ["id"]
             }),
         },
+        MCPTool {
+            name: "memoryfragment_delete".to_string(),
+            description: "Delete a specific memory fragment by ID".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Memory fragment ID"
+                    }
+                },
+                "required": ["id"]
+            }),
+        },
     ]
 }
 
@@ -1073,7 +1087,8 @@ pub async fn handle_tool_call(
                 .map(|doc| MCPTextContent {
                     content_type: "text".to_string(),
                     text: format!(
-                        "Path: {}\nContent: {}\nContext: {:?}\nTags: {:?}",
+                        "Id: {}\nPath: {}\nContent: {}\nContext: {:?}\nTags: {:?}",
+                        doc.id.as_deref().unwrap_or("none"),
                         doc.path,
                         doc.content,
                         doc.metadata.get("gestalt_context"),
@@ -1118,11 +1133,12 @@ pub async fn handle_tool_call(
                 .map(|record| MCPTextContent {
                     content_type: "text".to_string(),
                     text: format!(
-                        "Id: {}\nPath: {}\nContent: {}\nContext: {:?}",
+                        "Id: {}\nPath: {}\nContent: {}\nContext: {:?}\nTags: {:?}",
                         record.id,
                         record.path,
                         record.content,
                         record.metadata.get("gestalt_context"),
+                        record.metadata.get("tags")
                     ),
                 })
                 .collect();
@@ -1147,13 +1163,40 @@ pub async fn handle_tool_call(
                 content: vec![MCPTextContent {
                     content_type: "text".to_string(),
                     text: format!(
-                        "Id: {}\nPath: {}\nRevision: {}\nContent: {}\nMetadata: {}",
+                        "Id: {}\nPath: {}\nRevision: {}\nContent: {}\nContext: {:?}\nTags: {:?}\nMetadata: {}",
                         record.id,
                         record.path,
                         record.revision,
                         record.content,
+                        record.metadata.get("gestalt_context"),
+                        record.metadata.get("tags"),
                         serde_json::to_string_pretty(&record.metadata)?
                     ),
+                }],
+                is_error: Some(false),
+            })?)
+        }
+        "memoryfragment_delete" => {
+            let id = arguments
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("Missing id"))?;
+            
+            let record = workspace
+                .workspace
+                .delete_memory_record(id)
+                .await?;
+
+            let message = if let Some(r) = record {
+                format!("Deleted memory fragment: {} (path: {})", r.id, r.path)
+            } else {
+                format!("Memory fragment not found: {}", id)
+            };
+
+            Ok(serde_json::to_value(MCPToolResult {
+                content: vec![MCPTextContent {
+                    content_type: "text".to_string(),
+                    text: message,
                 }],
                 is_error: Some(false),
             })?)
