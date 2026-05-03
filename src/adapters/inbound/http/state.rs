@@ -1,0 +1,25 @@
+use std::sync::Arc;
+use crate::ports::inbound::{
+    AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort, SecurityScanPort, 
+    InputSecurityPort, HealthPort, VerificationPort, SessionSyncPort, SessionPort
+};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub memory: Arc<dyn MemoryQueryPort>,
+    pub security: Arc<dyn InputSecurityPort>,
+    pub security_scan: Arc<dyn SecurityScanPort>,
+    pub time_metrics: Arc<dyn TimeMetricsPort>,
+    pub agent_lifecycle: Arc<dyn AgentLifecyclePort>,
+    pub health: Arc<dyn HealthPort>,
+    pub verification: Arc<dyn VerificationPort>,
+    pub session_sync: Arc<dyn SessionSyncPort>,
+    pub session: Arc<dyn SessionPort>,
+    pub workspace_id: String,
+    pub auth_token: String,
+    
+    // Code graph components (to be moved to ports in a future phase)
+    pub code_db: Arc<code_graph::db::CodeGraphDB>,
+    pub code_indexer: Arc<code_graph::indexer::Indexer>,
+    pub code_query: Arc<code_graph::query::QueryEngine>,
+}

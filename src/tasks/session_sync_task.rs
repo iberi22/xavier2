@@ -18,6 +18,8 @@ use tracing::{info, warn};
 
 use crate::domain::memory::MemoryNamespace;
 use crate::ports::outbound::{HealthCheckPort, StoragePort};
+use crate::ports::inbound::SessionSyncPort;
+use async_trait::async_trait;
 
 /// Interval in milliseconds between sync checks.
 /// Default: 5 minutes (300_000 ms)
@@ -478,6 +480,17 @@ impl Default for SessionSyncTask {
             storage_port: None,
             last_check: Arc::new(RwLock::new(Instant::now())),
         }
+    }
+}
+
+#[async_trait]
+impl SessionSyncPort for SessionSyncTask {
+    async fn check(&self) -> anyhow::Result<SyncCheckResult> {
+        Ok(self.run_sync_check().await)
+    }
+
+    async fn last_result(&self) -> SyncCheckResult {
+        get_last_sync_result()
     }
 }
 

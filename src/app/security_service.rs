@@ -1,10 +1,11 @@
 //! App-layer SecurityService — delegates to the real `security::SecurityService`.
 //!
-//! This implements `SecurityScanPort` by wrapping the concrete `security::SecurityService`.
-//! Handlers should use this through the port trait, not call `security::SecurityService` directly.
+//! This implements both `SecurityScanPort` and `InputSecurityPort` by wrapping the concrete `security::SecurityService`.
+//! Handlers should use these through port traits, not call `security::SecurityService` directly.
 
 use crate::domain::security::{ScanResult, Severity, Threat, ThreatCategory, ThreatLevel};
-use crate::ports::inbound::SecurityScanPort;
+use crate::ports::inbound::{SecurityScanPort, InputSecurityPort};
+use crate::ports::inbound::security_port::SecureInputResult;
 use crate::security;
 use async_trait::async_trait;
 use chrono::Utc;
@@ -75,6 +76,43 @@ impl SecurityScanPort for SecurityService {
             "filter_output": config.filter_output,
             "paranoid_mode": config.paranoid_mode,
         }))
+    }
+
+    /// Processes input and returns a secure result.
+    async fn process_input(&self, input: &str) -> anyhow::Result<SecureInputResult> {
+        let input = input.to_string();
+        let result = tokio::task::spawn_blocking(move || {
+            let service = security::get_security_service();
+            service.process_input(&input)
+        })
+        .await?;
+
+        Ok(SecureInputResult {
+            allowed: result.allowed,
+            sanitized_input: result.sanitized_input,
+            original_input: result.original_input,
+            detection_confidence: result.detection.confidence,
+            is_injection: result.detection.is_injection,
+            attack_type: result.detection.attack_type.as_str().to_string(),
+        })
+    }
+}
+
+#[async_trait]
+impl InputSecurityPort for SecurityService {
+    async fn process_input(&self, input: &str) -> anyhow::Result<SecureInputResult> {
+        // Reuse the implementation from SecurityScanPort
+        SecurityScanPort::process_input(self, input).await
+    }
+
+    async fn process_output(&self, output: &str) -> anyhow::Result<String> {
+        let output = output.to_string();
+        let result = tokio::task::spawn_blocking(move || {
+            let service = security::get_security_service();
+            service.process_output(&output)
+        })
+        .await?;
+        Ok(result)
     }
 }
 

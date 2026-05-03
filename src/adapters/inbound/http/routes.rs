@@ -1,5 +1,5 @@
 use axum::{
-    extract::Json,
+    extract::{Json, State},
     routing::delete,
     routing::{get, post},
     Router,
@@ -11,17 +11,27 @@ use std::time::Instant;
 use crate::adapters::inbound::http::dto::TimeMetricDto;
 use crate::agents::unregister_agent_handler;
 use crate::coordination::SimpleAgentRegistry;
-use crate::ports::inbound::{AgentLifecyclePort, TimeMetricsPort};
+use crate::ports::inbound::{
+    AgentLifecyclePort, HealthPort, SessionPort, TimeMetricsPort, VerificationPort,
+};
 use crate::ports::outbound::HealthCheckPort;
-use crate::session::event_mapper::map_to_panel_thread;
 use crate::session::types::{SessionEvent, SessionEventType};
-use crate::tasks::session_sync_task::get_last_sync_result;
-use crate::verification::auto_verifier::AutoVerifier;
 
-// ─── Module-level TimeMetricsPort (initialized by CLI) ────────────────────────
+// ─── ApiState for Axum ──────────────────────────────────────────────────────
+
+#[derive(Clone)]
+pub struct ApiState {
+    pub agent_registry: Arc<dyn AgentLifecyclePort>,
+    pub health_port: Arc<dyn HealthPort>,
+    pub session_port: Arc<dyn SessionPort>,
+    pub verification_port: Arc<dyn VerificationPort>,
+    pub time_store: Arc<dyn TimeMetricsPort>,
+}
+
+// ─── Module-level TimeMetricsPort (legacy/fallback) ──────────────────────────
 static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> = std::sync::OnceLock::new();
 
-/// Module-level HealthCheckPort (initialized by CLI)
+/// Module-level HealthCheckPort (legacy/fallback)
 static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> = std::sync::OnceLock::new();
 
 /// Initialize the global time metrics port (call once at startup)
@@ -37,25 +47,55 @@ pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 pub fn create_router() -> Router {
-    create_router_with_agent_registry(SimpleAgentRegistry::new())
+    // This is a fallback/legacy creator. Real one should use create_router_with_state
+    let agent_registry = Arc::new(SimpleAgentRegistry::new());
+    create_router_with_agent_registry(agent_registry)
 }
 
 pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecyclePort>) -> Router {
+    // For backward compatibility during refactor, we provide dummy implementations for other ports
+    // but the CLI should use the new create_router_with_state.
+    let state = ApiState {
+        agent_registry,
+        health_port: Arc::new(crate::app::health_service::HealthService::new()),
+        session_port: Arc::new(crate::app::session_service::SessionService::new()),
+        verification_port: Arc::new(crate::app::verification_service::VerificationService::new()),
+        time_store: TIME_STORE
+            .get()
+            .cloned()
+            .unwrap_or_else(|| Arc::new(crate::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter::new(
+                Arc::new(crate::time::TimeMetricsStore::new(
+                    Arc::new(std::sync::Mutex::new(rusqlite::Connection::open_memory().unwrap()))
+                ))
+            ))),
+    };
+
+    create_router_with_state(state)
+}
+
+pub fn create_router_with_state(state: ApiState) -> Router {
     Router::new()
         .route("/health", get(health_handler))
         .route("/xavier2/events/session", post(session_event_handler))
         .route(
             "/xavier2/agents/{id}/unregister",
-            delete(unregister_agent_handler),
+            delete(unregister_agent_handler_wrapper),
         )
         .route("/xavier2/verify/save", post(verify_save_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
-        .with_state(agent_registry)
+        .with_state(state)
 }
 
-async fn health_handler() -> &'static str {
-    "ok"
+async fn unregister_agent_handler_wrapper(
+    State(state): State<ApiState>,
+    axum::extract::Path(agent_id): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    unregister_agent_handler(State(state.agent_registry), axum::extract::Path(agent_id)).await
+}
+
+async fn health_handler(State(state): State<ApiState>) -> Json<crate::ports::inbound::health_port::HealthStatus> {
+    Json(state.health_port.get_health_status().await)
 }
 
 // ─── Session Events Webhook ─────────────────────────────────────────────────
@@ -90,6 +130,7 @@ fn parse_event_type(s: &str) -> SessionEventType {
 }
 
 async fn session_event_handler(
+    State(state): State<ApiState>,
     Json(payload): Json<SessionEventRequest>,
 ) -> Json<SessionEventResponse> {
     let event = SessionEvent {
@@ -100,7 +141,7 @@ async fn session_event_handler(
         metadata: Some(payload.metadata),
     };
 
-    let mapped = map_to_panel_thread(event).is_some();
+    let mapped = state.session_port.handle_event(event).await;
 
     Json(SessionEventResponse {
         status: if mapped { "ok" } else { "ignored" }.to_string(),
@@ -125,6 +166,7 @@ pub struct VerifySaveResponse {
 }
 
 pub async fn verify_save_handler(
+    State(state): State<ApiState>,
     Json(payload): Json<VerifySaveRequest>,
 ) -> Json<VerifySaveResponse> {
     let start = Instant::now();
@@ -132,21 +174,9 @@ pub async fn verify_save_handler(
     let xavier2_url =
         std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string());
 
-    // Validate internal URL to prevent SSRF
-    if let Err(e) = crate::security::url_validator::validate_internal_url(&xavier2_url) {
-        tracing::error!("Internal URL validation failed: {}", e);
-        return Json(VerifySaveResponse {
-            save_ok: false,
-            latency_ms: start.elapsed().as_millis() as u64,
-            match_score: 0.0,
-        });
-    }
-
     let auth_token = std::env::var("X-CORTEX-TOKEN").unwrap_or_else(|_| "dev-token".to_string());
 
-    let client = reqwest::Client::new();
-    let result = AutoVerifier::verify_save(
-        &client,
+    let result = state.verification_port.verify_save(
         &xavier2_url,
         &auth_token,
         &payload.path,
@@ -179,32 +209,31 @@ pub struct TimeMetricResponse {
     pub agent_id: String,
 }
 
-pub async fn time_metric_handler(Json(payload): Json<TimeMetricDto>) -> Json<TimeMetricResponse> {
+pub async fn time_metric_handler(
+    State(state): State<ApiState>,
+    Json(payload): Json<TimeMetricDto>
+) -> Json<TimeMetricResponse> {
     let workspace_id =
         std::env::var("XAVIER2_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
 
-    // Try to save via TimeMetricsStore if available
-    if let Some(time_store) = TIME_STORE.get() {
-        let result = time_store.save_time_metric(&payload, &workspace_id).await;
-        match result {
-            Ok(()) => {
-                return Json(TimeMetricResponse {
-                    status: "saved".to_string(),
-                    metric_type: payload.metric_type,
-                    agent_id: payload.agent_id,
-                });
-            }
-            Err(e) => {
-                tracing::warn!("TimeMetricsStore save error: {}", e);
-            }
+    let result = state.time_store.save_time_metric(&payload, &workspace_id).await;
+    match result {
+        Ok(()) => {
+            Json(TimeMetricResponse {
+                status: "saved".to_string(),
+                metric_type: payload.metric_type,
+                agent_id: payload.agent_id,
+            })
+        }
+        Err(e) => {
+            tracing::warn!("TimeMetricsStore save error: {}", e);
+            Json(TimeMetricResponse {
+                status: "error".to_string(),
+                metric_type: payload.metric_type,
+                agent_id: payload.agent_id,
+            })
         }
     }
-
-    Json(TimeMetricResponse {
-        status: "ok".to_string(),
-        metric_type: payload.metric_type,
-        agent_id: payload.agent_id,
-    })
 }
 
 // ─── Session Sync Check Endpoint ────────────────────────────────────────────
@@ -221,9 +250,8 @@ pub struct SyncCheckResponse {
     pub alerts: Vec<String>,
 }
 
-pub async fn sync_check_handler() -> Json<SyncCheckResponse> {
-    // Return cached sync check results from the SessionSyncTask cron.
-    let result = get_last_sync_result();
+pub async fn sync_check_handler(State(state): State<ApiState>) -> Json<SyncCheckResponse> {
+    let result = state.health_port.get_health_status().await;
 
     Json(SyncCheckResponse {
         status: result.status,

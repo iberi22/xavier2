@@ -15,11 +15,15 @@ use tokio::sync::RwLock;
 use tracing::info;
 
 use xavier2::adapters::inbound::http::routes::{
-    sync_check_handler, time_metric_handler, verify_save_handler,
+    sync_check_handler, time_metric_handler, verify_save_handler, ApiState,
 };
 use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
+use xavier2::app::health_service::HealthService;
+use xavier2::app::session_service::SessionService;
+use xavier2::app::verification_service::VerificationService;
+use xavier2::app::security_service::SecurityService as SecurityPortAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::domain::agent::AgentMetadata;
 use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
@@ -28,10 +32,11 @@ use xavier2::memory::schema::MemoryQueryFilters;
 use xavier2::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier2::memory::surreal_store::MemoryRecord as SurrealMemoryRecord;
 use xavier2::memory::surreal_store::MemoryStore;
-use xavier2::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
+use xavier2::ports::inbound::{
+    AgentLifecyclePort, HealthPort, MemoryQueryPort, SessionPort, SecurityScanPort, 
+    TimeMetricsPort, VerificationPort
+};
 use xavier2::ports::outbound::HealthCheckPort;
-use xavier2::security::{ProcessResult, SecurityService};
-use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
 use xavier2::time::TimeMetricsStore;
@@ -45,9 +50,24 @@ pub struct CliState {
     pub code_db: Arc<code_graph::db::CodeGraphDB>,
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
-    pub security: Arc<SecurityService>,
-    pub time_store: Option<Arc<TimeMetricsStore>>,
+    pub security: Arc<dyn SecurityScanPort>,
+    pub time_store: Arc<dyn TimeMetricsPort>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
+    pub health_port: Arc<dyn HealthPort>,
+    pub session_port: Arc<dyn SessionPort>,
+    pub verification_port: Arc<dyn VerificationPort>,
+}
+
+impl axum::extract::FromRef<CliState> for ApiState {
+    fn from_ref(state: &CliState) -> Self {
+        ApiState {
+            agent_registry: state.agent_registry.clone(),
+            health_port: state.health_port.clone(),
+            session_port: state.session_port.clone(),
+            verification_port: state.verification_port.clone(),
+            time_store: state.time_store.clone(),
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -151,7 +171,7 @@ async fn start_http_server(port: u16) -> Result<()> {
     )) as Arc<dyn HealthCheckPort>;
     let time_adapter =
         Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
-    init_time_store(time_adapter);
+    init_time_store(time_adapter.clone());
     init_health_port(health_adapter.clone());
 
     let code_db_path = code_graph_db_path();
@@ -169,9 +189,12 @@ async fn start_http_server(port: u16) -> Result<()> {
         code_db,
         code_indexer,
         code_query,
-        security: Arc::new(SecurityService::new()),
-        time_store: Some(time_store),
-        agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
+        security: Arc::new(SecurityPortAdapter::new()),
+        time_store: time_adapter,
+        agent_registry: Arc::new(SimpleAgentRegistry::new()),
+        health_port: Arc::new(HealthService::new()),
+        session_port: Arc::new(SessionService::with_memory(Arc::clone(&memory_port))),
+        verification_port: Arc::new(VerificationService::new()),
     };
 
     info!(
@@ -332,11 +355,23 @@ async fn search_handler(
     axum::Json(payload): axum::Json<SearchPayload>,
 ) -> impl axum::response::IntoResponse {
     // Security scan on query before searching
-    let sec_result = state.security.process_input(&payload.query);
+    let sec_result = match state.security.process_input(&payload.query).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "results": [],
+                "query": payload.query,
+                "count": 0,
+                "error": format!("Security scan error: {}", e),
+                "workspace_id": state.workspace_id,
+            }));
+        }
+    };
+
     if !sec_result.allowed {
         info!(
             "Search blocked by security: injection detected (confidence={})",
-            sec_result.detection.confidence
+            sec_result.detection_confidence
         );
         return axum::Json(serde_json::json!({
             "results": <Vec<serde_json::Value>>::new(),
@@ -345,15 +380,15 @@ async fn search_handler(
             "blocked": true,
             "reason": "security_policy_violation",
             "detection": {
-                "is_injection": sec_result.detection.is_injection,
-                "confidence": sec_result.detection.confidence,
-                "attack_type": sec_result.detection.attack_type.as_str(),
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
             },
             "workspace_id": state.workspace_id,
         }));
     }
 
-    let effective_query = sec_result.effective_input();
+    let effective_query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input);
     let limit = payload.limit.max(1).min(100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
@@ -410,25 +445,33 @@ async fn add_handler(
     axum::Json(payload): axum::Json<AddPayload>,
 ) -> impl axum::response::IntoResponse {
     // Security scan on content before adding
-    let sec_result = state.security.process_input(&payload.content);
+    let sec_result = match state.security.process_input(&payload.content).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security scan error: {}", e),
+            }));
+        }
+    };
+
     if !sec_result.allowed {
         info!(
             "Add blocked by security: injection detected (confidence={})",
-            sec_result.detection.confidence
+            sec_result.detection_confidence
         );
         return axum::Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "detection": {
-                "is_injection": sec_result.detection.is_injection,
-                "confidence": sec_result.detection.confidence,
-                "attack_type": sec_result.detection.attack_type.as_str(),
-                "message": sec_result.detection.message,
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
             }
         }));
     }
 
-    let effective_content = sec_result.effective_input();
+    let effective_content = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input);
 
     let path = payload
         .path
@@ -473,7 +516,7 @@ async fn add_handler(
                 "security": {
                     "scanned": true,
                     "sanitized": sec_result.sanitized_input.is_some(),
-                    "attack_type": sec_result.detection.attack_type.as_str(),
+                    "attack_type": sec_result.attack_type,
                 }
             }))
         }
@@ -505,15 +548,23 @@ async fn security_scan_handler(
     State(state): State<CliState>,
     axum::Json(payload): axum::Json<SecurityScanPayload>,
 ) -> impl axum::response::IntoResponse {
-    let result = state.security.process_input(&payload.input);
+    let result = match state.security.process_input(&payload.input).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security scan error: {}", e),
+            }));
+        }
+    };
+
     axum::Json(serde_json::json!({
         "status": if result.allowed { "allowed" } else { "blocked" },
         "allowed": result.allowed,
         "detection": {
-            "is_injection": result.detection.is_injection,
-            "confidence": result.detection.confidence,
-            "attack_type": result.detection.attack_type.as_str(),
-            "message": result.detection.message,
+            "is_injection": result.is_injection,
+            "confidence": result.detection_confidence,
+            "attack_type": result.attack_type,
         },
         "sanitized_input": result.sanitized_input,
         "original_input": result.original_input,
@@ -533,15 +584,24 @@ async fn memory_query_handler(
     axum::Json(payload): axum::Json<MemoryQueryPayload>,
 ) -> impl axum::response::IntoResponse {
     // Security scan on query
-    let sec_result = state.security.process_input(&payload.query);
+    let sec_result = match state.security.process_input(&payload.query).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security scan error: {}", e),
+            }));
+        }
+    };
+
     if !sec_result.allowed {
         return axum::Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "detection": {
-                "is_injection": sec_result.detection.is_injection,
-                "confidence": sec_result.detection.confidence,
-                "attack_type": sec_result.detection.attack_type.as_str(),
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
             }
         }));
     }
@@ -1012,57 +1072,24 @@ async fn session_event_handler(
     State(state): State<CliState>,
     axum::Json(event): axum::Json<SessionEvent>,
 ) -> impl axum::response::IntoResponse {
-    let entry = match PanelThreadEntry::from_session_event(&event) {
-        Some(e) => e,
-        None => {
-            return axum::Json(serde_json::json!({
-                "status": "skipped",
-                "reason": "no_content",
-                "session_id": event.session_id,
-            }))
-        }
-    };
-
-    let content = format!(
-        "[{}] {}: {}",
-        entry.timestamp.format("%Y-%m-%d %H:%M:%S"),
-        entry.role,
-        entry.content
-    );
-    let metadata = serde_json::json!({
-        "session_id": event.session_id,
-        "role": entry.role,
-        "event_type": entry.event_type,
-        "kind": "session_event",
-    });
-
-    let record_path = format!("sessions/{}/thread", event.session_id);
-    let record = DomainMemoryRecord {
-        id: String::new(),
-        content,
-        kind: xavier2::domain::memory::MemoryKind::Context,
-        namespace: xavier2::domain::memory::MemoryNamespace::Session,
-        provenance: xavier2::domain::memory::MemoryProvenance {
-            source: record_path.clone(),
-            evidence_kind: xavier2::domain::memory::EvidenceKind::Direct,
-            confidence: 1.0,
-        },
-        embedding: None,
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
-    };
-    match state.memory.add(record).await {
-        Ok(id) => {
-            info!("Session event indexed: {} -> {}", event.session_id, id);
-            axum::Json(serde_json::json!({
-                "status": "ok",
-                "session_id": event.session_id,
-                "path": record_path,
-                "id": id,
-            }))
+    match state.session_port.handle_and_index_event(event).await {
+        Ok(result) => {
+            if result.status == "skipped" {
+                axum::Json(serde_json::json!({
+                    "status": "skipped",
+                    "reason": "no_content",
+                    "session_id": result.session_id,
+                }))
+            } else {
+                axum::Json(serde_json::json!({
+                    "status": result.status,
+                    "session_id": result.session_id,
+                    "id": result.memory_id,
+                }))
+            }
         }
         Err(e) => {
-            info!("Failed to index session event: {}", e);
+            info!("Failed to handle session event: {}", e);
             axum::Json(serde_json::json!({
                 "status": "error",
                 "error": e.to_string(),

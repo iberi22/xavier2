@@ -1,0 +1,198 @@
+use axum::{extract::State, Json};
+use serde::{Deserialize, Serialize};
+use crate::adapters::inbound::http::AppState;
+use crate::domain::memory::{MemoryQueryFilters, MemoryRecord as DomainMemoryRecord};
+use tracing::info;
+
+#[derive(Debug, Deserialize)]
+pub struct SearchPayload {
+    pub query: String,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+    #[serde(default)]
+    pub filters: Option<MemoryQueryFilters>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddPayload {
+    pub content: String,
+    pub path: String,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MemoryQueryPayload {
+    pub query: String,
+    pub limit: Option<usize>,
+    pub filters: Option<serde_json::Value>,
+}
+
+fn default_limit() -> usize {
+    10
+}
+
+pub async fn search_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<SearchPayload>,
+) -> Json<serde_json::Value> {
+    // Security scan on query before searching
+    let sec_result = match state.security.process_input(&payload.query).await {
+        Ok(res) => res,
+        Err(e) => {
+            return Json(serde_json::json!({
+                "results": [],
+                "query": payload.query,
+                "count": 0,
+                "error": format!("Security scan error: {}", e),
+                "workspace_id": state.workspace_id,
+            }));
+        }
+    };
+
+    if !sec_result.allowed {
+        info!(
+            "Search blocked by security: injection detected (confidence={})",
+            sec_result.detection_confidence
+        );
+        return Json(serde_json::json!({
+            "results": <Vec<serde_json::Value>>::new(),
+            "query": payload.query,
+            "count": 0,
+            "blocked": true,
+            "reason": "security_policy_violation",
+            "detection": {
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
+            },
+            "workspace_id": state.workspace_id,
+        }));
+    }
+
+    let effective_query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input);
+    let limit = payload.limit.max(1).min(100);
+    info!("Search request: query={}, limit={}", effective_query, limit);
+
+    match state.memory.search(effective_query, payload.filters).await {
+        Ok(results) => {
+            let documents: Vec<_> = results
+                .into_iter()
+                .map(|doc| {
+                    serde_json::json!({
+                        "id": doc.id,
+                        "content": doc.content,
+                        "embedding": doc.embedding,
+                    })
+                })
+                .collect();
+
+            Json(serde_json::json!({
+                "status": "ok",
+                "query": payload.query,
+                "count": documents.len(),
+                "results": documents,
+                "workspace_id": state.workspace_id,
+            }))
+        }
+        Err(e) => {
+            info!("Search error: {}", e);
+            Json(serde_json::json!({
+                "status": "error",
+                "message": e.to_string(),
+            }))
+        }
+    }
+}
+
+pub async fn add_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<AddPayload>,
+) -> Json<serde_json::Value> {
+    let mut record = DomainMemoryRecord::new_fact(payload.path.clone(), payload.content);
+    // Note: domain metadata translation would go here if needed
+    
+    match state.memory.add(record).await {
+        Ok(id) => Json(serde_json::json!({
+            "status": "ok",
+            "id": id,
+            "path": payload.path,
+            "workspace_id": state.workspace_id,
+        })),
+        Err(e) => Json(serde_json::json!({
+            "status": "error",
+            "message": e.to_string(),
+        })),
+    }
+}
+
+pub async fn stats_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
+    // Note: MemoryQueryPort doesn't have stats() yet, might need to add it or use storage directly
+    // For now returning placeholder or calling list
+    Json(serde_json::json!({
+        "status": "ok",
+        "workspace_id": state.workspace_id,
+        "message": "Memory stats not yet implemented in port interface",
+    }))
+}
+
+pub async fn memory_query_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<MemoryQueryPayload>,
+) -> Json<serde_json::Value> {
+    // Security scan on query
+    let sec_result = match state.security.process_input(&payload.query).await {
+        Ok(res) => res,
+        Err(e) => {
+            return Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security scan error: {}", e),
+            }));
+        }
+    };
+
+    if !sec_result.allowed {
+        return Json(serde_json::json!({
+            "status": "blocked",
+            "reason": "security_policy_violation",
+            "detection": {
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
+            }
+        }));
+    }
+
+    let limit = payload.limit.unwrap_or(10).max(1).min(100);
+    let effective_query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input);
+
+    match state.memory.search(effective_query, None).await {
+        Ok(results) => {
+            let documents: Vec<_> = results
+                .into_iter()
+                .map(|doc| {
+                    serde_json::json!({
+                        "id": doc.id,
+                        "content": doc.content,
+                        "embedding": doc.embedding,
+                    })
+                })
+                .collect();
+
+            Json(serde_json::json!({
+                "status": "ok",
+                "query": payload.query,
+                "count": documents.len(),
+                "results": documents,
+                "workspace_id": state.workspace_id,
+            }))
+        }
+        Err(e) => {
+            info!("Memory query error: {}", e);
+            Json(serde_json::json!({
+                "status": "error",
+                "message": e.to_string(),
+            }))
+        }
+    }
+}
