@@ -6,6 +6,9 @@ pub const DEFAULT_SEMANTIC_WEIGHT: f32 = 0.4;
 pub const DEFAULT_RELEVANCE_THRESHOLD: f32 = 0.5;
 pub const DEFAULT_RRF_K: u32 = 60;
 pub const DEFAULT_MAX_RESULTS: usize = 20;
+pub const DEFAULT_SEARCH_LIMIT: usize = 10;
+pub const DEFAULT_KEYWORD_WEIGHT: f32 = 0.5;
+pub const DEFAULT_VECTOR_WEIGHT: f32 = 0.5;
 
 pub const WEIGHT_SUM_TOLERANCE: f32 = 0.001;
 pub const MIN_RELEVANCE_THRESHOLD: f32 = 0.0;
