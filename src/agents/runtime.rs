@@ -136,6 +136,7 @@ impl RuntimeConfig {
                 "gemini" => Some("GEMINI_API_KEY"),
                 "openai" => Some("OPENAI_API_KEY"),
                 "minimax" => Some("MINIMAX_API_KEY"),
+                "deepseek" => Some("DEEPSEEK_API_KEY"),
                 "anthropic" => Some("ANTHROPIC_API_KEY"),
                 _ => None,
             };
@@ -157,6 +158,7 @@ impl RuntimeConfig {
             ("gemini", "GEMINI_API_KEY"),
             ("openai", "OPENAI_API_KEY"),
             ("minimax", "MINIMAX_API_KEY"),
+            ("deepseek", "DEEPSEEK_API_KEY"),
             ("anthropic", "ANTHROPIC_API_KEY"),
         ] {
             if let Some(api_key) = lookup(env_var).filter(|value| !value.trim().is_empty()) {

@@ -8,7 +8,7 @@ use axum::{
 };
 use clap::{Parser, Subcommand};
 use serde::Deserialize;
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
@@ -18,6 +18,7 @@ use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
+use xavier2::agents::{Agent, AgentConfig};
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::memory::surreal_store::MemoryRecord as SurrealMemoryRecord;
@@ -64,6 +65,19 @@ pub enum Command {
     Stats,
     /// Save current session context to Xavier2
     SessionSave { session_id: String, content: String },
+    /// Spawn multiple agents with provider routing
+    Spawn {
+        #[arg(short, long, default_value_t = 1)]
+        count: usize,
+        #[arg(short, long)]
+        provider: Vec<String>,
+        #[arg(short, long)]
+        model: Vec<String>,
+        #[arg(short, long)]
+        skills: Vec<String>,
+        #[arg(short, long)]
+        context: Vec<String>,
+    },
 }
 
 /// Xavier2 - Fast Vector Memory for AI Agents
@@ -101,6 +115,22 @@ impl Cli {
                 session_id,
                 content,
             } => session_save(&session_id, &content).await,
+            Command::Spawn {
+                count,
+                provider,
+                model,
+                skills,
+                context,
+            } => {
+                spawn_agents(
+                    *count,
+                    provider,
+                    model,
+                    skills,
+                    context,
+                )
+                .await
+            }
         }
     }
 }
@@ -1900,6 +1930,117 @@ async fn session_save(session_id: &str, content: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn spawn_agents(
+    count: usize,
+    providers: Vec<String>,
+    models: Vec<String>,
+    skills: &[String],
+    custom_context: &[String],
+) -> Result<()> {
+    println!("🚀 Spawning {} agents...", count);
+
+    // Get available providers if none specified
+    let available_providers = if providers.is_empty() {
+        crate::agents::provider::ModelProviderConfig::get_all_configured()
+            .into_iter()
+            .map(|c| c.kind.as_str().to_string())
+            .collect::<Vec<_>>()
+    } else {
+        providers.clone()
+    };
+
+    if available_providers.is_empty() {
+        println!("⚠️ No providers specified and none found in environment. Using default routing pool.");
+    }
+
+    let mut agents = Vec::new();
+    for i in 0..count {
+        let name = format!("agent-{}", i + 1);
+        let mut config = AgentConfig::new(name.clone());
+
+        // Provider routing (Issue #96, #98)
+        let provider_name = if !available_providers.is_empty() {
+            Some(available_providers[i % available_providers.len()].clone())
+        } else {
+            None
+        };
+
+        if let Some(ref p) = provider_name {
+            config = config.with_provider(p.clone());
+        }
+
+        // Model routing
+        let model_name = if !models.is_empty() {
+            Some(models[i % models.len()].clone())
+        } else {
+            None
+        };
+
+        if let Some(ref m) = model_name {
+            config = config.with_model(m.clone());
+        }
+
+        // Load skills and context (Issue #97)
+        let mut loaded_skills = Vec::new();
+        let mut context = HashMap::new();
+
+        // Add spawn context
+        context.insert("agent_index".to_string(), i.to_string());
+        context.insert("total_agents".to_string(), count.to_string());
+        if let Some(ref p) = provider_name {
+            context.insert("spawn_provider".to_string(), p.clone());
+        }
+
+        for skill_name in skills {
+            if let Some(content) = load_skill(skill_name) {
+                // Add skill content to context as requested by Issue #97
+                context.insert(format!("skill_{}", skill_name), content.clone());
+                loaded_skills.push(skill_name.clone());
+            } else {
+                println!("⚠️ Warning: Skill {} not found", skill_name);
+            }
+        }
+
+        // Add custom context (Issue #96)
+        for kv in custom_context {
+            if let Some((k, v)) = kv.split_once('=') {
+                context.insert(k.to_string(), v.to_string());
+            }
+        }
+
+        config = config.with_skills(loaded_skills).with_context(context);
+
+        let agent = Agent::new(config);
+        agents.push(agent);
+        println!(
+            "  ✅ {} spawned [provider: {}, model: {}]",
+            name,
+            provider_name.as_deref().unwrap_or("auto"),
+            model_name.as_deref().unwrap_or("default")
+        );
+    }
+
+    println!("\n✨ Successfully spawned {} agents simultaneously.", agents.len());
+    Ok(())
+}
+
+fn load_skill(skill_name: &str) -> Option<String> {
+    // Try multiple paths (M97)
+    let paths = [
+        format!("skills/{}/SKILL.md", skill_name),
+        format!("skills/{}.md", skill_name),
+        format!(".agents/skills/{}/SKILL.md", skill_name),
+        format!(".agents/skills/{}.md", skill_name),
+    ];
+
+    for path in paths {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            return Some(content);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
