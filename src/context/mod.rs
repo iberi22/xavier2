@@ -7,6 +7,7 @@
 //! - Hook-based orchestration for `session_start` and `precompact`
 
 pub mod bm25;
+pub mod builder;
 pub mod classifier;
 pub mod hybrid;
 pub mod indexer;
@@ -15,6 +16,7 @@ pub mod orchestrator;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub use builder::{ContextBuilder, ContextBuilderConfig};
 pub use classifier::{ContextClassifier, ContextLevel};
 pub use indexer::ContextIndexer;
 pub use orchestrator::{ExecutionPlan, HookKind, Orchestrator};
