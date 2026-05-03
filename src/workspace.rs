@@ -1020,6 +1020,10 @@ impl WorkspaceState {
         self.store.get(&self.config.id, id_or_path).await
     }
 
+    pub async fn delete_memory_record(&self, id: &str) -> Result<Option<MemoryRecord>> {
+        self.store.delete(&self.config.id, id).await
+    }
+
     pub async fn update_primary_memory(
         &self,
         id: &str,
