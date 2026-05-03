@@ -1,11 +1,21 @@
 pub mod agent_lifecycle_port;
+pub mod health_port;
+pub mod input_security_port;
 pub mod memory_port;
 pub mod pattern_port;
 pub mod security_port;
+pub mod session_port;
+pub mod session_sync_port;
 pub mod time_metrics_port;
+pub mod verification_port;
 
 pub use agent_lifecycle_port::AgentLifecyclePort;
+pub use health_port::{HealthPort, HealthStatus as InboundHealthStatus};
+pub use input_security_port::InputSecurityPort;
 pub use memory_port::MemoryQueryPort;
 pub use pattern_port::PatternDiscoverPort;
 pub use security_port::SecurityScanPort;
+pub use session_port::SessionPort;
+pub use session_sync_port::SessionSyncPort;
 pub use time_metrics_port::TimeMetricsPort;
+pub use verification_port::VerificationPort;
