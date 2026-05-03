@@ -44,6 +44,10 @@ pub struct WorkingMemoryLayerConfig {
     pub capacity: usize,
     /// Minimum access count to qualify for LRU exemption (default: 2)
     pub lru_exempt_access_threshold: u32,
+    /// BM25 k1 parameter (default: 1.5)
+    pub bm25_k1: f32,
+    /// BM25 b parameter (default: 0.75)
+    pub bm25_b: f32,
 }
 
 impl Default for WorkingMemoryLayerConfig {
@@ -51,6 +55,8 @@ impl Default for WorkingMemoryLayerConfig {
         Self {
             capacity: 100,
             lru_exempt_access_threshold: 2,
+            bm25_k1: 1.5,
+            bm25_b: 0.75,
         }
     }
 }
@@ -67,6 +73,14 @@ impl WorkingMemoryLayerConfig {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(2),
+            bm25_k1: std::env::var("XAVIER2_WORKING_BM25_K1")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(1.5),
+            bm25_b: std::env::var("XAVIER2_WORKING_BM25_B")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(0.75),
         }
     }
 }
@@ -131,13 +145,19 @@ mod tests {
         let _guard = ENV_LOCK.lock().unwrap();
         std::env::set_var("XAVIER2_WORKING_MEMORY_CAPACITY", "200");
         std::env::set_var("XAVIER2_WORKING_LRU_THRESHOLD", "5");
+        std::env::set_var("XAVIER2_WORKING_BM25_K1", "2.0");
+        std::env::set_var("XAVIER2_WORKING_BM25_B", "0.5");
 
         let config = WorkingMemoryLayerConfig::from_env();
         assert_eq!(config.capacity, 200);
         assert_eq!(config.lru_exempt_access_threshold, 5);
+        assert!((config.bm25_k1 - 2.0).abs() < 0.01);
+        assert!((config.bm25_b - 0.5).abs() < 0.01);
 
         std::env::remove_var("XAVIER2_WORKING_MEMORY_CAPACITY");
         std::env::remove_var("XAVIER2_WORKING_LRU_THRESHOLD");
+        std::env::remove_var("XAVIER2_WORKING_BM25_K1");
+        std::env::remove_var("XAVIER2_WORKING_BM25_B");
     }
 
     #[test]

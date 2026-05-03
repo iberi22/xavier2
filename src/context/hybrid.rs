@@ -6,8 +6,7 @@ use super::{
     bm25::{tokenize, Bm25Hit, Bm25Index},
     ContextDocument,
 };
-
-const DEFAULT_RRF_K: u32 = 60;
+use crate::retrieval::config;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ContextSearchHit {
@@ -23,7 +22,7 @@ pub struct HybridContextSearch {
 
 impl Default for HybridContextSearch {
     fn default() -> Self {
-        Self::new(DEFAULT_RRF_K)
+        Self::new(config::DEFAULT_RRF_K)
     }
 }
 

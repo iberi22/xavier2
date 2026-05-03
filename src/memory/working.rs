@@ -71,6 +71,10 @@ pub struct WorkingMemoryConfig {
     pub capacity: usize,
     /// Minimum access count to qualify for LRU exemption (default: 2)
     pub lru_exempt_access_threshold: u32,
+    /// BM25 k1 parameter (default: 1.5)
+    pub bm25_k1: f32,
+    /// BM25 b parameter (default: 0.75)
+    pub bm25_b: f32,
 }
 
 impl Default for WorkingMemoryConfig {
@@ -78,6 +82,8 @@ impl Default for WorkingMemoryConfig {
         Self {
             capacity: 100,
             lru_exempt_access_threshold: 2,
+            bm25_k1: 1.5,
+            bm25_b: 0.75,
         }
     }
 }
@@ -272,15 +278,17 @@ impl WorkingMemory {
                 / self.items.len() as f32
         };
 
-        // BM25 parameters
-        let k1 = 1.5;
-        let b = 0.75;
-
         let mut scored: Vec<ScoredResult> = self
             .items
             .values()
             .map(|item| {
-                let score = bm25_score(&item.content, &query_terms, avg_doc_len, k1, b);
+                let score = bm25_score(
+                    &item.content,
+                    &query_terms,
+                    avg_doc_len,
+                    self.config.bm25_k1,
+                    self.config.bm25_b,
+                );
                 ScoredResult {
                     item: item.clone(),
                     score,
@@ -409,6 +417,8 @@ mod tests {
         let mut wm = WorkingMemory::with_config(WorkingMemoryConfig {
             capacity: 3,
             lru_exempt_access_threshold: 2,
+            bm25_k1: 1.5,
+            bm25_b: 0.75,
         });
 
         wm.push(MemoryItem::new("1", "First"));
@@ -431,6 +441,8 @@ mod tests {
         let mut wm = WorkingMemory::with_config(WorkingMemoryConfig {
             capacity: 2,
             lru_exempt_access_threshold: 2,
+            bm25_k1: 1.5,
+            bm25_b: 0.75,
         });
 
         wm.push(MemoryItem::new("1", "First"));

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::memory::entity_graph::EntityRecord;
 use crate::memory::qmd_memory::MemoryDocument;
+use crate::retrieval::config;
 use crate::search::rrf::{reciprocal_rank_fusion, ScoredResult};
 
 /// Layer weights for multi-layer retrieval fusion.
@@ -24,9 +25,9 @@ pub struct LayerWeights {
 impl Default for LayerWeights {
     fn default() -> Self {
         Self {
-            working: 0.3,
-            episodic: 0.3,
-            semantic: 0.4,
+            working: config::DEFAULT_WORKING_WEIGHT,
+            episodic: config::DEFAULT_EPISODIC_WEIGHT,
+            semantic: config::DEFAULT_SEMANTIC_WEIGHT,
         }
     }
 }
@@ -74,11 +75,9 @@ impl Default for GatingConfig {
     fn default() -> Self {
         Self {
             layer_weights: LayerWeights::default(),
-            // LOCOMO fix: raise from 0.3 to 0.5 to reduce hallucinations
-            // and improve factuality by requiring better keyword overlap
-            relevance_threshold: 0.5,
-            rrf_k: 60,
-            max_results: 20,
+            relevance_threshold: config::DEFAULT_RELEVANCE_THRESHOLD,
+            rrf_k: config::DEFAULT_RRF_K,
+            max_results: config::DEFAULT_MAX_RESULTS,
         }
     }
 }
@@ -171,16 +170,17 @@ impl AdaptiveGating {
 
                 // Exact phrase match bonus
                 if content_lower.contains(&query_lower) {
-                    score += 0.5;
+                    score += config::EXACT_PHRASE_MATCH_BONUS;
                 }
 
                 // Term frequency scoring
                 for term in &query_terms {
                     if content_lower.contains(term) {
-                        score += 0.1;
+                        score += config::TERM_MATCH_BONUS;
                         // Additional bonus for multiple occurrences
                         let count = content_lower.matches(term).count() as f32;
-                        score += (count * 0.05).min(0.3);
+                        score += (count * config::TERM_OCCURRENCE_BONUS)
+                            .min(config::MAX_TERM_OCCURRENCE_BONUS);
                     }
                 }
 
@@ -226,15 +226,16 @@ impl AdaptiveGating {
 
                 // Summary match
                 if summary_lower.contains(&query_lower) {
-                    score += 0.5;
+                    score += config::EXACT_PHRASE_MATCH_BONUS;
                 }
 
                 // Term frequency in summary
                 for term in &query_terms {
                     if summary_lower.contains(term) {
-                        score += 0.1;
+                        score += config::TERM_MATCH_BONUS;
                         let count = summary_lower.matches(term).count() as f32;
-                        score += (count * 0.05).min(0.3);
+                        score += (count * config::TERM_OCCURRENCE_BONUS)
+                            .min(config::MAX_TERM_OCCURRENCE_BONUS);
                     }
                 }
 
@@ -242,11 +243,11 @@ impl AdaptiveGating {
                 for event in &session.key_events {
                     let event_lower = event.description.to_lowercase();
                     if event_lower.contains(&query_lower) {
-                        score += 0.3;
+                        score += config::EVENT_PHRASE_MATCH_BONUS;
                     }
                     for term in &query_terms {
                         if event_lower.contains(term) {
-                            score += 0.05;
+                            score += config::EVENT_TERM_MATCH_BONUS;
                         }
                     }
                 }
@@ -287,22 +288,22 @@ impl AdaptiveGating {
 
                 // Exact name match
                 if name_lower == query_lower || normalized_lower == query_lower {
-                    score = 1.0;
+                    score = config::EXACT_ENTITY_MATCH_SCORE;
                 }
                 // Partial name match
                 else if name_lower.contains(&query_lower) || query_lower.contains(&name_lower) {
-                    score = 0.7;
+                    score = config::PARTIAL_ENTITY_MATCH_SCORE;
                 }
                 // Description match
                 else if let Some(desc) = &entity.description {
                     let desc_lower = desc.to_lowercase();
                     if desc_lower.contains(&query_lower) {
-                        score = 0.4;
+                        score = config::ENTITY_DESCRIPTION_MATCH_SCORE;
                     }
                     let query_terms: Vec<&str> = query_lower.split_whitespace().collect();
                     for term in &query_terms {
                         if desc_lower.contains(term) {
-                            score += 0.1;
+                            score += config::ENTITY_DESCRIPTION_TERM_BONUS;
                         }
                     }
                 }
@@ -310,14 +311,14 @@ impl AdaptiveGating {
                 else {
                     for alias in &entity.aliases {
                         if alias.to_lowercase().contains(&query_lower) {
-                            score = 0.6;
+                            score = config::ENTITY_ALIAS_MATCH_SCORE;
                             break;
                         }
                     }
                 }
 
                 // Boost by confirmation count (normalized)
-                let final_score = score * (0.5_f32.min(1.0));
+                let final_score = score * config::SEMANTIC_CONFIDENCE_MULTIPLIER;
 
                 if final_score > 0.0 {
                     Some(ScoredResult {
