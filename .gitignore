@@ -34,3 +34,5 @@ data/
 logs/
 scripts/__pycache__/
 PROMPT_*.md
+test_payload.json
+file_35---*.txt
