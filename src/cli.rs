@@ -9,7 +9,6 @@ use axum::{
 use clap::{Parser, Subcommand};
 use serde::Deserialize;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::info;
@@ -18,11 +17,9 @@ use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
 use xavier2::agents::unregister_agent_handler;
-use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
-use xavier2::domain::agent::AgentMetadata;
 use xavier2::memory::file_indexer::{FileIndexer, FileIndexerConfig};
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
