@@ -10,6 +10,7 @@ pub enum ModelProviderKind {
     Gemini,
     OpenAI,
     MiniMax,
+    DeepSeek,
     Anthropic,
     Local,
     Disabled,
@@ -21,6 +22,7 @@ impl ModelProviderKind {
             "gemini" => Some(Self::Gemini),
             "openai" => Some(Self::OpenAI),
             "minimax" => Some(Self::MiniMax),
+            "deepseek" => Some(Self::DeepSeek),
             "anthropic" => Some(Self::Anthropic),
             "local" => Some(Self::Local),
             "disabled" => Some(Self::Disabled),
@@ -33,6 +35,7 @@ impl ModelProviderKind {
             Self::Gemini => "gemini",
             Self::OpenAI => "openai",
             Self::MiniMax => "minimax",
+            Self::DeepSeek => "deepseek",
             Self::Anthropic => "anthropic",
             Self::Local => "local",
             Self::Disabled => "disabled",
@@ -61,6 +64,7 @@ impl ModelProviderConfig {
             ModelProviderKind::Local,
             ModelProviderKind::OpenAI,
             ModelProviderKind::Anthropic,
+            ModelProviderKind::DeepSeek,
             ModelProviderKind::MiniMax,
             ModelProviderKind::Gemini,
         ] {
@@ -97,6 +101,14 @@ impl ModelProviderConfig {
                     .or_else(|_| std::env::var("MINIMAX_MODEL"))
                     .unwrap_or_else(|_| "MiniMax-Text-01".to_string()),
                 api_key: std::env::var("MINIMAX_API_KEY").ok(),
+                url: None,
+            },
+            ModelProviderKind::DeepSeek => Self {
+                kind,
+                model: std::env::var("XAVIER2_LLM_MODEL")
+                    .or_else(|_| std::env::var("DEEPSEEK_MODEL"))
+                    .unwrap_or_else(|_| "deepseek-chat".to_string()),
+                api_key: std::env::var("DEEPSEEK_API_KEY").ok(),
                 url: None,
             },
             ModelProviderKind::Anthropic => Self {
@@ -137,6 +149,24 @@ impl ModelProviderConfig {
         self.api_key
             .as_ref()
             .is_some_and(|value| !value.trim().is_empty())
+    }
+
+    pub fn get_all_configured() -> Vec<Self> {
+        let mut configured = Vec::new();
+        for kind in [
+            ModelProviderKind::Gemini,
+            ModelProviderKind::OpenAI,
+            ModelProviderKind::MiniMax,
+            ModelProviderKind::DeepSeek,
+            ModelProviderKind::Anthropic,
+            ModelProviderKind::Local,
+        ] {
+            let config = Self::from_explicit_kind(kind);
+            if config.is_configured() {
+                configured.push(config);
+            }
+        }
+        configured
     }
 
     pub fn with_model_override(mut self, model_override: Option<String>) -> Self {
@@ -211,6 +241,7 @@ impl ModelProviderClient {
             ModelProviderKind::Gemini => self.generate_gemini(system_prompt, &user_prompt).await,
             ModelProviderKind::OpenAI => self.generate_openai(system_prompt, &user_prompt).await,
             ModelProviderKind::MiniMax => self.generate_minimax(system_prompt, &user_prompt).await,
+            ModelProviderKind::DeepSeek => self.generate_deepseek(system_prompt, &user_prompt).await,
             ModelProviderKind::Local => self.generate_local(system_prompt, &user_prompt).await,
             ModelProviderKind::Anthropic => {
                 Err(anyhow!("anthropic provider is not implemented yet"))
@@ -231,6 +262,7 @@ impl ModelProviderClient {
             ModelProviderKind::Gemini => self.generate_gemini(system_prompt, &user_prompt).await,
             ModelProviderKind::OpenAI => self.generate_openai(system_prompt, &user_prompt).await,
             ModelProviderKind::MiniMax => self.generate_minimax(system_prompt, &user_prompt).await,
+            ModelProviderKind::DeepSeek => self.generate_deepseek(system_prompt, &user_prompt).await,
             ModelProviderKind::Local => self.generate_local(system_prompt, &user_prompt).await,
             ModelProviderKind::Anthropic => {
                 Err(anyhow!("anthropic provider is not implemented yet"))
@@ -263,6 +295,9 @@ impl ModelProviderClient {
             ModelProviderKind::OpenAI => self.generate_openai(system_prompt, &user_prompt).await?,
             ModelProviderKind::MiniMax => {
                 self.generate_minimax(system_prompt, &user_prompt).await?
+            }
+            ModelProviderKind::DeepSeek => {
+                self.generate_deepseek(system_prompt, &user_prompt).await?
             }
             ModelProviderKind::Local => self.generate_local(system_prompt, &user_prompt).await?,
             ModelProviderKind::Anthropic => bail!("anthropic not implemented"),
@@ -392,6 +427,42 @@ impl ModelProviderClient {
             .and_then(|choice| choice["message"]["content"].as_str())
             .map(|text| text.to_string())
             .ok_or_else(|| anyhow!("MiniMax response did not contain text"))
+    }
+
+    async fn generate_deepseek(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {
+        let api_key = self
+            .config
+            .api_key
+            .as_ref()
+            .context("missing DeepSeek API key")?;
+        let response = self
+            .client
+            .post("https://api.deepseek.com/chat/completions")
+            .bearer_auth(api_key)
+            .json(&serde_json::json!({
+                "model": self.config.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.2,
+                "max_tokens": 500
+            }))
+            .send()
+            .await
+            .context("failed to call DeepSeek API")?
+            .error_for_status()
+            .context("DeepSeek API returned an error")?;
+        let payload: serde_json::Value = response
+            .json()
+            .await
+            .context("failed to decode DeepSeek response")?;
+        payload["choices"]
+            .as_array()
+            .and_then(|choices| choices.first())
+            .and_then(|choice| choice["message"]["content"].as_str())
+            .map(|text| text.to_string())
+            .ok_or_else(|| anyhow!("DeepSeek response did not contain text"))
     }
 
     async fn generate_local(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {
