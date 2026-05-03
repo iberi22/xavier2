@@ -1,21 +1,22 @@
 use crate::domain::pattern::{PatternCategory, VerifiedPattern};
 use crate::ports::inbound::PatternDiscoverPort;
-use crate::ports::outbound::StoragePort;
+use crate::memory::surreal_store::MemoryStore;
 use async_trait::async_trait;
+use std::sync::Arc;
 
 #[allow(dead_code)]
-pub struct PatternService<S: StoragePort> {
-    storage: S,
+pub struct PatternService {
+    storage: Arc<dyn MemoryStore>,
 }
 
-impl<S: StoragePort> PatternService<S> {
-    pub fn new(storage: S) -> Self {
+impl PatternService {
+    pub fn new(storage: Arc<dyn MemoryStore>) -> Self {
         Self { storage }
     }
 }
 
 #[async_trait]
-impl<S: StoragePort + Send + Sync> PatternDiscoverPort for PatternService<S> {
+impl PatternDiscoverPort for PatternService {
     async fn discover(&self, pattern: VerifiedPattern) -> anyhow::Result<String> {
         let _ = pattern;
         todo!()

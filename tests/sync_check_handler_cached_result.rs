@@ -4,11 +4,12 @@ use async_trait::async_trait;
 use chrono::Utc;
 
 use xavier2::adapters::inbound::http::routes::sync_check_handler;
-use xavier2::domain::memory::{
-    EvidenceKind, MemoryKind, MemoryNamespace, MemoryProvenance, MemoryRecord,
+use xavier2::memory::schema::MemoryQueryFilters;
+use xavier2::memory::surreal_store::{
+    MemoryRecord, MemoryStore, RevisionedRecord, SessionTokenRecord, DurableWorkspaceState,
 };
 use xavier2::ports::outbound::health_check_port::HealthStatus;
-use xavier2::ports::outbound::{HealthCheckPort, StoragePort};
+use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
 
 struct MockHealthPort;
@@ -24,30 +25,79 @@ impl HealthCheckPort for MockHealthPort {
     }
 }
 
-struct MockStoragePort {
+struct MockMemoryStore {
     records: Vec<MemoryRecord>,
 }
 
 #[async_trait]
-impl StoragePort for MockStoragePort {
+impl MemoryStore for MockMemoryStore {
     async fn put(&self, _record: MemoryRecord) -> anyhow::Result<()> {
         Ok(())
     }
 
-    async fn get(&self, _id: &str) -> anyhow::Result<Option<MemoryRecord>> {
+    async fn get(&self, _workspace_id: &str, _id_or_path: &str) -> anyhow::Result<Option<MemoryRecord>> {
         Ok(None)
     }
 
-    async fn list(&self, _namespace: &str, _limit: usize) -> anyhow::Result<Vec<MemoryRecord>> {
+    async fn list(&self, _workspace_id: &str) -> anyhow::Result<Vec<MemoryRecord>> {
         Ok(self.records.clone())
     }
 
-    async fn search(&self, _query: &str, _limit: usize) -> anyhow::Result<Vec<MemoryRecord>> {
+    async fn list_filtered(&self, _workspace_id: &str, _filters: &MemoryQueryFilters, _limit: usize) -> anyhow::Result<Vec<MemoryRecord>> {
+        Ok(self.records.clone())
+    }
+
+    async fn search(&self, _workspace_id: &str, _query: &str, _limit: usize) -> anyhow::Result<Vec<MemoryRecord>> {
         Ok(Vec::new())
     }
 
-    async fn delete(&self, _id: &str) -> anyhow::Result<Option<MemoryRecord>> {
+    async fn delete(&self, _workspace_id: &str, _id: &str) -> anyhow::Result<Option<MemoryRecord>> {
         Ok(None)
+    }
+
+    async fn load_workspace_state(&self, _workspace_id: &str) -> anyhow::Result<DurableWorkspaceState> {
+        Ok(DurableWorkspaceState {
+            memories: self.records.clone(),
+            beliefs: Vec::new(),
+            session_tokens: Vec::new(),
+            checkpoints: Vec::new(),
+        })
+    }
+
+    async fn save_beliefs(&self, _workspace_id: &str, _beliefs: Vec<crate::memory::belief_graph::BeliefRelation>) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn save_session_token(&self, _workspace_id: &str, _token: SessionTokenRecord) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn is_session_token_valid(&self, _workspace_id: &str, _token: &str) -> anyhow::Result<bool> {
+        Ok(true)
+    }
+
+    async fn save_checkpoint(&self, _workspace_id: &str, _checkpoint: crate::checkpoint::Checkpoint) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn load_checkpoint(&self, _workspace_id: &str, _task_id: String, _name: String) -> anyhow::Result<Option<crate::checkpoint::Checkpoint>> {
+        Ok(None)
+    }
+
+    async fn delete_checkpoint(&self, _workspace_id: &str, _task_id: String, _name: String) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn backend(&self) -> crate::memory::surreal_store::MemoryBackend {
+        crate::memory::surreal_store::MemoryBackend::Memory
+    }
+
+    async fn health(&self) -> anyhow::Result<String> {
+        Ok("ok".to_string())
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
     }
 }
 
@@ -56,6 +106,8 @@ fn make_session_record(seconds_ago: i64) -> MemoryRecord {
     let indexed_at = Utc::now();
     MemoryRecord {
         id: "session-1".to_string(),
+        workspace_id: "default".to_string(),
+        path: "test".to_string(),
         content: serde_json::json!({
             "session_id": "session-1",
             "event_type": "message",
@@ -63,16 +115,16 @@ fn make_session_record(seconds_ago: i64) -> MemoryRecord {
             "content": "test",
         })
         .to_string(),
-        kind: MemoryKind::Context,
-        namespace: MemoryNamespace::Session,
-        provenance: MemoryProvenance {
-            source: "test".to_string(),
-            evidence_kind: EvidenceKind::Direct,
-            confidence: 1.0,
-        },
-        embedding: None,
+        metadata: serde_json::json!({
+            "kind": "session",
+        }),
+        embedding: vec![],
         created_at: event_at,
         updated_at: indexed_at,
+        revision: 1,
+        primary: true,
+        parent_id: None,
+        revisions: vec![],
     }
 }
 
@@ -80,9 +132,9 @@ fn make_session_record(seconds_ago: i64) -> MemoryRecord {
 async fn sync_check_handler_returns_cached_result_from_session_sync_task() {
     SessionSyncTask::update_metrics(0.90, 0.88, 7);
 
-    let storage = Arc::new(MockStoragePort {
+    let storage = Arc::new(MockMemoryStore {
         records: vec![make_session_record(45)],
-    }) as Arc<dyn StoragePort>;
+    }) as Arc<dyn MemoryStore>;
     let health = Arc::new(MockHealthPort) as Arc<dyn HealthCheckPort>;
     let task = SessionSyncTask::with_storage(health, Some(storage));
 

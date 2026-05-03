@@ -1,4 +1,5 @@
-use crate::domain::memory::{MemoryNamespace, MemoryQueryFilters, MemoryRecord};
+use crate::memory::schema::MemoryQueryFilters;
+use crate::memory::surreal_store::MemoryRecord;
 use async_trait::async_trait;
 
 #[async_trait]
@@ -13,7 +14,7 @@ pub trait MemoryQueryPort: Send + Sync {
     async fn get(&self, id: &str) -> anyhow::Result<Option<MemoryRecord>>;
     async fn list(
         &self,
-        namespace: MemoryNamespace,
+        workspace_id: &str,
         limit: usize,
     ) -> anyhow::Result<Vec<MemoryRecord>>;
 }

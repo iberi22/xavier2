@@ -490,8 +490,10 @@ fn overlay_namespace(namespace: &mut MemoryNamespace, metadata: &Value) {
     namespace.scope = namespace
         .scope
         .take()
-        .or_else(|| string_value(metadata, "scope"));
+        .or_else(|| string_value(metadata, "scope"))
+        .or_else(|| string_value(metadata, "gestalt_context"));
 }
+
 
 fn overlay_provenance(provenance: &mut MemoryProvenance, metadata: &Value, path: &str) {
     provenance.source_app = provenance
