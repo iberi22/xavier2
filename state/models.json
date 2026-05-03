@@ -83,7 +83,7 @@
           "maxTokens": 8192
         }
       ],
-      "apiKey": "sk-cp-Darz5xszZ7UrPXZD1FWzg7WpDNvIgMopxn4yjoG1f2uBoLpcgoGHo0FQGwVDs0GotFnrkFIz0dvJkkWPVlrUQkKCQok7aYxiHfTAwE0zy-uowWHnQIZtEyY"
+      "apiKey": "MINIMAX_API_KEY"
     },
     "openrouter": {
       "baseUrl": "https://openrouter.ai/api/v1",

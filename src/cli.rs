@@ -300,9 +300,9 @@ fn resolve_http_port() -> u16 {
         .unwrap_or(8006)
 }
 
-fn require_xavier2_token() -> Result<String> {
+fn xavier2_token() -> String {
     std::env::var("XAVIER2_TOKEN")
-        .map_err(|_| anyhow!("XAVIER2_TOKEN environment variable must be set"))
+        .expect("XAVIER2_TOKEN environment variable must be set for CLI client commands")
 }
 
 fn code_graph_db_path() -> PathBuf {
@@ -1852,7 +1852,7 @@ async fn session_load(ctx: &str) -> Result<String> {
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
     let limit = limit.max(1).min(100);
-    let token = require_xavier2_token()?;
+    let token = xavier2_token();
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/search", port);
 
@@ -1891,7 +1891,7 @@ async fn add_memory(content: &str, title: Option<&str>) -> Result<()> {
     let title = title
         .map(|title| secure_cli_input("memory title", title, 512))
         .transpose()?;
-    let token = require_xavier2_token()?;
+    let token = xavier2_token();
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/add", port);
 
@@ -1958,7 +1958,7 @@ fn secure_cli_input(label: &str, input: &str, max_chars: usize) -> Result<String
 }
 
 async fn show_stats() -> Result<()> {
-    let token = require_xavier2_token()?;
+    let token = xavier2_token();
     let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
     let url = format!("http://localhost:{}/memory/stats", port);
 

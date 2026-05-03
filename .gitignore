@@ -33,3 +33,4 @@ target_verify/
 data/
 logs/
 scripts/__pycache__/
+PROMPT_*.md
