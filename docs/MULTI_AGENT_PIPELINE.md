@@ -23,16 +23,16 @@ git status --short
 # Should show nothing uncommitted
 ```
 
-### 2. Ensure master is up-to-date
+### 2. Ensure main is up-to-date
 ```bash
-git fetch origin master
-git log --oneline origin/master -3
+git fetch origin main
+git log --oneline origin/main -3
 # If behind, update before creating new branches
 ```
 
 ### 3. Create isolated worktree
 ```bash
-git worktree add E:\temp\issue-XXX -b fix/issue-XXX master
+git worktree add E:\temp\issue-XXX -b fix/issue-XXX main
 ```
 **Never run parallel agents in the same worktree or repo.**
 
@@ -150,11 +150,11 @@ codex.ps1 exec --full-auto "YOUR TASK"
 
 ### Problem: PR has merge conflicts
 
-**Cause:** Agent pushed without merging master first.
+**Cause:** Agent pushed without merging main first.
 
 **Prevention:** Always add this to agent prompt:
 ```
-Before pushing, run: git fetch origin master && git merge origin/master
+Before pushing, run: git fetch origin main && git merge origin/main
 If conflicts, use: git checkout --ours <file>
 Then commit and push.
 ```
@@ -162,11 +162,11 @@ Then commit and push.
 **Fix:**
 ```bash
 cd E:\temp\issue-XXX
-git fetch origin master
-git merge origin/master
+git fetch origin main
+git merge origin/main
 # If conflict: git checkout --ours <conflicting-file>
 git add <files>
-git commit -m "Merge master"
+git commit -m "Merge main"
 git push
 ```
 
@@ -206,7 +206,7 @@ git push
 cd E:\temp\issue-XXX
 gh pr create --title "fix: issue title (closes #NNN)" \
   --body "## Summary\n\n## Changes\n\n## Testing" \
-  --base master --head fix/issue-XXX
+  --base main --head fix/issue-XXX
 ```
 
 ### 3. Immediate merge check
@@ -217,7 +217,7 @@ gh pr merge --squash NNN
 
 ### 4. If conflict:
 - Close the conflicting PR
-- Create new clean branch from latest master
+- Create new clean branch from latest main
 - Re-launch agent with merge instruction
 
 ---
@@ -257,7 +257,7 @@ git push --force-with-lease
 | Model not found | Use `MiniMax-M2.7` (exact) |
 | Agent exits 0 silently | Always check `git diff HEAD` |
 | Worktree lock | `git worktree remove E:\temp\XXX --force` |
-| Stale branch after merge | Fetch + reset: `git fetch origin; git reset --hard origin/master` |
+| Stale branch after merge | Fetch + reset: `git fetch origin; git reset --hard origin/main` |
 
 ---
 

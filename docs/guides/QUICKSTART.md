@@ -5,8 +5,8 @@
 ### From Source
 
 \\\ash
-git clone https://github.com/iberi22/xavier2-1.git
-cd xavier2-1
+git clone https://github.com/iberi22/xavier2.git
+cd xavier2
 cargo build --release
 ./target/release/xavier2 http
 \\\

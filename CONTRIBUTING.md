@@ -13,7 +13,7 @@ Thank you for your interest in contributing to Xavier2!
 ### Reporting Bugs
 
 Before creating a bug report:
-1. Check the [existing issues](https://github.com/iberi22/xavier2-1/issues)
+1. Check the [existing issues](https://github.com/iberi22/xavier2/issues)
 2. Use the bug report template in `.github/ISSUE_TEMPLATE/bug.md`
 3. Include:
    - Your operating system and version
@@ -23,7 +23,7 @@ Before creating a bug report:
 
 ### Suggesting Features
 
-1. Search [existing feature requests](https://github.com/iberi22/xavier2-1/labels/enhancement)
+1. Search [existing feature requests](https://github.com/iberi22/xavier2/labels/enhancement)
 2. Use the feature request template in `.github/ISSUE_TEMPLATE/feature.md`
 3. Explain:
    - The problem you're solving
@@ -33,11 +33,12 @@ Before creating a bug report:
 ### Pull Requests
 
 1. **Fork** the repository
-2. **Create a branch** for your feature or fix:
+2. **Sync from `main`** and create a short-lived branch for your feature or fix:
    ```bash
-   git checkout -b feature/my-new-feature
+   git fetch origin main
+   git checkout -b feature/my-new-feature origin/main
    # or
-   git checkout -b fix/issue-number
+   git checkout -b fix/issue-number origin/main
    ```
 3. **Make your changes** following the coding standards below
 4. **Add tests** for any new functionality
@@ -48,6 +49,13 @@ Before creating a bug report:
    ```
 6. **Commit** using conventional commits format (see below)
 7. **Push** and create a Pull Request
+
+### Branch Policy
+
+- `main` is the default branch and should stay releasable.
+- Use short-lived topic branches for every change.
+- Prefer small pull requests with a clear scope.
+- Delete merged branches after the pull request is closed.
 
 ## Coding Standards
 

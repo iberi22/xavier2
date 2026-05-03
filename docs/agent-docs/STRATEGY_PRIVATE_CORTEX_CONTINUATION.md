@@ -29,7 +29,7 @@ Move active Xavier2 product work into a private continuation path while keeping 
 
 ## Current GitHub State
 
-- Public repo: `iberi22/xavier2-1`
+- Public repo: `iberi22/xavier2`
 - Public upstream repo: `southwest-ai-labs/xavier2`
 - Desired operating mode:
   - private continuation

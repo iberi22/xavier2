@@ -66,7 +66,7 @@ cargo build --release
 
 ## 🔧 Entorno
 - **Repo:** `iberi22/xavier2`
-- **Rama:** master
+- **Rama:** main
 - **Stack:** Rust, tokio, axum
 - **Puerto default:** 8006
 - **Token:** dev-token

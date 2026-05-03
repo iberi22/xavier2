@@ -40,7 +40,7 @@ Jules está asignado a múltiples issues en `iberi22/xavier2`. Este documento ex
 
 Después de que Jules termine un fix:
 ```bash
-git fetch origin master
+git fetch origin main
 git diff HEAD --stat
 gh pr merge <N> --squash
 ```

@@ -3,7 +3,7 @@
 7ms average vector search for AI agents.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.4.1-green.svg)](https://github.com/iberi22/xavier2-1)
+[![Version](https://img.shields.io/badge/version-0.4.1-green.svg)](https://github.com/iberi22/xavier2)
 [![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 
 ---
@@ -15,8 +15,8 @@
 cargo install xavier2
 
 # Or build from source
-git clone https://github.com/iberi22/xavier2-1.git
-cd xavier2-1
+git clone https://github.com/iberi22/xavier2.git
+cd xavier2
 cargo build --release
 
 # Start HTTP server (default port 8006)
