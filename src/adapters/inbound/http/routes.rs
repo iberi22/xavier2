@@ -12,8 +12,6 @@ use crate::agents::unregister_agent_handler;
 use crate::coordination::SimpleAgentRegistry;
 use crate::ports::inbound::{AgentLifecyclePort, TimeMetricsPort};
 use crate::ports::outbound::HealthCheckPort;
-use crate::session::event_mapper::map_to_panel_thread;
-use crate::session::types::{SessionEvent, SessionEventType};
 use crate::tasks::session_sync_task::get_last_sync_result;
 use crate::verification::auto_verifier::AutoVerifier;
 
@@ -42,7 +40,6 @@ pub fn create_router() -> Router {
 pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecyclePort>) -> Router {
     Router::new()
         .route("/health", get(health_handler))
-        .route("/xavier2/events/session", post(session_event_handler))
         .route(
             "/xavier2/agents/{id}/unregister",
             post(unregister_agent_handler),
@@ -55,57 +52,6 @@ pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecycleP
 
 async fn health_handler() -> &'static str {
     "ok"
-}
-
-// ─── Session Events Webhook ─────────────────────────────────────────────────
-
-#[derive(Debug, Deserialize)]
-pub struct SessionEventRequest {
-    pub session_id: String,
-    pub event_type: String,
-    pub content: String,
-    pub timestamp: String,
-    #[serde(default)]
-    pub metadata: serde_json::Value,
-}
-
-#[derive(Debug, Serialize)]
-pub struct SessionEventResponse {
-    pub status: String,
-    pub session_id: String,
-    pub mapped: bool,
-}
-
-fn parse_event_type(s: &str) -> SessionEventType {
-    match s.to_lowercase().as_str() {
-        "message" => SessionEventType::Message,
-        "tool_call" | "toolcall" => SessionEventType::ToolCall,
-        "tool_result" | "toolresult" => SessionEventType::ToolResult,
-        "session_start" | "start" => SessionEventType::SessionStart,
-        "session_end" | "end" => SessionEventType::SessionEnd,
-        "error" => SessionEventType::Error,
-        _ => SessionEventType::Message,
-    }
-}
-
-async fn session_event_handler(
-    Json(payload): Json<SessionEventRequest>,
-) -> Json<SessionEventResponse> {
-    let event = SessionEvent {
-        session_id: payload.session_id.clone(),
-        event_type: parse_event_type(&payload.event_type),
-        timestamp: chrono::Utc::now(),
-        content: Some(payload.content),
-        metadata: Some(payload.metadata),
-    };
-
-    let mapped = map_to_panel_thread(event).is_some();
-
-    Json(SessionEventResponse {
-        status: if mapped { "ok" } else { "ignored" }.to_string(),
-        session_id: payload.session_id,
-        mapped,
-    })
 }
 
 // ─── Verification Endpoints ─────────────────────────────────────────────────

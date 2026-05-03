@@ -227,13 +227,23 @@ async fn start_http_server(port: u16) -> Result<()> {
 
     // Start session sync task cron (M5)
     let sync_task = SessionSyncTask::new(health_adapter);
-    if sync_task.spawn_cron_once() {
+    let sync_shutdown = sync_task.spawn_cron_once();
+    if sync_shutdown.is_some() {
         info!("SessionSyncTask cron started");
     } else {
         info!("SessionSyncTask cron already running; skipped duplicate start");
     }
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            if let Err(error) = tokio::signal::ctrl_c().await {
+                info!("Failed to listen for Ctrl+C shutdown signal: {}", error);
+            }
+            if let Some(shutdown) = sync_shutdown {
+                shutdown.shutdown();
+            }
+        })
+        .await?;
 
     Ok(())
 }

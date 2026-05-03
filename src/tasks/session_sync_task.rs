@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use tokio::sync::RwLock;
+use tokio::sync::{watch, RwLock};
 use tokio::time::{interval, sleep, timeout};
 use tracing::{info, warn};
 
@@ -49,6 +49,18 @@ pub(crate) static LAST_CHECK_ACTIVE_AGENTS: AtomicU64 = AtomicU64::new(0);
 pub(crate) static LAST_CHECK_STATUS: Mutex<String> = Mutex::new(String::new());
 pub(crate) static LAST_CHECK_ALERTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static SYNC_CRON_STARTED: AtomicBool = AtomicBool::new(false);
+
+/// Handle used by the HTTP server to request a graceful cron shutdown.
+#[derive(Clone)]
+pub struct SessionSyncShutdown {
+    shutdown_tx: watch::Sender<bool>,
+}
+
+impl SessionSyncShutdown {
+    pub fn shutdown(&self) {
+        let _ = self.shutdown_tx.send(true);
+    }
+}
 
 /// Sync check result
 #[derive(Debug, Clone)]
@@ -96,6 +108,8 @@ pub struct SessionSyncTask {
     min_health_interval_ms: u64,
     /// Timeout per health check attempt (configurable via XAVIER2_SYNC_TIMEOUT_MS)
     timeout_ms: u64,
+    /// Shutdown signal shared with the running cron loop.
+    shutdown_tx: watch::Sender<bool>,
 }
 
 impl SessionSyncTask {
@@ -142,6 +156,8 @@ impl SessionSyncTask {
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_SYNC_TIMEOUT_MS);
 
+        let (shutdown_tx, _) = watch::channel(false);
+
         Self {
             interval_ms,
             health_port,
@@ -152,24 +168,33 @@ impl SessionSyncTask {
             max_retries,
             min_health_interval_ms,
             timeout_ms,
+            shutdown_tx,
         }
     }
 
     /// Spawn the cron loop at most once per process.
-    /// Returns true when the task was spawned by this call.
-    pub fn spawn_cron_once(self) -> bool {
+    /// Returns a shutdown handle when the task was spawned by this call.
+    pub fn spawn_cron_once(self) -> Option<SessionSyncShutdown> {
         if SYNC_CRON_STARTED
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_err()
         {
-            return false;
+            return None;
         }
 
+        let shutdown = self.shutdown_handle();
         tokio::spawn(async move {
             self.start_cron().await;
+            SYNC_CRON_STARTED.store(false, Ordering::SeqCst);
         });
 
-        true
+        Some(shutdown)
+    }
+
+    pub fn shutdown_handle(&self) -> SessionSyncShutdown {
+        SessionSyncShutdown {
+            shutdown_tx: self.shutdown_tx.clone(),
+        }
     }
 
     /// Run the sync check (shared logic for both cron and on-demand)
@@ -343,6 +368,7 @@ impl SessionSyncTask {
     /// Start the cron loop for periodic sync checks
     pub async fn start_cron(&self) {
         let mut ticker = interval(Duration::from_millis(self.interval_ms));
+        let mut shutdown_rx = self.shutdown_tx.subscribe();
 
         info!(
             interval_ms = self.interval_ms,
@@ -350,28 +376,36 @@ impl SessionSyncTask {
         );
 
         loop {
-            ticker.tick().await;
+            tokio::select! {
+                _ = ticker.tick() => {
+                    let result = self.run_sync_check().await;
 
-            let result = self.run_sync_check().await;
-
-            // Log result
-            if result.alerts.is_empty() {
-                info!(
-                    status = %result.status,
-                    lag_ms = result.lag_ms,
-                    save_ok_rate = "%.1",
-                    match_score = "%.2",
-                    active_agents = result.active_agents,
-                    "SessionSyncTask check passed"
-                );
-            } else {
-                warn!(
-                    status = %result.status,
-                    lag_ms = result.lag_ms,
-                    save_ok_rate = "%.1",
-                    alerts = ?result.alerts,
-                    "SessionSyncTask check with alerts"
-                );
+                    // Log result
+                    if result.alerts.is_empty() {
+                        info!(
+                            status = %result.status,
+                            lag_ms = result.lag_ms,
+                            save_ok_rate = "%.1",
+                            match_score = "%.2",
+                            active_agents = result.active_agents,
+                            "SessionSyncTask check passed"
+                        );
+                    } else {
+                        warn!(
+                            status = %result.status,
+                            lag_ms = result.lag_ms,
+                            save_ok_rate = "%.1",
+                            alerts = ?result.alerts,
+                            "SessionSyncTask check with alerts"
+                        );
+                    }
+                }
+                changed = shutdown_rx.changed() => {
+                    if changed.is_err() || *shutdown_rx.borrow() {
+                        info!("SessionSyncTask cron shutting down");
+                        break;
+                    }
+                }
             }
         }
     }
@@ -430,6 +464,8 @@ impl SessionSyncTask {
 
 impl Default for SessionSyncTask {
     fn default() -> Self {
+        let (shutdown_tx, _) = watch::channel(false);
+
         Self {
             interval_ms: read_env_or_legacy("XAVIER2_SYNC_INTERVAL_MS", "SEVIER2_SYNC_INTERVAL_MS")
                 .and_then(|v| v.parse().ok())
@@ -477,6 +513,7 @@ impl Default for SessionSyncTask {
             }),
             storage_port: None,
             last_check: Arc::new(RwLock::new(Instant::now())),
+            shutdown_tx,
         }
     }
 }
