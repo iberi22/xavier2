@@ -17,11 +17,9 @@ use tracing::info;
 use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
-use xavier2::server::http::ws_events_handler;
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
-use xavier2::domain::agent::AgentMetadata;
 use xavier2::domain::memory::MemoryRecord as DomainMemoryRecord;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier2::memory::schema::MemoryQueryFilters;
@@ -215,7 +213,6 @@ async fn start_http_server(port: u16) -> Result<()> {
             "/xavier2/agents/{id}/unregister",
             post(agent_unregister_handler),
         )
-        .route("/xavier2/events/stream", get(ws_events_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
         .route("/xavier2/verify/save", post(verify_save_handler))
