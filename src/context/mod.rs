@@ -12,6 +12,7 @@ pub mod classifier;
 pub mod hybrid;
 pub mod indexer;
 pub mod orchestrator;
+pub mod skills;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -20,6 +21,7 @@ pub use builder::{ContextBuilder, ContextBuilderConfig};
 pub use classifier::{ContextClassifier, ContextLevel};
 pub use indexer::ContextIndexer;
 pub use orchestrator::{ExecutionPlan, HookKind, Orchestrator};
+pub use skills::{Skill, SkillLoader};
 
 /// Canonical unit used by context regeneration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
