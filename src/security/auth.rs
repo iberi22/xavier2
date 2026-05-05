@@ -1,10 +1,12 @@
 //! Authentication Module for Xavier2
 //! JWT-based authentication and RBAC
 
-use tokio::sync::RwLock;
+use std::fmt;
+
 use rand::rngs::OsRng;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
 
 /// JWT Claims for authentication
 #[derive(Clone, Serialize, Deserialize)]
@@ -57,7 +59,7 @@ impl Default for UserRole {
 }
 
 /// User representation
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: String,
     pub email: String,
@@ -91,11 +93,34 @@ impl User {
     }
 }
 
+impl fmt::Debug for User {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("User")
+            .field("id", &self.id)
+            .field("email", &self.email)
+            .field("name", &self.name)
+            .field("role", &self.role)
+            .field("api_key", &"<redacted>")
+            .field("created_at", &self.created_at)
+            .field("updated_at", &self.updated_at)
+            .finish()
+    }
+}
+
 /// Login request
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
+}
+
+impl fmt::Debug for LoginRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LoginRequest")
+            .field("email", &self.email)
+            .field("password", &"<redacted>")
+            .finish()
+    }
 }
 
 /// Login response

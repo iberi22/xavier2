@@ -69,7 +69,11 @@ impl MemoryStore for MockMemoryStore {
         Ok(Vec::new())
     }
 
-    async fn delete(&self, _workspace_id: &str, _id_or_path: &str) -> anyhow::Result<Option<MemoryRecord>> {
+    async fn delete(
+        &self,
+        _workspace_id: &str,
+        _id_or_path: &str,
+    ) -> anyhow::Result<Option<MemoryRecord>> {
         Ok(None)
     }
 
@@ -126,7 +130,11 @@ impl MemoryStore for MockMemoryStore {
         Ok(None)
     }
 
-    async fn list_checkpoints(&self, _workspace_id: &str, _task_id: &str) -> anyhow::Result<Vec<xavier2::checkpoint::Checkpoint>> {
+    async fn list_checkpoints(
+        &self,
+        _workspace_id: &str,
+        _task_id: &str,
+    ) -> anyhow::Result<Vec<xavier2::checkpoint::Checkpoint>> {
         Ok(Vec::new())
     }
 

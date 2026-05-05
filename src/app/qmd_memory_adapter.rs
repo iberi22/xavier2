@@ -32,7 +32,7 @@ impl MemoryQueryPort for QmdMemoryAdapter {
             .inner
             .search_filtered(query, limit, filters.as_ref())
             .await?;
-        
+
         let workspace_id = self.inner.workspace_id();
         Ok(results
             .into_iter()
@@ -59,14 +59,10 @@ impl MemoryQueryPort for QmdMemoryAdapter {
         Ok(result.map(|doc| MemoryRecord::from_document(&workspace_id, &doc, true, None)))
     }
 
-    async fn list(
-        &self,
-        workspace_id: &str,
-        limit: usize,
-    ) -> anyhow::Result<Vec<MemoryRecord>> {
+    async fn list(&self, workspace_id: &str, limit: usize) -> anyhow::Result<Vec<MemoryRecord>> {
         let limit = limit.max(1).min(100);
         let results = self.inner.all_documents().await;
-        
+
         Ok(results
             .into_iter()
             .take(limit)

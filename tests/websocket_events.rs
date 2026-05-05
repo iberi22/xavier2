@@ -88,10 +88,7 @@ async fn test_ws_handler(
     ws.on_upgrade(move |socket| handle_test_ws(socket, rx))
 }
 
-async fn handle_test_ws(
-    mut socket: WebSocket,
-    mut event_rx: broadcast::Receiver<RealtimeEvent>,
-) {
+async fn handle_test_ws(mut socket: WebSocket, mut event_rx: broadcast::Receiver<RealtimeEvent>) {
     let mut subscribed = false;
 
     loop {
