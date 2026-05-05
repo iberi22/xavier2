@@ -415,12 +415,13 @@ impl SessionSyncTask {
     /// the original event timestamp with the timestamp at which the record was indexed.
     async fn estimate_index_lag(&self) -> u64 {
         if let Some(ref storage) = self.memory_store {
-            let workspace_id = std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+            let workspace_id = std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID")
+                .unwrap_or_else(|_| "default".to_string());
             let filters = MemoryQueryFilters {
                 kinds: Some(vec![MemoryKind::Session]),
                 ..MemoryQueryFilters::default()
             };
-            
+
             let records = match storage.list_filtered(&workspace_id, &filters, 100).await {
                 Ok(recs) => recs,
                 Err(e) => {
@@ -566,9 +567,7 @@ fn timestamp_ms_from_json(value: &serde_json::Value) -> Option<i64> {
         }
     }
 
-    object
-        .get("metadata")
-        .and_then(timestamp_ms_from_json)
+    object.get("metadata").and_then(timestamp_ms_from_json)
 }
 
 fn parse_timestamp_ms(value: &serde_json::Value) -> Option<i64> {

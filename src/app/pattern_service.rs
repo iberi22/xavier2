@@ -124,17 +124,11 @@ impl PatternDiscoverPort for PatternService {
 
     async fn delete(&self, id: &str) -> anyhow::Result<Option<VerifiedPattern>> {
         let path = Self::pattern_path(id);
-        let existing = match self
-            .storage
-            .get(&self.pattern_workspace, &path)
-            .await?
-        {
+        let existing = match self.storage.get(&self.pattern_workspace, &path).await? {
             Some(rec) => serde_json::from_str::<VerifiedPattern>(&rec.content).ok(),
             None => None,
         };
-        self.storage
-            .delete(&self.pattern_workspace, &path)
-            .await?;
+        self.storage.delete(&self.pattern_workspace, &path).await?;
         Ok(existing)
     }
 

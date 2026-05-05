@@ -14,7 +14,7 @@ pub struct CodeGraphDB {
 }
 
 fn parse_language(value: &str) -> Language {
-    serde_json::from_str(value).unwrap_or_else(|_| match value {
+    serde_json::from_str(value).unwrap_or(match value {
         "Rust" => Language::Rust,
         "TypeScript" => Language::TypeScript,
         "JavaScript" => Language::JavaScript,
@@ -28,7 +28,7 @@ fn parse_language(value: &str) -> Language {
 }
 
 fn parse_symbol_kind(value: &str) -> SymbolKind {
-    serde_json::from_str(value).unwrap_or_else(|_| match value {
+    serde_json::from_str(value).unwrap_or(match value {
         "Function" => SymbolKind::Function,
         "Struct" => SymbolKind::Struct,
         "Enum" => SymbolKind::Enum,

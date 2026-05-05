@@ -12,6 +12,9 @@ use crate::agents::unregister_agent_handler;
 use crate::coordination::SimpleAgentRegistry;
 use crate::ports::inbound::{AgentLifecyclePort, TimeMetricsPort};
 use crate::ports::outbound::HealthCheckPort;
+use crate::security::SecurityService;
+use crate::session::event_mapper::PanelThreadEntry;
+use crate::session::types::SessionEvent;
 use crate::tasks::session_sync_task::get_last_sync_result;
 use crate::verification::auto_verifier::AutoVerifier;
 
@@ -50,12 +53,48 @@ pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecycleP
         )
         .route("/xavier2/verify/save", post(verify_save_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
+        .route("/xavier2/events/session", post(session_event_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
         .with_state(agent_registry)
 }
 
-async fn health_handler() -> Json<serde_json::Value> {
-    Json(serde_json::json!({ "status": "ok" }))
+async fn health_handler() -> &'static str {
+    "ok"
+}
+
+pub async fn session_event_handler(Json(event): Json<SessionEvent>) -> Json<serde_json::Value> {
+    let Some(entry) = PanelThreadEntry::from_session_event(&event) else {
+        return Json(serde_json::json!({
+            "status": "ok",
+            "session_id": event.session_id,
+            "mapped": false,
+        }));
+    };
+
+    let security = SecurityService::new();
+    let result = security.process_input(&entry.content);
+
+    if !result.allowed {
+        return Json(serde_json::json!({
+            "status": "blocked",
+            "blocked": true,
+            "reason": "security_policy_violation",
+            "session_id": event.session_id,
+            "mapped": false,
+            "detection": {
+                "is_injection": result.detection.is_injection,
+                "confidence": result.detection.confidence,
+                "attack_type": format!("{:?}", result.detection.attack_type),
+            },
+        }));
+    }
+
+    Json(serde_json::json!({
+        "status": "ok",
+        "session_id": event.session_id,
+        "mapped": true,
+        "content_sanitized": result.sanitized_input.is_some(),
+    }))
 }
 
 // ─── Verification Endpoints ─────────────────────────────────────────────────
@@ -145,7 +184,9 @@ pub async fn time_metric_handler(Json(payload): Json<TimeMetricDto>) -> Json<Tim
     // Try to save via TimeMetricsStore if available
     if let Some(time_store) = TIME_STORE.get() {
         let domain_metric: crate::domain::memory::TimeMetric = payload.clone().into();
-        let result = time_store.save_time_metric(&domain_metric, &workspace_id).await;
+        let result = time_store
+            .save_time_metric(&domain_metric, &workspace_id)
+            .await;
         match result {
             Ok(()) => {
                 return Json(TimeMetricResponse {

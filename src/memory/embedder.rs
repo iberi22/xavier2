@@ -16,7 +16,9 @@ impl EmbeddingClient {
         }
 
         Ok(Self {
-            embedder: config.build_sync().map_err(|error| anyhow!(error.to_string()))?,
+            embedder: config
+                .build_sync()
+                .map_err(|error| anyhow!(error.to_string()))?,
         })
     }
 

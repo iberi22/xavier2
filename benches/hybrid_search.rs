@@ -4,7 +4,7 @@ use tempfile::tempdir;
 use tokio::runtime::Runtime;
 use xavier2::memory::belief_graph::BeliefRelation;
 use xavier2::memory::sqlite_vec_store::{VecSqliteMemoryStore, VecSqliteStoreConfig};
-use xavier2::memory::surreal_store::{HybridSearchMode, MemoryRecord, MemoryStore};
+use xavier2::memory::{HybridSearchMode, MemoryRecord, MemoryStore};
 
 fn stable_key(kind: &str, parts: &[&str]) -> String {
     let mut digest = Sha256::new();

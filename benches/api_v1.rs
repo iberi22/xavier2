@@ -21,7 +21,7 @@ fn bench_v1_api(c: &mut Criterion) {
                 id: "bench".to_string(),
                 token: "bench-token".to_string(),
                 plan: xavier2::workspace::PlanTier::Pro,
-                memory_backend: xavier2::memory::surreal_store::MemoryBackend::File,
+                memory_backend: xavier2::memory::MemoryBackend::File,
                 storage_limit_bytes: None,
                 request_limit: None,
                 request_unit_limit: None,
