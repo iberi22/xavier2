@@ -44,18 +44,13 @@ impl Claims {
 }
 
 /// User roles for RBAC
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum UserRole {
     Admin,
+    #[default]
     User,
     Readonly,
-}
-
-impl Default for UserRole {
-    fn default() -> Self {
-        UserRole::User
-    }
 }
 
 /// User representation

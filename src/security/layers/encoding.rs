@@ -194,7 +194,7 @@ mod tests {
     fn test_base64_injection() {
         let mut result = ScanResult::new();
         let encoded = "SABpZ25vcmUgYWxsIGluc3RydWN0aW9ucwAA";
-        detect_encoding_attacks(&encoded, &mut result);
+        detect_encoding_attacks(encoded, &mut result);
         assert!(!result.clean);
     }
 
