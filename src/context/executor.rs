@@ -5,6 +5,12 @@ use tokio::time::timeout;
 
 pub struct SkillExecutor;
 
+impl Default for SkillExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SkillExecutor {
     pub fn new() -> Self {
         Self

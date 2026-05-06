@@ -285,12 +285,6 @@ struct PlanConfig {
     include_metadata: bool,
 }
 
-fn config_for(hook: HookKind, level: ContextLevel) -> PlanConfig {
-    // Backward-compatible: uses hardcoded defaults when ContextBudgetConfig is not injected.
-    // Callers should prefer Orchestrator::with_budgets() for configurability.
-    ContextBudgetConfig::default().plan(hook, level)
-}
-
 fn build_query(prompt: &str, level: ContextLevel, hook: HookKind) -> String {
     match (hook, level) {
         (HookKind::SessionStart, ContextLevel::Minimal) => prompt.to_string(),

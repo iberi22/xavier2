@@ -51,7 +51,7 @@ impl ContextBuilder {
             for rule in &self.config.rules {
                 context.push_str(&format!("- {}\n", rule));
             }
-            context.push_str("\n");
+            context.push('\n');
         }
 
         if !self.config.goals.is_empty() {
@@ -59,7 +59,7 @@ impl ContextBuilder {
             for goal in &self.config.goals {
                 context.push_str(&format!("- {}\n", goal));
             }
-            context.push_str("\n");
+            context.push('\n');
         }
 
         if !self.config.constraints.is_empty() {
@@ -67,7 +67,7 @@ impl ContextBuilder {
             for constraint in &self.config.constraints {
                 context.push_str(&format!("- {}\n", constraint));
             }
-            context.push_str("\n");
+            context.push('\n');
         }
 
         match level {
@@ -102,7 +102,7 @@ impl ContextBuilder {
         for msg in &messages[start..] {
             context.push_str(&format!("{}: {}\n", msg.role, msg.content));
         }
-        context.push_str("\n");
+        context.push('\n');
     }
 
     fn append_memories(&self, context: &mut String, memories: &[ContextDocument]) {
@@ -114,7 +114,7 @@ impl ContextBuilder {
         for mem in memories {
             context.push_str(&format!("- {}\n", mem.content));
         }
-        context.push_str("\n");
+        context.push('\n');
     }
 
     fn append_skills(&self, context: &mut String, skills: &[String]) {
@@ -126,7 +126,7 @@ impl ContextBuilder {
         for skill in skills {
             context.push_str(&format!("- {}\n", skill));
         }
-        context.push_str("\n");
+        context.push('\n');
     }
 }
 
