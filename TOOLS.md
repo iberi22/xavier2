@@ -1,40 +1,90 @@
-# TOOLS.md - Local Notes
+# TOOLS.md - Xavier2 Tools
 
-Skills define _how_ tools work. This file is for _your_ specifics — the stuff that's unique to your setup.
+## Xavier2 (Mi Cerebro - PRIMARY MEMORY)
 
-## What Goes Here
+### API Direct
+- **URL:** http://localhost:8006
+- **Token:** dev-token (header: `X-Xavier2-Token`)
+- **Endpoints:**
+  - `GET /health` — Status
+  - `POST /memory/search` — Vector search
+  - `POST /memory/add` — Add memory
+  - `GET /memory/stats` — Stats
 
-Things like:
+### Wrapper Script (PowerShell)
+```powershell
+# Ubicación
+.\scripts\xavier2-helper.ps1
 
-- Camera names and locations
-- SSH hosts and aliases
-- Preferred voices for TTS
-- Speaker/room names
-- Device nicknames
-- Anything environment-specific
-
-## Examples
-
-```markdown
-### Cameras
-
-- living-room → Main area, 180° wide angle
-- front-door → Entrance, motion-triggered
-
-### SSH
-
-- home-server → 192.168.1.100, user: admin
-
-### TTS
-
-- Preferred voice: "Nova" (warm, slightly British)
-- Default speaker: Kitchen HomePod
+# Comandos
+.\scripts\xavier2-helper.ps1 -Action search -Query "roadmap"
+.\scripts\xavier2-helper.ps1 -Action add -Content "..." -Category decisions
+.\scripts\xavier2-helper.ps1 -Action health
+.\scripts\xavier2-helper.ps1 -Action stats
 ```
-
-## Why Separate?
-
-Skills are shared. Your setup is yours. Keeping them apart means you can update skills without losing your notes, and share skills without leaking your infrastructure.
 
 ---
 
-Add whatever helps you do your job. This is your cheat sheet.
+## Web Research (3 Providers)
+
+| Provider | Uso | API Key |
+|----------|-----|---------|
+| MiniMax MCP | Primary | Built-in |
+| Tavily | AI search | tvly-dev-eqveB... |
+| Brave | Fast | BSA45gpKkamwtD... |
+
+---
+
+## SWAL Node (Termux)
+
+```bash
+# SSH a Termux
+ssh termux-cf
+
+# Script principal
+swal-node.sh [docker|xavier2|status|tunnel|restart]
+```
+
+### Docker Containers (PC)
+| Container | Port | Status |
+|-----------|------|--------|
+| xavier2 | 8006 | ✅ |
+| cortex | 8003 | ✅ |
+| synapse-dashboard | 8080 | ✅ |
+| pgheart-postgres | 5432 | ✅ |
+| pplx-embed | 8002 | ⚠️ NO conectado |
+
+---
+
+## GitHub
+
+### Repos Principales
+- `iberi22/xavier2` — Mi cerebro
+- `iberi22/gestalt-rust` — Agente Rust
+- `iberi22/tripro_landing_page_astro` — ManteniApp
+
+### CLI
+```bash
+gh issue list --repo iberi22/xavier2
+gh issue create --repo iberi22/xavier2 --title "..." --body "..."
+```
+
+---
+
+## Codex (Coding Agent)
+
+```powershell
+cd E:\scripts-python\cortex ; codex --dangerously-bypass-approvals-and-sandbox exec "tu prompt"
+```
+
+---
+
+## Audio Transcription
+
+```bash
+python E:\scripts-python\scripts\audio-to-text.py audio.ogg --language es
+```
+
+---
+
+_Xavier2 CEO — Herramientas actualizadas 2026-04-30_
