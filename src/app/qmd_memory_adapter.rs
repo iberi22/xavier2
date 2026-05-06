@@ -36,7 +36,7 @@ impl MemoryQueryPort for QmdMemoryAdapter {
         let workspace_id = self.inner.workspace_id();
         Ok(results
             .into_iter()
-            .map(|doc| MemoryRecord::from_document(&workspace_id, &doc, true, None))
+            .map(|doc| MemoryRecord::from_document(workspace_id, &doc, true, None))
             .collect())
     }
 
@@ -50,17 +50,17 @@ impl MemoryQueryPort for QmdMemoryAdapter {
     async fn delete(&self, id: &str) -> anyhow::Result<Option<MemoryRecord>> {
         let workspace_id = self.inner.workspace_id();
         let result = self.inner.delete(id).await?;
-        Ok(result.map(|doc| MemoryRecord::from_document(&workspace_id, &doc, true, None)))
+        Ok(result.map(|doc| MemoryRecord::from_document(workspace_id, &doc, true, None)))
     }
 
     async fn get(&self, id: &str) -> anyhow::Result<Option<MemoryRecord>> {
         let workspace_id = self.inner.workspace_id();
         let result = self.inner.get(id).await?;
-        Ok(result.map(|doc| MemoryRecord::from_document(&workspace_id, &doc, true, None)))
+        Ok(result.map(|doc| MemoryRecord::from_document(workspace_id, &doc, true, None)))
     }
 
     async fn list(&self, workspace_id: &str, limit: usize) -> anyhow::Result<Vec<MemoryRecord>> {
-        let limit = limit.max(1).min(100);
+        let limit = limit.clamp(1, 100);
         let results = self.inner.all_documents().await;
 
         Ok(results

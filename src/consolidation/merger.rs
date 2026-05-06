@@ -227,7 +227,7 @@ fn tokenize(value: &str) -> Vec<String> {
 
 fn extract_sentences(value: &str) -> Vec<String> {
     value
-        .split(|c| matches!(c, '.' | '\n' | '!' | '?'))
+        .split(['.', '\n', '!', '?'])
         .map(str::trim)
         .filter(|sentence| !sentence.is_empty())
         .map(ToOwned::to_owned)
