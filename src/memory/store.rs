@@ -314,11 +314,8 @@ pub trait MemoryStore: Send + Sync {
     }
     async fn load_workspace_state(&self, workspace_id: &str) -> Result<DurableWorkspaceState>;
     async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()>;
-    async fn save_session_token(
-        &self,
-        workspace_id: &str,
-        token: SessionTokenRecord,
-    ) -> Result<()>;
+    async fn save_session_token(&self, workspace_id: &str, token: SessionTokenRecord)
+        -> Result<()>;
     async fn is_session_token_valid(&self, workspace_id: &str, token: &str) -> Result<bool>;
     async fn save_checkpoint(&self, workspace_id: &str, checkpoint: Checkpoint) -> Result<()>;
     async fn load_checkpoint(
@@ -327,17 +324,8 @@ pub trait MemoryStore: Send + Sync {
         task_id: &str,
         name: &str,
     ) -> Result<Option<Checkpoint>>;
-    async fn list_checkpoints(
-        &self,
-        workspace_id: &str,
-        task_id: &str,
-    ) -> Result<Vec<Checkpoint>>;
-    async fn delete_checkpoint(
-        &self,
-        workspace_id: &str,
-        task_id: &str,
-        name: &str,
-    ) -> Result<()>;
+    async fn list_checkpoints(&self, workspace_id: &str, task_id: &str) -> Result<Vec<Checkpoint>>;
+    async fn delete_checkpoint(&self, workspace_id: &str, task_id: &str, name: &str) -> Result<()>;
     /// List timeline events for a workspace since the given ISO 8601 timestamp.
     async fn list_timeline_events(
         &self,
@@ -583,11 +571,7 @@ impl MemoryStore for FileMemoryStore {
             .cloned())
     }
 
-    async fn list_checkpoints(
-        &self,
-        workspace_id: &str,
-        task_id: &str,
-    ) -> Result<Vec<Checkpoint>> {
+    async fn list_checkpoints(&self, workspace_id: &str, task_id: &str) -> Result<Vec<Checkpoint>> {
         let state = self.state.read().await;
         Ok(state
             .workspaces
@@ -603,12 +587,7 @@ impl MemoryStore for FileMemoryStore {
             .unwrap_or_default())
     }
 
-    async fn delete_checkpoint(
-        &self,
-        workspace_id: &str,
-        task_id: &str,
-        name: &str,
-    ) -> Result<()> {
+    async fn delete_checkpoint(&self, workspace_id: &str, task_id: &str, name: &str) -> Result<()> {
         {
             let mut state = self.state.write().await;
             let workspace = Self::workspace_mut(&mut state, workspace_id);
@@ -673,11 +652,7 @@ impl MemoryStore for InMemoryMemoryStore {
         self.put(record).await
     }
 
-    async fn delete(
-        &self,
-        workspace_id: &str,
-        id_or_path: &str,
-    ) -> Result<Option<MemoryRecord>> {
+    async fn delete(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
         let mut state = self.state.write().await;
         let Some(workspace) = state.workspaces.get_mut(workspace_id) else {
             return Ok(None);
@@ -722,7 +697,10 @@ impl MemoryStore for InMemoryMemoryStore {
 
     async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()> {
         let mut state = self.state.write().await;
-        let workspace = state.workspaces.entry(workspace_id.to_string()).or_default();
+        let workspace = state
+            .workspaces
+            .entry(workspace_id.to_string())
+            .or_default();
         workspace.beliefs = beliefs;
         Ok(())
     }
@@ -733,7 +711,10 @@ impl MemoryStore for InMemoryMemoryStore {
         token: SessionTokenRecord,
     ) -> Result<()> {
         let mut state = self.state.write().await;
-        let workspace = state.workspaces.entry(workspace_id.to_string()).or_default();
+        let workspace = state
+            .workspaces
+            .entry(workspace_id.to_string())
+            .or_default();
         workspace
             .session_tokens
             .retain(|existing| existing.token != token.token);
@@ -758,7 +739,10 @@ impl MemoryStore for InMemoryMemoryStore {
 
     async fn save_checkpoint(&self, workspace_id: &str, checkpoint: Checkpoint) -> Result<()> {
         let mut state = self.state.write().await;
-        let workspace = state.workspaces.entry(workspace_id.to_string()).or_default();
+        let workspace = state
+            .workspaces
+            .entry(workspace_id.to_string())
+            .or_default();
         workspace
             .checkpoints
             .retain(|item| !(item.task_id == checkpoint.task_id && item.name == checkpoint.name));
@@ -782,11 +766,7 @@ impl MemoryStore for InMemoryMemoryStore {
         }))
     }
 
-    async fn list_checkpoints(
-        &self,
-        workspace_id: &str,
-        task_id: &str,
-    ) -> Result<Vec<Checkpoint>> {
+    async fn list_checkpoints(&self, workspace_id: &str, task_id: &str) -> Result<Vec<Checkpoint>> {
         let state = self.state.read().await;
         Ok(state
             .workspaces
@@ -802,12 +782,7 @@ impl MemoryStore for InMemoryMemoryStore {
             .unwrap_or_default())
     }
 
-    async fn delete_checkpoint(
-        &self,
-        workspace_id: &str,
-        task_id: &str,
-        name: &str,
-    ) -> Result<()> {
+    async fn delete_checkpoint(&self, workspace_id: &str, task_id: &str, name: &str) -> Result<()> {
         let mut state = self.state.write().await;
         if let Some(workspace) = state.workspaces.get_mut(workspace_id) {
             workspace
@@ -822,10 +797,7 @@ impl MemoryStore for InMemoryMemoryStore {
 // Shared helper functions
 // ---------------------------------------------------------------------------
 
-pub(crate) fn revisioned_record(
-    existing: MemoryRecord,
-    mut next: MemoryRecord,
-) -> MemoryRecord {
+pub(crate) fn revisioned_record(existing: MemoryRecord, mut next: MemoryRecord) -> MemoryRecord {
     next.id = existing.id;
     next.created_at = existing.created_at;
     next.updated_at = Utc::now();

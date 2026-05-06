@@ -88,24 +88,21 @@ async fn test_ws_handler(
     ws.on_upgrade(move |socket| handle_test_ws(socket, rx))
 }
 
-async fn handle_test_ws(
-    mut socket: WebSocket,
-    mut event_rx: broadcast::Receiver<RealtimeEvent>,
-) {
+async fn handle_test_ws(mut socket: WebSocket, mut event_rx: broadcast::Receiver<RealtimeEvent>) {
     let mut subscribed = false;
 
     loop {
         tokio::select! {
             msg = socket.recv() => {
                 match msg {
-                    Some(Ok(Message::Text(text))) => {
-                        if text.contains("Subscribe") || text.contains("subscribe") {
-                            let confirm = WsEvent::SubscriptionConfirmed;
-                            let _ = socket.send(Message::Text(
-                                serde_json::to_string(&confirm).unwrap().into(),
-                            )).await;
-                            subscribed = true;
-                        }
+                    Some(Ok(Message::Text(text)))
+                        if text.contains("Subscribe") || text.contains("subscribe") =>
+                    {
+                        let confirm = WsEvent::SubscriptionConfirmed;
+                        let _ = socket.send(Message::Text(
+                            serde_json::to_string(&confirm).unwrap().into(),
+                        )).await;
+                        subscribed = true;
                     }
                     Some(Ok(Message::Close(_))) | None => break,
                     _ => {}

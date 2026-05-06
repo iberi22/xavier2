@@ -41,19 +41,22 @@ npm run build --workspace docs/site
 
 ## Configuration
 
+### Runtime configuration
+
+Xavier2 now treats `config/xavier2.config.json` as the canonical location for non-secret runtime settings. Secrets and credentials belong in `.env`.
+
 ### Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XAVIER2_PORT` | `8003` | HTTP server port |
-| `XAVIER2_HOST` | `0.0.0.0` | Bind address |
-| `XAVIER2_CODE_GRAPH_DB_PATH` | `/data/code_graph.db` | Code graph database path |
 | `XAVIER2_TOKEN` | no safe default | API authentication token |
-| `XAVIER2_LOG_LEVEL` | `info` | Logging verbosity |
-| `XAVIER2_IMAGE_TAG` | `0.4.1` | Docker image tag for controlled upgrades |
-| `XAVIER2_MEMORY_BACKEND` | `file` | Active runtime backend in the current deployment story |
+| `XAVIER2_CONFIG_PATH` | `config/xavier2.config.json` | Optional override for the canonical runtime config file |
+| provider API keys | unset | External API credentials |
 
-The current server configuration is driven primarily through environment variables and Docker Compose. There is no repository-standard `config.yaml` flow documented as the primary runtime path.
+The current server still contains environment-based code paths internally, but the repository standard is now:
+
+- `config/xavier2.config.json` for non-secret operational settings
+- `.env` for credentials and secrets
 
 ## Running Xavier2
 

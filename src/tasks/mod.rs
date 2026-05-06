@@ -96,7 +96,7 @@ impl TaskQueue {
         let mut tasks = self.tasks.lock().await;
         tasks.push_back(task);
         let mut ordered: Vec<_> = tasks.drain(..).collect();
-        ordered.sort_by(|left, right| right.priority.cmp(&left.priority));
+        ordered.sort_by_key(|task| std::cmp::Reverse(task.priority));
         *tasks = ordered.into();
     }
 

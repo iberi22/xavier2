@@ -31,6 +31,7 @@ use crate::memory::store::{
     stable_key, DurableWorkspaceState, GraphHopPath, GraphHopResult, HybridSearchMode,
     HybridSearchResult, MemoryBackend, MemoryRecord, MemoryStore, SessionTokenRecord,
 };
+use crate::settings::Xavier2Settings;
 
 const DB_FILENAME: &str = "xavier2_memory_vec.db";
 const DEFAULT_EMBEDDING_DIMENSIONS: usize = 768;
@@ -101,14 +102,28 @@ pub struct VecSqliteStoreConfig {
 
 impl VecSqliteStoreConfig {
     pub fn from_env() -> Self {
-        let data_dir = std::env::var("XAVIER2_DATA_DIR").unwrap_or_else(|_| "/data".to_string());
+        let settings = Xavier2Settings::current();
         let embedding_dimensions = std::env::var("XAVIER2_EMBEDDING_DIMENSIONS")
             .ok()
             .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or(DEFAULT_EMBEDDING_DIMENSIONS);
+            .unwrap_or({
+                if settings.memory.embedding_dimensions == 0 {
+                    DEFAULT_EMBEDDING_DIMENSIONS
+                } else {
+                    settings.memory.embedding_dimensions
+                }
+            });
 
         Self {
-            path: PathBuf::from(data_dir).join(DB_FILENAME),
+            path: std::env::var("XAVIER2_MEMORY_VEC_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| {
+                    if settings.memory.vec_path.trim().is_empty() {
+                        PathBuf::from(&settings.memory.data_dir).join(DB_FILENAME)
+                    } else {
+                        PathBuf::from(&settings.memory.vec_path)
+                    }
+                }),
             embedding_dimensions,
         }
     }
@@ -329,6 +344,7 @@ impl VecSqliteMemoryStore {
                 id TEXT PRIMARY KEY,
                 workspace_id TEXT NOT NULL,
                 memory_id TEXT NOT NULL,
+                sequence INTEGER,
                 agent_id TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 operation TEXT NOT NULL,
@@ -340,6 +356,11 @@ impl VecSqliteMemoryStore {
             CREATE INDEX IF NOT EXISTS idx_timeline_events_workspace ON timeline_events(workspace_id, timestamp);
             CREATE INDEX IF NOT EXISTS idx_timeline_events_memory ON timeline_events(workspace_id, memory_id);
         "#,
+        )?;
+        Self::ensure_timeline_sequence(conn)?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_timeline_events_sequence ON timeline_events(workspace_id, sequence)",
+            [],
         )?;
 
         // Pattern Protocol - verified patterns discovered by agents
@@ -397,6 +418,36 @@ impl VecSqliteMemoryStore {
             columns.push(column?);
         }
         Ok(columns)
+    }
+
+    fn ensure_timeline_sequence(conn: &Connection) -> Result<()> {
+        let columns = Self::virtual_table_columns(conn, "timeline_events")?;
+        if !columns.iter().any(|column| column == "sequence") {
+            conn.execute(
+                "ALTER TABLE timeline_events ADD COLUMN sequence INTEGER",
+                [],
+            )
+            .context("failed to add timeline_events.sequence column")?;
+        }
+
+        conn.execute_batch(
+            r#"
+            WITH ordered AS (
+                SELECT rowid, ROW_NUMBER() OVER (
+                    PARTITION BY workspace_id
+                    ORDER BY timestamp ASC, rowid ASC
+                ) AS seq
+                FROM timeline_events
+                WHERE sequence IS NULL
+            )
+            UPDATE timeline_events
+            SET sequence = (SELECT seq FROM ordered WHERE ordered.rowid = timeline_events.rowid)
+            WHERE sequence IS NULL;
+            "#,
+        )
+        .context("failed to backfill timeline_events.sequence")?;
+
+        Ok(())
     }
 
     fn ensure_vector_index(conn: &Connection, embedding_dimensions: usize) -> Result<()> {
@@ -1079,9 +1130,16 @@ impl VecSqliteMemoryStore {
             return Ok(());
         }
 
+        let next_sequence: i64 = conn
+            .query_row(
+                "SELECT COALESCE(MAX(sequence), 0) + 1 FROM timeline_events WHERE workspace_id = ?",
+                params![workspace_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(1);
         let (previous_event_id, previous_hash): (Option<String>, Option<String>) = conn
             .query_row(
-                "SELECT id, curr_hash FROM timeline_events WHERE workspace_id = ? ORDER BY timestamp DESC LIMIT 1",
+                "SELECT id, curr_hash FROM timeline_events WHERE workspace_id = ? ORDER BY sequence DESC, id DESC LIMIT 1",
                 params![workspace_id],
                 |row| Ok((row.get(0).ok(), row.get(1).ok())),
             )
@@ -1136,12 +1194,13 @@ impl VecSqliteMemoryStore {
         };
 
         conn.execute(
-            "INSERT INTO timeline_events (id, workspace_id, memory_id, agent_id, timestamp, operation, prev_hash, curr_hash, payload)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO timeline_events (id, workspace_id, memory_id, sequence, agent_id, timestamp, operation, prev_hash, curr_hash, payload)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
                 &event.id,
                 workspace_id,
                 &record.id,
+                next_sequence,
                 &event.agent_id,
                 &event.timestamp,
                 &event.operation,
@@ -1672,7 +1731,7 @@ impl MemoryStore for VecSqliteMemoryStore {
 
     async fn health(&self) -> Result<String> {
         let conn = self.conn.lock();
-        conn.execute("SELECT 1", [])?;
+        conn.query_row("SELECT 1", [], |_row| Ok(()))?;
         Ok(format!("vecsqlite {}", self.config.detail()))
     }
 
@@ -1795,56 +1854,83 @@ impl MemoryStore for VecSqliteMemoryStore {
     async fn delete(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
         let removed = self.get(workspace_id, id_or_path).await?;
         if let Some(record) = &removed {
-            let key = Self::row_key(workspace_id, &record.id);
             let conn = self.conn.lock();
-            conn.execute(
-                &format!("DELETE FROM {} WHERE id = ?", TABLE_MEMORIES),
-                [&key],
-            )?;
+            let tx = conn.unchecked_transaction()?;
 
-            // Also delete children
-            conn.execute(
+            // Remove dependent rows first to satisfy foreign keys.
+            tx.execute(
+                "DELETE FROM memory_entities WHERE workspace_id = ? AND memory_id = ?",
+                params![workspace_id, &record.id],
+            )
+            .context("delete memory_entities for parent record")?;
+            tx.execute(
+                "DELETE FROM memory_entities WHERE workspace_id = ? AND memory_id IN (
+                    SELECT id FROM memory_records WHERE workspace_id = ? AND parent_id = ?
+                )",
+                params![workspace_id, workspace_id, &record.id],
+            )
+            .context("delete memory_entities for child records")?;
+
+            // Delete from vector table
+            tx.execute(
+                "DELETE FROM memory_embeddings WHERE id = ? AND workspace_id = ?",
+                params![&record.id, workspace_id],
+            )
+            .context("delete memory_embeddings for parent record")?;
+            tx.execute(
+                "DELETE FROM memory_embeddings WHERE workspace_id = ? AND id IN (
+                    SELECT id FROM memory_records WHERE workspace_id = ? AND parent_id = ?
+                )",
+                params![workspace_id, workspace_id, &record.id],
+            )
+            .context("delete memory_embeddings for child records")?;
+
+            // Delete from FTS5
+            tx.execute("DELETE FROM memory_fts WHERE id = ?", params![&record.id])
+                .context("delete memory_fts for parent record")?;
+            tx.execute(
+                "DELETE FROM memory_fts WHERE id IN (
+                    SELECT id FROM memory_records WHERE workspace_id = ? AND parent_id = ?
+                )",
+                params![workspace_id, &record.id],
+            )
+            .context("delete memory_fts for child records")?;
+
+            let memory_node_id = Self::memory_node_id(workspace_id, &record.id);
+            tx.execute(
+                "DELETE FROM relations WHERE source_id = ?",
+                params![&memory_node_id],
+            )
+            .context("delete relations where memory node is source")?;
+            tx.execute(
+                "DELETE FROM relations WHERE target_id = ?",
+                params![&memory_node_id],
+            )
+            .context("delete relations where memory node is target")?;
+            tx.execute(
+                "DELETE FROM entities WHERE id = ?",
+                params![&memory_node_id],
+            )
+            .context("delete memory node entity")?;
+
+            // Remove child memories before parent.
+            tx.execute(
                 &format!(
                     "DELETE FROM {} WHERE workspace_id = ? AND parent_id = ?",
                     TABLE_MEMORIES
                 ),
                 params![workspace_id, &record.id],
-            )?;
-
-            // Delete from vector table
-            conn.execute(
-                "DELETE FROM memory_embeddings WHERE id = ? AND workspace_id = ?",
-                params![&record.id, workspace_id],
-            )?;
-
-            // Delete from FTS5
-            conn.execute("DELETE FROM memory_fts WHERE id = ?", params![&record.id])?;
-
-            let memory_node_id = Self::memory_node_id(workspace_id, &record.id);
-            conn.execute(
-                "DELETE FROM memory_entities WHERE workspace_id = ? AND memory_id = ?",
+            )
+            .context("delete child memory records")?;
+            tx.execute(
+                &format!(
+                    "DELETE FROM {} WHERE workspace_id = ? AND id = ?",
+                    TABLE_MEMORIES
+                ),
                 params![workspace_id, &record.id],
-            )?;
-            conn.execute(
-                "DELETE FROM relations WHERE source_id = ?",
-                params![&memory_node_id],
-            )?;
-            conn.execute(
-                "DELETE FROM entities WHERE id = ?",
-                params![&memory_node_id],
-            )?;
-
-            // Delete entities/relations linked to this memory (by name match)
-            let pattern = format!("%{}%", record.content);
-            conn.execute(
-                "DELETE FROM relations WHERE source_id IN (SELECT id FROM entities WHERE name LIKE ?)",
-                params![&pattern],
-            )?;
-            conn.execute(
-                "DELETE FROM relations WHERE target_id IN (SELECT id FROM entities WHERE name LIKE ?)",
-                params![&pattern],
-            )?;
-            conn.execute("DELETE FROM entities WHERE name LIKE ?", params![&pattern])?;
+            )
+            .context("delete parent memory record")?;
+            tx.commit().context("commit memory delete transaction")?;
         }
         Ok(removed)
     }
@@ -2481,7 +2567,7 @@ mod tests {
 
         {
             let conn = Connection::open(&db_path).unwrap();
-            conn.execute_batch(&format!(
+            conn.execute_batch(
                 r#"
                 CREATE TABLE memory_records (
                     id TEXT PRIMARY KEY,
@@ -2502,8 +2588,8 @@ mod tests {
                     path UNINDEXED,
                     content
                 );
-                "#
-            ))
+                "#,
+            )
             .unwrap();
         }
 
@@ -2584,6 +2670,113 @@ mod tests {
 
         assert_eq!(event_count, 2);
         assert_eq!(chained_count, 1);
+    }
+
+    #[tokio::test]
+    async fn timeline_chain_uses_sequence_not_timestamp_order() {
+        let temp = tempdir().unwrap();
+        let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
+            path: temp.path().join("timeline-sequence.db"),
+            embedding_dimensions: 3,
+        })
+        .await
+        .unwrap();
+
+        let workspace_id = "ws-timeline-sequence";
+        let mut record = test_record(
+            workspace_id,
+            "memory/audit-a",
+            "first auditable event",
+            vec![0.0, 1.0, 0.0],
+        );
+        record.metadata = serde_json::json!({
+            "_audit": {
+                "agent_id": "http",
+                "operation": "memory.add"
+            }
+        });
+
+        store.put(record.clone()).await.unwrap();
+        record.path = "memory/audit-b".to_string();
+        record.id = stable_key("memory", &[workspace_id, &record.path]);
+        record.content = "second auditable event".to_string();
+        store.put(record.clone()).await.unwrap();
+
+        {
+            let conn = store.conn.lock();
+            conn.execute(
+                "UPDATE timeline_events SET timestamp = CASE sequence \
+                 WHEN 1 THEN '9999-01-01T00:00:00Z' \
+                 WHEN 2 THEN '0001-01-01T00:00:00Z' \
+                 ELSE timestamp END \
+                 WHERE workspace_id = ?",
+                params![workspace_id],
+            )
+            .unwrap();
+        }
+
+        record.path = "memory/audit-c".to_string();
+        record.id = stable_key("memory", &[workspace_id, &record.path]);
+        record.content = "third auditable event".to_string();
+        store.put(record).await.unwrap();
+
+        let conn = store.conn.lock();
+        let second_hash: String = conn
+            .query_row(
+                "SELECT curr_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 2",
+                params![workspace_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let third_prev_hash: String = conn
+            .query_row(
+                "SELECT prev_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 3",
+                params![workspace_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let max_sequence: i64 = conn
+            .query_row(
+                "SELECT MAX(sequence) FROM timeline_events WHERE workspace_id = ?",
+                params![workspace_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(max_sequence, 3);
+        assert_eq!(third_prev_hash, second_hash);
+    }
+
+    #[tokio::test]
+    async fn delete_removes_memory_without_foreign_key_errors() {
+        let temp = tempdir().unwrap();
+        let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
+            path: temp.path().join("delete-roundtrip.db"),
+            embedding_dimensions: 3,
+        })
+        .await
+        .unwrap();
+
+        let workspace_id = "ws-delete";
+        let record = test_record(
+            workspace_id,
+            "manual/smoke",
+            "manual smoke memory",
+            vec![0.0, 1.0, 0.0],
+        );
+
+        store.put(record).await.unwrap();
+        let deleted = store
+            .delete(workspace_id, "manual/smoke")
+            .await
+            .unwrap_or_else(|error| panic!("{error:#}"));
+
+        assert!(deleted.is_some());
+        assert!(store
+            .get(workspace_id, "manual/smoke")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test]

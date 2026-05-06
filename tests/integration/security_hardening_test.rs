@@ -1,7 +1,7 @@
 //! Integration tests for Security Hardening Phase 1
 
 use std::env;
-use xavier2::security::auth::{LoginRequest, LoginResponse, User, UserRole};
+use xavier2::security::auth::{LoginRequest, User, UserRole};
 use xavier2::security::prompt_guard::{detect_injection, AttackType};
 
 #[test]

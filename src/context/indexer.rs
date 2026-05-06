@@ -78,7 +78,7 @@ impl ContextIndexer {
     /// [`ContextDocument::created_at`] descending (newest first).
     pub fn all_documents(&self) -> Vec<ContextDocument> {
         let mut docs: Vec<_> = self.documents.values().cloned().collect();
-        docs.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        docs.sort_by_key(|doc| std::cmp::Reverse(doc.created_at));
         docs
     }
 

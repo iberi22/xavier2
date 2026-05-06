@@ -26,17 +26,18 @@ docker compose up -d
 Then verify health:
 
 ```bash
-curl http://localhost:8003/health
+curl http://localhost:8006/health
 ```
 
 ## Prepare Auth
 
+Non-secret runtime settings belong in `config/xavier2.config.json`.
+Secrets belong in `.env`.
+
 ```bash
-export XAVIER2_URL="${XAVIER2_URL:-http://localhost:8003}"
+export XAVIER2_URL="${XAVIER2_URL:-http://localhost:8006}"
 export XAVIER2_TOKEN="${XAVIER2_TOKEN:?set-a-long-random-token-first}"
 ```
-
-For explicit local-only development, you may temporarily use `dev-token`, but do not carry that value into shared or production-like environments.
 
 ## Your First API Calls
 
@@ -123,7 +124,7 @@ Add to your OpenClaw config:
       "servers": {
         "xavier2": {
           "enabled": true,
-          "url": "http://localhost:8003/mcp"
+          "url": "http://localhost:8006/mcp"
         }
       }
     }

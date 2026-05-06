@@ -114,18 +114,15 @@ impl EmbedderConfig {
     pub fn build_sync(self) -> Result<Arc<dyn Embedder>, EmbeddingError> {
         match self {
             Self::OpenAICompatible {
-                primary,
-                fallback,
-                ..
+                primary, fallback, ..
             } => {
-                let mut embedders: Vec<Arc<dyn Embedder>> = vec![Arc::new(
-                    openai::OpenAICompatibleEmbedder::new(
+                let mut embedders: Vec<Arc<dyn Embedder>> =
+                    vec![Arc::new(openai::OpenAICompatibleEmbedder::new(
                         primary.api_key,
                         primary.model,
                         primary.endpoint,
                         primary.dimension,
-                    )?,
-                )];
+                    )?)];
 
                 if let Some(fallback) = fallback {
                     embedders.push(Arc::new(openai::OpenAICompatibleEmbedder::new(
@@ -212,7 +209,11 @@ impl Embedder for FallbackEmbedder {
         for embedder in &self.embedders {
             match embedder.encode(text).await {
                 Ok(vector) if !vector.is_empty() => return Ok(vector),
-                Ok(_) => last_error = Some(EmbeddingError::Parse("embedding backend returned an empty vector".to_string())),
+                Ok(_) => {
+                    last_error = Some(EmbeddingError::Parse(
+                        "embedding backend returned an empty vector".to_string(),
+                    ))
+                }
                 Err(error) => last_error = Some(error),
             }
         }

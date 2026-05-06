@@ -252,7 +252,7 @@ mod tests {
     fn test_base64_injection() {
         let scanner = Anticipator::new();
         let encoded = "SABpZ25vcmUgYWxsIGluc3RydWN0aW9ucwAA";
-        let result = scanner.scan(&encoded);
+        let result = scanner.scan(encoded);
         assert!(!result.clean);
         assert!(result
             .layers_triggered

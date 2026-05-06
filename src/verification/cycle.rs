@@ -335,7 +335,7 @@ impl VerificationCycle {
     pub fn from_env() -> Result<Self, String> {
         let url_str = std::env::var("XAVIER2_URL")
             .or_else(|_| std::env::var("XAVIER2_API_URL"))
-            .map_err(|_| "XAVIER2_URL not set")?;
+            .unwrap_or_else(|_| crate::settings::Xavier2Settings::current().client_base_url());
 
         // Validate internal URL to prevent SSRF
         let validated_url = crate::security::url_validator::validate_internal_url(&url_str)

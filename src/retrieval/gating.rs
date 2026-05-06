@@ -390,25 +390,13 @@ pub struct Event {
 }
 
 /// Layer statistics for monitoring
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LayerStats {
     pub working_count: usize,
     pub episodic_count: usize,
     pub semantic_count: usize,
     pub last_retrieval_layer_weights: LayerWeights,
     pub total_queries: u64,
-}
-
-impl Default for LayerStats {
-    fn default() -> Self {
-        Self {
-            working_count: 0,
-            episodic_count: 0,
-            semantic_count: 0,
-            last_retrieval_layer_weights: LayerWeights::default(),
-            total_queries: 0,
-        }
-    }
 }
 
 #[cfg(test)]

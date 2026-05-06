@@ -1,0 +1,47 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8006,
+    "log_level": "info",
+    "code_graph_db_path": "data/code_graph.db"
+  },
+  "workspace": {
+    "default_workspace_id": "default",
+    "default_plan": "community",
+    "storage_limit_bytes": null,
+    "request_limit": null,
+    "request_unit_limit": null,
+    "embedding_provider_mode": "bring_your_own",
+    "managed_google_embeddings": false,
+    "sync_policy": "local_only"
+  },
+  "memory": {
+    "backend": "vec",
+    "data_dir": "data",
+    "embedding_dimensions": 768,
+    "workspace_dir": "data/workspaces",
+    "file_path": "data/workspaces/default/memory-store.json",
+    "sqlite_path": "data/memory-store.sqlite3",
+    "vec_path": "data/vec-store.sqlite3"
+  },
+  "models": {
+    "provider": "local",
+    "api_flavor": "openai-compatible",
+    "local_llm_url": "http://localhost:11434/v1",
+    "local_llm_model": "qwen3-coder",
+    "embedding_url": "http://localhost:11434/v1",
+    "embedding_model": "embeddinggemma",
+    "router_retrieved_model": "",
+    "router_complex_model": ""
+  },
+  "retrieval": {
+    "disable_hyde": true
+  },
+  "sync": {
+    "interval_ms": 300000,
+    "lag_threshold_ms": 30000,
+    "save_ok_rate_threshold": 0.95,
+    "max_retries": 3,
+    "retry_delay_ms": 1000
+  }
+}

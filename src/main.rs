@@ -2,19 +2,25 @@
 // Public open-core release
 
 mod cli;
+mod settings;
+extern crate xavier2 as xavier2_lib;
 
 // Re-export memory types for binary crate access
-pub use xavier2::memory;
-pub use xavier2::workspace;
+pub use xavier2_lib::memory;
+pub use xavier2_lib::workspace;
 
+use crate::settings::Xavier2Settings;
 use anyhow::Result;
 use clap::Parser;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-
 use cli::Cli;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if let Some(settings) = Xavier2Settings::load()? {
+        settings.apply_to_env();
+    }
+
     // Setup logging
     let log_filter = std::env::var("RUST_LOG")
         .ok()

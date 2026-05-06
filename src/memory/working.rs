@@ -105,8 +105,14 @@ impl WorkingMemoryConfig {
     pub fn from_env() -> Self {
         let default = Self::default();
         Self {
-            capacity: Self::parse_or("XAVIER2_WORKING_MEMORY_CAPACITY", default.capacity, |v| *v > 0),
-            lru_exempt_access_threshold: Self::parse_or("XAVIER2_WORKING_LRU_THRESHOLD", default.lru_exempt_access_threshold, |v| *v > 0),
+            capacity: Self::parse_or("XAVIER2_WORKING_MEMORY_CAPACITY", default.capacity, |v| {
+                *v > 0
+            }),
+            lru_exempt_access_threshold: Self::parse_or(
+                "XAVIER2_WORKING_LRU_THRESHOLD",
+                default.lru_exempt_access_threshold,
+                |v| *v > 0,
+            ),
             bm25_k1: Self::parse_or("XAVIER2_WORKING_BM25_K1", default.bm25_k1, |v| *v > 0.0),
             bm25_b: Self::parse_or("XAVIER2_WORKING_BM25_B", default.bm25_b, |v| *v > 0.0),
         }
@@ -122,11 +128,21 @@ impl WorkingMemoryConfig {
             Ok(val) => match val.parse::<T>() {
                 Ok(parsed) if validate(&parsed) => parsed,
                 Ok(_) => {
-                    tracing::warn!("{} value '{}' is out of valid range, using default '{}'", key, val, default);
+                    tracing::warn!(
+                        "{} value '{}' is out of valid range, using default '{}'",
+                        key,
+                        val,
+                        default
+                    );
                     default
                 }
                 Err(_) => {
-                    tracing::warn!("{} value '{}' is not a valid number, using default '{}'", key, val, default);
+                    tracing::warn!(
+                        "{} value '{}' is not a valid number, using default '{}'",
+                        key,
+                        val,
+                        default
+                    );
                     default
                 }
             },
@@ -157,7 +173,7 @@ impl From<WorkingMemoryConfig> for crate::memory::layers_config::WorkingMemoryLa
 /// ```rust
 /// use xavier2::memory::working::{WorkingMemory, MemoryItem};
 ///
-/// let mut wm = WorkingMemory::new(10);
+/// let mut wm = WorkingMemory::new();
 /// wm.push(MemoryItem::new("1", "First item"));
 /// wm.push(MemoryItem::new("2", "Second item"));
 ///
@@ -256,11 +272,11 @@ impl WorkingMemory {
 
         for id in &self.items_queue {
             if let Some(item) = self.items.get(id) {
-                if item.access_count < self.config.lru_exempt_access_threshold {
-                    if item.created_at < oldest_fifo_time {
-                        oldest_fifo_time = item.created_at;
-                        fifo_candidate = Some(id.clone());
-                    }
+                if item.access_count < self.config.lru_exempt_access_threshold
+                    && item.created_at < oldest_fifo_time
+                {
+                    oldest_fifo_time = item.created_at;
+                    fifo_candidate = Some(id.clone());
                 }
             }
         }

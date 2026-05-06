@@ -982,9 +982,10 @@ fn build_query_bundle(query_text: &str) -> QueryBundle {
                 continue;
             }
             let expanded = format!("{normalized_query} {cleaned}");
-            if !weights.contains_key(&expanded) {
+            if let std::collections::hash_map::Entry::Vacant(entry) = weights.entry(expanded) {
+                let expanded = entry.key().clone();
                 variants.push(expanded.clone());
-                weights.insert(expanded, 0.8);
+                entry.insert(0.8);
             }
         }
     }
@@ -2350,7 +2351,8 @@ async fn generate_embedding(text: &str) -> Result<Vec<f32>> {
     let mut delay_ms: u64 = 100;
     let max_delay_ms: u64 = 2000;
 
-    let embedder = crate::adapters::outbound::embedding::embedding_adapter::build_embedding_port_from_env()?;
+    let embedder =
+        crate::adapters::outbound::embedding::embedding_adapter::build_embedding_port_from_env()?;
     for attempt in 0..3 {
         match embedder.embed(&preprocessed).await {
             Ok(vector) => {
@@ -2829,7 +2831,7 @@ fn _deduplicate_by_content_hash(results: Vec<MemoryDocument>) -> Vec<MemoryDocum
         .into_values()
         .map(|(doc, _, idx)| (idx, doc))
         .collect();
-    deduped.sort_by(|a, b| a.0.cmp(&b.0));
+    deduped.sort_by_key(|entry| entry.0);
     deduped.into_iter().map(|(_, doc)| doc).collect()
 }
 

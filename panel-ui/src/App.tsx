@@ -1,7 +1,7 @@
 import { Renderer } from "@openuidev/react-lang";
-import { ThemeProvider, openuiLibrary } from "@openuidev/react-ui";
+import { openuiLibrary, ThemeProvider } from "@openuidev/react-ui";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DecisionCard } from "./components/DecisionCard";
 import { ProjectCard } from "./components/ProjectCard";
 import { QuestionCard } from "./components/QuestionCard";
@@ -77,12 +77,62 @@ function App() {
       .catch(() => setHealth("offline"));
   }, []);
 
+  const openThread = useCallback(
+    async (threadId: string, currentToken = token) => {
+      if (!currentToken) {
+        return;
+      }
+
+      try {
+        setError(null);
+        const response = await fetch(`/panel/api/threads/${threadId}`, {
+          headers: { "X-Xavier2-Token": currentToken },
+        });
+        if (!response.ok) {
+          throw new Error("Failed to load thread");
+        }
+        const detail = (await response.json()) as ThreadDetail;
+        setSelectedThreadId(threadId);
+        setMessages(detail.messages);
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Failed to open thread",
+        );
+      }
+    },
+    [token],
+  );
+
+  const loadThreads = useCallback(
+    async (currentToken: string) => {
+      try {
+        setError(null);
+        const response = await fetch("/panel/api/threads", {
+          headers: { "X-Xavier2-Token": currentToken },
+        });
+        if (!response.ok) {
+          throw new Error("Token rejected by Xavier2");
+        }
+        const data = (await response.json()) as ThreadSummary[];
+        setThreads(data);
+        if (!selectedThreadId && data[0]) {
+          void openThread(data[0].id, currentToken);
+        }
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Failed to load threads",
+        );
+      }
+    },
+    [openThread, selectedThreadId],
+  );
+
   useEffect(() => {
     if (!token) {
       return;
     }
     void loadThreads(token);
-  }, [token]);
+  }, [token, loadThreads]);
 
   useEffect(() => {
     if (!token || !selectedThreadId || isLoading) {
@@ -96,7 +146,7 @@ function App() {
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [token, selectedThreadId, isLoading]);
+  }, [token, selectedThreadId, isLoading, openThread]);
 
   async function api<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(path, {
@@ -113,50 +163,6 @@ function App() {
     }
 
     return response.json() as Promise<T>;
-  }
-
-  async function loadThreads(currentToken: string) {
-    try {
-      setError(null);
-      const response = await fetch("/panel/api/threads", {
-        headers: { "X-Xavier2-Token": currentToken },
-      });
-      if (!response.ok) {
-        throw new Error("Token rejected by Xavier2");
-      }
-      const data = (await response.json()) as ThreadSummary[];
-      setThreads(data);
-      if (!selectedThreadId && data[0]) {
-        void openThread(data[0].id, currentToken);
-      }
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Failed to load threads",
-      );
-    }
-  }
-
-  async function openThread(threadId: string, currentToken = token) {
-    if (!currentToken) {
-      return;
-    }
-
-    try {
-      setError(null);
-      const response = await fetch(`/panel/api/threads/${threadId}`, {
-        headers: { "X-Xavier2-Token": currentToken },
-      });
-      if (!response.ok) {
-        throw new Error("Failed to load thread");
-      }
-      const detail = (await response.json()) as ThreadDetail;
-      setSelectedThreadId(threadId);
-      setMessages(detail.messages);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Failed to open thread",
-      );
-    }
   }
 
   async function createThread() {

@@ -252,9 +252,8 @@ pub async fn start_signal_handler(state: ShutdownState) {
             };
 
             let reason = ctrl_events.await;
-            match reason {
-                Some(()) => shutdown_reason = Some("Ctrl+C / console close"),
-                None => {}
+            if let Some(()) = reason {
+                shutdown_reason = Some("Ctrl+C / console close");
             }
         }
 
@@ -293,10 +292,9 @@ pub fn install_panic_hook() {
         let thread_name = thread.name().map(|n| format!("[{n}] ")).unwrap_or_default();
 
         eprintln!(
-            "--------------------------------------------------\n  PANIC in Xavier2 ({})\n  Thread: {}{}\n  Location: {}\n--------------------------------------------------\n",
+            "--------------------------------------------------\n  PANIC in Xavier2 ({})\n  Thread: {}\n  Location: {}\n--------------------------------------------------\n",
             chrono::Utc::now().to_rfc3339(),
             thread_name,
-            "",
             location
         );
 
@@ -1066,7 +1064,7 @@ async fn build_multi_layer_retrieve_response(
     workspace: &WorkspaceContext,
     payload: &MultiLayerRetrieveRequest,
 ) -> MultiLayerRetrieveResponse {
-    let weights = payload.layer_weights.unwrap_or_else(LayerWeights::default);
+    let weights = payload.layer_weights.unwrap_or_default();
 
     let gating = AdaptiveGating::new(crate::retrieval::gating::GatingConfig {
         layer_weights: weights,

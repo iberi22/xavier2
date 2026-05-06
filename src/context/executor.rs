@@ -1,9 +1,15 @@
-use anyhow::{Result};
 use crate::context::skills::Skill;
+use anyhow::Result;
 use std::time::Duration;
 use tokio::time::timeout;
 
 pub struct SkillExecutor;
+
+impl Default for SkillExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SkillExecutor {
     pub fn new() -> Self {
@@ -26,7 +32,12 @@ impl SkillExecutor {
                     attempt += 1;
                     continue;
                 }
-                Err(_) => return Err(anyhow::anyhow!("Skill execution timed out after {} attempts", max_retries + 1)),
+                Err(_) => {
+                    return Err(anyhow::anyhow!(
+                        "Skill execution timed out after {} attempts",
+                        max_retries + 1
+                    ))
+                }
             }
         }
     }
@@ -35,12 +46,16 @@ impl SkillExecutor {
         if skill.name == "fail" {
             return Err(anyhow::anyhow!("Forced failure"));
         }
-        Ok(format!("Result of {}: <script>alert(1)</script> success", skill.name))
+        Ok(format!(
+            "Result of {}: <script>alert(1)</script> success",
+            skill.name
+        ))
     }
 
     fn sanitize_output(&self, output: String) -> String {
-        output.replace("<script>", "[SAFE]")
-              .replace("</script>", "[/SAFE]")
+        output
+            .replace("<script>", "[SAFE]")
+            .replace("</script>", "[/SAFE]")
     }
 }
 
@@ -51,7 +66,10 @@ mod tests {
     #[tokio::test]
     async fn executes_successfully_with_sanitization() {
         let executor = SkillExecutor::new();
-        let skill = Skill { name: "test".to_string(), content: "content".to_string() };
+        let skill = Skill {
+            name: "test".to_string(),
+            content: "content".to_string(),
+        };
         let result = executor.execute(&skill, "input").await.unwrap();
 
         assert!(result.contains("Result of test"));
@@ -62,7 +80,10 @@ mod tests {
     #[tokio::test]
     async fn retries_on_failure() {
         let executor = SkillExecutor::new();
-        let skill = Skill { name: "fail".to_string(), content: "content".to_string() };
+        let skill = Skill {
+            name: "fail".to_string(),
+            content: "content".to_string(),
+        };
         let result = executor.execute(&skill, "input").await;
 
         assert!(result.is_err());

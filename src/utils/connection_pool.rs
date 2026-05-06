@@ -74,14 +74,14 @@ mod tests {
 
     #[test]
     fn test_pool_creation() {
-        let test_db = "file::memory:?cache=shared";
+        let test_db = "file:connection_pool_creation?mode=memory&cache=shared";
         let pool = ConnectionPool::new(test_db);
         assert!(pool.is_ok());
     }
 
     #[test]
     fn test_pool_execute() {
-        let test_db = "file::memory:?cache=shared";
+        let test_db = "file:connection_pool_execute?mode=memory&cache=shared";
         let pool = ConnectionPool::new(test_db).unwrap();
         let result = pool.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)");
         assert!(result.is_ok());
@@ -89,7 +89,7 @@ mod tests {
 
     #[test]
     fn test_pool_query() {
-        let test_db = "file::memory:?cache=shared";
+        let test_db = "file:connection_pool_query?mode=memory&cache=shared";
         let pool = ConnectionPool::new(test_db).unwrap();
 
         pool.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")

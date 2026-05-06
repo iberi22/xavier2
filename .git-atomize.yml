@@ -1,0 +1,31 @@
+mode: team
+
+rules:
+  max_files_per_commit: 20
+  max_concerns_per_commit: 3
+
+concerns:
+  - pattern: "scripts/hooks/*"
+    scope: "tooling"
+  - pattern: ".github/issues/*"
+    scope: "issues"
+  - pattern: ".github/ISSUE_TEMPLATE/*"
+    scope: "issues"
+  - pattern: "README.md"
+    scope: "docs"
+  - pattern: "docs/*"
+    scope: "docs"
+  - pattern: "docs/site/*"
+    scope: "docs"
+  - pattern: "panel-ui/*"
+    scope: "panel"
+  - pattern: "src/server/*"
+    scope: "server"
+  - pattern: "src/cli.rs"
+    scope: "cli"
+  - pattern: "src/*"
+    scope: "core"
+  - pattern: "tests/*"
+    scope: "test"
+  - pattern: "scripts/*"
+    scope: "scripts"

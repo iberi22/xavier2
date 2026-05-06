@@ -1,12 +1,16 @@
 # Xavier2 - Fast Vector Memory
 
-7ms average vector search for AI agents.
+Current release label: `0.6 beta usable`
+
+Xavier2 is a Rust memory runtime for AI agents with HTTP, CLI, and MCP entry points over a SQLite-backed memory store.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-0.4.1-green.svg)](https://github.com/iberi22/xavier2)
 [![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 
----
+## Status
+
+This repository is not positioned as `1.0` yet. The current verified feature surface and the gaps still blocking `1.0` are tracked in [docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md).
 
 ## Quick Start
 
@@ -14,148 +18,85 @@
 # Install from source
 cargo install xavier2
 
-# Or build from source
+# Or build locally
 git clone https://github.com/iberi22/xavier2.git
 cd xavier2
 cargo build --release
 
-# Start HTTP server (default port 8006)
+# Non-secret runtime configuration lives in config/xavier2.config.json
+# Secrets live in .env
+
+# Start the HTTP server
+export XAVIER2_TOKEN=replace-with-a-real-token
 xavier2 http
 
-# Local-first recommended setup (Ollama OpenAI-compatible API)
-export XAVIER2_MODEL_PROVIDER=local
-export XAVIER2_API_FLAVOR=openai-compatible
-export XAVIER2_LOCAL_LLM_URL=http://localhost:11434/v1
-export XAVIER2_LOCAL_LLM_MODEL=qwen3-coder
-export XAVIER2_EMBEDDING_ENDPOINT=http://localhost:11434/v1/embeddings
-export XAVIER2_EMBEDDING_MODEL=embeddinggemma
-
-# Search via CLI
-xavier2 search "your query"
-
-# Add a memory
-xavier2 add "Remember to review PRs on Fridays" --title "PR reminder"
-
-# Check stats
+# CLI add/search/stats currently talk to the running HTTP server
+xavier2 add "Remember to review PRs on Fridays" "PR reminder"
+xavier2 search "review PRs"
 xavier2 stats
 ```
 
-## Features
+## Verified Features
 
-- **7ms average vector search** — SQLite-vec powered, no external services
-- **Local-first model routing** — OpenAI-compatible by default for Ollama, vLLM, or cloud fallbacks
-- **MCP-stdio interface** — Connect to Claude Desktop, Cursor, Windsurf, and other MCP clients
-- **CLI tool** — Human-friendly commands for search, add, and stats
-- **RRF fusion** — Reciprocal Rank Fusion combines vector + keyword + graph signals
-- **SQLite-vec storage** — Embedded, portable, no server needed
+- HTTP server with auth-protected memory endpoints
+- CLI client for `add`, `search`, and `stats`
+- MCP stdio server with `search`, `add`, and `stats` tools
+- SQLite-backed memory storage
+- Hybrid retrieval building blocks and agent runtime modules
 
-## API
+## HTTP API
 
-### Health & Stats
+Current default CLI server examples use port `8006`.
 
 ```bash
-# Health check
 curl http://localhost:8006/health
 
-# Get memory stats
-curl http://localhost:8006/memory/stats \
-  -H "X-Xavier2-Token: $TOKEN"
-```
-
-### Memory Operations
-
-```bash
-# Add memory
 curl -X POST http://localhost:8006/memory/add \
-  -H "X-Xavier2-Token: $TOKEN" \
+  -H "X-Xavier2-Token: $XAVIER2_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"content":"Design decision: use RRF k=60","path":"decisions/001"}'
+  -d '{"content":"Design decision: use RRF","path":"decisions/001"}'
 
-# Vector search
 curl -X POST http://localhost:8006/memory/search \
-  -H "X-Xavier2-Token: $TOKEN" \
+  -H "X-Xavier2-Token: $XAVIER2_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query":"design decisions","limit":5}'
-
-# Hybrid search (vector + FTS5)
-curl -X POST http://localhost:8006/memory/hybrid \
-  -H "X-Xavier2-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"architecture decisions","limit":10}'
-
-# Delete memory
-curl -X DELETE http://localhost:8006/memory/evict \
-  -H "X-Xavier2-Token: $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"id":"01ARZ3NDEKTSV4RRFFQ69G5FAV"}'
+  -d '{"query":"design decision","limit":5}'
 ```
 
-## MCP Integration
+The richer route inventory, including caveats around current server surfaces, is documented in [docs/site/src/content/docs/reference/api.md](docs/site/src/content/docs/reference/api.md).
 
-Connect Xavier2 to any MCP-compatible AI client:
+## MCP
+
+Start the MCP stdio server with:
 
 ```bash
-# Start MCP server (stdio mode)
 xavier2 mcp
 ```
 
-Configure your MCP client to use stdio transport pointing to `xavier2 mcp`.
+Current verified MCP tools:
 
-## Docker
-
-```bash
-# Run with Docker
-docker run -p 8006:8006 \
-  -e XAVIER2_TOKEN=your-secret-token \
-  ghcr.io/iberi22/xavier2:latest
-
-# Or use docker-compose
-docker compose up -d
-```
+- `search`
+- `add`
+- `stats`
 
 ## Configuration
 
+Operational runtime configuration lives in [config/xavier2.config.json](config/xavier2.config.json).
+Credentials and secrets live in `.env`, based on [.env.example](.env.example).
+
 | Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `XAVIER2_PORT` | `8006` | HTTP server port |
-| `XAVIER2_HOST` | `0.0.0.0` | Bind address |
-| `XAVIER2_TOKEN` | generated at startup if unset | Authentication token |
-| `XAVIER2_DEV_MODE` | `false` | Skip auth (dev only) |
-| `XAVIER2_MODEL_PROVIDER` | `local` | Provider mode: `local`, `cloud`, `disabled` |
-| `XAVIER2_API_FLAVOR` | `openai-compatible` | Canonical wire format for LLM calls |
-| `XAVIER2_LOCAL_LLM_URL` | `http://localhost:11434/v1` | Ollama/vLLM chat endpoint |
-| `XAVIER2_LOCAL_LLM_MODEL` | `qwen3-coder` | Local coding model |
-| `XAVIER2_EMBEDDING_ENDPOINT` | `http://localhost:11434/v1/embeddings` | OpenAI-compatible embeddings endpoint |
-| `XAVIER2_EMBEDDING_MODEL` | `embeddinggemma` | Local embedding model |
-| `XAVIER2_LOG_LEVEL` | `info` | Log level |
+|---|---|---|
+| `XAVIER2_TOKEN` | generated at startup if unset in current HTTP mode | Authentication token |
+| `XAVIER2_DEV_MODE` | `false` | Skip auth in explicit development scenarios |
+| `XAVIER2_CONFIG_PATH` | `config/xavier2.config.json` | Optional override for the canonical runtime config file |
+| provider keys | unset | External API credentials |
 
-## Architecture
+## Documentation
 
-Xavier2 is moving towards a multi-crate workspace for better reusability and faster builds. See our [Workspace Evolution Strategy](docs/ARCHITECTURE/ARCHITECTURE.md#workspace-evolution).
-
-```
-┌─────────────────────────────────────────────────────┐
-│                   Xavier2                            │
-├─────────────────────────────────────────────────────┤
-│  CLI / HTTP / MCP-stdio                             │
-├─────────────────────────────────────────────────────┤
-│  Hybrid Search (RRF Fusion)                         │
-│  ┌──────────┬──────────┬──────────┐                 │
-│  │  Vector  │   FTS5   │  Graph   │                 │
-│  │ (sqlite- │ (BM25)   │ (Entity  │                 │
-│  │   vec)   │          │ Relations)│                │
-│  └──────────┴──────────┴──────────┘                 │
-├─────────────────────────────────────────────────────┤
-│  SQLite-vec Storage                                 │
-└─────────────────────────────────────────────────────┘
-```
+- Feature status: [docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md)
+- CLI reference: [docs/guides/CLI_REFERENCE.md](docs/guides/CLI_REFERENCE.md)
+- Public API reference: [docs/site/src/content/docs/reference/api.md](docs/site/src/content/docs/reference/api.md)
+- Release roadmap: [docs/PUBLIC_RELEASE_ROADMAP.md](docs/PUBLIC_RELEASE_ROADMAP.md)
 
 ## License
 
-MIT — free for everyone, forever.
-
-**Commercial use?** Consider supporting the project. See [PRICING](docs/PRICING.md).
-
----
-
-Built with ❤️ by [SouthWest AI Labs](https://southwest-ai-labs.com)
+MIT

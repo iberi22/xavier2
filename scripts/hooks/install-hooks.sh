@@ -1,8 +1,9 @@
 #!/bin/bash
 # scripts/hooks/install-hooks.sh
-# 🧠 Git-Core Protocol - Git Hooks Installer
+# Git hooks installer for repository guardrails.
 #
-# This script installs the pre-commit hook for atomic commit validation.
+# This script installs the pre-commit hook that enforces atomic commits,
+# release guardrails, and documentation discipline.
 #
 # Usage:
 #   ./scripts/hooks/install-hooks.sh
@@ -21,7 +22,40 @@ NC='\033[0m' # No Color
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-GIT_HOOKS_DIR="$REPO_ROOT/.git/hooks"
+
+to_unix_path() {
+    local input="$1"
+    if [[ "$input" =~ ^([A-Za-z]):/(.*)$ ]]; then
+        local drive="${BASH_REMATCH[1],,}"
+        local remainder="${BASH_REMATCH[2]}"
+        echo "/mnt/${drive}/${remainder}"
+    else
+        echo "$input"
+    fi
+}
+
+resolve_hooks_dir() {
+    if [ -d "$REPO_ROOT/.git/hooks" ]; then
+        echo "$REPO_ROOT/.git/hooks"
+        return
+    fi
+
+    if [ -f "$REPO_ROOT/.git" ]; then
+        local gitdir
+        gitdir=$(sed -n 's/^gitdir:[[:space:]]*//p' "$REPO_ROOT/.git" | head -1)
+        gitdir=$(to_unix_path "$gitdir")
+        if [ -n "$gitdir" ] && [ -d "$gitdir" ]; then
+            local common_git_dir
+            common_git_dir="$(cd "$gitdir/../.." && pwd)"
+            echo "$common_git_dir/hooks"
+            return
+        fi
+    fi
+
+    echo ""
+}
+
+GIT_HOOKS_DIR="$(resolve_hooks_dir)"
 
 # Parse arguments
 ACTION="install"
@@ -49,7 +83,7 @@ done
 check_hooks() {
     if [ -f "$GIT_HOOKS_DIR/pre-commit" ]; then
         if grep -q "git-core-protocol" "$GIT_HOOKS_DIR/pre-commit" 2>/dev/null; then
-            echo -e "${GREEN}✓ Git-Core Protocol pre-commit hook is installed${NC}"
+            echo -e "${GREEN}✓ Repository guardrail pre-commit hook is installed${NC}"
             return 0
         else
             echo -e "${YELLOW}⚠️  A different pre-commit hook is installed${NC}"
@@ -62,11 +96,16 @@ check_hooks() {
 }
 
 install_hooks() {
-    echo -e "${CYAN}🔧 Installing Git-Core Protocol hooks...${NC}"
+    echo -e "${CYAN}Installing repository guardrail hooks...${NC}"
     
-    # Check if .git directory exists
-    if [ ! -d "$REPO_ROOT/.git" ]; then
+    # Check if this is a git repository, including worktrees where .git is a file.
+    if [ ! -d "$REPO_ROOT/.git" ] && [ ! -f "$REPO_ROOT/.git" ]; then
         echo -e "${RED}❌ Error: Not a git repository${NC}"
+        exit 1
+    fi
+
+    if [ -z "$GIT_HOOKS_DIR" ]; then
+        echo -e "${RED}❌ Error: Could not resolve git hooks directory${NC}"
         exit 1
     fi
     
@@ -87,8 +126,8 @@ install_hooks() {
     # Create wrapper script that calls our hook
     cat > "$GIT_HOOKS_DIR/pre-commit" << 'EOF'
 #!/bin/bash
-# Git-Core Protocol pre-commit hook (git-core-protocol)
-# This hook validates atomic commits based on .git-atomize.yml configuration
+# Repository guardrail pre-commit hook (git-core-protocol)
+# This hook validates atomic commits and release guardrails.
 # Bypass with: git commit --no-verify
 
 # Get repository root
@@ -107,25 +146,20 @@ else
 fi
 EOF
     
-    chmod +x "$GIT_HOOKS_DIR/pre-commit"
+    chmod +x "$GIT_HOOKS_DIR/pre-commit" 2>/dev/null || true
     chmod +x "$SCRIPT_DIR/pre-commit" 2>/dev/null || true
     
-    # Copy example config if .git-atomize.yml doesn't exist
-    if [ ! -f "$REPO_ROOT/.git-atomize.yml" ] && [ -f "$REPO_ROOT/.git-atomize.yml.example" ]; then
-        cp "$REPO_ROOT/.git-atomize.yml.example" "$REPO_ROOT/.git-atomize.yml"
-        echo -e "${GREEN}✓ Created .git-atomize.yml from example${NC}"
-    fi
-    
-    echo -e "${GREEN}✅ Git-Core Protocol hooks installed successfully!${NC}"
+    echo -e "${GREEN}✅ Repository guardrail hooks installed successfully${NC}"
     echo ""
     echo -e "${CYAN}Configuration:${NC}"
-    echo "  • Edit .git-atomize.yml to customize atomicity rules"
-    echo "  • Use 'mode: team' to enforce rules strictly"
+    echo "  • Edit .git-atomize.yml to tune commit-size rules"
+    echo "  • Public surface changes must ship with docs updates"
+    echo "  • Insecure defaults, placeholders, and repo artifacts are blocked"
     echo "  • Bypass with: git commit --no-verify"
 }
 
 uninstall_hooks() {
-    echo -e "${CYAN}🔧 Uninstalling Git-Core Protocol hooks...${NC}"
+    echo -e "${CYAN}Uninstalling repository guardrail hooks...${NC}"
     
     if [ -f "$GIT_HOOKS_DIR/pre-commit" ]; then
         if grep -q "git-core-protocol" "$GIT_HOOKS_DIR/pre-commit" 2>/dev/null; then
@@ -146,7 +180,7 @@ uninstall_hooks() {
         echo -e "${YELLOW}○ No pre-commit hook installed${NC}"
     fi
     
-    echo -e "${GREEN}✅ Git-Core Protocol hooks uninstalled${NC}"
+    echo -e "${GREEN}✅ Repository guardrail hooks uninstalled${NC}"
 }
 
 # Execute based on action

@@ -399,17 +399,20 @@ impl ModelProviderClient {
 
         match self.config.target {
             ProviderTarget::GenericOpenAICompatible => {
-                self.generate_openai_compatible(system_prompt, user_prompt).await
+                self.generate_openai_compatible(system_prompt, user_prompt)
+                    .await
             }
             ProviderTarget::AnthropicMessages => {
                 self.generate_anthropic_compatible(system_prompt, user_prompt)
                     .await
             }
             ProviderTarget::GeminiLegacy => {
-                self.generate_gemini_legacy(system_prompt, user_prompt).await
+                self.generate_gemini_legacy(system_prompt, user_prompt)
+                    .await
             }
             ProviderTarget::MiniMaxLegacy => {
-                self.generate_minimax_legacy(system_prompt, user_prompt).await
+                self.generate_minimax_legacy(system_prompt, user_prompt)
+                    .await
             }
         }
     }

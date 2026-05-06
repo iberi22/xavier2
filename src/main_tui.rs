@@ -13,6 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use xavier2::settings::Xavier2Settings;
 use xavier2::ui::dashboard::{DashboardMetrics, MemoryItem, TuiAppState};
 use xavier2::ui::memory_view::MemoryView;
 
@@ -35,8 +36,8 @@ impl Default for Xavier2Client {
 
 impl Xavier2Client {
     pub fn new() -> Self {
-        let base_url =
-            std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8003".to_string());
+        let base_url = std::env::var("XAVIER2_URL")
+            .unwrap_or_else(|_| Xavier2Settings::current().client_base_url());
         let token =
             std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
         Self {
@@ -302,30 +303,26 @@ async fn main() -> Result<()> {
                         KeyCode::Tab => {
                             app.current_tab = (app.current_tab + 1) % 3;
                         }
-                        KeyCode::Char('j') | KeyCode::Down => {
-                            if app.current_tab == 1 && !app.memories.is_empty() {
-                                app.memory_view.next(app.memories.len());
-                            }
+                        KeyCode::Char('j') | KeyCode::Down
+                            if app.current_tab == 1 && !app.memories.is_empty() =>
+                        {
+                            app.memory_view.next(app.memories.len());
                         }
-                        KeyCode::Char('k') | KeyCode::Up => {
-                            if app.current_tab == 1 && !app.memories.is_empty() {
-                                app.memory_view.previous(app.memories.len());
-                            }
+                        KeyCode::Char('k') | KeyCode::Up
+                            if app.current_tab == 1 && !app.memories.is_empty() =>
+                        {
+                            app.memory_view.previous(app.memories.len());
                         }
-                        KeyCode::Enter => {
-                            if app.current_tab == 1 {
-                                if let Some(selected) = app.memory_view.state.selected() {
-                                    if let Some(mem) = app.memories.get(selected) {
-                                        app.selected_memory = Some(mem.clone());
-                                        app.input_mode = InputMode::ViewingDetails;
-                                    }
+                        KeyCode::Enter if app.current_tab == 1 => {
+                            if let Some(selected) = app.memory_view.state.selected() {
+                                if let Some(mem) = app.memories.get(selected) {
+                                    app.selected_memory = Some(mem.clone());
+                                    app.input_mode = InputMode::ViewingDetails;
                                 }
                             }
                         }
-                        KeyCode::Char('/') => {
-                            if app.current_tab == 1 {
-                                app.input_mode = InputMode::Editing;
-                            }
+                        KeyCode::Char('/') if app.current_tab == 1 => {
+                            app.input_mode = InputMode::Editing;
                         }
                         _ => {}
                     },

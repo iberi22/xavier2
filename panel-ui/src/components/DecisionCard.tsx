@@ -106,8 +106,8 @@ export function DecisionCard(props: DecisionCardProps | { adr: string | ADR }) {
         <div className="decision-blockers">
           <strong>Blockers:</strong>
           <ul>
-            {adr.blockers.map((b, i) => (
-              <li key={`${adr.id}-blocker-${b}-${i}`}>{b}</li>
+            {adr.blockers.map((blocker) => (
+              <li key={`${adr.id}-blocker-${blocker}`}>{blocker}</li>
             ))}
           </ul>
         </div>
@@ -122,8 +122,8 @@ export function DecisionCard(props: DecisionCardProps | { adr: string | ADR }) {
             Positives
           </strong>
           <ul>
-            {adr.consequences_positive.map((p, i) => (
-              <li key={`${adr.id}-pro-${p}-${i}`}>{p}</li>
+            {adr.consequences_positive.map((positive) => (
+              <li key={`${adr.id}-pro-${positive}`}>{positive}</li>
             ))}
           </ul>
         </div>
@@ -138,8 +138,8 @@ export function DecisionCard(props: DecisionCardProps | { adr: string | ADR }) {
             Negatives
           </strong>
           <ul>
-            {adr.consequences_negative.map((n, i) => (
-              <li key={`${adr.id}-con-${n}-${i}`}>{n}</li>
+            {adr.consequences_negative.map((negative) => (
+              <li key={`${adr.id}-con-${negative}`}>{negative}</li>
             ))}
           </ul>
         </div>
