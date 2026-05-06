@@ -46,6 +46,7 @@ JWT/RBAC code exists in the repository, but it is not the active production auth
 | GET | `/v1/account/limits` | Workspace limits |
 | GET | `/v1/sync/policies` | Sync policy metadata |
 | GET | `/v1/providers/embeddings/status` | Embedding provider status |
+| GET | `/v1/public/*` | Read-only public dataset files and metadata |
 | POST | `/code/scan` | Index a source tree |
 | POST | `/code/find` | Search indexed symbols |
 | GET | `/code/stats` | Code index statistics |
@@ -132,6 +133,38 @@ Returns workspace storage and request limits.
 ### GET /v1/sync/policies
 
 Returns current and supported sync policy metadata.
+
+## Public Dataset
+
+The `/v1/public/*` surface exposes the generated `xavier-dataset/` export as read-only, cacheable project context. These endpoints are intended for agents and public documentation tooling that need repository intelligence without cloning, indexing, or authenticating against the private memory API.
+
+Public dataset endpoints are:
+
+- read-only
+- rate-limited
+- safe for unauthenticated access when explicitly enabled by deployment policy
+- backed by the same files produced by `xavier2 export --public`
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/v1/public/manifest` | Returns `dataset_manifest.json` with schema versions, export timestamp, and aggregate stats |
+| GET | `/v1/public/memories` | Streams `memories.ndjson` |
+| GET | `/v1/public/entities` | Streams `entities.ndjson` |
+| GET | `/v1/public/entity-edges` | Streams `entity_edges.ndjson` |
+| GET | `/v1/public/timeline-events` | Streams `timeline_events.ndjson` |
+| GET | `/v1/public/git-commits` | Streams `git_commits.ndjson` |
+| GET | `/v1/public/code-symbols` | Streams `code_symbols.ndjson` |
+| GET | `/v1/public/code-relations` | Streams `code_relations.ndjson` |
+| GET | `/v1/public/ck-metrics` | Streams `ck_metrics.ndjson` |
+
+Example:
+
+```bash
+curl http://localhost:8003/v1/public/manifest
+curl http://localhost:8003/v1/public/memories | head -n 20
+```
+
+Deployments may serve these files directly from GitHub raw, object storage, a CDN, or the Xavier2 HTTP server. The API contract is the same: immutable export files, stable schema versions, and no mutation through `/v1/public/*`.
 
 ## Code Index
 

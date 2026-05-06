@@ -12,6 +12,7 @@ This matrix is the operational truth for the repository as of the latest Xavier2
 | HTTP memory add/search/stats | Beta usable | Authenticated memory write and search work in the current server. |
 | Canonical runtime config | In progress | `config/xavier2.config.json` is now the intended source of non-secret runtime configuration, with `.env` reserved for credentials and secrets. |
 | CLI add/search/stats | Beta usable | These commands currently act as HTTP clients. They require a running server and use `XAVIER2_URL` as the canonical client endpoint, falling back to the JSON config server address. |
+| Public Dataset Export | Planned | `xavier2 export --public` is now a core planned feature. It should generate `xavier-dataset/` with manifest, memory, graph, timeline, git, code symbol, code relation, and CK metrics NDJSON files for public agent context. |
 | MCP stdio | Beta usable | `initialize`, `tools/list`, `tools/call create_memory`, `tools/call search_memory`, and legacy aliases `add`/`search` work. |
 | Panel shell/API | Experimental | Panel routes exist, but the shell requires built frontend assets and is not consistently release-ready in the current repo state. |
 | Release smoke scripts | Unstable | Current smoke scripts still assume endpoints and defaults that do not always match the running server. |
@@ -49,5 +50,6 @@ Xavier2 should only be labeled `1.0` when all of the following are true:
 - release smoke passes without manual patching
 - workspace and storage isolation are reproducible
 - panel build and route expectations are either stable or clearly scoped out
+- public dataset export emits reproducible read-only context with documented schema versions
 - public docs describe the real product surface, not the aspirational one
 - remaining `dev-token` and insecure-default references are removed from production-facing surfaces

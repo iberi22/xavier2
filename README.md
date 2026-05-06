@@ -36,10 +36,41 @@ xavier2 search "review PRs"
 xavier2 stats
 ```
 
+## Public Dataset Export
+
+[![Export Status](https://img.shields.io/badge/export-public%20dataset-planned-blue.svg)](docs/FEATURE_STATUS.md)
+
+`xavier2 export --public` generates a public, read-optimized dataset for the current project in `xavier-dataset/` at the repository root. The export is designed for agents, reviewers, and humans who need accurate Xavier2 context from GitHub raw files without cloning the repository, rebuilding indexes, or installing local dependencies.
+
+The public export favors append-friendly NDJSON files for direct streaming and stable schemas that can also be mirrored to Parquet for analytics workflows.
+
+| File | Description |
+|---|---|
+| `dataset_manifest.json` | Dataset metadata, export timestamp, schema versions, and aggregate stats |
+| `memories.ndjson` | Memory records with importance, type, references, and project context |
+| `entities.ndjson` | Knowledge graph entities such as functions, files, decisions, and agents |
+| `entity_edges.ndjson` | Relationships between exported entities |
+| `timeline_events.ndjson` | Chronological project events |
+| `git_commits.ndjson` | Git commits tagged as `human` or `agent` authored work |
+| `code_symbols.ndjson` | Indexed codebase symbols |
+| `code_relations.ndjson` | Calls, imports, ownership, and code relationship edges |
+| `ck_metrics.ndjson` | CK code quality metrics for indexed classes/modules |
+
+Example agent bootstrap from GitHub raw:
+
+```bash
+BASE="https://raw.githubusercontent.com/iberi22/xavier2/main/xavier-dataset"
+
+curl -fsSL "$BASE/dataset_manifest.json"
+curl -fsSL "$BASE/memories.ndjson" | head -n 20
+curl -fsSL "$BASE/code_symbols.ndjson" | jq -c 'select(.kind == "function")' | head
+```
+
 ## Verified Features
 
 - HTTP server with auth-protected memory endpoints
 - CLI client for `add`, `search`, and `stats`
+- Public dataset export contract for repository-level agent context
 - MCP stdio server with `search`, `add`, and `stats` tools
 - SQLite-backed memory storage
 - Hybrid retrieval building blocks and agent runtime modules
