@@ -131,7 +131,7 @@ impl SecurityManager {
 
     pub fn generate_token(&self, user_id: &str) -> Result<String> {
         let secret = std::env::var("XAVIER2_TOKEN_SECRET")
-            .map_err(|_| anyhow!("XAVIER2_TOKEN_SECRET not set"))?;
+            .map_err(|_| anyhow!("XAVIER2_TOKEN_SECRET environment variable is not set"))?;
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| anyhow!("hmac error: {}", e))?;
 
@@ -168,7 +168,7 @@ impl SecurityManager {
             .map_err(|_| anyhow!("invalid timestamp in token"))?;
 
         let secret = std::env::var("XAVIER2_TOKEN_SECRET")
-            .map_err(|_| anyhow!("XAVIER2_TOKEN_SECRET not set"))?;
+            .map_err(|_| anyhow!("XAVIER2_TOKEN_SECRET environment variable is not set"))?;
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| anyhow!("hmac error: {}", e))?;
 
