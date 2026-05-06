@@ -8,11 +8,12 @@
 //!
 //! Also provides on-demand sync check via POST /xavier2/sync/check
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use once_cell::sync::Lazy;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock as StdRwLock};
 use std::time::{Duration, Instant};
 
-use tokio::sync::{watch, RwLock};
+use tokio::sync::{watch, RwLock as TokioRwLock};
 use tokio::time::{interval, sleep, timeout};
 use tracing::{info, warn};
 
@@ -42,24 +43,40 @@ const DEFAULT_SYNC_MIN_HEALTH_INTERVAL_MS: u64 = 1_000;
 const DEFAULT_SYNC_TIMEOUT_MS: u64 = 5_000;
 
 /// Last sync check result stored in memory (static)
-pub(crate) static LAST_CHECK_TIMESTAMP_MS: AtomicU64 = AtomicU64::new(0);
-pub(crate) static LAST_CHECK_LAG_MS: AtomicU64 = AtomicU64::new(0);
-pub(crate) static LAST_CHECK_SAVE_OK_RATE: Mutex<f64> = Mutex::new(1.0);
-pub(crate) static LAST_CHECK_MATCH_SCORE: Mutex<f64> = Mutex::new(1.0);
-pub(crate) static LAST_CHECK_ACTIVE_AGENTS: AtomicU64 = AtomicU64::new(0);
-pub(crate) static LAST_CHECK_STATUS: Mutex<String> = Mutex::new(String::new());
-pub(crate) static LAST_CHECK_ALERTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// Unified last sync check result (single lock — no data race).
+pub(crate) static LAST_CHECK_RESULT: Lazy<StdRwLock<SyncCheckResult>> =
+    Lazy::new(|| StdRwLock::new(SyncCheckResult::default()));
 static SYNC_CRON_STARTED: AtomicBool = AtomicBool::new(false);
 
 /// Handle used by the HTTP server to request a graceful cron shutdown.
-#[derive(Clone)]
 pub struct SessionSyncShutdown {
     shutdown_tx: watch::Sender<bool>,
+    join_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl SessionSyncShutdown {
+    /// Send the shutdown signal to the cron loop.
     pub fn shutdown(&self) {
         let _ = self.shutdown_tx.send(true);
+    }
+
+    /// Wait for the spawned cron task to finish, with a timeout.
+    /// If the task does not complete within the timeout, a warning is logged
+    /// and this method returns (forced shutdown).
+    pub async fn wait_for_shutdown(self, timeout_dur: Duration) {
+        if let Some(handle) = self.join_handle {
+            tokio::select! {
+                _ = handle => {
+                    tracing::info!("SessionSyncTask cron exited cleanly");
+                }
+                _ = tokio::time::sleep(timeout_dur) => {
+                    tracing::warn!(
+                        timeout_ms = timeout_dur.as_millis() as u64,
+                        "SessionSyncTask shutdown timed out, forcing"
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -98,7 +115,7 @@ pub struct SessionSyncTask {
     /// Memory store for querying memory records (optional, falls back if None)
     memory_store: Option<Arc<dyn MemoryStore>>,
     /// Last successful check timestamp
-    last_check: Arc<RwLock<Instant>>,
+    last_check: Arc<TokioRwLock<Instant>>,
     /// Lag threshold in ms (configurable via XAVIER2_SYNC_LAG_THRESHOLD_MS or SEVIER2_LAG_THRESHOLD_MS)
     lag_threshold_ms: u64,
     /// Save ok rate threshold (configurable via XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD or SEVIER2_SAVE_OK_RATE_THRESHOLD)
@@ -163,7 +180,7 @@ impl SessionSyncTask {
             interval_ms,
             health_port,
             memory_store,
-            last_check: Arc::new(RwLock::new(Instant::now())),
+            last_check: Arc::new(TokioRwLock::new(Instant::now())),
             lag_threshold_ms,
             save_ok_rate_threshold,
             max_retries,
@@ -175,6 +192,8 @@ impl SessionSyncTask {
 
     /// Spawn the cron loop at most once per process.
     /// Returns a shutdown handle when the task was spawned by this call.
+    /// The caller can use [`SessionSyncShutdown::wait_for_shutdown`] to await
+    /// a clean exit with a timeout.
     pub fn spawn_cron_once(self) -> Option<SessionSyncShutdown> {
         if SYNC_CRON_STARTED
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -183,18 +202,24 @@ impl SessionSyncTask {
             return None;
         }
 
-        let shutdown = self.shutdown_handle();
-        tokio::spawn(async move {
+        let shutdown_tx = self.shutdown_tx.clone();
+        let handle = tokio::spawn(async move {
             self.start_cron().await;
             SYNC_CRON_STARTED.store(false, Ordering::SeqCst);
         });
 
-        Some(shutdown)
+        Some(SessionSyncShutdown {
+            shutdown_tx,
+            join_handle: Some(handle),
+        })
     }
 
+    /// Create a shutdown handle **without** a join handle (detached).
+    /// Used when the caller only wants to signal shutdown but cannot await.
     pub fn shutdown_handle(&self) -> SessionSyncShutdown {
         SessionSyncShutdown {
             shutdown_tx: self.shutdown_tx.clone(),
+            join_handle: None,
         }
     }
 
@@ -270,24 +295,10 @@ impl SessionSyncTask {
                     timestamp_ms: now_ms,
                     alerts,
                 };
-                LAST_CHECK_TIMESTAMP_MS.store(now_ms, Ordering::SeqCst);
-                LAST_CHECK_LAG_MS.store(0, Ordering::SeqCst);
                 {
-                    let mut r = LAST_CHECK_SAVE_OK_RATE.lock().unwrap();
-                    *r = 1.0;
-                }
-                {
-                    let mut r = LAST_CHECK_MATCH_SCORE.lock().unwrap();
-                    *r = 1.0;
-                }
-                LAST_CHECK_ACTIVE_AGENTS.store(0, Ordering::SeqCst);
-                {
-                    let mut s = LAST_CHECK_STATUS.lock().unwrap();
-                    *s = result.status.clone();
-                }
-                {
-                    let mut a = LAST_CHECK_ALERTS.lock().unwrap();
-                    *a = result.alerts.clone();
+                    if let Ok(mut r) = LAST_CHECK_RESULT.write() {
+                        *r = result.clone();
+                    }
                 }
                 *self.last_check.write().await = Instant::now();
                 return result;
@@ -339,25 +350,9 @@ impl SessionSyncTask {
             alerts,
         };
 
-        // Update static last-check values
-        LAST_CHECK_TIMESTAMP_MS.store(now_ms, Ordering::SeqCst);
-        LAST_CHECK_LAG_MS.store(lag_ms, Ordering::SeqCst);
-        {
-            let mut r = LAST_CHECK_SAVE_OK_RATE.lock().unwrap();
-            *r = save_ok_rate;
-        }
-        {
-            let mut r = LAST_CHECK_MATCH_SCORE.lock().unwrap();
-            *r = match_score;
-        }
-        LAST_CHECK_ACTIVE_AGENTS.store(active_agents, Ordering::SeqCst);
-        {
-            let mut s = LAST_CHECK_STATUS.lock().unwrap();
-            *s = result.status.clone();
-        }
-        {
-            let mut a = LAST_CHECK_ALERTS.lock().unwrap();
-            *a = result.alerts.clone();
+        // Update static last-check values (unified lock — no data race)
+        if let Ok(mut r) = LAST_CHECK_RESULT.write() {
+            *r = result.clone();
         }
 
         // Update last_check timestamp
@@ -403,7 +398,18 @@ impl SessionSyncTask {
                 }
                 changed = shutdown_rx.changed() => {
                     if changed.is_err() || *shutdown_rx.borrow() {
-                        info!("SessionSyncTask cron shutting down");
+                        info!("SessionSyncTask cron shutting down, flushing pending state...");
+                        // Run one final sync check to flush any pending state
+                        // into LAST_CHECK_RESULT before complete shutdown.
+                        // Limited to 5s to avoid blocking graceful shutdown.
+                        tokio::select! {
+                            _ = self.run_sync_check() => {
+                                info!("SessionSyncTask final check completed");
+                            }
+                            _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                                tracing::warn!("SessionSyncTask final check timed out during shutdown");
+                            }
+                        }
                         break;
                     }
                 }
@@ -447,25 +453,27 @@ impl SessionSyncTask {
 
     /// Get save_ok_rate from stored metrics
     async fn get_save_ok_rate(&self) -> f64 {
-        *LAST_CHECK_SAVE_OK_RATE.lock().unwrap()
+        LAST_CHECK_RESULT
+            .read()
+            .map(|r| r.save_ok_rate)
+            .unwrap_or(1.0)
     }
 
     /// Get match_score from stored metrics
     async fn get_match_score(&self) -> f64 {
-        *LAST_CHECK_MATCH_SCORE.lock().unwrap()
+        LAST_CHECK_RESULT
+            .read()
+            .map(|r| r.match_score)
+            .unwrap_or(1.0)
     }
 
     /// Update metrics (can be called by session event handler)
     pub fn update_metrics(save_ok_rate: f64, match_score: f64, active_agents: u64) {
-        {
-            let mut r = LAST_CHECK_SAVE_OK_RATE.lock().unwrap();
-            *r = save_ok_rate;
+        if let Ok(mut r) = LAST_CHECK_RESULT.write() {
+            r.save_ok_rate = save_ok_rate;
+            r.match_score = match_score;
+            r.active_agents = active_agents;
         }
-        {
-            let mut r = LAST_CHECK_MATCH_SCORE.lock().unwrap();
-            *r = match_score;
-        }
-        LAST_CHECK_ACTIVE_AGENTS.store(active_agents, Ordering::SeqCst);
     }
 }
 
@@ -519,32 +527,18 @@ impl Default for SessionSyncTask {
                 crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(final_url)
             }),
             memory_store: None,
-            last_check: Arc::new(RwLock::new(Instant::now())),
+            last_check: Arc::new(TokioRwLock::new(Instant::now())),
             shutdown_tx,
         }
     }
 }
 
-/// Get last sync check result (for REST endpoint)
+/// Get last sync check result (for REST endpoint) — consistent snapshot via unified lock.
 pub fn get_last_sync_result() -> SyncCheckResult {
-    let status = {
-        let s = LAST_CHECK_STATUS.lock().unwrap();
-        if s.is_empty() {
-            "unknown".to_string()
-        } else {
-            s.clone()
-        }
-    };
-
-    SyncCheckResult {
-        status,
-        lag_ms: LAST_CHECK_LAG_MS.load(Ordering::SeqCst),
-        save_ok_rate: *LAST_CHECK_SAVE_OK_RATE.lock().unwrap(),
-        match_score: *LAST_CHECK_MATCH_SCORE.lock().unwrap(),
-        active_agents: LAST_CHECK_ACTIVE_AGENTS.load(Ordering::SeqCst),
-        timestamp_ms: LAST_CHECK_TIMESTAMP_MS.load(Ordering::SeqCst),
-        alerts: LAST_CHECK_ALERTS.lock().unwrap().clone(),
-    }
+    LAST_CHECK_RESULT
+        .read()
+        .map(|r| r.clone())
+        .unwrap_or_default()
 }
 
 fn read_env_or_legacy(primary: &str, legacy: &str) -> Option<String> {

@@ -316,24 +316,23 @@ mod route_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tasks::session_sync_task::{
-        LAST_CHECK_ACTIVE_AGENTS, LAST_CHECK_ALERTS, LAST_CHECK_LAG_MS, LAST_CHECK_MATCH_SCORE,
-        LAST_CHECK_SAVE_OK_RATE, LAST_CHECK_STATUS, LAST_CHECK_TIMESTAMP_MS,
-    };
-    use std::sync::atomic::Ordering;
+    use crate::tasks::session_sync_task::{LAST_CHECK_RESULT, SyncCheckResult};
 
     #[tokio::test]
     async fn sync_check_handler_uses_cached_sync_result() {
-        LAST_CHECK_LAG_MS.store(42_000, Ordering::SeqCst);
-        LAST_CHECK_TIMESTAMP_MS.store(1_234_567, Ordering::SeqCst);
-        LAST_CHECK_ACTIVE_AGENTS.store(7, Ordering::SeqCst);
-        *LAST_CHECK_SAVE_OK_RATE.lock().unwrap() = 0.90;
-        *LAST_CHECK_MATCH_SCORE.lock().unwrap() = 0.88;
-        *LAST_CHECK_STATUS.lock().unwrap() = "alert".to_string();
-        *LAST_CHECK_ALERTS.lock().unwrap() = vec![
-            "Index lag 42000ms exceeds threshold 30000ms".to_string(),
-            "Save ok rate 90.0% below threshold 95.0%".to_string(),
-        ];
+        let test_result = SyncCheckResult {
+            status: "alert".to_string(),
+            lag_ms: 42_000,
+            save_ok_rate: 0.90,
+            match_score: 0.88,
+            active_agents: 7,
+            timestamp_ms: 1_234_567,
+            alerts: vec![
+                "Index lag 42000ms exceeds threshold 30000ms".to_string(),
+                "Save ok rate 90.0% below threshold 95.0%".to_string(),
+            ],
+        };
+        *LAST_CHECK_RESULT.write().unwrap() = test_result;
 
         let Json(response) = sync_check_handler().await;
 

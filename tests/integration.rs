@@ -10,10 +10,14 @@ mod agents_test;
 mod belief_graph_test;
 #[path = "integration/checkpoint_test.rs"]
 mod checkpoint_test;
+#[path = "integration/cli.rs"]
+mod cli;
 #[path = "integration/coordination_test.rs"]
 mod coordination_test;
 #[path = "integration/hierarchical_curation_test.rs"]
 mod hierarchical_curation_test;
+#[path = "integration/http_api.rs"]
+mod http_api;
 #[path = "integration/internal_benchmark_test.rs"]
 mod internal_benchmark_test;
 #[path = "integration/memory_test.rs"]
