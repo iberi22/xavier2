@@ -1,6 +1,6 @@
 [package]
 name = "xavier2"
-version = "0.4.1"
+version = "0.6.0-beta"
 edition = "2021"
 autobins = false
 description = "Xavier2 - Cognitive Memory Runtime for AI Agents (open source)"

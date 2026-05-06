@@ -109,4 +109,53 @@ Sprint de mayo 2026 enfocado en resolver deudas técnicas, mejorar estabilidad y
 | Docs creados | 3 |
 | Fases identificadas | 3 |
 
+---
+
+## V1 Release Stabilization — 2026-05-05
+
+Esta tanda cierra la fase de estabilización pre-v1 con enfoque en calidad de código, consistencia de configuración y documentación alineada al producto real.
+
+### Cambios Estructurales
+
+- **Config canónica**: `config/xavier2.config.json` como fuente única de runtime no-secretos, con `src/settings.rs` para deserialización + `apply_to_env()`
+- **Contrato CLI/HTTP/TUI unificado**: todas las superficies usan `XAVIER2_URL` con fallback al JSON config via `Xavier2Settings::client_base_url()`
+- **Storage isolation**: workspaces aislados correctamente en sqlite_store, sqlite_vec_store, workspace.rs — sin fuga de memorias entre workspaces
+
+### Calidad
+
+- `cargo clippy -D warnings` pasa limpio en todo el workspace
+- `cargo test --workspace` — 5 tests + 2 doctests OK
+- `cargo build --release` — xavier2 + xavier2-tui compilan
+- `cargo fmt --check` — sin issues
+
+### Panel UI
+
+- Biome 2 compatibilidad
+- Accesibilidad mejorada en App.tsx, DecisionCard, ProjectCard
+- CSS y tests alineados
+
+### Scripts
+
+- `release-smoke.ps1` y `release-smoke.sh`: usan `XAVIER2_URL`/`XAVIER2_TOKEN`, sin endpoints hardcodeados
+- Pre-commit hooks actualizados
+
+### Documentación
+
+- `docs/FEATURE_STATUS.md` — matriz de readiness 0.6-beta
+- README, CLI_REFERENCE, quick-start, installation, API reference sincronizados
+- `.github/issues/` — breakdown de EPIC + 10 tareas de estabilización
+
+### Estadísticas
+
+| Métrica | Valor |
+|---------|-------|
+| Commits en rama | 18 |
+| Archivos modificados | 78 |
+| Líneas añadidas | +7,151 |
+| Líneas eliminadas | -3,948 |
+| Nuevos archivos | 14 |
+| Gates de calidad | 5/5 |
+
+_Release tag: 0.6.0-beta_
+
 _Fecha: 2026-05-02_

@@ -5,7 +5,7 @@ Current release label: `0.6 beta usable`
 Xavier2 is a Rust memory runtime for AI agents with HTTP, CLI, and MCP entry points over a SQLite-backed memory store.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.4.1-green.svg)](https://github.com/iberi22/xavier2)
+[![Version](https://img.shields.io/badge/version-0.6.0--beta-green.svg)](https://github.com/iberi22/xavier2)
 [![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 
 ## Status
