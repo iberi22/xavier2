@@ -62,22 +62,15 @@ export function ProjectCard(
   const handleActivate = () => onClick?.(project);
 
   return (
-    <div
+    <button
+      type="button"
       className="project-card-shell"
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
       style={{
         borderTop: `6px solid ${tierColors[project.tier]}`,
         cursor: onClick ? "pointer" : "default",
       }}
       onClick={handleActivate}
-      onKeyDown={(event) => {
-        if (!onClick) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          handleActivate();
-        }
-      }}
+      disabled={!onClick}
     >
       <div className="project-card-header">
         <div className="card-badges">
@@ -117,8 +110,8 @@ export function ProjectCard(
         <div className="blockers-section">
           <strong>Blockers:</strong>
           <ul className="blockers-list">
-            {project.blockers.slice(0, 3).map((blocker, idx) => (
-              <li key={`${project.repo}-${blocker}-${idx}`}>{blocker}</li>
+            {project.blockers.slice(0, 3).map((blocker) => (
+              <li key={`${project.repo}-${blocker}`}>{blocker}</li>
             ))}
             {project.blockers.length > 3 ? (
               <li className="more-blockers">
@@ -140,7 +133,7 @@ export function ProjectCard(
           Last commit: {formatLastCommit(project.last_commit)}
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
