@@ -347,6 +347,11 @@ fn resolve_http_port() -> u16 {
         .unwrap_or_else(|| Xavier2Settings::current().server.port)
 }
 
+fn xavier2_token() -> String {
+    std::env::var("XAVIER2_TOKEN")
+        .expect("XAVIER2_TOKEN environment variable must be set for CLI client commands")
+}
+
 fn require_xavier2_token() -> Result<String> {
     std::env::var("XAVIER2_TOKEN").map_err(|_| {
         anyhow!("XAVIER2_TOKEN environment variable must be set for CLI client commands")
@@ -2072,7 +2077,7 @@ async fn session_load(ctx: &str) -> Result<String> {
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
     let limit = limit.clamp(1, 100);
-    let token = require_xavier2_token()?;
+    let token = xavier2_token();
     let base_url = resolve_base_url();
     let url = format!("{}/memory/search", base_url);
 
@@ -2112,7 +2117,7 @@ async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> R
     let title = title
         .map(|title| secure_cli_input("memory title", title, 512))
         .transpose()?;
-    let token = require_xavier2_token()?;
+    let token = xavier2_token();
     let base_url = resolve_base_url();
     let url = format!("{}/memory/add", base_url);
 
@@ -2156,7 +2161,7 @@ async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> R
 
 /// Recall memories with relevance scores, recency, and access frequency.
 async fn recall_memories(query: &str, limit: usize) -> Result<()> {
-    let token = require_xavier2_token()?;
+    let token = xavier2_token();
     let base_url = resolve_base_url();
     let url = format!("{}/memory/search", base_url);
 
@@ -2209,9 +2214,8 @@ async fn recall_memories(query: &str, limit: usize) -> Result<()> {
                     }
                 }
             } else {
-                let status = resp.status();
                 let text = resp.text().await.unwrap_or_default();
-                println!("Recall failed ({}): {}", status, text);
+                println!("Recall failed ({}): {}", resp.status(), text);
             }
         }
         Err(e) => {
@@ -2251,7 +2255,7 @@ fn secure_cli_input(label: &str, input: &str, max_chars: usize) -> Result<String
 }
 
 async fn show_stats() -> Result<()> {
-    let token = require_xavier2_token()?;
+    let token = xavier2_token();
     let base_url = resolve_base_url();
     let url = format!("{}/memory/stats", base_url);
 
