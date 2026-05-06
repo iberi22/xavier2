@@ -18,6 +18,7 @@ use crate::memory::store::{
     filter_records, revisioned_record, stable_key, DurableWorkspaceState, MemoryBackend,
     MemoryRecord, MemoryStore, SessionTokenRecord,
 };
+use crate::settings::Xavier2Settings;
 
 const DB_FILENAME: &str = "xavier2_memory.db";
 pub(crate) const TABLE_MEMORIES: &str = "memory_records";
@@ -48,9 +49,17 @@ pub struct SqliteStoreConfig {
 
 impl SqliteStoreConfig {
     pub fn from_env() -> Self {
-        let data_dir = std::env::var("XAVIER2_DATA_DIR").unwrap_or_else(|_| "/data".to_string());
+        let settings = Xavier2Settings::current();
         Self {
-            path: PathBuf::from(data_dir).join(DB_FILENAME),
+            path: std::env::var("XAVIER2_MEMORY_SQLITE_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| {
+                    if settings.memory.sqlite_path.trim().is_empty() {
+                        PathBuf::from(&settings.memory.data_dir).join(DB_FILENAME)
+                    } else {
+                        PathBuf::from(&settings.memory.sqlite_path)
+                    }
+                }),
         }
     }
 
@@ -201,7 +210,7 @@ impl MemoryStore for SqliteMemoryStore {
 
     async fn health(&self) -> Result<String> {
         let conn = self.conn.lock();
-        conn.execute("SELECT 1", [])?;
+        conn.query_row("SELECT 1", [], |_row| Ok(()))?;
         Ok(format!("sqlite {}", self.config.detail()))
     }
 

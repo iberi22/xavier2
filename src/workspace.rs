@@ -32,6 +32,7 @@ use crate::{
             SessionTokenRecord,
         },
     },
+    settings::Xavier2Settings,
 };
 use chrono::{DateTime, Duration, Utc};
 
@@ -146,45 +147,53 @@ pub struct WorkspaceConfig {
 
 impl WorkspaceConfig {
     pub fn from_env() -> Self {
+        let settings = Xavier2Settings::current();
         let plan = std::env::var("XAVIER2_DEFAULT_PLAN")
-            .map(|value| PlanTier::from_env(&value))
-            .unwrap_or(PlanTier::Community);
+            .ok()
+            .unwrap_or_else(|| settings.workspace.default_plan.clone());
+        let plan = PlanTier::from_env(&plan);
 
         let storage_limit_bytes = std::env::var("XAVIER2_STORAGE_LIMIT_BYTES")
             .ok()
             .and_then(|value| value.parse::<u64>().ok())
+            .or(settings.workspace.storage_limit_bytes)
             .or_else(|| plan.default_storage_limit_bytes());
 
         let request_limit = std::env::var("XAVIER2_REQUEST_LIMIT")
             .ok()
             .and_then(|value| value.parse::<usize>().ok())
+            .or(settings.workspace.request_limit)
             .or_else(|| plan.default_request_limit());
         let request_unit_limit = std::env::var("XAVIER2_REQUEST_UNIT_LIMIT")
             .ok()
             .and_then(|value| value.parse::<u64>().ok())
+            .or(settings.workspace.request_unit_limit)
             .or_else(|| request_limit.map(|value| value as u64 * 2));
 
         Self {
             id: std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID")
-                .unwrap_or_else(|_| "default".to_string()),
+                .unwrap_or_else(|_| settings.workspace.default_workspace_id.clone()),
             token: std::env::var("XAVIER2_TOKEN")
                 .expect("XAVIER2_TOKEN environment variable must be set"),
             plan,
             memory_backend: std::env::var("XAVIER2_MEMORY_BACKEND")
                 .map(|value| MemoryBackend::from_env(&value))
-                .unwrap_or(MemoryBackend::Vec),
+                .unwrap_or_else(|_| MemoryBackend::from_env(&settings.memory.backend)),
             storage_limit_bytes,
             request_limit,
             request_unit_limit,
             embedding_provider_mode: std::env::var("XAVIER2_EMBEDDING_PROVIDER_MODE")
                 .map(|value| EmbeddingProviderMode::from_env(&value))
-                .unwrap_or(EmbeddingProviderMode::BringYourOwn),
+                .unwrap_or_else(|_| {
+                    EmbeddingProviderMode::from_env(&settings.workspace.embedding_provider_mode)
+                }),
             managed_google_embeddings: std::env::var("XAVIER2_MANAGED_GOOGLE_EMBEDDINGS")
                 .ok()
-                .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "TRUE")),
+                .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE"))
+                .unwrap_or(settings.workspace.managed_google_embeddings),
             sync_policy: std::env::var("XAVIER2_SYNC_POLICY")
                 .map(|value| SyncPolicy::from_env(&value))
-                .unwrap_or(SyncPolicy::LocalOnly),
+                .unwrap_or_else(|_| SyncPolicy::from_env(&settings.workspace.sync_policy)),
         }
     }
 }
@@ -711,15 +720,11 @@ impl WorkspaceState {
         &self,
     ) -> Option<&broadcast::Sender<crate::server::events::RealtimeEvent>> {
         // Use Any trait for safe downcasting
-        let store = match self
+        let store = self
             .store
             .as_ref()
             .as_any()
-            .downcast_ref::<VecSqliteMemoryStore>()
-        {
-            Some(s) => s,
-            None => return None,
-        };
+            .downcast_ref::<VecSqliteMemoryStore>()?;
         store.event_tx_ref()
     }
 

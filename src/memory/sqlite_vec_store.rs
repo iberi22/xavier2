@@ -31,6 +31,7 @@ use crate::memory::store::{
     stable_key, DurableWorkspaceState, GraphHopPath, GraphHopResult, HybridSearchMode,
     HybridSearchResult, MemoryBackend, MemoryRecord, MemoryStore, SessionTokenRecord,
 };
+use crate::settings::Xavier2Settings;
 
 const DB_FILENAME: &str = "xavier2_memory_vec.db";
 const DEFAULT_EMBEDDING_DIMENSIONS: usize = 768;
@@ -101,14 +102,28 @@ pub struct VecSqliteStoreConfig {
 
 impl VecSqliteStoreConfig {
     pub fn from_env() -> Self {
-        let data_dir = std::env::var("XAVIER2_DATA_DIR").unwrap_or_else(|_| "/data".to_string());
+        let settings = Xavier2Settings::current();
         let embedding_dimensions = std::env::var("XAVIER2_EMBEDDING_DIMENSIONS")
             .ok()
             .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or(DEFAULT_EMBEDDING_DIMENSIONS);
+            .unwrap_or({
+                if settings.memory.embedding_dimensions == 0 {
+                    DEFAULT_EMBEDDING_DIMENSIONS
+                } else {
+                    settings.memory.embedding_dimensions
+                }
+            });
 
         Self {
-            path: PathBuf::from(data_dir).join(DB_FILENAME),
+            path: std::env::var("XAVIER2_MEMORY_VEC_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| {
+                    if settings.memory.vec_path.trim().is_empty() {
+                        PathBuf::from(&settings.memory.data_dir).join(DB_FILENAME)
+                    } else {
+                        PathBuf::from(&settings.memory.vec_path)
+                    }
+                }),
             embedding_dimensions,
         }
     }
@@ -1716,7 +1731,7 @@ impl MemoryStore for VecSqliteMemoryStore {
 
     async fn health(&self) -> Result<String> {
         let conn = self.conn.lock();
-        conn.execute("SELECT 1", [])?;
+        conn.query_row("SELECT 1", [], |_row| Ok(()))?;
         Ok(format!("vecsqlite {}", self.config.detail()))
     }
 
@@ -1839,56 +1854,83 @@ impl MemoryStore for VecSqliteMemoryStore {
     async fn delete(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>> {
         let removed = self.get(workspace_id, id_or_path).await?;
         if let Some(record) = &removed {
-            let key = Self::row_key(workspace_id, &record.id);
             let conn = self.conn.lock();
-            conn.execute(
-                &format!("DELETE FROM {} WHERE id = ?", TABLE_MEMORIES),
-                [&key],
-            )?;
+            let tx = conn.unchecked_transaction()?;
 
-            // Also delete children
-            conn.execute(
+            // Remove dependent rows first to satisfy foreign keys.
+            tx.execute(
+                "DELETE FROM memory_entities WHERE workspace_id = ? AND memory_id = ?",
+                params![workspace_id, &record.id],
+            )
+            .context("delete memory_entities for parent record")?;
+            tx.execute(
+                "DELETE FROM memory_entities WHERE workspace_id = ? AND memory_id IN (
+                    SELECT id FROM memory_records WHERE workspace_id = ? AND parent_id = ?
+                )",
+                params![workspace_id, workspace_id, &record.id],
+            )
+            .context("delete memory_entities for child records")?;
+
+            // Delete from vector table
+            tx.execute(
+                "DELETE FROM memory_embeddings WHERE id = ? AND workspace_id = ?",
+                params![&record.id, workspace_id],
+            )
+            .context("delete memory_embeddings for parent record")?;
+            tx.execute(
+                "DELETE FROM memory_embeddings WHERE workspace_id = ? AND id IN (
+                    SELECT id FROM memory_records WHERE workspace_id = ? AND parent_id = ?
+                )",
+                params![workspace_id, workspace_id, &record.id],
+            )
+            .context("delete memory_embeddings for child records")?;
+
+            // Delete from FTS5
+            tx.execute("DELETE FROM memory_fts WHERE id = ?", params![&record.id])
+                .context("delete memory_fts for parent record")?;
+            tx.execute(
+                "DELETE FROM memory_fts WHERE id IN (
+                    SELECT id FROM memory_records WHERE workspace_id = ? AND parent_id = ?
+                )",
+                params![workspace_id, &record.id],
+            )
+            .context("delete memory_fts for child records")?;
+
+            let memory_node_id = Self::memory_node_id(workspace_id, &record.id);
+            tx.execute(
+                "DELETE FROM relations WHERE source_id = ?",
+                params![&memory_node_id],
+            )
+            .context("delete relations where memory node is source")?;
+            tx.execute(
+                "DELETE FROM relations WHERE target_id = ?",
+                params![&memory_node_id],
+            )
+            .context("delete relations where memory node is target")?;
+            tx.execute(
+                "DELETE FROM entities WHERE id = ?",
+                params![&memory_node_id],
+            )
+            .context("delete memory node entity")?;
+
+            // Remove child memories before parent.
+            tx.execute(
                 &format!(
                     "DELETE FROM {} WHERE workspace_id = ? AND parent_id = ?",
                     TABLE_MEMORIES
                 ),
                 params![workspace_id, &record.id],
-            )?;
-
-            // Delete from vector table
-            conn.execute(
-                "DELETE FROM memory_embeddings WHERE id = ? AND workspace_id = ?",
-                params![&record.id, workspace_id],
-            )?;
-
-            // Delete from FTS5
-            conn.execute("DELETE FROM memory_fts WHERE id = ?", params![&record.id])?;
-
-            let memory_node_id = Self::memory_node_id(workspace_id, &record.id);
-            conn.execute(
-                "DELETE FROM memory_entities WHERE workspace_id = ? AND memory_id = ?",
+            )
+            .context("delete child memory records")?;
+            tx.execute(
+                &format!(
+                    "DELETE FROM {} WHERE workspace_id = ? AND id = ?",
+                    TABLE_MEMORIES
+                ),
                 params![workspace_id, &record.id],
-            )?;
-            conn.execute(
-                "DELETE FROM relations WHERE source_id = ?",
-                params![&memory_node_id],
-            )?;
-            conn.execute(
-                "DELETE FROM entities WHERE id = ?",
-                params![&memory_node_id],
-            )?;
-
-            // Delete entities/relations linked to this memory (by name match)
-            let pattern = format!("%{}%", record.content);
-            conn.execute(
-                "DELETE FROM relations WHERE source_id IN (SELECT id FROM entities WHERE name LIKE ?)",
-                params![&pattern],
-            )?;
-            conn.execute(
-                "DELETE FROM relations WHERE target_id IN (SELECT id FROM entities WHERE name LIKE ?)",
-                params![&pattern],
-            )?;
-            conn.execute("DELETE FROM entities WHERE name LIKE ?", params![&pattern])?;
+            )
+            .context("delete parent memory record")?;
+            tx.commit().context("commit memory delete transaction")?;
         }
         Ok(removed)
     }
@@ -2525,7 +2567,7 @@ mod tests {
 
         {
             let conn = Connection::open(&db_path).unwrap();
-            conn.execute_batch(&format!(
+            conn.execute_batch(
                 r#"
                 CREATE TABLE memory_records (
                     id TEXT PRIMARY KEY,
@@ -2546,8 +2588,8 @@ mod tests {
                     path UNINDEXED,
                     content
                 );
-                "#
-            ))
+                "#,
+            )
             .unwrap();
         }
 
@@ -2703,6 +2745,38 @@ mod tests {
 
         assert_eq!(max_sequence, 3);
         assert_eq!(third_prev_hash, second_hash);
+    }
+
+    #[tokio::test]
+    async fn delete_removes_memory_without_foreign_key_errors() {
+        let temp = tempdir().unwrap();
+        let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
+            path: temp.path().join("delete-roundtrip.db"),
+            embedding_dimensions: 3,
+        })
+        .await
+        .unwrap();
+
+        let workspace_id = "ws-delete";
+        let record = test_record(
+            workspace_id,
+            "manual/smoke",
+            "manual smoke memory",
+            vec![0.0, 1.0, 0.0],
+        );
+
+        store.put(record).await.unwrap();
+        let deleted = store
+            .delete(workspace_id, "manual/smoke")
+            .await
+            .unwrap_or_else(|error| panic!("{error:#}"));
+
+        assert!(deleted.is_some());
+        assert!(store
+            .get(workspace_id, "manual/smoke")
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test]
