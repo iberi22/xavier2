@@ -295,3 +295,55 @@ fn test_cli_subcommand_recall_without_server() {
         "recall without server should produce error output, got: {stdout}"
     );
 }
+
+// ─── Add & Search Flow Tests ───────────────────────────────────────────────
+
+#[test]
+fn test_add_and_search_without_server() {
+    // Without a running server, both add and search should fail gracefully.
+    // This verifies both subcommands exist and produce expected error output.
+
+    let add_output = run_with_timeout(&["add", "integration test content"], 5);
+    let add_stdout = String::from_utf8_lossy(&add_output.stdout);
+    assert!(
+        add_stdout.contains("Error") || add_stdout.contains("error"),
+        "add without server should produce error, got: {add_stdout}"
+    );
+
+    let search_output = run_with_timeout(&["search", "integration test query"], 5);
+    let search_stdout = String::from_utf8_lossy(&search_output.stdout);
+    assert!(
+        search_stdout.contains("Error") || search_stdout.contains("error"),
+        "search without server should produce error, got: {search_stdout}"
+    );
+}
+
+// ─── Stats Without Server ──────────────────────────────────────────────────
+
+#[test]
+fn test_cli_subcommand_stats_without_server() {
+    // stats requires a running server — should fail gracefully
+    let output = run_with_timeout(&["stats"], 5);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("Error") || stdout.contains("error"),
+        "stats without server should produce error output, got: {stdout}"
+    );
+}
+
+// ─── Session Save Without Server ───────────────────────────────────────────
+
+#[test]
+fn test_cli_subcommand_session_save_without_server() {
+    // session-save requires a running server — should fail gracefully
+    let output = run_with_timeout(&["session-save", "test-session"], 5);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    assert!(
+        stdout.contains("Error") || stdout.contains("error"),
+        "session-save without server should produce error output, got: {stdout}"
+    );
+}

@@ -352,6 +352,115 @@ async fn test_memory_endpoint_not_found_in_minimal_router() {
     );
 }
 
+// ─── Memory Endpoint Tests (Minimal Router) ──────────────────────────────────
+
+#[tokio::test]
+async fn test_add_memory_not_available_in_minimal_router() {
+    let server = spawn_test_server().await;
+
+    // The minimal router (create_router_with_agent_registry) does NOT include
+    // /memory/add — that endpoint is only available in the full CLI HTTP server.
+    let response = server
+        .client
+        .post(format!("{}/memory/add", server.base_url))
+        .json(&json!({
+            "content": "memory add test content",
+            "path": "test/memory",
+            "metadata": null
+        }))
+        .send()
+        .await
+        .expect("request to /memory/add");
+
+    assert_eq!(
+        response.status(),
+        reqwest::StatusCode::NOT_FOUND,
+        "/memory/add is not in the minimal router — use the full CLI HTTP server"
+    );
+}
+
+#[tokio::test]
+async fn test_memory_stats_not_available_in_minimal_router() {
+    let server = spawn_test_server().await;
+
+    // The minimal router does NOT include /memory/stats
+    let response = server
+        .client
+        .get(format!("{}/memory/stats", server.base_url))
+        .send()
+        .await
+        .expect("request to /memory/stats");
+
+    assert_eq!(
+        response.status(),
+        reqwest::StatusCode::NOT_FOUND,
+        "/memory/stats is not in the minimal router — use the full CLI HTTP server"
+    );
+}
+
+#[tokio::test]
+async fn test_auth_protected_endpoints_not_available_in_minimal_router() {
+    let server = spawn_test_server().await;
+
+    // The minimal router does not have any auth-protected endpoints.
+    // /memory/delete requires X-Xavier2-Token in the full CLI server.
+    let response = server
+        .client
+        .post(format!("{}/memory/delete", server.base_url))
+        .json(&json!({"id": "test-memory-delete"}))
+        .send()
+        .await
+        .expect("request to /memory/delete");
+
+    assert_eq!(
+        response.status(),
+        reqwest::StatusCode::NOT_FOUND,
+        "/memory/delete requires the full CLI HTTP server with auth setup"
+    );
+}
+
+// ─── Optional: Hybrid Search & Reflection (only in full CLI HTTP server) ─────
+
+#[tokio::test]
+async fn test_hybrid_search_not_available_in_minimal_router() {
+    let server = spawn_test_server().await;
+
+    // Hybrid search is only available in the full CLI HTTP server.
+    let response = server
+        .client
+        .post(format!("{}/memory/hybrid-search", server.base_url))
+        .json(&json!({"query": "test", "limit": 5}))
+        .send()
+        .await
+        .expect("request to /memory/hybrid-search");
+
+    assert_eq!(
+        response.status(),
+        reqwest::StatusCode::NOT_FOUND,
+        "/memory/hybrid-search requires the full CLI HTTP server"
+    );
+}
+
+#[tokio::test]
+async fn test_reflection_not_available_in_minimal_router() {
+    let server = spawn_test_server().await;
+
+    // Reflection endpoint is only available in the full CLI HTTP server.
+    let response = server
+        .client
+        .post(format!("{}/memory/reflect", server.base_url))
+        .json(&json!({"path": "test/path"}))
+        .send()
+        .await
+        .expect("request to /memory/reflect");
+
+    assert_eq!(
+        response.status(),
+        reqwest::StatusCode::NOT_FOUND,
+        "/memory/reflect requires the full CLI HTTP server"
+    );
+}
+
 // ─── Concurrent Requests ───────────────────────────────────────────────────
 
 #[tokio::test]

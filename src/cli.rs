@@ -45,6 +45,7 @@ pub struct CliState {
     pub memory: Arc<dyn MemoryQueryPort>,
     pub store: Arc<dyn MemoryStore>,
     pub workspace_id: String,
+    pub workspace_dir: PathBuf,
     pub code_db: Arc<code_graph::db::CodeGraphDB>,
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
@@ -201,10 +202,20 @@ async fn start_http_server(port: u16) -> Result<()> {
     let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
     let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
 
+    // Determine workspace root for path traversal protection
+    let workspace_dir = std::path::absolute(
+        &std::env::var("XAVIER2_WORKSPACE_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from(".")))
+    ).unwrap_or_else(|_| PathBuf::from("."));
+    info!("Workspace root for path security: {}", workspace_dir.display());
+
     let state = CliState {
         memory: memory_port,
         store,
         workspace_id,
+        workspace_dir,
         code_db,
         code_indexer,
         code_query,
@@ -926,11 +937,25 @@ async fn code_scan_handler(
         }));
     }
 
-    // Additional path traversal protection
-    if requested_path.contains("..") {
+    // Path traversal protection via canonicalization
+    let workspace_root = std::path::absolute(&state.workspace_dir)
+        .unwrap_or_else(|_| PathBuf::from("."));
+    let Ok(abs_path) = std::path::absolute(&requested_path) else {
         return axum::Json(serde_json::json!({
             "status": "error",
-            "message": "path traversal not allowed",
+            "message": "invalid path",
+            "indexed_files": 0,
+        }));
+    };
+    if !abs_path.starts_with(&workspace_root) {
+        warn!(
+            "Path traversal blocked: {} is outside workspace root {}",
+            abs_path.display(),
+            workspace_root.display()
+        );
+        return axum::Json(serde_json::json!({
+            "status": "error",
+            "message": "path outside workspace not allowed",
             "indexed_files": 0,
         }));
     }

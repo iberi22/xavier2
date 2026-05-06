@@ -1,3 +1,7 @@
+use axum::http::{HeaderMap, StatusCode};
+use axum::Json;
+use serde_json::Value;
+
 use crate::ports::inbound::{
     AgentLifecyclePort, HealthPort, InputSecurityPort, MemoryQueryPort, SecurityScanPort,
     SessionPort, SessionSyncPort, TimeMetricsPort, VerificationPort,
@@ -22,4 +26,24 @@ pub struct AppState {
     pub code_db: Arc<code_graph::db::CodeGraphDB>,
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
+}
+
+/// Check that the `X-Xavier2-Token` header matches the configured auth token.
+pub fn check_auth(
+    headers: &HeaderMap,
+    state: &AppState,
+) -> Result<(), (StatusCode, Json<Value>)> {
+    match headers
+        .get("X-Xavier2-Token")
+        .and_then(|v| v.to_str().ok())
+    {
+        Some(token) if token == state.auth_token => Ok(()),
+        _ => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "status": "error",
+                "message": "Unauthorized",
+            })),
+        )),
+    }
 }

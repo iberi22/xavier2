@@ -1,5 +1,10 @@
-use axum::{extract::State, Json};
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    Json,
+};
 use serde::{Deserialize, Serialize};
+use crate::adapters::inbound::http::state::check_auth;
 use crate::adapters::inbound::http::AppState;
 use crate::domain::memory::{MemoryQueryFilters, MemoryRecord as DomainMemoryRecord};
 use tracing::info;
@@ -33,20 +38,22 @@ fn default_limit() -> usize {
 }
 
 pub async fn search_handler(
+    headers: HeaderMap,
     State(state): State<AppState>,
     Json(payload): Json<SearchPayload>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    check_auth(&headers, &state)?;
     // Security scan on query before searching
     let sec_result = match state.security.process_input(&payload.query).await {
         Ok(res) => res,
         Err(e) => {
-            return Json(serde_json::json!({
+            return Ok(Json(serde_json::json!({
                 "results": [],
                 "query": payload.query,
                 "count": 0,
                 "error": format!("Security scan error: {}", e),
                 "workspace_id": state.workspace_id,
-            }));
+            })));
         }
     };
 
@@ -55,7 +62,7 @@ pub async fn search_handler(
             "Search blocked by security: injection detected (confidence={})",
             sec_result.detection_confidence
         );
-        return Json(serde_json::json!({
+        return Ok(Json(serde_json::json!({
             "results": <Vec<serde_json::Value>>::new(),
             "query": payload.query,
             "count": 0,
@@ -67,7 +74,7 @@ pub async fn search_handler(
                 "attack_type": sec_result.attack_type,
             },
             "workspace_id": state.workspace_id,
-        }));
+        })));
     }
 
     let effective_query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input);
@@ -87,42 +94,44 @@ pub async fn search_handler(
                 })
                 .collect();
 
-            Json(serde_json::json!({
+            Ok(Json(serde_json::json!({
                 "status": "ok",
                 "query": payload.query,
                 "count": documents.len(),
                 "results": documents,
                 "workspace_id": state.workspace_id,
-            }))
+            })))
         }
         Err(e) => {
             info!("Search error: {}", e);
-            Json(serde_json::json!({
+            Ok(Json(serde_json::json!({
                 "status": "error",
                 "message": e.to_string(),
-            }))
+            })))
         }
     }
 }
 
 pub async fn add_handler(
+    headers: HeaderMap,
     State(state): State<AppState>,
     Json(payload): Json<AddPayload>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    check_auth(&headers, &state)?;
     let mut record = DomainMemoryRecord::new_fact(payload.path.clone(), payload.content);
     // Note: domain metadata translation would go here if needed
     
     match state.memory.add(record).await {
-        Ok(id) => Json(serde_json::json!({
+        Ok(id) => Ok(Json(serde_json::json!({
             "status": "ok",
             "id": id,
             "path": payload.path,
             "workspace_id": state.workspace_id,
-        })),
-        Err(e) => Json(serde_json::json!({
+        }))),
+        Err(e) => Ok(Json(serde_json::json!({
             "status": "error",
             "message": e.to_string(),
-        })),
+        }))),
     }
 }
 

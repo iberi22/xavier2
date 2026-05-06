@@ -13,14 +13,15 @@ mod security_tests {
     }
 
     #[test]
-    fn test_encryption() {
+    fn test_encode_decode() {
         let security = SecurityManager::new();
 
-        let encrypted = security.encrypt("secret data").unwrap();
-        assert_ne!(encrypted, "secret data");
+        let encoded = security.encode("secret data").unwrap();
+        assert_ne!(encoded, "secret data");
+        assert!(encoded.starts_with("hex:"));
 
-        let decrypted = security.decrypt(&encrypted).unwrap();
-        assert_eq!(decrypted, "secret data");
+        let decoded = security.decode(&encoded).unwrap();
+        assert_eq!(decoded, "secret data");
     }
 
     #[test]
@@ -34,6 +35,8 @@ mod security_tests {
 
     #[test]
     fn test_generate_token() {
+        // Token generation requires XAVIER2_TOKEN_SECRET to be set
+        std::env::set_var("XAVIER2_TOKEN_SECRET", "test-secret-key-for-testing");
         let security = SecurityManager::new();
 
         let token = security.generate_token("user123").unwrap();

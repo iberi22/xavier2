@@ -100,14 +100,14 @@ impl SecurityManager {
         Self
     }
 
-    pub fn encrypt(&self, input: &str) -> Result<String> {
-        Ok(format!("enc:{}", hex_encode(input.as_bytes())))
+    pub fn encode(&self, input: &str) -> Result<String> {
+        Ok(format!("hex:{}", hex_encode(input.as_bytes())))
     }
 
-    pub fn decrypt(&self, input: &str) -> Result<String> {
+    pub fn decode(&self, input: &str) -> Result<String> {
         let encoded = input
-            .strip_prefix("enc:")
-            .ok_or_else(|| anyhow!("invalid encrypted payload"))?;
+            .strip_prefix("hex:")
+            .ok_or_else(|| anyhow!("invalid hex payload"))?;
         let bytes = hex_decode(encoded).map_err(|e| anyhow!("{}", e))?;
         Ok(String::from_utf8(bytes)?)
     }
@@ -131,7 +131,7 @@ impl SecurityManager {
 
     pub fn generate_token(&self, user_id: &str) -> Result<String> {
         let secret = std::env::var("XAVIER2_TOKEN_SECRET")
-            .unwrap_or_else(|_| "default-secret-change-in-production".to_string());
+            .map_err(|_| anyhow!("XAVIER2_TOKEN_SECRET not set"))?;
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| anyhow!("hmac error: {}", e))?;
 
@@ -168,7 +168,7 @@ impl SecurityManager {
             .map_err(|_| anyhow!("invalid timestamp in token"))?;
 
         let secret = std::env::var("XAVIER2_TOKEN_SECRET")
-            .unwrap_or_else(|_| "default-secret-change-in-production".to_string());
+            .map_err(|_| anyhow!("XAVIER2_TOKEN_SECRET not set"))?;
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| anyhow!("hmac error: {}", e))?;
 
