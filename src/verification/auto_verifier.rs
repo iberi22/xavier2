@@ -16,60 +16,6 @@ impl VerificationResult {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{AutoVerifier, VerificationResult};
-
-    #[test]
-    fn exact_match_scores_one() {
-        let original = "Verification content with a long stable signature";
-
-        assert_eq!(
-            AutoVerifier::compute_match_score_from_text(original, original),
-            1.0
-        );
-    }
-
-    #[test]
-    fn strong_partial_match_can_satisfy_healthy_threshold() {
-        let original = "Verification content with a long stable signature and original suffix";
-        let retrieved = "Verification content with a long stable signature and changed suffix";
-        let match_score = AutoVerifier::compute_match_score_from_text(retrieved, original);
-
-        assert_eq!(match_score, 0.9);
-        assert!(VerificationResult {
-            path: "test/path".to_string(),
-            save_ok: true,
-            retrieve_ok: true,
-            match_score,
-            latency_ms: 10,
-        }
-        .is_healthy());
-    }
-
-    #[test]
-    fn moderate_partial_match_scores_below_healthy_threshold() {
-        let original = "Verification content with a long stable signature and original suffix";
-        let retrieved = "Verification content with a long stable";
-
-        assert_eq!(
-            AutoVerifier::compute_match_score_from_text(retrieved, original),
-            0.7
-        );
-    }
-
-    #[test]
-    fn weak_length_only_partial_scores_low() {
-        let original = "Verification content with a long stable signature and original suffix";
-        let retrieved = "Different content with enough length to be weakly related";
-
-        assert_eq!(
-            AutoVerifier::compute_match_score_from_text(retrieved, original),
-            0.3
-        );
-    }
-}
-
 pub struct AutoVerifier;
 
 impl AutoVerifier {
@@ -197,5 +143,59 @@ impl AutoVerifier {
             }
             Err(_) => 0.0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AutoVerifier, VerificationResult};
+
+    #[test]
+    fn exact_match_scores_one() {
+        let original = "Verification content with a long stable signature";
+
+        assert_eq!(
+            AutoVerifier::compute_match_score_from_text(original, original),
+            1.0
+        );
+    }
+
+    #[test]
+    fn strong_partial_match_can_satisfy_healthy_threshold() {
+        let original = "Verification content with a long stable signature and original suffix";
+        let retrieved = "Verification content with a long stable signature and changed suffix";
+        let match_score = AutoVerifier::compute_match_score_from_text(retrieved, original);
+
+        assert_eq!(match_score, 0.9);
+        assert!(VerificationResult {
+            path: "test/path".to_string(),
+            save_ok: true,
+            retrieve_ok: true,
+            match_score,
+            latency_ms: 10,
+        }
+        .is_healthy());
+    }
+
+    #[test]
+    fn moderate_partial_match_scores_below_healthy_threshold() {
+        let original = "Verification content with a long stable signature and original suffix";
+        let retrieved = "Verification content with a long stable";
+
+        assert_eq!(
+            AutoVerifier::compute_match_score_from_text(retrieved, original),
+            0.7
+        );
+    }
+
+    #[test]
+    fn weak_length_only_partial_scores_low() {
+        let original = "Verification content with a long stable signature and original suffix";
+        let retrieved = "Different content with enough length to be weakly related";
+
+        assert_eq!(
+            AutoVerifier::compute_match_score_from_text(retrieved, original),
+            0.3
+        );
     }
 }
