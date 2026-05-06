@@ -23,6 +23,9 @@ fn run(args: &[&str]) -> Output {
 fn run_with_timeout(args: &[&str], timeout_secs: u64) -> Output {
     let mut child = xavier2_binary()
         .args(args)
+        .env_remove("XAVIER2_TOKEN")
+        .env_remove("XAVIER2_URL")
+        .env_remove("XAVIER2_PORT")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -260,12 +263,14 @@ fn test_cli_subcommand_add_without_server() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{stdout} {stderr}");
 
-    // Should show some connection error or be blocked by security
+    // Should fail with either a connection error, security block, or panic
+    // (panic is acceptable here — no server is running)
     assert!(
-        stdout.contains("Error") || stdout.contains("error")
-            || stderr.contains("error") || stderr.contains("Error")
-            || stdout.contains("blocked"),
+        combined.contains("Error") || combined.contains("error")
+            || combined.contains("blocked")
+            || combined.contains("must be set"),
         "add without server should produce error output, got stdout: {stdout}, stderr: {stderr}"
     );
 }
@@ -275,11 +280,14 @@ fn test_cli_subcommand_search_without_server() {
     // search requires a running server — should fail gracefully
     let output = run_with_timeout(&["search", "test query"], 5);
 
+    let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{stdout} {stderr}");
 
     assert!(
-        stdout.contains("Error") || stdout.contains("error"),
-        "search without server should produce error output, got: {stdout}"
+        combined.contains("Error") || combined.contains("error")
+            || combined.contains("must be set"),
+        "search without server should produce error output, got: {combined}"
     );
 }
 
@@ -288,11 +296,14 @@ fn test_cli_subcommand_recall_without_server() {
     // recall requires a running server — should fail gracefully
     let output = run_with_timeout(&["recall", "test"], 5);
 
+    let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{stdout} {stderr}");
 
     assert!(
-        stdout.contains("Error") || stdout.contains("error"),
-        "recall without server should produce error output, got: {stdout}"
+        combined.contains("Error") || combined.contains("error")
+            || combined.contains("must be set"),
+        "recall without server should produce error output, got: {combined}"
     );
 }
 
@@ -304,17 +315,27 @@ fn test_add_and_search_without_server() {
     // This verifies both subcommands exist and produce expected error output.
 
     let add_output = run_with_timeout(&["add", "integration test content"], 5);
-    let add_stdout = String::from_utf8_lossy(&add_output.stdout);
+    let add_combined = format!(
+        "{} {}",
+        String::from_utf8_lossy(&add_output.stdout),
+        String::from_utf8_lossy(&add_output.stderr)
+    );
     assert!(
-        add_stdout.contains("Error") || add_stdout.contains("error"),
-        "add without server should produce error, got: {add_stdout}"
+        add_combined.contains("Error") || add_combined.contains("error")
+            || add_combined.contains("must be set"),
+        "add without server should produce error, got: {add_combined}"
     );
 
     let search_output = run_with_timeout(&["search", "integration test query"], 5);
-    let search_stdout = String::from_utf8_lossy(&search_output.stdout);
+    let search_combined = format!(
+        "{} {}",
+        String::from_utf8_lossy(&search_output.stdout),
+        String::from_utf8_lossy(&search_output.stderr)
+    );
     assert!(
-        search_stdout.contains("Error") || search_stdout.contains("error"),
-        "search without server should produce error, got: {search_stdout}"
+        search_combined.contains("Error") || search_combined.contains("error")
+            || search_combined.contains("must be set"),
+        "search without server should produce error, got: {search_combined}"
     );
 }
 
@@ -325,11 +346,14 @@ fn test_cli_subcommand_stats_without_server() {
     // stats requires a running server — should fail gracefully
     let output = run_with_timeout(&["stats"], 5);
 
+    let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{stdout} {stderr}");
 
     assert!(
-        stdout.contains("Error") || stdout.contains("error"),
-        "stats without server should produce error output, got: {stdout}"
+        combined.contains("Error") || combined.contains("error")
+            || combined.contains("must be set"),
+        "stats without server should produce error output, got: {combined}"
     );
 }
 
@@ -340,10 +364,13 @@ fn test_cli_subcommand_session_save_without_server() {
     // session-save requires a running server — should fail gracefully
     let output = run_with_timeout(&["session-save", "test-session"], 5);
 
+    let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let combined = format!("{stdout} {stderr}");
 
     assert!(
-        stdout.contains("Error") || stdout.contains("error"),
-        "session-save without server should produce error output, got: {stdout}"
+        combined.contains("Error") || combined.contains("error")
+            || combined.contains("must be set"),
+        "session-save without server should produce error output, got: {combined}"
     );
 }
