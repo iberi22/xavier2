@@ -132,6 +132,7 @@ futures-util = "0.3"
 [[bin]]
 name = "xavier2"
 path = "src/main.rs"
+test = false
 
 [[bin]]
 name = "xavier2-gui"
