@@ -7,6 +7,8 @@ description: Complete API endpoints for Xavier2
 
 Complete reference for the Xavier2 HTTP endpoints implemented by the Rust server.
 
+This page describes the broader HTTP surface implemented in the repository. The current `xavier2 http` entry point is still converging toward this full contract, so some routes should be treated as beta or conditional until the `1.0` stabilization pass is complete.
+
 ## Base URL
 
 ```text
@@ -31,7 +33,7 @@ JWT/RBAC code exists in the repository, but it is not the active production auth
 |--------|----------|-------------|
 | GET | `/health` | Health check |
 | GET | `/readiness` | Runtime and dependency readiness |
-| GET | `/build` | Build and provider metadata |
+| GET | `/build` | Build and provider metadata, when exposed by the active server surface |
 | POST | `/memory/add` | Add memory |
 | POST | `/memory/delete` | Delete memory by `id` or `path` |
 | POST | `/memory/reset` | Reset in-memory state |
@@ -48,8 +50,8 @@ JWT/RBAC code exists in the repository, but it is not the active production auth
 | POST | `/code/find` | Search indexed symbols |
 | GET | `/code/stats` | Code index statistics |
 | GET/POST/DELETE | `/mcp` | MCP transport surface |
-| GET | `/panel` | Panel shell |
-| GET/POST/DELETE | `/panel/api/*` | Panel API |
+| GET | `/panel` | Panel shell when frontend assets are built |
+| GET/POST/DELETE | `/panel/api/*` | Panel API when panel support is enabled |
 | GET/POST/PUT/DELETE | `/v1/memories*` | V1 memory API |
 
 ## Health
@@ -64,7 +66,7 @@ Returns readiness information for workspace, memory store, code graph, embedding
 
 ### GET /build
 
-Returns build metadata plus memory-store and provider details.
+Returns build metadata plus memory-store and provider details when the active server surface exposes the route.
 
 ## Memory
 
@@ -109,6 +111,13 @@ Reset the current in-memory document set for the workspace.
 ### GET /memory/graph
 
 Returns nodes and relations from the belief graph.
+
+## Beta Notes
+
+- The current release line is `0.6 beta usable`, not `1.0`.
+- CLI memory commands still behave as HTTP clients against the running server.
+- Panel shell availability depends on built frontend assets.
+- Release smoke coverage is still being aligned with the live server contract.
 
 ## Account and Workspace
 
