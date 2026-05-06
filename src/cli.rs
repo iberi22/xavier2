@@ -11,7 +11,7 @@ use axum::{
 use clap::{Parser, Subcommand};
 use rand::{rngs::OsRng, RngCore};
 use serde::Deserialize;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
@@ -288,6 +288,8 @@ async fn start_http_server(port: u16) -> Result<()> {
             }
             if let Some(shutdown) = sync_shutdown {
                 shutdown.shutdown();
+                // Await the cron task to finish with a 5-second timeout
+                shutdown.wait_for_shutdown(Duration::from_secs(5)).await;
             }
         })
         .await?;
@@ -2214,8 +2216,9 @@ async fn recall_memories(query: &str, limit: usize) -> Result<()> {
                     }
                 }
             } else {
+                let status = resp.status();
                 let text = resp.text().await.unwrap_or_default();
-                println!("Recall failed ({}): {}", resp.status(), text);
+                println!("Recall failed ({}): {}", status, text);
             }
         }
         Err(e) => {

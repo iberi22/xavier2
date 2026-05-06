@@ -49,14 +49,34 @@ pub(crate) static LAST_CHECK_RESULT: Lazy<StdRwLock<SyncCheckResult>> =
 static SYNC_CRON_STARTED: AtomicBool = AtomicBool::new(false);
 
 /// Handle used by the HTTP server to request a graceful cron shutdown.
-#[derive(Clone)]
 pub struct SessionSyncShutdown {
     shutdown_tx: watch::Sender<bool>,
+    join_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl SessionSyncShutdown {
+    /// Send the shutdown signal to the cron loop.
     pub fn shutdown(&self) {
         let _ = self.shutdown_tx.send(true);
+    }
+
+    /// Wait for the spawned cron task to finish, with a timeout.
+    /// If the task does not complete within the timeout, a warning is logged
+    /// and this method returns (forced shutdown).
+    pub async fn wait_for_shutdown(self, timeout_dur: Duration) {
+        if let Some(handle) = self.join_handle {
+            tokio::select! {
+                _ = handle => {
+                    tracing::info!("SessionSyncTask cron exited cleanly");
+                }
+                _ = tokio::time::sleep(timeout_dur) => {
+                    tracing::warn!(
+                        timeout_ms = timeout_dur.as_millis() as u64,
+                        "SessionSyncTask shutdown timed out, forcing"
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -172,6 +192,8 @@ impl SessionSyncTask {
 
     /// Spawn the cron loop at most once per process.
     /// Returns a shutdown handle when the task was spawned by this call.
+    /// The caller can use [`SessionSyncShutdown::wait_for_shutdown`] to await
+    /// a clean exit with a timeout.
     pub fn spawn_cron_once(self) -> Option<SessionSyncShutdown> {
         if SYNC_CRON_STARTED
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -180,18 +202,24 @@ impl SessionSyncTask {
             return None;
         }
 
-        let shutdown = self.shutdown_handle();
-        tokio::spawn(async move {
+        let shutdown_tx = self.shutdown_tx.clone();
+        let handle = tokio::spawn(async move {
             self.start_cron().await;
             SYNC_CRON_STARTED.store(false, Ordering::SeqCst);
         });
 
-        Some(shutdown)
+        Some(SessionSyncShutdown {
+            shutdown_tx,
+            join_handle: Some(handle),
+        })
     }
 
+    /// Create a shutdown handle **without** a join handle (detached).
+    /// Used when the caller only wants to signal shutdown but cannot await.
     pub fn shutdown_handle(&self) -> SessionSyncShutdown {
         SessionSyncShutdown {
             shutdown_tx: self.shutdown_tx.clone(),
+            join_handle: None,
         }
     }
 
@@ -370,7 +398,18 @@ impl SessionSyncTask {
                 }
                 changed = shutdown_rx.changed() => {
                     if changed.is_err() || *shutdown_rx.borrow() {
-                        info!("SessionSyncTask cron shutting down");
+                        info!("SessionSyncTask cron shutting down, flushing pending state...");
+                        // Run one final sync check to flush any pending state
+                        // into LAST_CHECK_RESULT before complete shutdown.
+                        // Limited to 5s to avoid blocking graceful shutdown.
+                        tokio::select! {
+                            _ = self.run_sync_check() => {
+                                info!("SessionSyncTask final check completed");
+                            }
+                            _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                                tracing::warn!("SessionSyncTask final check timed out during shutdown");
+                            }
+                        }
                         break;
                     }
                 }
