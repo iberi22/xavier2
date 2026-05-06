@@ -11,12 +11,13 @@ use std::collections::HashMap;
 
 /// Entity types supported by the semantic memory layer.
 /// These map to Named Entity Recognition (NER) categories.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SemanticEntityType {
     Person,
     Organization,
     Product,
+    #[default]
     Concept,
     Location,
     Event,
@@ -36,7 +37,7 @@ impl SemanticEntityType {
     }
 
     /// Create from string (case-insensitive)
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
             "person" => Some(Self::Person),
             "organization" | "org" => Some(Self::Organization),
@@ -52,12 +53,6 @@ impl SemanticEntityType {
 impl std::fmt::Display for SemanticEntityType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
-    }
-}
-
-impl Default for SemanticEntityType {
-    fn default() -> Self {
-        Self::Concept
     }
 }
 
@@ -404,14 +399,14 @@ mod tests {
     #[test]
     fn test_entity_type_from_str() {
         assert_eq!(
-            SemanticEntityType::from_str("person"),
+            SemanticEntityType::parse("person"),
             Some(SemanticEntityType::Person)
         );
         assert_eq!(
-            SemanticEntityType::from_str("ORGANIZATION"),
+            SemanticEntityType::parse("ORGANIZATION"),
             Some(SemanticEntityType::Organization)
         );
-        assert_eq!(SemanticEntityType::from_str("invalid"), None);
+        assert_eq!(SemanticEntityType::parse("invalid"), None);
     }
 
     #[test]

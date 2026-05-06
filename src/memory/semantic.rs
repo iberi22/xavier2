@@ -711,17 +711,12 @@ impl SemanticMemory {
 }
 
 /// Direction for relation queries
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RelationDirection {
     Outgoing,
     Incoming,
+    #[default]
     Both,
-}
-
-impl Default for RelationDirection {
-    fn default() -> Self {
-        Self::Both
-    }
 }
 
 /// Result from graph traversal
@@ -777,6 +772,21 @@ fn map_entity_type(from: super::entity_graph::EntityType) -> SemanticEntityType 
     }
 }
 
+/// Extension trait to bridge SemanticMemory into workspace operations.
+/// This allows WorkspaceState to call SemanticMemory::index_memory on added content.
+#[async_trait::async_trait]
+pub trait SemanticMemoryExt {
+    /// Index a memory document: extract entities and relations from content.
+    async fn index_memory(&self, memory_id: &str, content: &str) -> Result<IndexMemoryResult>;
+}
+
+#[async_trait::async_trait]
+impl SemanticMemoryExt for SemanticMemory {
+    async fn index_memory(&self, memory_id: &str, content: &str) -> Result<IndexMemoryResult> {
+        SemanticMemory::index_memory(self, memory_id, content).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -800,7 +810,6 @@ mod tests {
     async fn test_upsert_relation() {
         let sem = SemanticMemory::new();
 
-        // Create entities
         sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string()))
             .await
             .unwrap();
@@ -808,7 +817,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Create relation
         let relation = sem
             .upsert_relation(UpsertRelationRequest::new(
                 "Alice".to_string(),
@@ -820,7 +828,6 @@ mod tests {
 
         assert_eq!(relation.relation_type, "works_at");
 
-        // Check neighbors
         let neighbors = sem
             .get_neighbors(&relation.source_id, RelationDirection::Outgoing)
             .await;
@@ -838,7 +845,7 @@ mod tests {
             )
             .await;
 
-        assert!(entities.len() >= 3); // BELA, SWAL, Leonardo, Bogota
+        assert!(entities.len() >= 3);
     }
 
     #[tokio::test]
@@ -872,7 +879,6 @@ mod tests {
     async fn test_traverse() {
         let sem = SemanticMemory::new();
 
-        // Create chain: Alice -> Bob -> Carol
         sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string()))
             .await
             .unwrap();
@@ -903,21 +909,6 @@ mod tests {
             .traverse(&alice.id, 2, RelationDirection::Outgoing)
             .await;
 
-        assert!(traversal.len() >= 2); // Bob at depth 1, Carol at depth 2
-    }
-}
-
-/// Extension trait to bridge SemanticMemory into workspace operations.
-/// This allows WorkspaceState to call SemanticMemory::index_memory on added content.
-#[async_trait::async_trait]
-pub trait SemanticMemoryExt {
-    /// Index a memory document: extract entities and relations from content.
-    async fn index_memory(&self, memory_id: &str, content: &str) -> Result<IndexMemoryResult>;
-}
-
-#[async_trait::async_trait]
-impl SemanticMemoryExt for SemanticMemory {
-    async fn index_memory(&self, memory_id: &str, content: &str) -> Result<IndexMemoryResult> {
-        SemanticMemory::index_memory(self, memory_id, content).await
+        assert!(traversal.len() >= 2);
     }
 }

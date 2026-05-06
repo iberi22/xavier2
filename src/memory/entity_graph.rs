@@ -75,18 +75,13 @@ pub struct EntityRelationRecord {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum GraphDirection {
+    #[default]
     Outgoing,
     Incoming,
     Both,
-}
-
-impl Default for GraphDirection {
-    fn default() -> Self {
-        Self::Outgoing
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +101,16 @@ pub struct EntityNeighbors {
     pub incoming: Vec<EntityRelationRecord>,
     pub outgoing: Vec<EntityRelationRecord>,
     pub traversal: Vec<TraversalStep>,
+}
+
+struct RelationUpsert<'a> {
+    source: &'a str,
+    target: &'a str,
+    relation_type: &'a str,
+    weight: f32,
+    co_occurrence_score: f32,
+    memory_id: Option<&'a str>,
+    now: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -327,13 +332,13 @@ impl EntityGraph {
             };
 
             primary.aliases.push(secondary.name.clone());
-            primary.aliases.extend(secondary.aliases.drain(..));
+            primary.aliases.append(&mut secondary.aliases);
             primary.aliases.sort();
             primary.aliases.dedup();
             primary.occurrence_count += secondary.occurrence_count;
             primary.memory_count += secondary.memory_count;
             primary.merged_from.push(secondary.id.clone());
-            primary.merged_from.extend(secondary.merged_from.drain(..));
+            primary.merged_from.append(&mut secondary.merged_from);
             primary.merged_from.sort();
             primary.merged_from.dedup();
             primary.last_seen = primary.last_seen.max(secondary.last_seen);
@@ -551,25 +556,25 @@ impl EntityGraph {
             for j in (i + 1)..entity_ids.len() {
                 let source = entity_ids[i].clone();
                 let target = entity_ids[j].clone();
-                let relation = data.upsert_relation(
-                    &source,
-                    &target,
-                    "co_occurs_with",
+                let relation = data.upsert_relation(RelationUpsert {
+                    source: &source,
+                    target: &target,
+                    relation_type: "co_occurs_with",
+                    weight: co_occurrence_score,
                     co_occurrence_score,
-                    co_occurrence_score,
-                    Some(memory_id),
+                    memory_id: Some(memory_id),
                     now,
-                );
+                });
                 created_relations.push(relation.clone());
-                created_relations.push(data.upsert_relation(
-                    &target,
-                    &source,
-                    "co_occurs_with",
+                created_relations.push(data.upsert_relation(RelationUpsert {
+                    source: &target,
+                    target: &source,
+                    relation_type: "co_occurs_with",
+                    weight: co_occurrence_score,
                     co_occurrence_score,
-                    co_occurrence_score,
-                    Some(memory_id),
+                    memory_id: Some(memory_id),
                     now,
-                ));
+                }));
             }
         }
 
@@ -580,15 +585,15 @@ impl EntityGraph {
             let Some(target_id) = data.resolve_entity_id(&raw_relation.target) else {
                 continue;
             };
-            let relation = data.upsert_relation(
-                &source_id,
-                &target_id,
-                &raw_relation.relation_type,
-                raw_relation.score,
-                0.0,
-                Some(memory_id),
+            let relation = data.upsert_relation(RelationUpsert {
+                source: &source_id,
+                target: &target_id,
+                relation_type: &raw_relation.relation_type,
+                weight: raw_relation.score,
+                co_occurrence_score: 0.0,
+                memory_id: Some(memory_id),
                 now,
-            );
+            });
             created_relations.push(relation);
         }
 
@@ -822,17 +827,9 @@ impl GraphData {
         entity_id
     }
 
-    fn upsert_relation(
-        &mut self,
-        source: &str,
-        target: &str,
-        relation_type: &str,
-        weight: f32,
-        co_occurrence_score: f32,
-        memory_id: Option<&str>,
-        now: DateTime<Utc>,
-    ) -> EntityRelationRecord {
-        let lookup_key = relation_lookup_key(source, target, relation_type);
+    fn upsert_relation(&mut self, relation: RelationUpsert<'_>) -> EntityRelationRecord {
+        let lookup_key =
+            relation_lookup_key(relation.source, relation.target, relation.relation_type);
         let relation_id = self
             .relation_lookup
             .get(&lookup_key)
@@ -844,38 +841,42 @@ impl GraphData {
             .entry(relation_id.clone())
             .or_insert_with(|| EntityRelationRecord {
                 id: relation_id.clone(),
-                source: source.to_string(),
-                target: target.to_string(),
-                relation_type: relation_type.to_string(),
+                source: relation.source.to_string(),
+                target: relation.target.to_string(),
+                relation_type: relation.relation_type.to_string(),
                 weight: 0.0,
-                co_occurrence_score,
+                co_occurrence_score: relation.co_occurrence_score,
                 support_count: 0,
                 provenance: Vec::new(),
-                created_at: now,
-                updated_at: now,
+                created_at: relation.now,
+                updated_at: relation.now,
             });
 
-        entry.weight = (entry.weight + weight).min(10.0);
-        entry.co_occurrence_score = co_occurrence_score.max(entry.co_occurrence_score);
+        entry.weight = (entry.weight + relation.weight).min(10.0);
+        entry.co_occurrence_score = relation.co_occurrence_score.max(entry.co_occurrence_score);
         entry.support_count += 1;
-        if let Some(memory_id) = memory_id {
+        if let Some(memory_id) = relation.memory_id {
             if !entry.provenance.iter().any(|item| item == memory_id) {
                 entry.provenance.push(memory_id.to_string());
             }
         }
-        entry.updated_at = now;
+        entry.updated_at = relation.now;
 
         self.relation_lookup.insert(lookup_key, relation_id.clone());
         self.outgoing
-            .entry(source.to_string())
+            .entry(relation.source.to_string())
             .or_default()
-            .insert(target.to_string());
+            .insert(relation.target.to_string());
         self.incoming
-            .entry(target.to_string())
+            .entry(relation.target.to_string())
             .or_default()
-            .insert(source.to_string());
-        self.outgoing.entry(target.to_string()).or_default();
-        self.incoming.entry(source.to_string()).or_default();
+            .insert(relation.source.to_string());
+        self.outgoing
+            .entry(relation.target.to_string())
+            .or_default();
+        self.incoming
+            .entry(relation.source.to_string())
+            .or_default();
 
         entry.clone()
     }

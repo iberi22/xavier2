@@ -1,6 +1,15 @@
 use std::net::TcpListener;
-use std::process::Stdio;
+use std::process::{Child, Stdio};
 use std::time::Duration;
+
+struct ChildGuard(Child);
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_health_endpoint_via_xavier2_binary() {
@@ -10,18 +19,20 @@ async fn test_health_endpoint_via_xavier2_binary() {
         .expect("local addr")
         .port();
     let url = format!("http://127.0.0.1:{port}");
-    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_xavier2"))
-        .env("XAVIER2_HOST", "127.0.0.1")
-        .env("XAVIER2_PORT", port.to_string())
-        .env("XAVIER2_TOKEN", "test-token")
-        .env(
-            "XAVIER2_CODE_GRAPH_DB_PATH",
-            format!("data/e2e-code-graph-{port}.db"),
-        )
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("failed to start xavier2 binary");
+    let _child = ChildGuard(
+        std::process::Command::new(env!("CARGO_BIN_EXE_xavier2"))
+            .env("XAVIER2_HOST", "127.0.0.1")
+            .env("XAVIER2_PORT", port.to_string())
+            .env("XAVIER2_TOKEN", "test-token")
+            .env(
+                "XAVIER2_CODE_GRAPH_DB_PATH",
+                format!("data/e2e-code-graph-{port}.db"),
+            )
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("failed to start xavier2 binary"),
+    );
 
     let client = reqwest::Client::new();
     let health_url = format!("{url}/health");
@@ -80,9 +91,6 @@ async fn test_health_endpoint_via_xavier2_binary() {
             _ => tokio::time::sleep(Duration::from_millis(500)).await,
         }
     }
-
-    let _ = child.kill();
-    let _ = child.wait();
 
     assert!(healthy, "xavier2 did not expose a healthy /health endpoint");
     assert!(
