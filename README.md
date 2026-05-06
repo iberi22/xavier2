@@ -111,6 +111,33 @@ xavier2 mcp
 
 Current MCP tools: `search`, `add`, `stats`.
 
+## Public Data & Export
+
+Xavier2 will expose a public export pipeline through:
+
+```bash
+xavier2 export --public \
+  --huggingface-repo iberi22/xavier2-dataset \
+  --huggingface-token $HUGGINGFACE_TOKEN
+```
+
+The export protocol splits lightweight public context from heavy analytical artifacts:
+
+1. Generate NDJSON manifests and JSON schemas, then commit them to GitHub in `iberi22/xavier2-dataset`.
+2. Generate Parquet files for embeddings and metrics, a complete `.sqlite3` snapshot, and vector indexes such as `.lance/` or `.faiss`.
+3. Upload the heavy artifacts to the Hugging Face dataset `iberi22/xavier2-dataset`.
+4. Include Hugging Face artifact URLs inside the NDJSON records committed to GitHub.
+
+Use GitHub raw URLs for lightweight agent context and Hugging Face for larger downloads.
+
+| Layer | Location | Contents | Typical size |
+|---|---|---|---|
+| Manifest + context | GitHub raw | NDJSONs, schemas | ~1-10 MB |
+| Analytical data | Hugging Face | Parquet files for embeddings and metrics | ~50-500 MB |
+| Database + vectors | Hugging Face | `.sqlite3`, `.lance/`, `.faiss` | ~100 MB-2 GB |
+
+See the full public export reference in [docs/site/src/content/docs/reference/export.md](docs/site/src/content/docs/reference/export.md).
+
 ## Configuration
 
 Runtime configuration lives in [config/xavier2.config.json](config/xavier2.config.json). Secrets go in `.env` (see [.env.example](.env.example)).

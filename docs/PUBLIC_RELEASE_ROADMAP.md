@@ -33,9 +33,10 @@
 | 5 | Create `docs/` for public consumption — current docs are internal/agent-only or scattered; need curated public-facing docs | **DOCS** | 4 hr | ❌ OPEN | None |
 | 6 | Create `examples/` directory with working examples (CLI, HTTP API, MCP integration) | **DOCS** | 2 hr | ❌ OPEN | #5 |
 | 7 | Clean up README — make CEO concept public-friendly, remove internal references, add proper badges and quick-start | **DOCS** | 1 hr | ❌ OPEN | #5 |
-| 8 | Audit all `unwrap()` and `expect()` in public API paths (crash risk) | **QUALITY** | 2 hr | ❌ OPEN | None |
-| 9 | Ensure no `localhost`-only assumption in HTTP binding — hardcoded bind patterns | **QUALITY** | 30 min | ❌ OPEN | None |
-| 10 | GitHub repo visibility finalization — set license, CONTRIBUTING.md, issue templates, CI workflow badges | **OPS** | 1 hr | ❌ OPEN | #7 |
+| 8 | Document public export pipeline for GitHub raw + Hugging Face dataset artifacts (`xavier2 export --public`) | **DOCS** | 1 hr | ❌ OPEN | #5 |
+| 9 | Audit all `unwrap()` and `expect()` in public API paths (crash risk) | **QUALITY** | 2 hr | ❌ OPEN | None |
+| 10 | Ensure no `localhost`-only assumption in HTTP binding — hardcoded bind patterns | **QUALITY** | 30 min | ❌ OPEN | None |
+| 11 | GitHub repo visibility finalization — set license, CONTRIBUTING.md, issue templates, CI workflow badges | **OPS** | 1 hr | ❌ OPEN | #7 |
 
 ---
 

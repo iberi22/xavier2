@@ -43,10 +43,15 @@ The most accurate public description today is:
 
 Avoid stronger claims until latency, auth hardening, and monitoring are closed operationally.
 
+## Public Data Export
+
+The planned public export pipeline splits Xavier2 datasets between lightweight GitHub raw manifests and heavier Hugging Face artifacts. See [Public Export](/reference/export/) for the `xavier2 export --public` protocol.
+
 ## Quick Links
 
 - [Installation Guide](/guides/installation/)
 - [Quick Start](/guides/quick-start/)
 - [Architecture Overview](/architecture/overview/)
 - [API Reference](/reference/api/)
+- [Public Export](/reference/export/)
 - [Testing Overview](/testing/overview/)
