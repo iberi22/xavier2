@@ -147,6 +147,17 @@ Searches indexed symbols with optional kind filtering.
 
 Returns indexed file and symbol counts.
 
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `XAVIER2_URL` | from `config/xavier2.config.json` | Canonical client base URL for HTTP API calls |
+| `XAVIER2_TOKEN` | required | Auth token for protected routes |
+| `XAVIER2_PORT` | `8006` | HTTP bind port |
+| `XAVIER2_HOST` | `0.0.0.0` | Bind address |
+| `XAVIER2_CONFIG_PATH` | `config/xavier2.config.json` | Path to runtime JSON config |
+| `XAVIER2_LOG_LEVEL` | `info` | Log verbosity |
+
 ## Errors
 
 Auth failures return status `401` with:

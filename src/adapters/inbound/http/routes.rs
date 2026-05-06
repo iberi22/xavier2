@@ -15,6 +15,7 @@ use crate::ports::outbound::HealthCheckPort;
 use crate::security::SecurityService;
 use crate::session::event_mapper::PanelThreadEntry;
 use crate::session::types::SessionEvent;
+use crate::settings::Xavier2Settings;
 use crate::tasks::session_sync_task::get_last_sync_result;
 use crate::verification::auto_verifier::AutoVerifier;
 
@@ -117,8 +118,8 @@ pub async fn verify_save_handler(
 ) -> Json<VerifySaveResponse> {
     let start = Instant::now();
 
-    let xavier2_url =
-        std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string());
+    let xavier2_url = std::env::var("XAVIER2_URL")
+        .unwrap_or_else(|_| Xavier2Settings::current().client_base_url());
 
     // Validate internal URL to prevent SSRF
     if let Err(e) = crate::security::url_validator::validate_internal_url(&xavier2_url) {
