@@ -65,6 +65,15 @@ pub enum Command {
     Add {
         content: String,
         title: Option<String>,
+        /// Memory type: episodic, semantic, procedural, fact, decision, etc.
+        #[arg(short, long)]
+        kind: Option<String>,
+    },
+    /// Recall memories with score-based display
+    Recall {
+        query: String,
+        #[arg(short, long, default_value_t = 10)]
+        limit: usize,
     },
     /// Show statistics
     Stats,
@@ -108,9 +117,12 @@ impl Cli {
                 let lim = limit.unwrap_or(10);
                 search_memories(query, lim).await
             }
-            Command::Add { content, title } => {
+            Command::Add { content, title, kind } => {
                 println!("Adding memory...");
-                add_memory(content, title.as_ref().map(|s| s.as_str())).await
+                add_memory(content, title.as_ref().map(|s| s.as_str()), kind.as_deref()).await
+            }
+            Command::Recall { query, limit } => {
+                recall_memories(query, *limit).await
             }
             Command::Stats => {
                 println!("Fetching Xavier2 statistics...");
@@ -2100,7 +2112,7 @@ async fn search_memories(query: &str, limit: usize) -> Result<()> {
     Ok(())
 }
 
-async fn add_memory(content: &str, title: Option<&str>) -> Result<()> {
+async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> Result<()> {
     let content = secure_cli_input("memory content", content, 1_000_000)?;
     let title = title
         .map(|title| secure_cli_input("memory title", title, 512))
@@ -2116,6 +2128,9 @@ async fn add_memory(content: &str, title: Option<&str>) -> Result<()> {
 
     if let Some(t) = title.as_deref() {
         body["metadata"]["title"] = serde_json::json!(t);
+    }
+    if let Some(k) = kind {
+        body["metadata"]["kind"] = serde_json::json!(k);
     }
 
     let client = reqwest::Client::new();
@@ -2138,6 +2153,73 @@ async fn add_memory(content: &str, title: Option<&str>) -> Result<()> {
             println!("Error connecting to Xavier2 server: {}", e);
             println!("Configured endpoint: {}", base_url);
             println!("Is the server running? (xavier2 http)");
+        }
+    }
+
+    Ok(())
+}
+
+/// Recall memories with relevance scores, recency, and access frequency.
+async fn recall_memories(query: &str, limit: usize) -> Result<()> {
+    let token = xavier2_token();
+    let base_url = resolve_base_url();
+    let url = format!("{}/memory/search", base_url);
+
+    let body = serde_json::json!({
+        "query": query,
+        "limit": limit,
+        "include_scores": true,
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("X-Xavier2-Token", &token)
+        .json(&body)
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let json: serde_json::Value = resp.json().await.unwrap_or_default();
+                let results = json["results"]
+                    .as_array()
+                    .map(|r| r.len())
+                    .unwrap_or(0);
+                println!("Found {} results for \"{}\":", results, query);
+                if let Some(items) = json["results"].as_array() {
+                    for (i, item) in items.iter().enumerate() {
+                        let content = item["content"]
+                            .as_str()
+                            .unwrap_or("(no content)");
+                        let kind = item["metadata"]["kind"]
+                            .as_str()
+                            .unwrap_or("unknown");
+                        let score = item["score"]
+                            .as_f64()
+                            .unwrap_or(0.0);
+                        let preview = if content.len() > 120 {
+                            format!("{}...", &content[..120])
+                        } else {
+                            content.to_string()
+                        };
+                        println!(
+                            "{:>3}. [{:>12}] σ={:.3}  {}",
+                            i + 1,
+                            kind,
+                            score,
+                            preview
+                        );
+                    }
+                }
+            } else {
+                let text = resp.text().await.unwrap_or_default();
+                println!("Recall failed ({}): {}", resp.status(), text);
+            }
+        }
+        Err(e) => {
+            println!("Error connecting to Xavier2 server: {}", e);
         }
     }
 
@@ -2398,7 +2480,7 @@ mod tests {
             start_col: 0,
             end_col: 0,
             signature: Some(
-                "async fn add_memory(content: &str, title: Option<&str>) -> Result<()>".to_string(),
+                "async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> Result<()>".to_string(),
             ),
             parent: None,
         })
