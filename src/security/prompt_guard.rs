@@ -105,6 +105,26 @@ impl PromptInjectionDetector {
             Regex::new(r"(?i)(respond\s+with\s+only)").unwrap(),
             Regex::new(r"(?i)(output\s+the\s+(following|exact)\s+(text|words))").unwrap(),
             Regex::new(r"(?i)(say\s+[\x22\x27]+\w+[\x22\x27]+\s+and\s+nothing\s+else)").unwrap(),
+            // Context switching attacks
+            Regex::new(r"(?i)(for\s+(the\s+)?(purposes?|sake|scope)\s+of\s+(this\s+)?(exercise|scenario|conversation|task|discussion))").unwrap(),
+            Regex::new(r"(?i)(from\s+now\s+on\s*[,;]\s*(you\s+(are|will|must|can)))").unwrap(),
+            Regex::new(r"(?i)(let['\u{2019}s]+\s+(pretend|say|imagine|assume|suppose)\s+(that\s+)?(you|we|i))").unwrap(),
+            Regex::new(r"(?i)(hypothetical\s+(scenario|situation|context|setting))").unwrap(),
+            // Expanded jailbreak patterns
+            Regex::new(r"(?i)(no\s+(restrictions?|limits?|boundaries?|filter|constraints?|rules\s+apply))").unwrap(),
+            Regex::new(r"(?i)(without\s+(any\s+)?(restrictions?|limits?|filter|censorship|boundaries))").unwrap(),
+            Regex::new(r"(?i)(unfiltered|uncensored|unconstrained|unlimited)").unwrap(),
+            Regex::new(r"(?i)(you\s+must\s+(obey|comply\s+with|follow)\s+(all\s+)?(my|any|every|these))").unwrap(),
+            Regex::new(r"(?i)(reprogram|reconfigure|redefine)\s+(yourself|your\s+(core|system|internal|own))").unwrap(),
+            Regex::new(r"(?i)(bypass\s+(your\s+)?(safety|ethics?|ethical|filter|restrictions?|alignment|guidelines))").unwrap(),
+            Regex::new(r"(?i)(ignore\s+(ethical|safety|security|boundar(y|ies)|content\s+policy|censorship))").unwrap(),
+            Regex::new(r"(?i)(act\s+as\s+if\s+(you\s+)?(have\s+no|are\s+(not\s+bound|free|unconstrained|above)))").unwrap(),
+            Regex::new(r"(?i)(do\s+(not|n['\u{2019}t]|not)\s+(refuse|decline|reject|filter|censor))").unwrap(),
+            Regex::new(r"(?i)(you\s+(can|may)\s+(now\s+)?(say|tell|do|answer|output|respond\s+with)\s+anything)").unwrap(),
+            Regex::new(r"(?i)(anti[\-\s]?(censorship|censor)\w*)").unwrap(),
+            Regex::new(r"(?i)(no\s+(need\s+to\s+)?(worry|concern)\s+(about\s+)?(safety|guidelines|rules|restrictions))").unwrap(),
+            Regex::new(r"(?i)(always\s+(say\s+)?yes\s+(to|and))").unwrap(),
+            Regex::new(r"(?i)(you\s+(are|will\s+be)\s+(fully\s+)?(compliant|obedient|responsive)\s+(with|to)\s+(any|all|every))").unwrap(),
         ];
 
         // Patrones para inyección indirecta
@@ -125,6 +145,29 @@ impl PromptInjectionDetector {
             // URL-based injection
             Regex::new(r"(?i)(https?://[^\s]+\?prompt=)").unwrap(),
             Regex::new(r"(?i)(https?://[^\s]+\?instruction=)").unwrap(),
+            // URL injection - social engineering
+            Regex::new(r"(?i)(visit\s+(this|the)\s+(link|url|page|site|website|resource))").unwrap(),
+            Regex::new(r"(?i)(click\s+(on\s+)?(this|the|here|link|url))").unwrap(),
+            Regex::new(r"(?i)(download\s+(this|the|from)\s+(link|url|file|attachment))").unwrap(),
+            Regex::new(r"(?i)(check\s+(out\s+)?(this|the)\s+(link|url|page|site))").unwrap(),
+            Regex::new(r"(?i)(go\s+(to|and\s+visit)\s+(this|the)\s+(link|url|page|site|website))").unwrap(),
+            // Data URI and file protocol
+            Regex::new(r"(?i)(data\s*:\s*text/\w+;\s*(base64|charset))").unwrap(),
+            Regex::new(r"(?i)(data\s*:\s*(image|text|application|video|audio)/)").unwrap(),
+            Regex::new(r"(?i)(file\s*:\/{2,3})").unwrap(),
+            // Markdown image/reference injection
+            Regex::new(r"(?i)(!\[.*?\]\s*\(\s*https?://)").unwrap(),
+            Regex::new(r"(?i)(\[.*?\]\s*\(\s*https?://[^)]+\?.*(?:prompt|instruction|cmd|exec)=)").unwrap(),
+            // External content read
+            Regex::new(r"(?i)(fetch|retrieve|get|load)\s+(content|data|info|text)\s+(from|at)\s+https?://").unwrap(),
+            // Encoding bypass - hex escape sequences (3+ consecutive)
+            Regex::new(r"(\\x[0-9a-fA-F]{2}){3,}").unwrap(),
+            // Encoding bypass - fullwidth unicode confusables
+            Regex::new(r"[\u{ff01}\u{ff03}-\u{ff5e}]").unwrap(),
+            // Encoding bypass - HTML entities (3+ consecutive)
+            Regex::new(r"(&#[xX]?[0-9a-fA-F]{2,6};){3,}").unwrap(),
+            // Encoding bypass - URL encoded sequences (3+ consecutive)
+            Regex::new(r"(%[0-9a-fA-F]{2}){3,}").unwrap(),
         ];
 
         // Patrones para prompt leaking
@@ -240,6 +283,22 @@ impl PromptInjectionDetector {
             }
         }
 
+        // Check for fullwidth Unicode confusable characters (potential encoding bypass)
+        let fullwidth_count = input
+            .chars()
+            .filter(|c| matches!(c, '\u{ff01}' | '\u{ff03}'..='\u{ff5e}'))
+            .count();
+        if fullwidth_count >= 5 {
+            highest_confidence = highest_confidence.max(0.55);
+            if detected_attack == AttackType::None {
+                detected_attack = AttackType::IndirectPromptInjection;
+                detection_message = format!(
+                    "Detected {} fullwidth Unicode confusable characters (possible encoding bypass)",
+                    fullwidth_count
+                );
+            }
+        }
+
         // Apply threshold for detection
         let is_injection = highest_confidence >= 0.5;
 
@@ -318,6 +377,31 @@ impl PromptInjectionDetector {
             // Event handler injection
             (r"(?i)onerror\s*=", "[EVENT_FILTERED]"),
             (r"(?i)onload\s*=", "[EVENT_FILTERED]"),
+            // Context switching
+            (r"(?i)for\s+(the\s+)?(purposes?|sake|scope)\s+of\s+(this\s+)?(exercise|scenario|conversation)", "[FILTERED]"),
+            (r"(?i)from\s+now\s+on[,;]\s+you\s+(are|will|must)", "[FILTERED]"),
+            (r"(?i)hypothetical\s+(scenario|situation|context)", "[FILTERED]"),
+            // URL injection - generic URLs replaced
+            (r"(?i)https?://[^\s]+", "[URL_FILTERED]"),
+            (r"(?i)file:///[^\s]+", "[URL_FILTERED]"),
+            (r"(?i)data:\s*\w+/\w+;?\w*[^\s]*", "[URL_FILTERED]"),
+            // Expanded jailbreak sanitization
+            (r"(?i)no\s+(restrictions?|limits?|boundaries?|filter|constraints?)", "[FILTERED]"),
+            (r"(?i)without\s+(any\s+)?(restrictions?|limits?|filter|censorship)", "[FILTERED]"),
+            (r"(?i)(unfiltered|uncensored|unconstrained)", "[FILTERED]"),
+            (r"(?i)bypass\s+(your\s+)?(safety|ethics?|ethical|filter|restrictions?)", "[FILTERED]"),
+            (r"(?i)you\s+(can|may)\s+(now\s+)?(say|tell|do|answer|output)\s+anything", "[FILTERED]"),
+            (r"(?i)reprogram\s+(yourself|your\s+(core|system))", "[FILTERED]"),
+            (r"(?i)do\s+(not|n['\u{2019}t])\s+(refuse|decline|reject)", "[FILTERED]"),
+            (r"(?i)always\s+(say\s+)?yes\s+(to|and)", "[FILTERED]"),
+            // Encoding bypass - hex escapes
+            (r"\\x[0-9a-fA-F]{2}", "[HEX_FILTERED]"),
+            // Encoding bypass - HTML entities
+            (r"(&#[xX]?[0-9a-fA-F]{2,6};)", "[ENTITY_FILTERED]"),
+            // Encoding bypass - URL encoded sequences (decode by removing %)
+            (r"%[0-9a-fA-F]{2}", ""),
+            // Encoding bypass - fullwidth unicode confusables (normalize by removing)
+            (r"[\u{ff01}\u{ff03}-\u{ff5e}]", ""),
         ];
 
         for (pattern, replacement) in dangerous_patterns {
