@@ -1,4 +1,4 @@
-import { type Page, expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 const appPath = process.env.PANEL_UI_APP_PATH ?? "/";
 const panelApiRoot = "/panel/api";

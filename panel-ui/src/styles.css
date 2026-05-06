@@ -33,18 +33,16 @@ body,
 
 body {
   margin: 0;
-  background: linear-gradient(
-      180deg,
-      rgba(242, 242, 48, 0.22),
-      rgba(242, 242, 48, 0) 30%
-    ),
+  background:
+    linear-gradient(180deg, rgba(242, 242, 48, 0.22), rgba(242, 242, 48, 0) 30%),
     repeating-linear-gradient(
       -45deg,
       rgba(0, 0, 0, 0.03) 0,
       rgba(0, 0, 0, 0.03) 12px,
       rgba(0, 0, 0, 0) 12px,
       rgba(0, 0, 0, 0) 24px
-    ), var(--cx-bg);
+    ),
+    var(--cx-bg);
   color: var(--cx-ink);
   font-family: var(--cx-font-ui);
 }
@@ -200,8 +198,10 @@ a:focus-visible {
   font-family: var(--cx-font-ui);
   font-weight: 800;
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, background-color
-    120ms ease;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease;
   box-shadow: var(--cx-shadow-button);
 }
 
@@ -323,8 +323,10 @@ a:focus-visible {
   text-align: left;
   padding: 14px;
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, background-color
-    120ms ease;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background-color 120ms ease;
 }
 
 .thread-item:hover {
@@ -548,6 +550,12 @@ a:focus-visible {
 .project-card-shell,
 .question-card-shell {
   padding: 16px;
+}
+
+.project-card-shell {
+  appearance: none;
+  width: 100%;
+  text-align: left;
 }
 
 .decision-header,
