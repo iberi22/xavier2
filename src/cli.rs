@@ -11,7 +11,7 @@ use axum::{
 use clap::{Parser, Subcommand};
 use rand::{rngs::OsRng, RngCore};
 use serde::Deserialize;
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
@@ -31,10 +31,13 @@ use xavier2::memory::store::{MemoryRecord, MemoryStore};
 use xavier2::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
 use xavier2::ports::outbound::HealthCheckPort;
 use xavier2::security::{ProcessResult, SecurityService};
+use xavier2::server::panel::{panel_asset, panel_index};
 use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
 use xavier2::time::TimeMetricsStore;
+
+use crate::settings::Xavier2Settings;
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
@@ -100,10 +103,10 @@ impl Cli {
             }
             Command::Mcp => start_mcp_stdio().await,
             Command::Search { query, limit } => {
-                println!("Searching memories...");
-                println!("(Searching via HTTP API on localhost:8006)");
+                let base_url = resolve_base_url();
+                println!("Searching memories via HTTP API on {}", base_url);
                 let lim = limit.unwrap_or(10);
-                search_memories(&query, lim).await
+                search_memories(query, lim).await
             }
             Command::Add { content, title } => {
                 println!("Adding memory...");
@@ -116,7 +119,7 @@ impl Cli {
             Command::SessionSave {
                 session_id,
                 content,
-            } => session_save(&session_id, &content).await,
+            } => session_save(session_id, content).await,
             Command::Spawn {
                 count,
                 provider,
@@ -129,8 +132,11 @@ impl Cli {
 }
 
 async fn start_http_server(port: u16) -> Result<()> {
-    info!("Starting Xavier2 HTTP server on port {}", port);
-    let token = resolve_http_token();
+    std::env::set_var("XAVIER2_PORT", port.to_string());
+    let bind_host = resolve_http_bind_host();
+    let bind_addr = format!("{}:{}", bind_host, port);
+    info!("Starting Xavier2 HTTP server on {}", bind_addr);
+    let token = resolve_http_token()?;
     std::env::set_var("XAVIER2_TOKEN", &token);
 
     // Initialize the memory store
@@ -168,9 +174,8 @@ async fn start_http_server(port: u16) -> Result<()> {
     // Register global time metrics port for HTTP handler (wrap in adapter)
     use xavier2::adapters::inbound::http::routes::{init_health_port, init_time_store};
     use xavier2::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
-    let health_adapter = Arc::new(HttpHealthAdapter::new(
-        std::env::var("XAVIER2_URL").unwrap_or_else(|_| "http://localhost:8006".to_string()),
-    )) as Arc<dyn HealthCheckPort>;
+    let health_adapter = Arc::new(HttpHealthAdapter::new(resolve_base_url_for_port(port)))
+        as Arc<dyn HealthCheckPort>;
     let time_adapter =
         Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
     init_time_store(time_adapter);
@@ -209,8 +214,10 @@ async fn start_http_server(port: u16) -> Result<()> {
     // Build router with state-aware routes
     let app = Router::new()
         .route("/health", get(health_handler))
+        .route("/build", get(build_handler))
         .route("/memory/search", post(search_handler))
         .route("/memory/add", post(add_handler))
+        .route("/memory/delete", post(delete_handler))
         .route("/memory/stats", get(stats_handler))
         .route("/code/scan", post(code_scan_handler))
         .route("/code/find", post(code_find_handler))
@@ -218,6 +225,8 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/code/stats", get(code_stats_handler))
         .route("/ready", get(readiness_handler))
         .route("/readiness", get(readiness_handler))
+        .route("/panel", get(panel_index))
+        .route("/panel/assets/{*path}", get(panel_asset))
         .route("/v1/account/usage", get(account_usage_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
@@ -244,11 +253,11 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/xavier2/verify/save", post(verify_save_handler))
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    let listener = TcpListener::bind(&addr).await?;
+    let listener = TcpListener::bind(&bind_addr).await?;
+    let bound_addr = listener.local_addr()?;
 
-    info!("Xavier2 HTTP server listening on http://{}", addr);
-    println!("Xavier2 HTTP server listening on http://{}", addr);
+    info!("Xavier2 HTTP server listening on http://{}", bound_addr);
+    println!("Xavier2 HTTP server listening on http://{}", bound_addr);
     println!("Press Ctrl+C to stop");
 
     // Start session sync task cron (M5)
@@ -274,21 +283,56 @@ async fn start_http_server(port: u16) -> Result<()> {
     Ok(())
 }
 
-fn resolve_http_token() -> String {
-    std::env::var("XAVIER2_TOKEN").unwrap_or_else(|_| {
-        let mut bytes = [0u8; 16];
-        OsRng.fill_bytes(&mut bytes);
-        let token = hex::encode(bytes);
-        warn!("XAVIER2_TOKEN not set, generated random token: {}", token);
-        token
+fn resolve_http_token() -> Result<String> {
+    match std::env::var("XAVIER2_TOKEN") {
+        Ok(token) => Ok(token),
+        Err(_) if xavier2_dev_mode_enabled() => {
+            let mut bytes = [0u8; 16];
+            OsRng.fill_bytes(&mut bytes);
+            let token = hex::encode(bytes);
+            warn!("XAVIER2_TOKEN not set, generated random token because XAVIER2_DEV_MODE=true");
+            Ok(token)
+        }
+        Err(_) => Err(anyhow!(
+            "XAVIER2_TOKEN environment variable must be set to start the HTTP server. Set XAVIER2_DEV_MODE=true only for explicit local development."
+        )),
+    }
+}
+
+fn xavier2_dev_mode_enabled() -> bool {
+    std::env::var("XAVIER2_DEV_MODE")
+        .ok()
+        .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "TRUE"))
+}
+
+fn resolve_http_bind_host() -> String {
+    std::env::var("XAVIER2_HOST").unwrap_or_else(|_| Xavier2Settings::current().server.host)
+}
+
+fn resolve_base_url_for_port(port: u16) -> String {
+    std::env::var("XAVIER2_URL").unwrap_or_else(|_| {
+        let settings = Xavier2Settings::current();
+        if port == settings.server.port {
+            return settings.client_base_url();
+        }
+        let host = match settings.server.host.as_str() {
+            "0.0.0.0" | "::" => "127.0.0.1",
+            other => other,
+        };
+        format!("http://{}:{}", host, port)
     })
+}
+
+fn resolve_base_url() -> String {
+    let port = resolve_http_port();
+    resolve_base_url_for_port(port)
 }
 
 fn resolve_http_port() -> u16 {
     std::env::var("XAVIER2_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
-        .unwrap_or(8006)
+        .unwrap_or_else(|| Xavier2Settings::current().server.port)
 }
 
 fn xavier2_token() -> String {
@@ -321,7 +365,16 @@ async fn health_handler() -> Response {
 }
 
 async fn readiness_handler(State(state): State<CliState>) -> Response {
-    let health = state.store.health().await.unwrap_or_else(|e| e.to_string());
+    let memory_store = match state.store.health().await {
+        Ok(detail) => serde_json::json!({
+            "ready": true,
+            "detail": detail,
+        }),
+        Err(error) => serde_json::json!({
+            "ready": false,
+            "detail": error.to_string(),
+        }),
+    };
     let code_graph = state
         .code_db
         .stats()
@@ -340,14 +393,35 @@ async fn readiness_handler(State(state): State<CliState>) -> Response {
             })
         });
 
+    let ready = memory_store["ready"].as_bool().unwrap_or(false)
+        && code_graph["ready"].as_bool().unwrap_or(false);
+
+    json_response(
+        if ready {
+            StatusCode::OK
+        } else {
+            StatusCode::SERVICE_UNAVAILABLE
+        },
+        serde_json::json!({
+            "status": if ready { "ok" } else { "degraded" },
+            "service": "xavier2",
+            "workspace_id": state.workspace_id,
+            "memory_store": memory_store,
+            "code_graph": code_graph,
+        }),
+    )
+}
+
+async fn build_handler(State(state): State<CliState>) -> Response {
     json_response(
         StatusCode::OK,
         serde_json::json!({
-            "status": "ok",
             "service": "xavier2",
+            "version": env!("CARGO_PKG_VERSION"),
             "workspace_id": state.workspace_id,
-            "memory_store": health,
-            "code_graph": code_graph,
+            "base_url": resolve_base_url(),
+            "memory_backend": std::env::var("XAVIER2_MEMORY_BACKEND").unwrap_or_else(|_| "vec".to_string()),
+            "code_graph_db_path": code_graph_db_path(),
         }),
     )
 }
@@ -509,7 +583,7 @@ async fn search_handler(
     }
 
     let effective_query = sec_result.effective_input();
-    let limit = payload.limit.max(1).min(100);
+    let limit = payload.limit.clamp(1, 100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
     let results: Vec<MemoryRecord> = match state.memory.search(effective_query, None).await {
@@ -642,6 +716,79 @@ async fn add_handler(
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct DeleteMemoryRequest {
+    id: Option<String>,
+    path: Option<String>,
+}
+
+async fn delete_handler(
+    State(state): State<CliState>,
+    headers: HeaderMap,
+    axum::extract::Json(payload): axum::extract::Json<DeleteMemoryRequest>,
+) -> Response {
+    let expected_token = match std::env::var("XAVIER2_TOKEN") {
+        Ok(token) => token,
+        Err(_) => {
+            return json_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                serde_json::json!({"status":"error","message":"XAVIER2_TOKEN not configured"}),
+            );
+        }
+    };
+
+    match headers
+        .get("X-Xavier2-Token")
+        .and_then(|value| value.to_str().ok())
+    {
+        Some(token) if token == expected_token => {}
+        _ => {
+            return json_response(
+                StatusCode::UNAUTHORIZED,
+                serde_json::json!({"status":"error","message":"Unauthorized"}),
+            );
+        }
+    }
+
+    let id_or_path = payload
+        .id
+        .or(payload.path)
+        .filter(|value| !value.trim().is_empty());
+    let Some(id_or_path) = id_or_path else {
+        return json_response(
+            StatusCode::BAD_REQUEST,
+            serde_json::json!({"status":"error","message":"Provide either id or path"}),
+        );
+    };
+
+    match state.store.delete(&state.workspace_id, &id_or_path).await {
+        Ok(Some(record)) => json_response(
+            StatusCode::OK,
+            serde_json::json!({
+                "status": "ok",
+                "deleted": true,
+                "id": record.id,
+                "path": record.path,
+            }),
+        ),
+        Ok(None) => json_response(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({
+                "status": "not_found",
+                "deleted": false,
+                "id_or_path": id_or_path,
+            }),
+        ),
+        Err(error) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({
+                "status": "error",
+                "message": error.to_string(),
+            }),
+        ),
+    }
+}
+
 async fn stats_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
     axum::Json(serde_json::json!({
         "status": "ok",
@@ -702,7 +849,7 @@ async fn memory_query_handler(
         }));
     }
 
-    let limit = payload.limit.unwrap_or(10).max(1).min(100);
+    let limit = payload.limit.unwrap_or(10).clamp(1, 100);
     info!(
         "Memory query request: query={}, limit={}",
         payload.query, limit
@@ -870,7 +1017,7 @@ async fn code_find_handler(
             }));
         }
     };
-    let limit = payload.limit.max(1).min(100);
+    let limit = payload.limit.clamp(1, 100);
     info!(
         "Code find request: query={}, limit={}, kind={:?}, pattern={:?}",
         query, limit, kind, pattern
@@ -951,13 +1098,13 @@ async fn code_context_handler(
         }));
     }
 
-    let limit = payload.limit.max(1).min(100);
+    let limit = payload.limit.clamp(1, 100);
     let kind_limit = if payload.query.trim().is_empty() {
         limit
     } else {
         10_000
     };
-    let budget_tokens = payload.budget_tokens.max(100).min(8000);
+    let budget_tokens = payload.budget_tokens.clamp(100, 8000);
 
     let mut symbols = if let Some(kind) = payload.kind.as_deref() {
         match kind.to_ascii_lowercase().as_str() {
@@ -1042,7 +1189,7 @@ fn code_find_symbols(
     pattern: Option<&str>,
     limit: usize,
 ) -> Vec<code_graph::types::Symbol> {
-    let limit = limit.max(1).min(100);
+    let limit = limit.clamp(1, 100);
     let broad_limit = if query.trim().is_empty() {
         limit
     } else {
@@ -1256,7 +1403,7 @@ async fn session_compact_handler(
     axum::Json(payload): axum::Json<SessionCompactPayload>,
 ) -> impl axum::response::IntoResponse {
     let session_id = &payload.session_id;
-    let threshold = payload.threshold_percent.max(1.0).min(100.0);
+    let threshold = payload.threshold_percent.clamp(1.0, 100.0);
 
     // Get current token usage - use provided value or query from memory
     let current_tokens = match payload.current_tokens {
@@ -1302,10 +1449,11 @@ async fn session_compact_handler(
     let search_path = format!("sessions/{}/thread", session_id);
     let all_docs = match state.memory.get(&search_path).await {
         Ok(Some(doc)) => vec![doc],
-        Ok(None) => match state.memory.search(&search_path, None).await {
-            Ok(docs) => docs,
-            Err(_) => vec![],
-        },
+        Ok(None) => state
+            .memory
+            .search(&search_path, None)
+            .await
+            .unwrap_or_default(),
         Err(_) => vec![],
     };
 
@@ -1622,9 +1770,9 @@ async fn start_mcp_stdio() -> Result<()> {
         };
 
         let method = request.get("method").and_then(|v| v.as_str());
-        let id = request.get("id").clone();
+        let id = request.get("id");
         // A notification has id === null or no id field
-        let is_notification = id.as_ref().map_or(true, |v| v.is_null());
+        let is_notification = id.as_ref().is_none_or(|v| v.is_null());
 
         let response: Option<serde_json::Value> = match method {
             None => Some(serde_json::json!({
@@ -1663,7 +1811,7 @@ async fn start_mcp_stdio() -> Result<()> {
                 "result": {
                     "tools": [
                         {
-                            "name": "search",
+                            "name": "search_memory",
                             "description": "Search memories in Xavier2 vector store",
                             "inputSchema": {
                                 "type": "object",
@@ -1682,11 +1830,15 @@ async fn start_mcp_stdio() -> Result<()> {
                             }
                         },
                         {
-                            "name": "add",
+                            "name": "create_memory",
                             "description": "Add a memory to Xavier2",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
+                                    "path": {
+                                        "type": "string",
+                                        "description": "Optional path/identifier for the memory"
+                                    },
                                     "content": {
                                         "type": "string",
                                         "description": "Memory content text"
@@ -1695,6 +1847,30 @@ async fn start_mcp_stdio() -> Result<()> {
                                         "type": "string",
                                         "description": "Optional title"
                                     }
+                                },
+                                "required": ["content"]
+                            }
+                        },
+                        {
+                            "name": "search",
+                            "description": "Legacy alias for search_memory",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "query": { "type": "string" },
+                                    "limit": { "type": "number", "default": 10 }
+                                },
+                                "required": ["query"]
+                            }
+                        },
+                        {
+                            "name": "add",
+                            "description": "Legacy alias for create_memory",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "content": { "type": "string" },
+                                    "title": { "type": "string" }
                                 },
                                 "required": ["content"]
                             }
@@ -1727,11 +1903,11 @@ async fn start_mcp_stdio() -> Result<()> {
                     .unwrap_or("");
 
                 let text = match tool_name {
-                    "search" => {
+                    "search" | "search_memory" => {
                         let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
                         let limit =
                             args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-                        let limit = limit.max(1).min(100);
+                        let limit = limit.clamp(1, 100);
                         match memory.search(query, limit).await {
                             Ok(results) => {
                                 let summary = serde_json::json!({
@@ -1748,10 +1924,14 @@ async fn start_mcp_stdio() -> Result<()> {
                             Err(e) => format!("{{\"error\": \"{}\"}}", e),
                         }
                     }
-                    "add" => {
+                    "add" | "create_memory" => {
                         let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
                         let title = args.get("title").and_then(|v| v.as_str());
-                        let path = format!("memory/{}", ulid::Ulid::new());
+                        let path = args
+                            .get("path")
+                            .and_then(|v| v.as_str())
+                            .map(str::to_string)
+                            .unwrap_or_else(|| format!("memory/{}", ulid::Ulid::new()));
                         let mut metadata = serde_json::json!({});
                         if let Some(t) = title {
                             if let Some(obj) = metadata.as_object_mut() {
@@ -1778,7 +1958,7 @@ async fn start_mcp_stdio() -> Result<()> {
                     })
                     .to_string(),
                     _ => format!(
-                        "Unknown tool: {}. Available tools: search, add, stats",
+                        "Unknown tool: {}. Available tools: search_memory, create_memory, search, add, stats",
                         tool_name
                     ),
                 };
@@ -1839,8 +2019,7 @@ struct SessionContext {
 #[allow(dead_code)]
 async fn session_load(ctx: &str) -> Result<String> {
     let token = require_xavier2_token()?;
-    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
-    let url = format!("http://localhost:{}/memory/search", port);
+    let url = format!("{}/memory/search", resolve_base_url());
 
     let client = reqwest::Client::new();
     let response = client
@@ -1885,10 +2064,10 @@ async fn session_load(ctx: &str) -> Result<String> {
 
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let query = secure_cli_input("search query", query, 4_096)?;
-    let limit = limit.max(1).min(100);
+    let limit = limit.clamp(1, 100);
     let token = xavier2_token();
-    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
-    let url = format!("http://localhost:{}/memory/search", port);
+    let base_url = resolve_base_url();
+    let url = format!("{}/memory/search", base_url);
 
     let client = reqwest::Client::new();
     let response = client
@@ -1913,6 +2092,7 @@ async fn search_memories(query: &str, limit: usize) -> Result<()> {
         }
         Err(e) => {
             println!("Error connecting to Xavier2 server: {}", e);
+            println!("Configured endpoint: {}", base_url);
             println!("Is the server running? (xavier2 http)");
         }
     }
@@ -1926,8 +2106,8 @@ async fn add_memory(content: &str, title: Option<&str>) -> Result<()> {
         .map(|title| secure_cli_input("memory title", title, 512))
         .transpose()?;
     let token = xavier2_token();
-    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
-    let url = format!("http://localhost:{}/memory/add", port);
+    let base_url = resolve_base_url();
+    let url = format!("{}/memory/add", base_url);
 
     let mut body = serde_json::json!({
         "content": content,
@@ -1956,6 +2136,7 @@ async fn add_memory(content: &str, title: Option<&str>) -> Result<()> {
         }
         Err(e) => {
             println!("Error connecting to Xavier2 server: {}", e);
+            println!("Configured endpoint: {}", base_url);
             println!("Is the server running? (xavier2 http)");
         }
     }
@@ -1993,8 +2174,8 @@ fn secure_cli_input(label: &str, input: &str, max_chars: usize) -> Result<String
 
 async fn show_stats() -> Result<()> {
     let token = xavier2_token();
-    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
-    let url = format!("http://localhost:{}/memory/stats", port);
+    let base_url = resolve_base_url();
+    let url = format!("{}/memory/stats", base_url);
 
     let client = reqwest::Client::new();
     let response = client
@@ -2015,6 +2196,7 @@ async fn show_stats() -> Result<()> {
         }
         Err(e) => {
             println!("Error connecting to Xavier2 server: {}", e);
+            println!("Configured endpoint: {}", base_url);
             println!("Is the server running? (xavier2 http)");
         }
     }
@@ -2029,8 +2211,8 @@ async fn show_stats() -> Result<()> {
 async fn session_save(session_id: &str, content: &str) -> Result<()> {
     let content = secure_cli_input("session content", content, 10_000_000)?;
     let token = require_xavier2_token()?;
-    let port = std::env::var("XAVIER2_PORT").unwrap_or_else(|_| "8006".to_string());
-    let url = format!("http://localhost:{}/memory/add", port);
+    let base_url = resolve_base_url();
+    let url = format!("{}/memory/add", base_url);
 
     let body = serde_json::json!({
         "content": content,
@@ -2060,6 +2242,7 @@ async fn session_save(session_id: &str, content: &str) -> Result<()> {
         }
         Err(e) => {
             println!("Error connecting to Xavier2 server: {}", e);
+            println!("Configured endpoint: {}", base_url);
             println!("Is the server running? (xavier2 http)");
         }
     }
