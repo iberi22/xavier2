@@ -272,11 +272,11 @@ impl WorkingMemory {
 
         for id in &self.items_queue {
             if let Some(item) = self.items.get(id) {
-                if item.access_count < self.config.lru_exempt_access_threshold {
-                    if item.created_at < oldest_fifo_time {
-                        oldest_fifo_time = item.created_at;
-                        fifo_candidate = Some(id.clone());
-                    }
+                if item.access_count < self.config.lru_exempt_access_threshold
+                    && item.created_at < oldest_fifo_time
+                {
+                    oldest_fifo_time = item.created_at;
+                    fifo_candidate = Some(id.clone());
                 }
             }
         }

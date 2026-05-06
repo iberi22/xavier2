@@ -88,7 +88,7 @@ impl SessionStore {
     pub async fn list_threads(&self) -> Vec<ThreadSummary> {
         let threads = self.threads.read().await;
         let mut items: Vec<_> = threads.values().map(ThreadSummary::from).collect();
-        items.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+        items.sort_by_key(|item| std::cmp::Reverse(item.updated_at));
         items
     }
 

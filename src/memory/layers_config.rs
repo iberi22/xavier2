@@ -15,21 +15,12 @@
 use serde::{Deserialize, Serialize};
 
 /// Memory layers configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MemoryLayersConfig {
     /// Working memory layer configuration
     pub working: WorkingMemoryLayerConfig,
     /// Episodic memory layer configuration
     pub episodic: EpisodicMemoryLayerConfig,
-}
-
-impl Default for MemoryLayersConfig {
-    fn default() -> Self {
-        Self {
-            working: WorkingMemoryLayerConfig::default(),
-            episodic: EpisodicMemoryLayerConfig::default(),
-        }
-    }
 }
 
 impl MemoryLayersConfig {

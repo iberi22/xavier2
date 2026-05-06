@@ -982,9 +982,10 @@ fn build_query_bundle(query_text: &str) -> QueryBundle {
                 continue;
             }
             let expanded = format!("{normalized_query} {cleaned}");
-            if !weights.contains_key(&expanded) {
+            if let std::collections::hash_map::Entry::Vacant(entry) = weights.entry(expanded) {
+                let expanded = entry.key().clone();
                 variants.push(expanded.clone());
-                weights.insert(expanded, 0.8);
+                entry.insert(0.8);
             }
         }
     }
@@ -2830,7 +2831,7 @@ fn _deduplicate_by_content_hash(results: Vec<MemoryDocument>) -> Vec<MemoryDocum
         .into_values()
         .map(|(doc, _, idx)| (idx, doc))
         .collect();
-    deduped.sort_by(|a, b| a.0.cmp(&b.0));
+    deduped.sort_by_key(|entry| entry.0);
     deduped.into_iter().map(|(_, doc)| doc).collect()
 }
 
