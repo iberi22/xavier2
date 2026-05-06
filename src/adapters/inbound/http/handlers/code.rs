@@ -1,5 +1,10 @@
-use axum::{extract::State, Json};
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    Json,
+};
 use serde::{Deserialize, Serialize};
+use crate::adapters::inbound::http::state::check_auth;
 use crate::adapters::inbound::http::AppState;
 use crate::ports::inbound::InputSecurityPort;
 use tracing::info;
@@ -44,19 +49,21 @@ fn default_limit() -> usize {
 }
 
 pub async fn code_scan_handler(
+    headers: HeaderMap,
     State(state): State<AppState>,
     Json(payload): Json<CodeScanPayload>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    check_auth(&headers, &state)?;
     let requested_path = payload.path.unwrap_or_else(|| ".".to_string());
 
     // Security scan on path
     let sec_result = match state.security.process_input(&requested_path).await {
         Ok(res) => res,
-        Err(e) => return Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+        Err(e) => return Ok(Json(serde_json::json!({ "status": "error", "message": e.to_string() }))),
     };
     
     if !sec_result.allowed {
-        return Json(serde_json::json!({
+        return Ok(Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "detection": {
@@ -64,19 +71,19 @@ pub async fn code_scan_handler(
                 "confidence": sec_result.detection_confidence,
                 "attack_type": sec_result.attack_type,
             }
-        }));
+        })));
     }
 
     if requested_path.contains("..") {
-        return Json(serde_json::json!({
+        return Ok(Json(serde_json::json!({
             "status": "error",
             "message": "path traversal not allowed",
             "indexed_files": 0,
-        }));
+        })));
     }
 
     match state.code_indexer.index(Path::new(&requested_path)).await {
-        Ok(stats) => Json(serde_json::json!({
+        Ok(stats) => Ok(Json(serde_json::json!({
             "status": "ok",
             "indexed_files": stats.total_files,
             "indexed_symbols": stats.total_symbols,
@@ -84,25 +91,27 @@ pub async fn code_scan_handler(
             "duration_ms": stats.duration_ms,
             "paths": [requested_path],
             "languages": stats.languages,
-        })),
-        Err(error) => Json(serde_json::json!({
+        }))),
+        Err(error) => Ok(Json(serde_json::json!({
             "status": "error",
             "message": error.to_string(),
-        })),
+        }))),
     }
 }
 
 pub async fn code_find_handler(
+    headers: HeaderMap,
     State(state): State<AppState>,
     Json(payload): Json<CodeFindPayload>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    check_auth(&headers, &state)?;
     let sec_result = match state.security.process_input(&payload.query).await {
         Ok(res) => res,
-        Err(e) => return Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+        Err(e) => return Ok(Json(serde_json::json!({ "status": "error", "message": e.to_string() }))),
     };
 
     if !sec_result.allowed {
-        return Json(serde_json::json!({
+        return Ok(Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "detection": {
@@ -110,7 +119,7 @@ pub async fn code_find_handler(
                 "confidence": sec_result.detection_confidence,
                 "attack_type": sec_result.attack_type,
             }
-        }));
+        })));
     }
 
     let query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input).to_string();
@@ -141,41 +150,47 @@ pub async fn code_find_handler(
         })
         .collect();
 
-    Json(serde_json::json!({
+    Ok(Json(serde_json::json!({
         "status": "ok",
         "query": query,
         "count": results.len(),
         "results": results,
-    }))
+    })))
 }
 
-pub async fn code_stats_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
+pub async fn code_stats_handler(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    check_auth(&headers, &state)?;
     match state.code_db.stats() {
-        Ok(stats) => Json(serde_json::json!({
+        Ok(stats) => Ok(Json(serde_json::json!({
             "status": "ok",
             "total_files": stats.total_files,
             "total_symbols": stats.total_symbols,
             "total_imports": stats.total_imports,
             "languages": stats.languages,
-        })),
-        Err(error) => Json(serde_json::json!({
+        }))),
+        Err(error) => Ok(Json(serde_json::json!({
             "status": "error",
             "message": error.to_string(),
-        })),
+        }))),
     }
 }
 
 pub async fn code_context_handler(
+    headers: HeaderMap,
     State(state): State<AppState>,
     Json(payload): Json<CodeContextPayload>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    check_auth(&headers, &state)?;
     let sec_result = match state.security.process_input(&payload.query).await {
         Ok(res) => res,
-        Err(e) => return Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+        Err(e) => return Ok(Json(serde_json::json!({ "status": "error", "message": e.to_string() }))),
     };
 
     if !sec_result.allowed {
-        return Json(serde_json::json!({
+        return Ok(Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "detection": {
@@ -183,7 +198,7 @@ pub async fn code_context_handler(
                 "confidence": sec_result.detection_confidence,
                 "attack_type": sec_result.attack_type,
             }
-        }));
+        })));
     }
 
     let limit = payload.limit.max(1).min(100);
@@ -227,14 +242,14 @@ pub async fn code_context_handler(
         context.push(compact);
     }
 
-    Json(serde_json::json!({
+    Ok(Json(serde_json::json!({
         "status": "ok",
         "query": payload.query,
         "budget_tokens": budget_tokens,
         "estimated_tokens": used_tokens,
         "count": context.len(),
         "context": context,
-    }))
+    })))
 }
 
 // Helper functions (copied from cli.rs)
