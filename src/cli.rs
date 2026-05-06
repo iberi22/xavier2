@@ -2,11 +2,13 @@
 
 use anyhow::{anyhow, Result};
 use axum::{
+    body::Body,
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, Request, StatusCode},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use clap::{Parser, Subcommand};
 use rand::{rngs::OsRng, RngCore};
@@ -235,9 +237,7 @@ async fn start_http_server(port: u16) -> Result<()> {
     println!("Code graph DB: {}", code_db_path.display());
 
     // Build router with state-aware routes
-    let app = Router::new()
-        .route("/health", get(health_handler))
-        .route("/build", get(build_handler))
+    let protected_routes = Router::new()
         .route("/memory/search", post(search_handler))
         .route("/memory/add", post(add_handler))
         .route("/memory/delete", post(delete_handler))
@@ -246,34 +246,30 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/code/find", post(code_find_handler))
         .route("/code/context", post(code_context_handler))
         .route("/code/stats", get(code_stats_handler))
-        .route("/ready", get(readiness_handler))
-        .route("/readiness", get(readiness_handler))
-        .route("/panel", get(panel_index))
-        .route("/panel/assets/{*path}", get(panel_asset))
         .route("/v1/account/usage", get(account_usage_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
         .route("/session/compact", post(session_compact_handler))
         .route("/xavier2/events/session", post(session_event_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
-        // Agent registration endpoints
         .route("/xavier2/agents/register", post(agent_register_handler))
         .route("/xavier2/agents/active", get(agent_active_handler))
-        .route(
-            "/xavier2/agents/{id}/heartbeat",
-            post(agent_heartbeat_handler),
-        )
-        .route(
-            "/xavier2/agents/{id}/push",
-            post(agent_push_context_handler),
-        )
-        .route(
-            "/xavier2/agents/{id}/unregister",
-            post(agent_unregister_handler),
-        )
+        .route("/xavier2/agents/{id}/heartbeat", post(agent_heartbeat_handler))
+        .route("/xavier2/agents/{id}/push", post(agent_push_context_handler))
+        .route("/xavier2/agents/{id}/unregister", post(agent_unregister_handler))
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
         .route("/xavier2/verify/save", post(verify_save_handler))
+        .layer(middleware::from_fn(auth_middleware));
+
+    let app = Router::new()
+        .route("/health", get(health_handler))
+        .route("/build", get(build_handler))
+        .route("/ready", get(readiness_handler))
+        .route("/readiness", get(readiness_handler))
+        .route("/panel", get(panel_index))
+        .route("/panel/assets/{*path}", get(panel_asset))
+        .merge(protected_routes)
         .with_state(state);
 
     let listener = TcpListener::bind(&bind_addr).await?;
@@ -504,6 +500,36 @@ fn json_response(status: StatusCode, body: serde_json::Value) -> Response {
             )
                 .into_response()
         })
+}
+
+/// Axum middleware that requires a valid X-Xavier2-Token on all protected routes.
+async fn auth_middleware(
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    let expected_token = match std::env::var("XAVIER2_TOKEN") {
+        Ok(token) => token,
+        Err(_) => {
+            return json_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                serde_json::json!({"status":"error","message":"XAVIER2_TOKEN is not configured"}),
+            );
+        }
+    };
+
+    let provided_token = req
+        .headers()
+        .get("X-Xavier2-Token")
+        .and_then(|value| value.to_str().ok());
+
+    if provided_token != Some(expected_token.as_str()) {
+        return json_response(
+            StatusCode::UNAUTHORIZED,
+            serde_json::json!({"status":"error","message":"Unauthorized"}),
+        );
+    }
+
+    next.run(req).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -1440,7 +1466,7 @@ fn default_compaction_threshold() -> f64 {
 async fn session_compact_handler(
     State(state): State<CliState>,
     axum::Json(payload): axum::Json<SessionCompactPayload>,
-) -> impl axum::response::IntoResponse {
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let session_id = &payload.session_id;
     let threshold = payload.threshold_percent.clamp(1.0, 100.0);
 
@@ -1470,7 +1496,7 @@ async fn session_compact_handler(
     let triggered = usage_percent >= threshold;
 
     if !triggered {
-        return axum::Json(serde_json::json!({
+        return Ok(axum::Json(serde_json::json!({
             "status": "ok",
             "triggered": false,
             "session_id": session_id,
@@ -1481,7 +1507,7 @@ async fn session_compact_handler(
                 usage_percent,
                 threshold
             ),
-        }));
+        })));
     }
 
     // Compaction triggered - fetch session history, keep last 20%
@@ -1558,7 +1584,7 @@ async fn session_compact_handler(
                 compact_docs.len(),
                 id
             );
-            axum::Json(serde_json::json!({
+            Ok(axum::Json(serde_json::json!({
                 "status": "ok",
                 "triggered": true,
                 "session_id": session_id,
@@ -1574,16 +1600,16 @@ async fn session_compact_handler(
                     total_docs,
                     compact_docs.len()
                 ),
-            }))
+            })))
         }
         Err(e) => {
             info!("Session compaction error: {}", e);
-            axum::Json(serde_json::json!({
+            Ok(axum::Json(serde_json::json!({
                 "status": "error",
                 "triggered": true,
                 "session_id": session_id,
                 "error": e.to_string(),
-            }))
+            })))
         }
     }
 }
