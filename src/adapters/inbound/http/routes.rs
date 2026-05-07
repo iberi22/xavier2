@@ -46,7 +46,7 @@ pub fn create_router() -> Router {
 }
 
 pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecyclePort>) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/health", get(health_handler))
         .route(
             "/xavier2/agents/{id}/unregister",
@@ -55,8 +55,15 @@ pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecycleP
         .route("/xavier2/verify/save", post(verify_save_handler))
         .route("/xavier2/time/metric", post(time_metric_handler))
         .route("/xavier2/events/session", post(session_event_handler))
-        .route("/xavier2/sync/check", post(sync_check_handler))
-        .with_state(agent_registry)
+        .route("/xavier2/sync/check", post(sync_check_handler));
+
+    // Add enterprise plugin routes if feature is enabled
+    #[cfg(feature = "enterprise")]
+    let router = router
+        .route("/plugins/health", get(plugins_health_handler))
+        .route("/plugins/sync", post(plugins_sync_handler));
+
+    router.with_state(agent_registry)
 }
 
 async fn health_handler() -> &'static str {
@@ -235,6 +242,201 @@ pub async fn sync_check_handler() -> Json<SyncCheckResponse> {
         active_agents: result.active_agents,
         timestamp_ms: result.timestamp_ms,
         alerts: result.alerts,
+    })
+}
+
+// ─── Enterprise Plugin Endpoints ────────────────────────────────────────────
+// These endpoints are only available when the "enterprise" feature is enabled
+
+#[cfg(feature = "enterprise")]
+#[derive(Debug, Serialize)]
+pub struct PluginsHealthResponse {
+    pub status: String,
+    pub plugins: Vec<PluginHealthStatus>,
+}
+
+#[cfg(feature = "enterprise")]
+#[derive(Debug, Serialize)]
+pub struct PluginHealthStatus {
+    pub name: String,
+    pub version: String,
+    pub healthy: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[cfg(feature = "enterprise")]
+#[derive(Debug, Deserialize)]
+pub struct PluginSyncRequest {
+    pub direction: String, // "push", "pull", or "both"
+}
+
+#[cfg(feature = "enterprise")]
+#[derive(Debug, Serialize)]
+pub struct PluginSyncResponse {
+    pub status: String,
+    pub results: Vec<PluginSyncResult>,
+}
+
+#[cfg(feature = "enterprise")]
+#[derive(Debug, Serialize)]
+pub struct PluginSyncResult {
+    pub plugin_name: String,
+    pub success: bool,
+    pub items_synced: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// Plugin registry singleton (lazy-initialized)
+#[cfg(feature = "enterprise")]
+static PLUGIN_REGISTRY: std::sync::OnceLock<std::sync::Arc<tokio::sync::RwLock<crate::adapters::inbound::http::plugins::PluginRegistry>>> = std::sync::OnceLock::new();
+
+/// Initialize the plugin registry with Cortex plugin if configured
+#[cfg(feature = "enterprise")]
+pub fn init_plugin_registry() {
+    use crate::adapters::inbound::http::plugins::{cortex::{CortexConfig, CortexPlugin}, PluginRegistry};
+    
+    let registry = PluginRegistry::new();
+    
+    // Try to initialize Cortex plugin if env vars are set
+    if CortexConfig::is_configured() {
+        tracing::info!("Initializing Cortex Enterprise plugin");
+        
+        // We need to spawn this because we can't await in init
+        tokio::spawn(async move {
+            if let Some(plugin) = CortexPlugin::from_env() {
+                let registry = get_plugin_registry();
+                registry.write().await.register(Box::new(plugin));
+                tracing::info!("Cortex Enterprise plugin registered");
+            }
+        });
+    } else {
+        tracing::debug!("Cortex Enterprise not configured (missing env vars)");
+    }
+    
+    let registry_arc = std::sync::Arc::new(tokio::sync::RwLock::new(registry));
+    if PLUGIN_REGISTRY.set(registry_arc).is_err() {
+        tracing::error!("Plugin registry already initialized");
+    }
+}
+
+/// Get the plugin registry (panics if not initialized)
+#[cfg(feature = "enterprise")]
+pub fn get_plugin_registry() -> std::sync::Arc<tokio::sync::RwLock<crate::adapters::inbound::http::plugins::PluginRegistry>> {
+    PLUGIN_REGISTRY.get()
+        .expect("Plugin registry not initialized. Call init_plugin_registry() at startup.")
+        .clone()
+}
+
+#[cfg(feature = "enterprise")]
+pub async fn plugins_health_handler() -> Json<PluginsHealthResponse> {
+    use crate::adapters::inbound::http::plugins::Plugin;
+    
+    let registry = get_plugin_registry();
+    let registry = registry.read().await;
+    
+    let mut plugins = Vec::new();
+    
+    for plugin in registry.plugins() {
+        let name = plugin.name().to_string();
+        let version = plugin.version().to_string();
+        
+        // Run health check
+        let health_result = plugin.health_check().await;
+        let (healthy, error) = match health_result {
+            Ok(()) => (true, None),
+            Err(e) => (false, Some(e)),
+        };
+        
+        plugins.push(PluginHealthStatus {
+            name,
+            version,
+            healthy,
+            error,
+        });
+    }
+    
+    let status = if plugins.iter().all(|p| p.healthy) {
+        "healthy"
+    } else if plugins.iter().any(|p| p.healthy) {
+        "degraded"
+    } else {
+        "unhealthy"
+    };
+    
+    Json(PluginsHealthResponse {
+        status: status.to_string(),
+        plugins,
+    })
+}
+
+#[cfg(feature = "enterprise")]
+pub async fn plugins_sync_handler(
+    Json(payload): Json<PluginSyncRequest>,
+) -> Json<PluginSyncResponse> {
+    use crate::adapters::inbound::http::plugins::{Plugin, SyncDirection};
+    
+    let direction = match payload.direction.to_lowercase().as_str() {
+        "push" => SyncDirection::Push,
+        "pull" => SyncDirection::Pull,
+        "both" => SyncDirection::Both,
+        _ => {
+            return Json(PluginSyncResponse {
+                status: "error".to_string(),
+                results: vec![],
+            });
+        }
+    };
+    
+    let registry = get_plugin_registry();
+    let registry = registry.read().await;
+    
+    let mut results = Vec::new();
+    let mut any_success = false;
+    let mut any_failure = false;
+    
+    for plugin in registry.plugins() {
+        let plugin_name = plugin.name().to_string();
+        
+        match plugin.sync(direction).await {
+            Ok(sync_result) => {
+                if sync_result.success {
+                    any_success = true;
+                } else {
+                    any_failure = true;
+                }
+                
+                results.push(PluginSyncResult {
+                    plugin_name,
+                    success: sync_result.success,
+                    items_synced: sync_result.items_synced,
+                    error: sync_result.error,
+                });
+            }
+            Err(e) => {
+                any_failure = true;
+                results.push(PluginSyncResult {
+                    plugin_name,
+                    success: false,
+                    items_synced: 0,
+                    error: Some(e),
+                });
+            }
+        }
+    }
+    
+    let status = if any_failure && !any_success {
+        "error"
+    } else if any_failure {
+        "partial"
+    } else {
+        "success"
+    };
+    
+    Json(PluginSyncResponse {
+        status: status.to_string(),
+        results,
     })
 }
 

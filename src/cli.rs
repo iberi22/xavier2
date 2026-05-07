@@ -237,7 +237,8 @@ async fn start_http_server(port: u16) -> Result<()> {
     println!("Code graph DB: {}", code_db_path.display());
 
     // Build router with state-aware routes
-    let protected_routes = Router::new()
+    #[allow(unused_mut)]
+    let mut protected_routes = Router::new()
         .route("/memory/search", post(search_handler))
         .route("/memory/add", post(add_handler))
         .route("/memory/delete", post(delete_handler))
@@ -262,6 +263,15 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/xavier2/verify/save", post(verify_save_handler))
         .layer(middleware::from_fn(auth_middleware));
 
+    // Add enterprise plugin routes if feature is enabled
+    #[cfg(feature = "enterprise")]
+    {
+        use xavier2::adapters::inbound::http::routes::{plugins_health_handler, plugins_sync_handler};
+        protected_routes = protected_routes
+            .route("/plugins/health", get(plugins_health_handler))
+            .route("/plugins/sync", post(plugins_sync_handler));
+    }
+
     let app = Router::new()
         .route("/health", get(health_handler))
         .route("/build", get(build_handler))
@@ -278,6 +288,14 @@ async fn start_http_server(port: u16) -> Result<()> {
     info!("Xavier2 HTTP server listening on http://{}", bound_addr);
     println!("Xavier2 HTTP server listening on http://{}", bound_addr);
     println!("Press Ctrl+C to stop");
+
+    // Initialize enterprise plugin registry if feature is enabled
+    #[cfg(feature = "enterprise")]
+    {
+        use xavier2::adapters::inbound::http::routes::init_plugin_registry;
+        init_plugin_registry();
+        info!("Enterprise plugin system initialized");
+    }
 
     // Start session sync task cron (M5)
     let sync_task = SessionSyncTask::new(health_adapter);

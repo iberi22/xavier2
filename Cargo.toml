@@ -39,6 +39,8 @@ wasm = ["dep:wasm-bindgen", "dep:web-sys", "dep:js-sys", "dep:egui", "dep:eframe
 ci-safe = []
 bench-runners = []
 telegram = ["teloxide"]
+# Enterprise features: Cortex Enterprise Cloud integration
+enterprise = []
 
 [dependencies]
 code-graph = { path = "./code-graph" }
