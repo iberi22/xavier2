@@ -30,7 +30,7 @@ path = "src/lib.rs"
 members = ["code-graph"]
 
 [features]
-default = ["cli-interactive"]
+default = ["cli-interactive", "local-gllm"]
 cli-interactive = ["ratatui", "crossterm"]
 egui = ["dep:egui", "dep:eframe", "dep:egui_extras"]
 egui-standalone = ["egui"]
@@ -39,6 +39,7 @@ wasm = ["dep:wasm-bindgen", "dep:web-sys", "dep:js-sys", "dep:egui", "dep:eframe
 ci-safe = []
 bench-runners = []
 telegram = ["teloxide"]
+local-gllm = ["dep:gllm", "dep:candle-core"]
 # Enterprise features: Cortex Enterprise Cloud integration
 enterprise = []
 
@@ -47,6 +48,8 @@ code-graph = { path = "./code-graph" }
 anyhow = "1.0.102"
 async-trait = "0.1"
 reqwest = { version = "0.12", features = ["json"] }
+gllm = { version = "0.10.6", default-features = false, features = ["cpu"], optional = true }
+candle-core = { version = "=0.9.1", optional = true }
 teloxide = { version = "0.12", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"

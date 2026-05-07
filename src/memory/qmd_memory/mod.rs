@@ -1,22 +1,22 @@
 use anyhow::Result;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::Ordering as AtomicOrdering;
+use std::sync::Arc;
 use tokio::sync::RwLock as AsyncRwLock;
 
-pub mod types;
-pub mod utils;
 pub mod cache;
+pub mod index;
 pub mod search;
 pub mod storage;
-pub mod index;
+pub mod types;
+pub mod utils;
 
-pub use types::*;
-pub use utils::*;
 pub use cache::*;
+pub use index::*;
 pub use search::*;
 pub use storage::*;
-pub use index::*;
+pub use types::*;
+pub use utils::*;
 
 use crate::memory::schema::{matches_filters, MemoryQueryFilters, TypedMemoryPayload};
 use crate::memory::store::MemoryStore;
@@ -223,7 +223,12 @@ impl QmdMemory {
                 .0
                 .partial_cmp(&left.0)
                 .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| right.2.partial_cmp(&left.2).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| {
+                    right
+                        .2
+                        .partial_cmp(&left.2)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .then_with(|| left.1.path.cmp(&right.1.path))
         });
 
@@ -599,7 +604,8 @@ impl QmdMemory {
         embedding: Option<Vec<f32>>,
     ) -> Result<String> {
         let id = ulid::Ulid::new().to_string();
-        let metadata = crate::memory::schema::normalize_metadata(&path, metadata, &self.workspace_id, typed)?;
+        let metadata =
+            crate::memory::schema::normalize_metadata(&path, metadata, &self.workspace_id, typed)?;
         let metadata = index::normalize_locomo_metadata(&path, metadata);
         let variants = index::expand_document_variants(&path, &content, &metadata);
         let is_locomo_benchmark = metadata
@@ -930,6 +936,7 @@ mod tests {
     async fn add_document_skips_embedding_when_service_not_configured() {
         unsafe {
             env::remove_var("XAVIER2_EMBEDDING_URL");
+            env::set_var("XAVIER2_EMBEDDER", "disabled");
         }
 
         let memory = QmdMemory::new(Arc::new(AsyncRwLock::new(Vec::new())));

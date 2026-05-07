@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use thiserror::Error;
 
+pub mod gllm;
 pub mod openai;
 
 const DEFAULT_LOCAL_EMBEDDING_ENDPOINT: &str = "http://localhost:11434/v1/embeddings";
@@ -29,7 +30,9 @@ pub trait Embedder: Send + Sync {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderMode {
     Local,
+    LocalGllm,
     Cloud,
+    Auto,
     Disabled,
 }
 
@@ -37,7 +40,9 @@ impl ProviderMode {
     fn from_env(value: &str) -> Option<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
             "local" => Some(Self::Local),
+            "local-gllm" | "local_gllm" | "gllm" => Some(Self::LocalGllm),
             "cloud" => Some(Self::Cloud),
+            "auto" => Some(Self::Auto),
             "disabled" => Some(Self::Disabled),
             _ => None,
         }
@@ -69,11 +74,20 @@ pub(crate) struct OpenAICompatibleConfig {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct GllmConfig {
+    model: String,
+    dimension: usize,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum EmbedderBackendConfig {
+    Gllm(GllmConfig),
+    OpenAICompatible(OpenAICompatibleConfig),
+}
+
+#[derive(Clone, Debug)]
 pub(crate) enum EmbedderConfig {
-    OpenAICompatible {
-        primary: OpenAICompatibleConfig,
-        fallback: Option<OpenAICompatibleConfig>,
-    },
+    Fallback(Vec<EmbedderBackendConfig>),
     Noop,
 }
 
@@ -87,12 +101,18 @@ impl EmbedderConfig {
             .and_then(|value| ApiFlavor::from_env(&value))
             .unwrap_or(ApiFlavor::OpenAICompatible);
 
+        let explicit_embedder = std::env::var("XAVIER2_EMBEDDER")
+            .ok()
+            .map(|value| value.trim().to_ascii_lowercase());
+
         if provider_mode == Some(ProviderMode::Disabled)
-            || std::env::var("XAVIER2_EMBEDDER")
-                .map(|value| value.eq_ignore_ascii_case("disabled"))
-                .unwrap_or(false)
+            || explicit_embedder.as_deref() == Some("disabled")
         {
             return Self::Noop;
+        }
+
+        if explicit_embedder.as_deref() == Some("gllm") {
+            return Self::gllm_only();
         }
 
         if api_flavor == ApiFlavor::AnthropicCompatible {
@@ -101,7 +121,9 @@ impl EmbedderConfig {
 
         match provider_mode {
             Some(ProviderMode::Local) => Self::local_only(api_flavor),
+            Some(ProviderMode::LocalGllm) => Self::gllm_only(),
             Some(ProviderMode::Cloud) => Self::cloud_only(api_flavor),
+            Some(ProviderMode::Auto) => Self::auto_explicit(api_flavor),
             Some(ProviderMode::Disabled) => Self::Noop,
             None => Self::auto(api_flavor),
         }
@@ -113,30 +135,27 @@ impl EmbedderConfig {
 
     pub fn build_sync(self) -> Result<Arc<dyn Embedder>, EmbeddingError> {
         match self {
-            Self::OpenAICompatible {
-                primary, fallback, ..
-            } => {
-                let mut embedders: Vec<Arc<dyn Embedder>> =
-                    vec![Arc::new(openai::OpenAICompatibleEmbedder::new(
-                        primary.api_key,
-                        primary.model,
-                        primary.endpoint,
-                        primary.dimension,
-                    )?)];
+            Self::Fallback(backends) => {
+                let mut embedders: Vec<Arc<dyn Embedder>> = Vec::new();
 
-                if let Some(fallback) = fallback {
-                    embedders.push(Arc::new(openai::OpenAICompatibleEmbedder::new(
-                        fallback.api_key,
-                        fallback.model,
-                        fallback.endpoint,
-                        fallback.dimension,
-                    )?));
+                for backend in backends {
+                    match build_backend(backend) {
+                        Ok(embedder) => embedders.push(embedder),
+                        Err(error) => {
+                            tracing::warn!(%error, "embedding backend unavailable; trying fallback");
+                        }
+                    }
                 }
 
-                if embedders.len() == 1 {
-                    Ok(embedders.remove(0))
-                } else {
-                    Ok(Arc::new(FallbackEmbedder { embedders }))
+                match embedders.len() {
+                    0 => {
+                        tracing::warn!(
+                            "no embedding backend could be initialized; using no-op embedder"
+                        );
+                        Ok(Arc::new(NoopEmbedder))
+                    }
+                    1 => Ok(embedders.remove(0)),
+                    _ => Ok(Arc::new(FallbackEmbedder { embedders })),
                 }
             }
             Self::Noop => Ok(Arc::new(NoopEmbedder)),
@@ -155,28 +174,45 @@ impl EmbedderConfig {
             .unwrap_or(false);
 
         match (local_signal || explicit_local_llm, cloud_signal) {
-            (true, true) => Self::OpenAICompatible {
-                primary: local_config(),
-                fallback: Some(cloud_config()),
-            },
+            (true, true) => Self::Fallback(vec![
+                EmbedderBackendConfig::OpenAICompatible(local_config()),
+                EmbedderBackendConfig::OpenAICompatible(cloud_config()),
+            ]),
             (true, false) => Self::local_only(api_flavor),
             (false, true) => Self::cloud_only(api_flavor),
             (false, false) => Self::Noop,
         }
     }
 
-    fn local_only(_api_flavor: ApiFlavor) -> Self {
-        Self::OpenAICompatible {
-            primary: local_config(),
-            fallback: None,
+    fn auto_explicit(api_flavor: ApiFlavor) -> Self {
+        let mut backends = vec![EmbedderBackendConfig::Gllm(gllm_config())];
+
+        if api_flavor == ApiFlavor::OpenAICompatible {
+            backends.push(EmbedderBackendConfig::OpenAICompatible(local_config()));
         }
+
+        if cloud_embedding_signal_present() {
+            backends.push(EmbedderBackendConfig::OpenAICompatible(cloud_config()));
+        }
+
+        Self::Fallback(backends)
+    }
+
+    fn local_only(_api_flavor: ApiFlavor) -> Self {
+        Self::Fallback(vec![
+            EmbedderBackendConfig::Gllm(gllm_config()),
+            EmbedderBackendConfig::OpenAICompatible(local_config()),
+        ])
     }
 
     fn cloud_only(_api_flavor: ApiFlavor) -> Self {
-        Self::OpenAICompatible {
-            primary: cloud_config(),
-            fallback: None,
-        }
+        Self::Fallback(vec![
+            EmbedderBackendConfig::OpenAICompatible(cloud_config()),
+        ])
+    }
+
+    fn gllm_only() -> Self {
+        Self::Fallback(vec![EmbedderBackendConfig::Gllm(gllm_config())])
     }
 }
 
@@ -249,6 +285,36 @@ fn cloud_embedding_signal_present() -> bool {
             .unwrap_or(false)
 }
 
+fn build_backend(config: EmbedderBackendConfig) -> Result<Arc<dyn Embedder>, EmbeddingError> {
+    match config {
+        EmbedderBackendConfig::Gllm(config) => Ok(Arc::new(gllm::GllmEmbedder::new(
+            config.model,
+            config.dimension,
+        )?)),
+        EmbedderBackendConfig::OpenAICompatible(config) => {
+            Ok(Arc::new(openai::OpenAICompatibleEmbedder::new(
+                config.api_key,
+                config.model,
+                config.endpoint,
+                config.dimension,
+            )?))
+        }
+    }
+}
+
+fn gllm_config() -> GllmConfig {
+    let raw_model = std::env::var("XAVIER2_GLLM_MODEL")
+        .unwrap_or_else(|_| gllm::DEFAULT_GLLM_MODEL.to_string());
+    let model = gllm::normalize_model_name(&raw_model);
+    let dimension = std::env::var("XAVIER2_GLLM_DIMENSION")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|dimension| *dimension > 0)
+        .unwrap_or_else(|| gllm::dimension_for_model(&model));
+
+    GllmConfig { model, dimension }
+}
+
 fn local_config() -> OpenAICompatibleConfig {
     let endpoint = std::env::var("XAVIER2_EMBEDDING_ENDPOINT")
         .or_else(|_| std::env::var("XAVIER2_EMBEDDING_URL"))
@@ -309,5 +375,33 @@ fn embedding_dimension_for_model(model: &str) -> usize {
         "text-embedding-3-large" => 3072,
         "text-embedding-3-small" | "text-embedding-ada-002" => 1536,
         _ => 768,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_mode_accepts_gllm_and_auto_aliases() {
+        assert_eq!(
+            ProviderMode::from_env("gllm"),
+            Some(ProviderMode::LocalGllm)
+        );
+        assert_eq!(
+            ProviderMode::from_env("local-gllm"),
+            Some(ProviderMode::LocalGllm)
+        );
+        assert_eq!(ProviderMode::from_env("auto"), Some(ProviderMode::Auto));
+    }
+
+    #[test]
+    fn gllm_minilm_aliases_normalize_to_supported_model() {
+        assert_eq!(
+            gllm::normalize_model_name("minilm-l6-v2-q4"),
+            gllm::DEFAULT_GLLM_MODEL
+        );
+        assert_eq!(gllm::dimension_for_model("all-MiniLM-L6-v2"), 384);
+        assert_eq!(gllm::dimension_for_model("qwen3-embedding-0.6b"), 1024);
     }
 }
