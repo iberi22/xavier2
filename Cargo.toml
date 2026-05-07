@@ -81,7 +81,7 @@ chrono = { version = "0.4", features = ["serde"] }
 cron = "0.15"
 # State management
 parking_lot = "0.12"
-rusqlite = { version = "0.32.0", features = ["bundled", "load_extension"] }
+rusqlite = { version = "0.39.0", features = ["bundled", "load_extension"] }
 sqlite-vec = "0.1"
 zerocopy = "0.8"
 
