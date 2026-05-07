@@ -148,6 +148,21 @@ impl Cli {
 
 async fn start_http_server(port: u16) -> Result<()> {
     std::env::set_var("XAVIER2_PORT", port.to_string());
+
+    // Set default router model assignments (user can override via env)
+    if std::env::var("XAVIER2_ROUTER_FAST_MODEL").is_err() {
+        std::env::set_var("XAVIER2_ROUTER_FAST_MODEL", "opencode/minimax-m2.7");
+    }
+    if std::env::var("XAVIER2_ROUTER_QUALITY_MODEL").is_err() {
+        std::env::set_var("XAVIER2_ROUTER_QUALITY_MODEL", "opencode/deepseek-v4-pro");
+    }
+    if std::env::var("XAVIER2_ROUTER_RETRIEVED_MODEL").is_err() {
+        std::env::set_var("XAVIER2_ROUTER_RETRIEVED_MODEL", "opencode/minimax-m2.7");
+    }
+    if std::env::var("XAVIER2_ROUTER_COMPLEX_MODEL").is_err() {
+        std::env::set_var("XAVIER2_ROUTER_COMPLEX_MODEL", "opencode/deepseek-v4-pro");
+    }
+
     let bind_host = resolve_http_bind_host();
     let bind_addr = format!("{}:{}", bind_host, port);
     info!("Starting Xavier2 HTTP server on {}", bind_addr);
