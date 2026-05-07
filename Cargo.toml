@@ -90,7 +90,7 @@ walkdir = "2"
 
 # egui - Native UI (optional, for web UI)
 egui = { version = "0.33.3", optional = true }
-eframe = { version = "0.33.3", default-features = false, optional = true, features = ["default_fonts", "glow"] }
+eframe = { version = "0.34.2", default-features = false, optional = true, features = ["default_fonts", "glow"] }
 egui_extras = { version = "0.33.3", optional = true, features = ["image", "serde"] }
 
 # For WASM web deployment
