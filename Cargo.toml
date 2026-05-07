@@ -120,7 +120,7 @@ argon2 = "0.5"
 rand = "0.8"
 
 # HMAC for webhook signature verification
-hmac = "0.12"
+hmac = "0.13"
 
 # HTTP body utilities for webhook handling
 http-body-util = "0.1"
