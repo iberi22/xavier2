@@ -47,7 +47,7 @@ enterprise = []
 code-graph = { path = "./code-graph" }
 anyhow = "1.0.102"
 async-trait = "0.1"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13", features = ["json"] }
 gllm = { version = "0.10.6", default-features = false, features = ["cpu"], optional = true }
 candle-core = { version = "=0.9.1", optional = true }
 teloxide = { version = "0.12", optional = true }
