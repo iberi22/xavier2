@@ -149,6 +149,7 @@ pub struct MemoryProvenance {
     pub source_type: Option<String>,
     pub repo_url: Option<String>,
     pub file_path: Option<String>,
+    pub chunk_id: Option<String>,
     pub symbol: Option<String>,
     pub url: Option<String>,
     pub message_id: Option<String>,
@@ -514,6 +515,10 @@ fn overlay_provenance(provenance: &mut MemoryProvenance, metadata: &Value, path:
         .or_else(|| string_value(metadata, "file_path"))
         .or_else(|| string_value(metadata, "source_path"))
         .or_else(|| Some(path.to_string()));
+    provenance.chunk_id = provenance
+        .chunk_id
+        .take()
+        .or_else(|| string_value(metadata, "chunk_id"));
     provenance.symbol = provenance
         .symbol
         .take()

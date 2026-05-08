@@ -38,6 +38,7 @@ use xavier2::session::event_mapper::PanelThreadEntry;
 use xavier2::session::types::SessionEvent;
 use xavier2::tasks::session_sync_task::SessionSyncTask;
 use xavier2::time::TimeMetricsStore;
+use xavier2::workspace::{WorkspaceConfig, WorkspaceContext, WorkspaceState};
 
 use crate::settings::Xavier2Settings;
 
@@ -48,6 +49,7 @@ pub struct CliState {
     pub store: Arc<dyn MemoryStore>,
     pub workspace_id: String,
     pub workspace_dir: PathBuf,
+    pub workspace_context: WorkspaceContext,
     pub code_db: Arc<code_graph::db::CodeGraphDB>,
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
@@ -228,11 +230,24 @@ async fn start_http_server(port: u16) -> Result<()> {
     ).unwrap_or_else(|_| PathBuf::from("."));
     info!("Workspace root for path security: {}", workspace_dir.display());
 
+    let workspace_state = WorkspaceState::new(
+        WorkspaceConfig::from_env(),
+        xavier2::agents::RuntimeConfig::default(),
+        workspace_dir.clone(),
+    )
+    .await?;
+
+    let workspace_context = WorkspaceContext {
+        workspace_id: workspace_id.clone(),
+        workspace: Arc::new(workspace_state),
+    };
+
     let state = CliState {
         memory: memory_port,
         store,
         workspace_id,
         workspace_dir,
+        workspace_context,
         code_db,
         code_indexer,
         code_query,
@@ -276,6 +291,12 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/xavier2/sync/check", post(sync_check_handler))
         .route("/xavier2/sync/check", get(sync_check_handler))
         .route("/xavier2/verify/save", post(verify_save_handler))
+        .route("/v1/timeline/events", get(xavier2::server::v1_api::v1_timeline_events))
+        .route("/v1/memories", post(xavier2::server::v1_api::v1_memories_add).get(xavier2::server::v1_api::v1_memories_list))
+        .route("/v1/memories/{id}", get(xavier2::server::v1_api::v1_memories_get).put(xavier2::server::v1_api::v1_memories_update).delete(xavier2::server::v1_api::v1_memories_delete))
+        .route("/v1/memories/search", post(xavier2::server::v1_api::v1_memories_search))
+        .route("/v1/memories/recent", get(xavier2::server::v1_api::v1_memories_recent))
+        .route("/v1/memories/context", post(xavier2::server::v1_api::v1_memories_context))
         .layer(middleware::from_fn(auth_middleware));
 
     // Add enterprise plugin routes if feature is enabled
@@ -295,6 +316,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/panel", get(panel_index))
         .route("/panel/assets/{*path}", get(panel_asset))
         .merge(protected_routes)
+        .layer(axum::Extension(state.workspace_context.clone()))
         .with_state(state);
 
     let listener = TcpListener::bind(&bind_addr).await?;

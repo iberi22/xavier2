@@ -2,6 +2,7 @@
 
 use axum::{
     extract::{Path, Query},
+    http::StatusCode,
     response::IntoResponse,
     Extension, Json,
 };
@@ -35,6 +36,7 @@ pub struct V1AddMemoryRequest {
     pub evidence_kind: Option<EvidenceKind>,
     pub namespace: Option<MemoryNamespace>,
     pub provenance: Option<MemoryProvenance>,
+    pub importance: Option<f32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -71,10 +73,30 @@ pub struct V1SearchRequest {
     pub filters: Option<MemoryQueryFilters>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct V1ContextRequest {
+    pub query: String,
+    pub limit: Option<usize>,
+    pub filters: Option<MemoryQueryFilters>,
+    pub max_chars: Option<usize>,
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct V1MemorySearchResponse {
     pub status: String,
     pub results: Vec<V1MemoryResponse>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct V1TimelineParams {
+    pub since: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct V1RecentParams {
+    pub agent_id: Option<String>,
+    pub user_id: Option<String>,
+    pub limit: Option<usize>,
 }
 
 fn is_primary_memory(metadata: &serde_json::Value) -> bool {
@@ -107,6 +129,21 @@ pub async fn v1_memories_add(
         .clone()
         .unwrap_or_else(|| "default".to_string());
     let mut meta = payload.metadata.unwrap_or(serde_json::json!({}));
+    if let Some(importance) = payload.importance {
+        let priority = if importance >= 0.9 {
+            "critical"
+        } else if importance >= 0.7 {
+            "high"
+        } else if importance >= 0.4 {
+            "medium"
+        } else if importance >= 0.1 {
+            "low"
+        } else {
+            "ephemeral"
+        };
+        meta["memory_priority"] = serde_json::json!(priority);
+        meta["importance"] = serde_json::json!(importance);
+    }
     let mut namespace = payload.namespace;
     if let Some(uid) = payload.user_id {
         meta["user_id"] = serde_json::json!(uid);
@@ -171,6 +208,140 @@ pub async fn v1_memories_add(
             "message": e.to_string(),
         })),
     }
+}
+
+pub async fn v1_memories_recent(
+    Extension(workspace): Extension<WorkspaceContext>,
+    Query(params): Query<V1RecentParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(10);
+    let mut all_docs = workspace.workspace.memory.all_documents().await;
+
+    // Filter by agent_id or user_id
+    if let Some(agent_id) = params.agent_id {
+        all_docs.retain(|doc| {
+            doc.metadata
+                .get("agent_id")
+                .and_then(|v| v.as_str())
+                .is_some_and(|id| id == agent_id)
+                || doc
+                    .metadata
+                    .get("namespace")
+                    .and_then(|ns| ns.get("agent_id"))
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|id| id == agent_id)
+        });
+    }
+
+    if let Some(user_id) = params.user_id {
+        all_docs.retain(|doc| {
+            doc.path == user_id
+                || doc
+                    .metadata
+                    .get("user_id")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|id| id == user_id)
+                || doc
+                    .metadata
+                    .get("namespace")
+                    .and_then(|ns| ns.get("user_id"))
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|id| id == user_id)
+        });
+    }
+
+    // Sort by updated_at descending
+    all_docs.sort_by(|a, b| {
+        let a_time = a
+            .metadata
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .or_else(|| a.metadata.get("created_at").and_then(|v| v.as_str()))
+            .unwrap_or("");
+        let b_time = b
+            .metadata
+            .get("updated_at")
+            .and_then(|v| v.as_str())
+            .or_else(|| b.metadata.get("created_at").and_then(|v| v.as_str()))
+            .unwrap_or("");
+        b_time.cmp(a_time)
+    });
+
+    let memories: Vec<_> = all_docs
+        .into_iter()
+        .take(limit)
+        .map(|doc| V1MemoryResponse {
+            id: doc.id.unwrap_or_default(),
+            memory: doc.content,
+            user_id: Some(doc.path),
+            metadata: doc.metadata,
+        })
+        .collect();
+
+    Json(serde_json::json!({
+        "status": "ok",
+        "memories": memories,
+    }))
+}
+
+pub async fn v1_timeline_events(
+    Extension(workspace): Extension<WorkspaceContext>,
+    Query(params): Query<V1TimelineParams>,
+) -> impl IntoResponse {
+    let since = params.since.unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
+    match workspace.workspace.durable_store().list_timeline_events(&workspace.workspace_id, &since).await {
+        Ok(events) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "ok",
+                "events": events,
+            })),
+        ).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "status": "error",
+                "message": e.to_string(),
+            })),
+        ).into_response(),
+    }
+}
+
+pub async fn v1_memories_context(
+    Extension(workspace): Extension<WorkspaceContext>,
+    Json(payload): Json<V1ContextRequest>,
+) -> impl IntoResponse {
+    let limit = payload.limit.unwrap_or(10);
+    let max_chars = payload.max_chars.unwrap_or(4000);
+
+    let results = query_with_embedding_filtered(
+        &workspace.workspace.memory,
+        &payload.query,
+        limit,
+        payload.filters.as_ref(),
+    )
+    .await
+    .unwrap_or_default();
+
+    let mut context_parts = Vec::new();
+    let mut current_chars = 0;
+
+    for doc in results {
+        let part = format!("--- Memory ({}) ---\n{}\n", doc.path, doc.content);
+        if current_chars + part.len() > max_chars && !context_parts.is_empty() {
+            break;
+        }
+        current_chars += part.len();
+        context_parts.push(part);
+    }
+
+    let context_string = context_parts.join("\n");
+
+    Json(serde_json::json!({
+        "status": "ok",
+        "context": context_string,
+        "count": context_parts.len(),
+    }))
 }
 
 pub async fn v1_memories_search(
@@ -448,6 +619,8 @@ mod tests {
     fn test_router(state: AppState, workspace: WorkspaceContext) -> Router {
         Router::new()
             .route("/v1/memories", post(v1_memories_add).get(v1_memories_list))
+            .route("/v1/memories/recent", get(v1_memories_recent))
+            .route("/v1/memories/context", post(v1_memories_context))
             .route(
                 "/v1/memories/{id}",
                 get(v1_memories_get)
