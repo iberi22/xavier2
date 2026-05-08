@@ -95,6 +95,39 @@ pub enum Command {
         #[arg(short = 'x', long)]
         context: Vec<String>,
     },
+    /// Daily Chronicle - Technical blog system
+    Chronicle {
+        #[command(subcommand)]
+        sub: ChronicleCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ChronicleCommand {
+    /// Harvest local data (commits, decisions, bugs)
+    Harvest {
+        #[arg(long, default_value_t = 1)]
+        since: u32,
+    },
+    /// Generate a technical blog post draft
+    Generate {
+        #[arg(long, default_value_t = 1)]
+        since: u32,
+        #[arg(long)]
+        model: Option<String>,
+    },
+    /// Preview the generated blog post
+    Preview {
+        #[arg(long, default_value_t = 1)]
+        since: u32,
+    },
+    /// Publish the blog post to a file
+    Publish {
+        #[arg(long, default_value_t = 1)]
+        since: u32,
+        #[arg(long)]
+        to: Option<String>,
+    },
 }
 
 /// Xavier2 - Fast Vector Memory for AI Agents
@@ -142,8 +175,67 @@ impl Cli {
                 skills,
                 context,
             } => spawn_agents(*count, provider.clone(), model.clone(), skills, context).await,
+            Command::Chronicle { sub } => run_chronicle(sub).await,
         }
     }
+}
+
+async fn run_chronicle(cmd: &ChronicleCommand) -> Result<()> {
+    use xavier2::chronicle::{Harvester, ChronicleGenerator, ChronicleTemplate};
+
+    // Initialize required state for harvesting
+    let store = VecSqliteMemoryStore::from_env().await?;
+    let workspace_id = std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+    let durable_state = store.load_workspace_state(&workspace_id).await?;
+    let docs = Arc::new(RwLock::new(
+        durable_state.memories.iter().map(MemoryRecord::to_document).collect::<Vec<MemoryDocument>>(),
+    ));
+    let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
+    memory.set_store(Arc::new(store)).await;
+    memory.init().await?;
+
+    let code_db_path = code_graph_db_path();
+    let code_db = code_graph::db::CodeGraphDB::new(&code_db_path)?;
+
+    let workspace_dir = std::env::current_dir()?;
+    let harvester = Harvester::new(&memory, &code_db, &workspace_dir);
+
+    match cmd {
+        ChronicleCommand::Harvest { since } => {
+            println!("Harvesting data since {} days ago...", since);
+            let harvest = harvester.harvest(*since).await?;
+            println!("{}", serde_json::to_string_pretty(&harvest)?);
+        }
+        ChronicleCommand::Generate { since, model } => {
+            println!("Generating Daily Chronicle since {} days ago...", since);
+            let harvest = harvester.harvest(*since).await?;
+            let generator = ChronicleGenerator::new(model.clone());
+            let post = generator.generate(&harvest).await?;
+            let final_markdown = ChronicleTemplate::render(&post);
+            println!("{}", final_markdown);
+        }
+        ChronicleCommand::Preview { since } => {
+            println!("Previewing Daily Chronicle data since {} days ago...", since);
+            let harvest = harvester.harvest(*since).await?;
+            let redactor = xavier2::chronicle::Redactor::new();
+            let json = serde_json::to_string_pretty(&harvest)?;
+            println!("Redacted Harvest Data:\n{}", redactor.redact(&json));
+        }
+        ChronicleCommand::Publish { since, to } => {
+            println!("Publishing Daily Chronicle since {} days ago...", since);
+            let harvest = harvester.harvest(*since).await?;
+            let generator = ChronicleGenerator::new(None);
+            let post = generator.generate(&harvest).await?;
+            let final_markdown = ChronicleTemplate::render(&post);
+
+            use xavier2::chronicle::ChroniclePublishPlugin;
+            let plugin = xavier2::chronicle::FilePublishPlugin::new(PathBuf::from("src/content/blog"));
+            let published_path = plugin.publish(&final_markdown, to.clone()).await?;
+
+            println!("Published to: {}", published_path);
+        }
+    }
+    Ok(())
 }
 
 async fn start_http_server(port: u16) -> Result<()> {

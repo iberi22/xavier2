@@ -31,6 +31,7 @@ pub mod ui;
 pub mod utils;
 pub mod verification;
 pub mod workspace;
+pub mod chronicle;
 
 // Hexagonal architecture modules
 pub mod adapters;
