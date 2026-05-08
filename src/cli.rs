@@ -94,6 +94,26 @@ pub enum Command {
         skills: Vec<String>,
         #[arg(short = 'x', long)]
         context: Vec<String>,
+        #[arg(short, long)]
+        task: Option<String>,
+    },
+    /// Launch parallel agents with a swarm configuration file
+    Swarm {
+        #[arg(short, long)]
+        config: PathBuf,
+        #[arg(short, long, default_value_t = 4)]
+        parallel: usize,
+    },
+    /// Batch processing with provider affinity
+    MultiSpawn {
+        #[arg(long, default_value_t = 1)]
+        agents: usize,
+        #[arg(short, long)]
+        providers: Vec<String>,
+        #[arg(long, default_value_t = 1)]
+        batch: usize,
+        #[arg(short, long)]
+        task: Option<String>,
     },
 }
 
@@ -143,7 +163,12 @@ impl Cli {
                 model,
                 skills,
                 context,
-            } => spawn_agents(*count, provider.clone(), model.clone(), skills, context).await,
+                task,
+            } => spawn_agents(*count, provider.clone(), model.clone(), skills, context, task.clone()).await,
+            Command::Swarm { config, parallel } => run_swarm(config.clone(), *parallel).await,
+            Command::MultiSpawn { agents, providers, batch, task } => {
+                multi_spawn_agents(*agents, providers.clone(), *batch, task.clone()).await
+            }
         }
     }
 }
@@ -2420,6 +2445,7 @@ async fn spawn_agents(
     models: Vec<String>,
     skills: &[String],
     custom_context: &[String],
+    task: Option<String>,
 ) -> Result<()> {
     println!("🚀 Spawning {} agents...", count);
 
@@ -2492,6 +2518,9 @@ async fn spawn_agents(
         }
 
         config = config.with_skills(loaded_skills).with_context(context);
+        if let Some(ref t) = task {
+            config = config.with_task(t.clone());
+        }
 
         let agent = Agent::new(config);
         agents.push(agent);
@@ -2503,10 +2532,151 @@ async fn spawn_agents(
         );
     }
 
+    if task.is_some() {
+        println!("\n▶️ Executing tasks...");
+        let store = VecSqliteMemoryStore::from_env().await?;
+        let workspace_id =
+            std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+        let durable_state = store.load_workspace_state(&workspace_id).await?;
+        let docs = Arc::new(RwLock::new(
+            durable_state
+                .memories
+                .iter()
+                .map(MemoryRecord::to_document)
+                .collect::<Vec<MemoryDocument>>(),
+        ));
+        let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
+        memory.set_store(Arc::new(store)).await;
+        memory.init().await?;
+
+        let mut futures = Vec::new();
+        for mut agent in agents {
+            let memory_clone = Arc::clone(&memory);
+            futures.push(tokio::spawn(async move {
+                let name = agent.name.clone();
+                match agent.run(memory_clone).await {
+                    Ok(resp) => println!("  🏁 {} finished: {}", name, resp.response),
+                    Err(e) => println!("  ❌ {} failed: {}", name, e),
+                }
+            }));
+        }
+
+        for f in futures {
+            let _ = f.await;
+        }
+    }
+
     println!(
         "\n✨ Successfully spawned {} agents simultaneously.",
-        agents.len()
+        count
     );
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct SwarmConfig {
+    agents: Vec<SwarmAgentConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SwarmAgentConfig {
+    name: String,
+    provider: String,
+    model: Option<String>,
+    skills: Option<Vec<String>>,
+    context: Option<HashMap<String, String>>,
+    task: String,
+}
+
+async fn run_swarm(config_path: PathBuf, parallel: usize) -> Result<()> {
+    println!("🐝 Loading swarm configuration from {}...", config_path.display());
+    let content = std::fs::read_to_string(&config_path)?;
+    let swarm: SwarmConfig = if config_path.extension().and_then(|s| s.to_str()) == Some("yaml") || config_path.extension().and_then(|s| s.to_str()) == Some("yml") {
+        serde_yaml::from_str(&content)?
+    } else {
+        serde_json::from_str(&content)?
+    };
+
+    println!("🚀 Launching swarm with {} agents (parallelism: {})...", swarm.agents.len(), parallel);
+
+    let store = VecSqliteMemoryStore::from_env().await?;
+    let workspace_id =
+        std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+    let durable_state = store.load_workspace_state(&workspace_id).await?;
+    let docs = Arc::new(RwLock::new(
+        durable_state
+            .memories
+            .iter()
+            .map(MemoryRecord::to_document)
+            .collect::<Vec<MemoryDocument>>(),
+    ));
+    let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
+    memory.set_store(Arc::new(store)).await;
+    memory.init().await?;
+
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(parallel));
+    let mut futures = Vec::new();
+
+    for agent_cfg in swarm.agents {
+        let memory_clone = Arc::clone(&memory);
+        let sem_clone = Arc::clone(&semaphore);
+
+        futures.push(tokio::spawn(async move {
+            let _permit = sem_clone.acquire().await.unwrap();
+
+            let mut config = AgentConfig::new(agent_cfg.name.clone())
+                .with_provider(agent_cfg.provider.clone())
+                .with_task(agent_cfg.task.clone());
+
+            if let Some(model) = agent_cfg.model {
+                config = config.with_model(model);
+            }
+
+            if let Some(skills) = agent_cfg.skills {
+                config = config.with_skills(skills);
+            }
+
+            if let Some(context) = agent_cfg.context {
+                config = config.with_context(context);
+            }
+
+            let mut agent = Agent::new(config);
+            println!("  🚀 Starting agent: {}", agent.name);
+            match agent.run(memory_clone).await {
+                Ok(resp) => println!("  ✅ Agent {} finished: {}", agent.name, resp.response),
+                Err(e) => println!("  ❌ Agent {} failed: {}", agent.name, e),
+            }
+        }));
+    }
+
+    for f in futures {
+        let _ = f.await;
+    }
+
+    println!("\n✨ Swarm execution completed.");
+    Ok(())
+}
+
+async fn multi_spawn_agents(agents_count: usize, providers: Vec<String>, batch_size: usize, task: Option<String>) -> Result<()> {
+    println!("🚀 Multi-spawning {} agents in batches of {}...", agents_count, batch_size);
+
+    let mut total_spawned = 0;
+    while total_spawned < agents_count {
+        let current_batch = (agents_count - total_spawned).min(batch_size);
+        println!("\n📦 Processing batch: {} agents", current_batch);
+
+        let mut batch_providers = Vec::new();
+        if !providers.is_empty() {
+            for i in 0..current_batch {
+                batch_providers.push(providers[(total_spawned + i) % providers.len()].clone());
+            }
+        }
+
+        spawn_agents(current_batch, batch_providers, vec![], &[], &[], task.clone()).await?;
+        total_spawned += current_batch;
+    }
+
+    println!("\n✨ All {} agents spawned successfully across batches.", agents_count);
     Ok(())
 }
 

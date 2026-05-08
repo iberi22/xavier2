@@ -248,6 +248,12 @@ impl AgentRuntime {
         &self.config
     }
 
+    pub fn with_provider_config(mut self, provider_config: crate::agents::provider::ModelProviderConfig) -> Self {
+        let provider = crate::agents::provider::ModelProviderClient::new(provider_config);
+        self.system2 = System2Reasoner::with_provider(ReasonerConfig::default(), provider);
+        self
+    }
+
     /// Ejecuta el ciclo completo: System 1 → System 2 → System 3
     pub async fn run(
         &self,
@@ -497,11 +503,30 @@ impl AgentRuntime {
                 .router
                 .resolve_model_override(route.category, &retrieval_result, &reasoning_result)
                 .or(route.model_override.clone());
-            let system3 = System3Actor::new(ActorConfig {
-                semantic_cache: Some(Arc::clone(&self.semantic_cache)),
-                model_override: selected_model_override,
-                ..ActorConfig::default()
-            });
+
+            let system3 = if let Some(provider) = &self.config.model_provider {
+                // If runtime config has explicit provider, use it
+                let p_config = crate::agents::provider::ModelProviderConfig::new_with_params(
+                    provider,
+                    selected_model_override,
+                    self.config.model_api_key.clone(),
+                    self.config.model_url.clone(),
+                );
+                System3Actor::with_config(
+                    ActorConfig {
+                        semantic_cache: Some(Arc::clone(&self.semantic_cache)),
+                        model_override: p_config.model.clone().into(),
+                        ..ActorConfig::default()
+                    },
+                    p_config,
+                )
+            } else {
+                System3Actor::new(ActorConfig {
+                    semantic_cache: Some(Arc::clone(&self.semantic_cache)),
+                    model_override: selected_model_override,
+                    ..ActorConfig::default()
+                })
+            };
             let s3_start = std::time::Instant::now();
             let action_result = system3
                 .run(

@@ -58,6 +58,15 @@ impl LlmClient {
         }
     }
 
+    pub fn with_config(config: crate::agents::provider::ModelProviderConfig) -> Self {
+        let provider = ModelProviderClient::new(config);
+        let status = provider.status();
+        Self {
+            provider: Arc::new(provider),
+            model_label: Some(status.model),
+        }
+    }
+
     pub async fn generate_response(
         &self,
         query: &str,
@@ -2059,6 +2068,11 @@ pub struct System3Actor {
 impl System3Actor {
     pub fn new(config: ActorConfig) -> Self {
         let llm_client = LlmClient::new(config.model_override.clone());
+        Self { config, llm_client }
+    }
+
+    pub fn with_config(config: ActorConfig, provider_config: crate::agents::provider::ModelProviderConfig) -> Self {
+        let llm_client = LlmClient::with_config(provider_config);
         Self { config, llm_client }
     }
 
