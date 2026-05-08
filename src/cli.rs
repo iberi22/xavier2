@@ -104,14 +104,18 @@ pub enum Command {
         #[arg(short, long, default_value_t = 4)]
         parallel: usize,
     },
-    /// Batch processing with provider affinity
+    /// Batch spawn agents with provider/model routing
     MultiSpawn {
-        #[arg(long, default_value_t = 1)]
+        #[arg(long, default_value_t = 10)]
         agents: usize,
-        #[arg(short, long)]
-        providers: Vec<String>,
-        #[arg(long, default_value_t = 1)]
+        #[arg(long, default_value_t = 4)]
         batch: usize,
+        #[arg(short, long)]
+        provider: Vec<String>,
+        #[arg(short, long)]
+        model: Vec<String>,
+        #[arg(short, long)]
+        skills: Vec<String>,
         #[arg(short, long)]
         task: Option<String>,
     },
@@ -164,11 +168,36 @@ impl Cli {
                 skills,
                 context,
                 task,
-            } => spawn_agents(*count, provider.clone(), model.clone(), skills, context, task.clone()).await,
-            Command::Swarm { config, parallel } => run_swarm(config.clone(), *parallel).await,
-            Command::MultiSpawn { agents, providers, batch, task } => {
-                multi_spawn_agents(*agents, providers.clone(), *batch, task.clone()).await
+            } => {
+                spawn_agents(
+                    *count,
+                    provider.clone(),
+                    model.clone(),
+                    skills,
+                    context,
+                    task.as_deref(),
+                )
+                .await
             }
+            Command::MultiSpawn {
+                agents,
+                batch,
+                provider,
+                model,
+                skills,
+                task,
+            } => {
+                multi_spawn_agents(
+                    *agents,
+                    *batch,
+                    provider.clone(),
+                    model.clone(),
+                    skills.clone(),
+                    task.as_deref(),
+                )
+                .await
+            }
+            Command::Swarm { config, parallel } => run_swarm(config.clone(), *parallel).await,
         }
     }
 }
@@ -2445,131 +2474,135 @@ async fn spawn_agents(
     models: Vec<String>,
     skills: &[String],
     custom_context: &[String],
-    task: Option<String>,
+    task: Option<&str>,
 ) -> Result<()> {
-    println!("🚀 Spawning {} agents...", count);
+    println!("Spawning {} agents...", count);
 
-    // Get available providers if none specified
     let available_providers = if providers.is_empty() {
-        vec!["openclaw".to_string()]
+        vec!["local".to_string()]
     } else {
-        providers.clone()
+        providers
     };
 
-    if available_providers.is_empty() {
-        println!(
-            "⚠️ No providers specified and none found in environment. Using default routing pool."
-        );
-    }
-
-    let mut agents = Vec::new();
+    let mut agents = Vec::with_capacity(count);
     for i in 0..count {
         let name = format!("agent-{}", i + 1);
-        let mut config = AgentConfig::new(name.clone());
+        let provider_name = available_providers
+            .get(i % available_providers.len())
+            .cloned();
+        let model_name = models.get(i % models.len().max(1)).cloned();
 
-        // Provider routing (Issue #96, #98)
-        let provider_name = if !available_providers.is_empty() {
-            Some(available_providers[i % available_providers.len()].clone())
-        } else {
-            None
-        };
-
-        if let Some(ref p) = provider_name {
-            config = config.with_provider(p.clone());
-        }
-
-        // Model routing
-        let model_name = if !models.is_empty() {
-            Some(models[i % models.len()].clone())
-        } else {
-            None
-        };
-
-        if let Some(ref m) = model_name {
-            config = config.with_model(m.clone());
-        }
-
-        // Load skills and context (Issue #97)
-        let mut loaded_skills = Vec::new();
         let mut context = HashMap::new();
-
-        // Add spawn context
         context.insert("agent_index".to_string(), i.to_string());
         context.insert("total_agents".to_string(), count.to_string());
-        if let Some(ref p) = provider_name {
-            context.insert("spawn_provider".to_string(), p.clone());
+        if let Some(ref provider_name) = provider_name {
+            context.insert("spawn_provider".to_string(), provider_name.clone());
         }
 
+        for kv in custom_context {
+            if let Some((key, value)) = kv.split_once('=') {
+                context.insert(key.to_string(), value.to_string());
+            }
+        }
+
+        let mut loaded_skills = Vec::new();
         for skill_name in skills {
             if let Some(content) = load_skill(skill_name) {
-                // Add skill content to context as requested by Issue #97
-                context.insert(format!("skill_{}", skill_name), content.clone());
+                context.insert(format!("skill_{}", skill_name), content);
                 loaded_skills.push(skill_name.clone());
             } else {
-                println!("⚠️ Warning: Skill {} not found", skill_name);
+                println!("Warning: skill '{}' not found", skill_name);
             }
         }
 
-        // Add custom context (Issue #96)
-        for kv in custom_context {
-            if let Some((k, v)) = kv.split_once('=') {
-                context.insert(k.to_string(), v.to_string());
-            }
+        let mut config = AgentConfig::new(name.clone())
+            .with_skills(loaded_skills)
+            .with_context(context);
+        if let Some(ref provider_name) = provider_name {
+            config = config.with_provider(provider_name.clone());
+        }
+        if let Some(ref model_name) = model_name {
+            config = config.with_model(model_name.clone());
+        }
+        if let Some(task) = task {
+            config = config.with_task(task.to_string());
         }
 
-        config = config.with_skills(loaded_skills).with_context(context);
-        if let Some(ref t) = task {
-            config = config.with_task(t.clone());
-        }
-
-        let agent = Agent::new(config);
-        agents.push(agent);
         println!(
-            "  ✅ {} spawned [provider: {}, model: {}]",
+            "  spawned {} [provider: {}, model: {}]",
             name,
             provider_name.as_deref().unwrap_or("auto"),
-            model_name.as_deref().unwrap_or("default")
+            model_name.as_deref().unwrap_or("default"),
         );
+        agents.push(Agent::new(config));
     }
 
-    if task.is_some() {
-        println!("\n▶️ Executing tasks...");
-        let store = VecSqliteMemoryStore::from_env().await?;
-        let workspace_id =
-            std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
-        let durable_state = store.load_workspace_state(&workspace_id).await?;
-        let docs = Arc::new(RwLock::new(
-            durable_state
-                .memories
-                .iter()
-                .map(MemoryRecord::to_document)
-                .collect::<Vec<MemoryDocument>>(),
-        ));
-        let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
-        memory.set_store(Arc::new(store)).await;
-        memory.init().await?;
-
-        let mut futures = Vec::new();
+    if let Some(task) = task {
+        println!("Executing task across spawned agents: {}", task);
+        let memory = load_spawn_memory().await?;
+        let mut futures = Vec::with_capacity(agents.len());
         for mut agent in agents {
-            let memory_clone = Arc::clone(&memory);
+            let memory = Arc::clone(&memory);
             futures.push(tokio::spawn(async move {
                 let name = agent.name.clone();
-                match agent.run(memory_clone).await {
-                    Ok(resp) => println!("  🏁 {} finished: {}", name, resp.response),
-                    Err(e) => println!("  ❌ {} failed: {}", name, e),
+                match agent.run(memory).await {
+                    Ok(resp) => println!("  {} completed: {}", name, resp.response),
+                    Err(error) => println!("  {} failed: {}", name, error),
                 }
             }));
         }
 
-        for f in futures {
-            let _ = f.await;
+        for future in futures {
+            let _ = future.await;
         }
     }
 
+    Ok(())
+}
+
+async fn multi_spawn_agents(
+    agents_count: usize,
+    batch_size: usize,
+    providers: Vec<String>,
+    models: Vec<String>,
+    skills: Vec<String>,
+    task: Option<&str>,
+) -> Result<()> {
     println!(
-        "\n✨ Successfully spawned {} agents simultaneously.",
-        count
+        "Batch spawning {} agents in groups of {}...",
+        agents_count, batch_size
     );
+
+    let providers = if providers.is_empty() {
+        vec!["local".to_string()]
+    } else {
+        providers
+    };
+
+    for offset in (0..agents_count).step_by(batch_size.max(1)) {
+        let current_batch = std::cmp::min(batch_size.max(1), agents_count - offset);
+        let batch_providers = (0..current_batch)
+            .map(|i| providers[(offset + i) % providers.len()].clone())
+            .collect::<Vec<_>>();
+        let batch_models = if models.is_empty() {
+            Vec::new()
+        } else {
+            (0..current_batch)
+                .map(|i| models[(offset + i) % models.len()].clone())
+                .collect::<Vec<_>>()
+        };
+
+        spawn_agents(
+            current_batch,
+            batch_providers,
+            batch_models,
+            &skills,
+            &[],
+            task,
+        )
+        .await?;
+    }
+
     Ok(())
 }
 
@@ -2589,40 +2622,33 @@ struct SwarmAgentConfig {
 }
 
 async fn run_swarm(config_path: PathBuf, parallel: usize) -> Result<()> {
-    println!("🐝 Loading swarm configuration from {}...", config_path.display());
+    println!("Loading swarm configuration from {}...", config_path.display());
     let content = std::fs::read_to_string(&config_path)?;
-    let swarm: SwarmConfig = if config_path.extension().and_then(|s| s.to_str()) == Some("yaml") || config_path.extension().and_then(|s| s.to_str()) == Some("yml") {
+    let swarm: SwarmConfig = if matches!(
+        config_path.extension().and_then(|s| s.to_str()),
+        Some("yaml" | "yml")
+    ) {
         serde_yaml::from_str(&content)?
     } else {
         serde_json::from_str(&content)?
     };
 
-    println!("🚀 Launching swarm with {} agents (parallelism: {})...", swarm.agents.len(), parallel);
-
-    let store = VecSqliteMemoryStore::from_env().await?;
-    let workspace_id =
-        std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
-    let durable_state = store.load_workspace_state(&workspace_id).await?;
-    let docs = Arc::new(RwLock::new(
-        durable_state
-            .memories
-            .iter()
-            .map(MemoryRecord::to_document)
-            .collect::<Vec<MemoryDocument>>(),
-    ));
-    let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
-    memory.set_store(Arc::new(store)).await;
-    memory.init().await?;
+    println!(
+        "Launching swarm with {} agents (parallelism: {})...",
+        swarm.agents.len(),
+        parallel
+    );
+    let memory = load_spawn_memory().await?;
 
     let semaphore = Arc::new(tokio::sync::Semaphore::new(parallel));
     let mut futures = Vec::new();
 
     for agent_cfg in swarm.agents {
-        let memory_clone = Arc::clone(&memory);
-        let sem_clone = Arc::clone(&semaphore);
+        let memory = Arc::clone(&memory);
+        let semaphore = Arc::clone(&semaphore);
 
         futures.push(tokio::spawn(async move {
-            let _permit = sem_clone.acquire().await.unwrap();
+            let _permit = semaphore.acquire().await.unwrap();
 
             let mut config = AgentConfig::new(agent_cfg.name.clone())
                 .with_provider(agent_cfg.provider.clone())
@@ -2641,10 +2667,10 @@ async fn run_swarm(config_path: PathBuf, parallel: usize) -> Result<()> {
             }
 
             let mut agent = Agent::new(config);
-            println!("  🚀 Starting agent: {}", agent.name);
-            match agent.run(memory_clone).await {
-                Ok(resp) => println!("  ✅ Agent {} finished: {}", agent.name, resp.response),
-                Err(e) => println!("  ❌ Agent {} failed: {}", agent.name, e),
+            println!("  starting {}", agent.name);
+            match agent.run(memory).await {
+                Ok(resp) => println!("  {} finished: {}", agent.name, resp.response),
+                Err(error) => println!("  {} failed: {}", agent.name, error),
             }
         }));
     }
@@ -2653,35 +2679,29 @@ async fn run_swarm(config_path: PathBuf, parallel: usize) -> Result<()> {
         let _ = f.await;
     }
 
-    println!("\n✨ Swarm execution completed.");
+    println!("Swarm execution completed.");
     Ok(())
 }
 
-async fn multi_spawn_agents(agents_count: usize, providers: Vec<String>, batch_size: usize, task: Option<String>) -> Result<()> {
-    println!("🚀 Multi-spawning {} agents in batches of {}...", agents_count, batch_size);
-
-    let mut total_spawned = 0;
-    while total_spawned < agents_count {
-        let current_batch = (agents_count - total_spawned).min(batch_size);
-        println!("\n📦 Processing batch: {} agents", current_batch);
-
-        let mut batch_providers = Vec::new();
-        if !providers.is_empty() {
-            for i in 0..current_batch {
-                batch_providers.push(providers[(total_spawned + i) % providers.len()].clone());
-            }
-        }
-
-        spawn_agents(current_batch, batch_providers, vec![], &[], &[], task.clone()).await?;
-        total_spawned += current_batch;
-    }
-
-    println!("\n✨ All {} agents spawned successfully across batches.", agents_count);
-    Ok(())
+async fn load_spawn_memory() -> Result<Arc<QmdMemory>> {
+    let store = VecSqliteMemoryStore::from_env().await?;
+    let workspace_id =
+        std::env::var("XAVIER_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+    let durable_state = store.load_workspace_state(&workspace_id).await?;
+    let docs = Arc::new(RwLock::new(
+        durable_state
+            .memories
+            .iter()
+            .map(MemoryRecord::to_document)
+            .collect::<Vec<MemoryDocument>>(),
+    ));
+    let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id));
+    memory.set_store(Arc::new(store)).await;
+    memory.init().await?;
+    Ok(memory)
 }
 
 fn load_skill(skill_name: &str) -> Option<String> {
-    // Try multiple paths (M97)
     let paths = [
         format!("skills/{}/SKILL.md", skill_name),
         format!("skills/{}.md", skill_name),

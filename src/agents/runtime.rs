@@ -502,31 +502,14 @@ impl AgentRuntime {
             let selected_model_override = self
                 .router
                 .resolve_model_override(route.category, &retrieval_result, &reasoning_result)
-                .or(route.model_override.clone());
-
-            let system3 = if let Some(provider) = &self.config.model_provider {
-                // If runtime config has explicit provider, use it
-                let p_config = crate::agents::provider::ModelProviderConfig::new_with_params(
-                    provider,
-                    selected_model_override,
-                    self.config.model_api_key.clone(),
-                    self.config.model_url.clone(),
-                );
-                System3Actor::with_config(
-                    ActorConfig {
-                        semantic_cache: Some(Arc::clone(&self.semantic_cache)),
-                        model_override: p_config.model.clone().into(),
-                        ..ActorConfig::default()
-                    },
-                    p_config,
-                )
-            } else {
-                System3Actor::new(ActorConfig {
-                    semantic_cache: Some(Arc::clone(&self.semantic_cache)),
-                    model_override: selected_model_override,
-                    ..ActorConfig::default()
-                })
-            };
+                .or(route.model_override.clone())
+                .or(self.config.model_url.clone());
+            let system3 = System3Actor::new(ActorConfig {
+                semantic_cache: Some(Arc::clone(&self.semantic_cache)),
+                model_override: selected_model_override,
+                provider_override: self.config.model_provider.clone(),
+                ..ActorConfig::default()
+            });
             let s3_start = std::time::Instant::now();
             let action_result = system3
                 .run(
