@@ -7,6 +7,7 @@ pub mod a2a;
 pub mod agents;
 pub mod api;
 pub mod checkpoint;
+pub mod chronicle;
 pub mod consistency;
 pub mod consolidation;
 pub mod context;
