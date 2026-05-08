@@ -525,7 +525,7 @@ fn default_relevance_threshold() -> f32 {
 }
 
 fn default_rrf_k() -> u32 {
-    60
+    crate::search::hybrid::configured_rrf_k()
 }
 
 /// Response for multi-layer memory retrieval
