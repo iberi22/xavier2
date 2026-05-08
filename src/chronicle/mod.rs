@@ -7,6 +7,7 @@ pub mod generate;
 pub mod harvest;
 pub mod patterns;
 pub mod prompts;
+pub mod publish;
 pub mod redact;
 
 pub use redact::{process_output, redact, verify};
