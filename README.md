@@ -23,6 +23,11 @@ xavier http
 # Add and search memory
 xavier add "AI agents should always verify their sources" "agent-guidelines"
 xavier search "agent guidelines"
+
+# Build a daily chronicle from local project activity
+xavier chronicle harvest --since 2026-05-01
+xavier chronicle generate
+xavier chronicle preview
 ```
 
 ## Features
@@ -34,6 +39,7 @@ xavier search "agent guidelines"
 - **Public dataset export** — Generate read-optimized NDJSON datasets for agent bootstrap (see [Public Export](#public-dataset-export))
 - **Hybrid retrieval** — Building blocks for combining keyword and semantic search
 - **Agent runtime modules** — Ready-to-use runtime components for agent memory workflows
+- **Chronicle workflow** — `xavier chronicle` can harvest project activity, generate daily technical posts, preview them, and publish Markdown outputs
 - **Plugin system** — Extensible enterprise integrations (Cortex, PgHeart)
 
 ## Enterprise Plugins

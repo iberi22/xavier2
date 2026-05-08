@@ -95,6 +95,11 @@ pub enum Command {
         #[arg(short = 'x', long)]
         context: Vec<String>,
     },
+    /// Subcomando para gestionar Chronicle
+    Chronicle {
+        #[command(subcommand)]
+        cmd: crate::chronicle::cli::ChronicleCommand,
+    },
 }
 
 /// Xavier - Fast Vector Memory for AI Agents
@@ -144,6 +149,7 @@ impl Cli {
                 skills,
                 context,
             } => spawn_agents(*count, provider.clone(), model.clone(), skills, context).await,
+            Command::Chronicle { cmd } => crate::chronicle::cli::handle_chronicle_command(cmd.clone()).await,
         }
     }
 }
