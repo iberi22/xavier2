@@ -64,21 +64,37 @@ pub struct ModelProviderConfig {
 
 impl ModelProviderConfig {
     pub fn from_env() -> Self {
-        match std::env::var("XAVIER2_MODEL_PROVIDER")
+        let provider = std::env::var("XAVIER2_MODEL_PROVIDER")
             .ok()
-            .map(|value| value.trim().to_ascii_lowercase())
-            .as_deref()
-        {
-            Some("local") => Self::local_from_env(),
-            Some("cloud") => Self::cloud_from_env(),
-            Some("disabled") => Self::disabled(),
-            Some("anthropic") => Self::anthropic_cloud_from_env(),
-            Some("openai") => Self::openai_cloud_from_env(),
-            Some("deepseek") => Self::deepseek_cloud_from_env(),
-            Some("minimax") => Self::minimax_cloud_from_env(),
-            Some("gemini") => Self::gemini_cloud_from_env(),
+            .map(|value| value.trim().to_ascii_lowercase());
+
+        Self::from_label(provider.as_deref().unwrap_or("local"))
+    }
+
+    pub fn from_label(label: &str) -> Self {
+        match label.trim().to_ascii_lowercase().as_str() {
+            "local" => Self::local_from_env(),
+            "cloud" => Self::cloud_from_env(),
+            "disabled" => Self::disabled(),
+            "anthropic" => Self::anthropic_cloud_from_env(),
+            "openai" => Self::openai_cloud_from_env(),
+            "deepseek" => Self::deepseek_cloud_from_env(),
+            "minimax" => Self::minimax_cloud_from_env(),
+            "gemini" => Self::gemini_cloud_from_env(),
             _ => Self::local_from_env(),
         }
+    }
+
+    pub fn new_with_params(
+        provider: &str,
+        model: Option<String>,
+        api_key: Option<String>,
+        base_url: Option<String>,
+    ) -> Self {
+        Self::from_label(provider)
+            .with_model_override(model)
+            .with_api_key(api_key)
+            .with_base_url(base_url)
     }
 
     fn local_from_env() -> Self {
@@ -294,6 +310,20 @@ impl ModelProviderConfig {
         }
         self
     }
+
+    pub fn with_api_key(mut self, api_key: Option<String>) -> Self {
+        if let Some(key) = api_key.filter(|v| !v.trim().is_empty()) {
+            self.api_key = Some(key);
+        }
+        self
+    }
+
+    pub fn with_base_url(mut self, base_url: Option<String>) -> Self {
+        if let Some(url) = base_url.filter(|v| !v.trim().is_empty()) {
+            self.base_url = Some(url);
+        }
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -310,19 +340,23 @@ pub struct ModelProviderClient {
 }
 
 impl ModelProviderClient {
-    pub fn from_env() -> Self {
-        Self::from_model_override(None)
-    }
-
-    pub fn from_model_override(model_override: Option<String>) -> Self {
+    pub fn new(config: ModelProviderConfig) -> Self {
         Self {
             client: Client::builder()
                 .connect_timeout(Duration::from_secs(2))
                 .timeout(Duration::from_secs(8))
                 .build()
                 .expect("model provider HTTP client"),
-            config: ModelProviderConfig::from_env().with_model_override(model_override),
+            config,
         }
+    }
+
+    pub fn from_env() -> Self {
+        Self::from_model_override(None)
+    }
+
+    pub fn from_model_override(model_override: Option<String>) -> Self {
+        Self::new(ModelProviderConfig::from_env().with_model_override(model_override))
     }
 
     pub fn status(&self) -> ModelProviderStatus {

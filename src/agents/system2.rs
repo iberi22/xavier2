@@ -72,6 +72,10 @@ impl System2Reasoner {
         }
     }
 
+    pub fn with_provider(config: ReasonerConfig, provider: crate::agents::provider::ModelProviderClient) -> Self {
+        Self { config, provider }
+    }
+
     pub async fn run(&self, query: &str, context: &RetrievalResult) -> Result<ReasoningResult> {
         let start = std::time::Instant::now();
 
