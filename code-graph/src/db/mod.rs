@@ -314,6 +314,41 @@ impl CodeGraphDB {
         })
     }
 
+    /// Find symbols in a specific file
+    pub fn find_by_file(&self, file_path: &str) -> Result<Vec<Symbol>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn
+            .prepare(
+                r#"SELECT id, name, kind, lang, file_path, start_line, end_line, start_col, end_col, signature, parent
+                   FROM symbols
+                   WHERE file_path = ?1"#,
+            )
+            .map_err(|e| GraphError::Database(e.to_string()))?;
+
+        let symbols = stmt
+            .query_map(params![file_path], |row| {
+                Ok(Symbol {
+                    id: Some(row.get(0)?),
+                    name: row.get(1)?,
+                    kind: parse_symbol_kind(&row.get::<_, String>(2)?),
+                    lang: parse_language(&row.get::<_, String>(3)?),
+                    file_path: row.get(4)?,
+                    start_line: row.get(5)?,
+                    end_line: row.get(6)?,
+                    start_col: row.get(7)?,
+                    end_col: row.get(8)?,
+                    signature: row.get(9)?,
+                    parent: row.get(10)?,
+                })
+            })
+            .map_err(|e| GraphError::Database(e.to_string()))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(symbols)
+    }
+
     /// Find symbols by kind
     pub fn find_by_kind(&self, kind: SymbolKind, limit: usize) -> Result<Vec<Symbol>> {
         let conn = self.conn.lock().unwrap();
