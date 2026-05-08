@@ -90,7 +90,7 @@ pub enum Command {
         provider: Vec<String>,
         #[arg(short, long)]
         model: Vec<String>,
-        #[arg(short, long)]
+        #[arg(short, long = "skill")]
         skills: Vec<String>,
         #[arg(short = 'x', long)]
         context: Vec<String>,
@@ -2505,8 +2505,23 @@ async fn spawn_agents(
             }
         }
 
+        let mut effective_skills = skills.to_vec();
+        if let Some(ref provider_name) = provider_name {
+            let provider_key = provider_name.to_lowercase();
+            if provider_key.contains("minimax")
+                && !effective_skills.iter().any(|skill| skill == "coding-agent")
+            {
+                effective_skills.push("coding-agent".to_string());
+            }
+            if provider_key.contains("deepseek")
+                && !effective_skills.iter().any(|skill| skill == "research")
+            {
+                effective_skills.push("research".to_string());
+            }
+        }
+
         let mut loaded_skills = Vec::new();
-        for skill_name in skills {
+        for skill_name in &effective_skills {
             if let Some(content) = load_skill(skill_name) {
                 context.insert(format!("skill_{}", skill_name), content);
                 loaded_skills.push(skill_name.clone());
