@@ -464,7 +464,6 @@ impl MessageBus {
 
         // Also broadcast to topic subscribers
         if let Some(ref topic) = message.topic {
-            let _rx = self.broadcast_tx.subscribe();
             let _ = self.broadcast_tx.send(message.clone());
 
             // Get topic subscribers
