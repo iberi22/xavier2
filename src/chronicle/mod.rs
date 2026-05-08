@@ -3,6 +3,7 @@
 //! Chronicle provides security and data integrity layers for Xavier2.
 //! It includes automated redaction of sensitive information.
 
+pub mod harvest;
 pub mod patterns;
 pub mod redact;
 
