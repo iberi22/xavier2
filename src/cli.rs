@@ -23,7 +23,7 @@ use xavier2::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
 use xavier2::adapters::outbound::http_health_adapter::HttpHealthAdapter;
-use xavier2::agents::{Agent, AgentConfig};
+use xavier2::agents::{Agent, AgentConfig, AgentRuntime, RuntimeConfig};
 use xavier2::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier2::coordination::SimpleAgentRegistry;
 use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
@@ -90,10 +90,12 @@ pub enum Command {
         provider: Vec<String>,
         #[arg(short, long)]
         model: Vec<String>,
-        #[arg(short, long)]
+        #[arg(short, long = "skill")]
         skills: Vec<String>,
         #[arg(short = 'x', long)]
         context: Vec<String>,
+        #[arg(long)]
+        task: Option<String>,
     },
 }
 
@@ -141,7 +143,18 @@ impl Cli {
                 model,
                 skills,
                 context,
-            } => spawn_agents(*count, provider.clone(), model.clone(), skills, context).await,
+                task,
+            } => {
+                spawn_agents(
+                    *count,
+                    provider.clone(),
+                    model.clone(),
+                    skills.clone(),
+                    context.clone(),
+                    task.clone(),
+                )
+                .await
+            }
         }
     }
 }
@@ -2423,8 +2436,9 @@ async fn spawn_agents(
     count: usize,
     providers: Vec<String>,
     models: Vec<String>,
-    skills: &[String],
-    custom_context: &[String],
+    skills: Vec<String>,
+    custom_context: Vec<String>,
+    task: Option<String>,
 ) -> Result<()> {
     println!("🚀 Spawning {} agents...", count);
 
@@ -2442,6 +2456,32 @@ async fn spawn_agents(
     }
 
     let mut agents = Vec::new();
+
+    // Initialize memory and store once if executing tasks (Issue #97)
+    let memory_context = if task.is_some() {
+        let store_inner = VecSqliteMemoryStore::from_env().await?;
+        let store = Arc::new(store_inner);
+        let workspace_id = std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID")
+            .unwrap_or_else(|_| "default".to_string());
+
+        let durable_state = store.load_workspace_state(&workspace_id).await?;
+        let docs = Arc::new(RwLock::new(
+            durable_state
+                .memories
+                .iter()
+                .map(MemoryRecord::to_document)
+                .collect::<Vec<MemoryDocument>>(),
+        ));
+        let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
+        memory
+            .set_store(Arc::clone(&store) as Arc<dyn MemoryStore>)
+            .await;
+        memory.init().await?;
+        Some(memory)
+    } else {
+        None
+    };
+
     for i in 0..count {
         let name = format!("agent-{}", i + 1);
         let mut config = AgentConfig::new(name.clone());
@@ -2469,6 +2509,19 @@ async fn spawn_agents(
         }
 
         // Load skills and context (Issue #97)
+        let mut agent_skills = skills.clone();
+
+        // Default skills for provider types (Issue #97)
+        if let Some(ref p) = provider_name {
+            let lp = p.to_lowercase();
+            if lp.contains("minimax") && !agent_skills.contains(&"coding-agent".to_string()) {
+                agent_skills.push("coding-agent".to_string());
+            }
+            if lp.contains("deepseek") && !agent_skills.contains(&"research".to_string()) {
+                agent_skills.push("research".to_string());
+            }
+        }
+
         let mut loaded_skills = Vec::new();
         let mut context = HashMap::new();
 
@@ -2479,7 +2532,7 @@ async fn spawn_agents(
             context.insert("spawn_provider".to_string(), p.clone());
         }
 
-        for skill_name in skills {
+        for skill_name in &agent_skills {
             if let Some(content) = load_skill(skill_name) {
                 // Add skill content to context as requested by Issue #97
                 context.insert(format!("skill_{}", skill_name), content.clone());
@@ -2490,13 +2543,15 @@ async fn spawn_agents(
         }
 
         // Add custom context (Issue #96)
-        for kv in custom_context {
+        for kv in &custom_context {
             if let Some((k, v)) = kv.split_once('=') {
                 context.insert(k.to_string(), v.to_string());
             }
         }
 
-        config = config.with_skills(loaded_skills).with_context(context);
+        config = config
+            .with_skills(loaded_skills)
+            .with_context(context.clone());
 
         let agent = Agent::new(config);
         agents.push(agent);
@@ -2506,12 +2561,54 @@ async fn spawn_agents(
             provider_name.as_deref().unwrap_or("auto"),
             model_name.as_deref().unwrap_or("default")
         );
+
+        // Execute task if provided (Issue #97)
+        if let Some(ref task_str) = task {
+            if let Some(ref memory) = memory_context {
+                println!("  🏃 Running task: \"{}\"...", task_str);
+
+                // Load context into memory for this session
+                let session_id = format!("spawn-{}", ulid::Ulid::new());
+                for (key, value) in &context {
+                    let path = format!("sessions/{}/context/{}", session_id, key);
+                    if let Err(e) = memory
+                        .add_document(
+                            path,
+                            value.clone(),
+                            serde_json::json!({"session_id": session_id, "key": key}),
+                        )
+                        .await
+                    {
+                        println!("  ⚠️ Warning: Failed to load context key '{}': {}", key, e);
+                    }
+                }
+
+                let runtime_config = RuntimeConfig::from_env();
+                let runtime = AgentRuntime::new(Arc::clone(memory), None, runtime_config)?;
+
+                match runtime.run(task_str, Some(session_id), None).await {
+                    Ok(response) => {
+                        println!("  💬 {} response: {}", name, response.response);
+                    }
+                    Err(e) => {
+                        println!("  ❌ {} failed: {}", name, e);
+                    }
+                }
+            }
+        }
     }
 
-    println!(
-        "\n✨ Successfully spawned {} agents simultaneously.",
-        agents.len()
-    );
+    if task.is_none() {
+        println!(
+            "\n✨ Successfully spawned {} agents simultaneously.",
+            agents.len()
+        );
+    } else {
+        println!(
+            "\n✨ Finished task execution for {} agents.",
+            agents.len()
+        );
+    }
     Ok(())
 }
 
