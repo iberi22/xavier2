@@ -2,6 +2,7 @@
 // Public open-core release
 
 mod cli;
+mod chronicle;
 mod settings;
 extern crate xavier2 as xavier2_lib;
 
