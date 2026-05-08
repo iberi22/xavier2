@@ -500,6 +500,7 @@ impl AgentRuntime {
             let system3 = System3Actor::new(ActorConfig {
                 semantic_cache: Some(Arc::clone(&self.semantic_cache)),
                 model_override: selected_model_override,
+                provider_override: self.config.model_provider.clone(),
                 ..ActorConfig::default()
             });
             let s3_start = std::time::Instant::now();

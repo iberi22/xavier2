@@ -94,6 +94,23 @@ pub enum Command {
         skills: Vec<String>,
         #[arg(short = 'x', long)]
         context: Vec<String>,
+        #[arg(short, long)]
+        task: Option<String>,
+    },
+    /// Batch spawn agents
+    MultiSpawn {
+        #[arg(long, default_value_t = 10)]
+        agents: usize,
+        #[arg(long, default_value_t = 4)]
+        batch: usize,
+        #[arg(short, long)]
+        provider: Vec<String>,
+        #[arg(short, long)]
+        model: Vec<String>,
+        #[arg(short, long)]
+        skills: Vec<String>,
+        #[arg(short, long)]
+        task: Option<String>,
     },
 }
 
@@ -141,7 +158,36 @@ impl Cli {
                 model,
                 skills,
                 context,
-            } => spawn_agents(*count, provider.clone(), model.clone(), skills, context).await,
+                task,
+            } => {
+                spawn_agents(
+                    *count,
+                    provider.clone(),
+                    model.clone(),
+                    skills,
+                    context,
+                    task.as_deref(),
+                )
+                .await
+            }
+            Command::MultiSpawn {
+                agents,
+                batch,
+                provider,
+                model,
+                skills,
+                task,
+            } => {
+                multi_spawn_agents(
+                    *agents,
+                    *batch,
+                    provider.clone(),
+                    model.clone(),
+                    skills.clone(),
+                    task.as_deref(),
+                )
+                .await
+            }
         }
     }
 }
@@ -2425,6 +2471,7 @@ async fn spawn_agents(
     models: Vec<String>,
     skills: &[String],
     custom_context: &[String],
+    task: Option<&str>,
 ) -> Result<()> {
     println!("🚀 Spawning {} agents...", count);
 
@@ -2512,6 +2559,119 @@ async fn spawn_agents(
         "\n✨ Successfully spawned {} agents simultaneously.",
         agents.len()
     );
+
+    if let Some(task_content) = task {
+        println!("🚀 Executing task: {}", task_content);
+
+        for (i, agent) in agents.iter().enumerate() {
+            let provider_name = agent.provider.as_deref().unwrap_or("local");
+
+            // requirement: gestalt spawn --provider openai --task "..." (Codex via codex exec)
+            if provider_name == "openai" {
+                println!("  🤖 Agent {}: Calling external codex CLI...", i + 1);
+                match tokio::process::Command::new("codex")
+                    .arg("exec")
+                    .arg(task_content)
+                    .output()
+                    .await
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            println!("  ✅ Codex task completed.");
+                            if !output.stdout.is_empty() {
+                                println!("{}", String::from_utf8_lossy(&output.stdout));
+                            }
+                        } else {
+                            println!(
+                                "  ❌ Codex task failed: {}",
+                                String::from_utf8_lossy(&output.stderr)
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        println!("  ❌ Failed to execute codex CLI: {}. Fallback to internal runtime...", e);
+                        execute_task_internal(agent, task_content).await?;
+                    }
+                }
+            } else {
+                execute_task_internal(agent, task_content).await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn execute_task_internal(agent: &Agent, task: &str) -> Result<()> {
+    use xavier2::agents::RuntimeConfig;
+    use xavier2::agents::AgentRuntime;
+
+    println!("  🧠 Executing task via internal runtime [provider: {}]...", agent.provider.as_deref().unwrap_or("auto"));
+
+    // Initialize the memory store (minimal version for CLI)
+    let store = Arc::new(VecSqliteMemoryStore::from_env().await?);
+    let workspace_id = std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+    let durable_state = store.load_workspace_state(&workspace_id).await?;
+    let docs = Arc::new(RwLock::new(
+        durable_state
+            .memories
+            .iter()
+            .map(MemoryRecord::to_document)
+            .collect::<Vec<MemoryDocument>>(),
+    ));
+    let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id.clone()));
+    memory.set_store(Arc::clone(&store) as Arc<dyn MemoryStore>).await;
+    memory.init().await?;
+
+    let mut runtime_config = RuntimeConfig::default();
+    runtime_config.model_provider = agent.provider.clone();
+
+    let runtime = AgentRuntime::new(memory, None, runtime_config)?;
+
+    // Requirement: gestalt spawn --provider deepseek --task "..." (needs tool execution wrapper)
+    // The System3 implementation in src/agents/system3.rs handles the LLM interaction.
+    // If it's DeepSeek, we might need special handling, which we'll address in Step 7.
+
+    match runtime.run(task, None, None).await {
+        Ok(resp) => {
+            println!("  ✅ Task completed: {}", resp.response);
+        }
+        Err(e) => {
+            println!("  ❌ Task execution failed: {}", e);
+        }
+    }
+
+    Ok(())
+}
+
+async fn multi_spawn_agents(
+    agents_count: usize,
+    batch_size: usize,
+    providers: Vec<String>,
+    models: Vec<String>,
+    skills: Vec<String>,
+    task: Option<&str>,
+) -> Result<()> {
+    println!(
+        "🚀 Batch spawning {} agents in batches of {}...",
+        agents_count, batch_size
+    );
+
+    for i in (0..agents_count).step_by(batch_size) {
+        let current_batch = std::cmp::min(batch_size, agents_count - i);
+        println!("📦 Spawning batch starting at {} (size: {})...", i, current_batch);
+
+        spawn_agents(
+            current_batch,
+            providers.clone(),
+            models.clone(),
+            &skills,
+            &[], // custom_context
+            task,
+        )
+        .await?;
+    }
+
     Ok(())
 }
 
