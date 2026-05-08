@@ -392,7 +392,7 @@ impl ModelProviderClient {
         Ok(result["confidence"].as_f64().unwrap_or(1.0) as f32)
     }
 
-    async fn generate_text(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {
+    pub async fn generate_text(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {
         if !self.config.is_configured() || self.config.provider_mode == ProviderMode::Disabled {
             bail!("no LLM provider configured");
         }
