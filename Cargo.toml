@@ -47,7 +47,7 @@ enterprise = []
 code-graph = { path = "./code-graph" }
 anyhow = "1.0.102"
 async-trait = "0.1"
-reqwest = { version = "0.13", features = ["json"] }
+reqwest = { version = "0.13", features = ["json", "blocking"] }
 gllm = { version = "0.10.6", default-features = false, features = ["cpu"], optional = true }
 candle-core = { version = "=0.9.1", optional = true }
 teloxide = { version = "0.12", optional = true }
@@ -124,6 +124,10 @@ hmac = "0.12"
 
 # HTTP body utilities for webhook handling
 http-body-util = "0.1"
+tray-icon = "0.14.3"
+tao = "0.25.0"
+image = "0.25.1"
+webbrowser = "1.0"
 
 [dev-dependencies]
 proptest = "1.11.0"
