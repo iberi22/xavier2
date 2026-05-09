@@ -1,4 +1,4 @@
-﻿# Xavier Roadmap - State of the Art Memory for AI Agents
+# Xavier Roadmap - State of the Art Memory for AI Agents
 Generated: 2026-04-20
 Purpose: Features analysis and implementation roadmap for Xavier v1.0
 
@@ -81,13 +81,13 @@ mem_save {
 
 | Feature | Status | Quality |
 |---------|--------|---------|
-| Vector storage | ✅ sqlite-vec | Good |
-| Keyword search | ✅ FTS5 | Good |
-| Security | ✅ PromptInjectionDetector | Excellent |
-| Code indexing | ✅ code-graph | Good |
-| HTTP API | ✅ Axum | Good |
-| CLI | ✅ Basic | Needs work |
-| MCP mode | ✅ Stub | Needs completion |
+| Vector storage | ? sqlite-vec | Good |
+| Keyword search | ? FTS5 | Good |
+| Security | ? PromptInjectionDetector | Excellent |
+| Code indexing | ? code-graph | Good |
+| HTTP API | ? Axum | Good |
+| CLI | ? Basic | Needs work |
+| MCP mode | ? Stub | Needs completion |
 
 ### Missing Features (Priority Order):
 
@@ -207,15 +207,15 @@ xavier archive <memory-id> # Move to archival
 #### 3.2.1 Memory Tier System
 ```
 Working Memory (RAM-like, fast)
-├── Recent context (last N memories, < 1 day)
-├── Active focus (current task relevant)
-└── High-importance (score > 0.8)
++-- Recent context (last N memories, < 1 day)
++-- Active focus (current task relevant)
++-- High-importance (score > 0.8)
 
 Archival Memory (disk-like, slow)
-├── Historical (1-30 days old)
-├── Semantic knowledge (stable facts)
-├── Procedural memory (how-to, patterns)
-└── Archived (low importance, old)
++-- Historical (1-30 days old)
++-- Semantic knowledge (stable facts)
++-- Procedural memory (how-to, patterns)
++-- Archived (low importance, old)
 ```
 
 **File:** `src/memory/tier_manager.rs` (new)
@@ -256,7 +256,7 @@ pub async fn summarize(memory: &MemoryDocument) -> String {
 pub struct MemoryRelation {
     from: String,  // memory ID
     to: String,    // memory ID
-    relation_type: String, // "relates_to", "因果", "similar_to"
+    relation_type: String, // "relates_to", "??", "similar_to"
     confidence: f32,
 }
 ```

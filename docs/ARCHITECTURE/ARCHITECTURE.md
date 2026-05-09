@@ -1,4 +1,4 @@
-﻿# Xavier Architecture
+# Xavier Architecture
 
 **Version:** 0.4.1
 **Last Updated:** 2026-04-20
@@ -10,26 +10,26 @@
 Xavier is a fast vector memory system for AI agents, providing ~7ms average search latency using SQLite-vec with hybrid retrieval (vector + keyword + graph).
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Xavier v0.4.1                        │
-├───────────────┬───────────────┬─────────────────────────────┤
-│   CLI Tool    │   HTTP API    │      MCP-stdio              │
-├───────────────┴───────────────┴─────────────────────────────┤
-│                  Security Layer                            │
-│            (Prompt Injection Detection)                    │
-├─────────────────────────────────────────────────────────────┤
-│                  Hybrid Search Engine                      │
-│    ┌──────────┬──────────┬──────────┬──────────┐           │
-│    │ Vector   │  FTS5    │  Graph   │  RRF     │           │
-│    │ (vec)    │ (BM25)   │ (Entity) │ Fusion   │           │
-│    └──────────┴──────────┴──────────┴──────────┘           │
-├─────────────────────────────────────────────────────────────┤
-│              SQLite-vec Storage                             │
-│    ┌──────────────┬──────────────┬──────────────┐           │
-│    │ memory_vec   │ memory_fts   │  entities    │           │
-│    │   (vector)   │   (text)     │   (graph)    │           │
-│    └──────────────┴──────────────┴──────────────┘           │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+�                      Xavier v0.4.1                        �
++-------------------------------------------------------------�
+�   CLI Tool    �   HTTP API    �      MCP-stdio              �
++-------------------------------------------------------------�
+�                  Security Layer                            �
+�            (Prompt Injection Detection)                    �
++-------------------------------------------------------------�
+�                  Hybrid Search Engine                      �
+�    +-------------------------------------------+           �
+�    � Vector   �  FTS5    �  Graph   �  RRF     �           �
+�    � (vec)    � (BM25)   � (Entity) � Fusion   �           �
+�    +-------------------------------------------+           �
++-------------------------------------------------------------�
+�              SQLite-vec Storage                             �
+�    +--------------------------------------------+           �
+�    � memory_vec   � memory_fts   �  entities    �           �
+�    �   (vector)   �   (text)     �   (graph)    �           �
+�    +--------------------------------------------+           �
++-------------------------------------------------------------+
 ```
 
 ## Core Components
@@ -69,8 +69,8 @@ Axum-based HTTP server with the following endpoints:
 Prompt injection detection with multiple layers:
 
 ```
-Input → phrase detection → homoglyph → encoding → heuristic → threat_category
-         ↓                    ↓           ↓           ↓            ↓
+Input ? phrase detection ? homoglyph ? encoding ? heuristic ? threat_category
+         ?                    ?           ?           ?            ?
       Block/Pass         Block/Pass   Block/Pass  Block/Pass   Block/Pass
 ```
 
@@ -84,7 +84,7 @@ Input → phrase detection → homoglyph → encoding → heuristic → threat_c
 - `entropy.rs` - High entropy secret detection
 
 **Thresholds:**
-- Confidence >= 0.5 → Block
+- Confidence >= 0.5 ? Block
 - Auto-sanitize if `auto_sanitize` enabled
 
 ### 4. Memory System (`src/memory/`)
@@ -99,10 +99,10 @@ Input → phrase detection → homoglyph → encoding → heuristic → threat_c
 
 **Search Pipeline:**
 ```
-1. Vector search (sqlite-vec) → top-k by cosine similarity
-2. FTS5 search (BM25) → top-k by relevance
-3. Graph traversal (entity relations) → top-k by connectivity
-4. RRF fusion → combined ranking with k=60
+1. Vector search (sqlite-vec) ? top-k by cosine similarity
+2. FTS5 search (BM25) ? top-k by relevance
+3. Graph traversal (entity relations) ? top-k by connectivity
+4. RRF fusion ? combined ranking with k=60
 ```
 
 ### 5. Embedding (`src/memory/embedder.rs`)
@@ -125,29 +125,29 @@ Index and search code symbols across repositories:
 
 ### Add Memory
 ```
-User → CLI "add" → secure_cli_input() → SecurityService.process_input()
-     → HTTP POST /memory/add → Validate → Embed (Ollama)
-     → Store (sqlite-vec + fts5 + entities)
+User ? CLI "add" ? secure_cli_input() ? SecurityService.process_input()
+     ? HTTP POST /memory/add ? Validate ? Embed (Ollama)
+     ? Store (sqlite-vec + fts5 + entities)
 ```
 
 ### Search Memory
 ```
-User → CLI "search" → secure_cli_input() → SecurityService.process_input()
-     → HTTP POST /memory/search → Validate → Embed (Ollama)
-     → Vector search + FTS5 + Graph → RRF fusion
-     → Return ranked results
+User ? CLI "search" ? secure_cli_input() ? SecurityService.process_input()
+     ? HTTP POST /memory/search ? Validate ? Embed (Ollama)
+     ? Vector search + FTS5 + Graph ? RRF fusion
+     ? Return ranked results
 ```
 
 ### Security Scan
 ```
-Request → SecurityService.process_input()
-       → Layer 1: phrase detection
-       → Layer 2: homoglyph check
-       → Layer 3: encoding analysis
-       → Layer 4: heuristic analysis
-       → Layer 5: threat categorization
-       → Combined confidence score
-       → Allow/Block with sanitization
+Request ? SecurityService.process_input()
+       ? Layer 1: phrase detection
+       ? Layer 2: homoglyph check
+       ? Layer 3: encoding analysis
+       ? Layer 4: heuristic analysis
+       ? Layer 5: threat categorization
+       ? Combined confidence score
+       ? Allow/Block with sanitization
 ```
 
 ## Configuration

@@ -1,4 +1,4 @@
-﻿---
+---
 title: Installation
 description: How to install and configure Xavier
 ---

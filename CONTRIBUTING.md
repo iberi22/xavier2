@@ -1,4 +1,4 @@
-﻿# Contributing to Xavier
+# Contributing to Xavier
 
 Thank you for your interest in contributing to Xavier!
 
@@ -100,11 +100,11 @@ docs(readme): update installation instructions
 
 ```
 xavier/
-├── src/              # Source code
-├── tests/            # Integration tests
-├── docs/              # Documentation
-├── scripts/           # Utility scripts
-└── .github/           # GitHub configuration
++-- src/              # Source code
++-- tests/            # Integration tests
++-- docs/              # Documentation
++-- scripts/           # Utility scripts
++-- .github/           # GitHub configuration
 ```
 
 ## Getting Help

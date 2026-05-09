@@ -1,4 +1,4 @@
-﻿# CLI Reference
+# CLI Reference
 
 This reference describes the CLI that is currently present in the repository.
 

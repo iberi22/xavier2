@@ -1,6 +1,6 @@
-ï»¿# Xavier Quick Start
+# Xavier Quick Start
 
-> Fast Vector Memory for AI Agents â€” get up and running in 5 minutes.
+> Fast Vector Memory for AI Agents — get up and running in 5 minutes.
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ Set the following environment variables:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `XAVIER_TOKEN` | **Yes** | â€” | Authentication token for API access |
+| `XAVIER_TOKEN` | **Yes** | — | Authentication token for API access |
 | `XAVIER_HOST` | No | `127.0.0.1` | HTTP bind address |
 | `XAVIER_PORT` | No | `8006` | HTTP server port |
 | `XAVIER_URL` | No | `http://127.0.0.1:8006` | Client-facing URL |
@@ -65,9 +65,9 @@ xavier search "Rust programming"
 
 ## Next Steps
 
-- [Architecture Overview](ARCHITECTURE.md) â€” Understand how Xavier works
-- [API Reference](API.md) â€” Full HTTP API documentation
-- [Examples](../examples/) â€” Working CLI, HTTP, and MCP examples
+- [Architecture Overview](ARCHITECTURE.md) — Understand how Xavier works
+- [API Reference](API.md) — Full HTTP API documentation
+- [Examples](../examples/) — Working CLI, HTTP, and MCP examples
 
 ## Example: Using the HTTP API
 
@@ -110,10 +110,10 @@ xavier stats
 
 ## Key Features
 
-- **Vector Memory** â€” Semantic search with embedding support (OpenAI, Ollama, MiniMax)
-- **Hybrid Search** â€” Combines keyword (BM25/FTS5), vector, and knowledge graph signals via RRF
-- **Memory Tiers** â€” Automatic consolidation from working to archival storage
-- **Memory Graph** â€” Entity-relationship tracking with BFS traversal
-- **Reflection** â€” Pattern detection and insight generation across memories
-- **MCP Support** â€” Model Context Protocol stdio server for AI agent integration
-- **Multi-Provider** â€” Pluggable embedding backends with automatic fallback
+- **Vector Memory** — Semantic search with embedding support (OpenAI, Ollama, MiniMax)
+- **Hybrid Search** — Combines keyword (BM25/FTS5), vector, and knowledge graph signals via RRF
+- **Memory Tiers** — Automatic consolidation from working to archival storage
+- **Memory Graph** — Entity-relationship tracking with BFS traversal
+- **Reflection** — Pattern detection and insight generation across memories
+- **MCP Support** — Model Context Protocol stdio server for AI agent integration
+- **Multi-Provider** — Pluggable embedding backends with automatic fallback

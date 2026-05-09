@@ -1,4 +1,4 @@
-﻿---
+---
 title: Testing Overview
 description: Current verification strategy for Xavier
 ---

@@ -1,4 +1,4 @@
-﻿# Xavier Runtime Stability Issues - Analysis Report
+# Xavier Runtime Stability Issues - Analysis Report
 
 **Date:** 2026-04-16
 **Project:** E:\scripts-python\xavier
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Xavier v0.4.1 uses a minimal, clean startup sequence — `setup_app_state()` → build Axum router → `TcpListener::bind()` → `axum::serve()`. There are **no obvious crash-on-start bugs** in the code itself. The stability issues reported are most likely caused by:
+Xavier v0.4.1 uses a minimal, clean startup sequence � `setup_app_state()` ? build Axum router ? `TcpListener::bind()` ? `axum::serve()`. There are **no obvious crash-on-start bugs** in the code itself. The stability issues reported are most likely caused by:
 
 1. **Sandbox restrictions from OpenClaw's exec tool** killing processes that open network ports
 2. **Port conflicts** (default 8003 is already in use, or 8006 in Docker)
@@ -24,9 +24,9 @@ This document captures findings and proposed fixes.
 
 ### Binary Targets (Cargo.toml)
 ```
-xavier          → src/main.rs          (default HTTP server)
-xavier-gui      → src/main_egui.rs     (egui standalone, requires --features egui-standalone)
-xavier-tui      → src/main_tui.rs      (TUI dashboard)
+xavier          ? src/main.rs          (default HTTP server)
+xavier-gui      ? src/main_egui.rs     (egui standalone, requires --features egui-standalone)
+xavier-tui      ? src/main_tui.rs      (TUI dashboard)
 ```
 
 ### Main Startup Flow (src/main.rs)
@@ -42,11 +42,11 @@ async fn main() -> Result<()> {
 
     // 3. Route command
     match cli.command {
-        Commands::Sync     → handle_sync()
-        Commands::McpStdio  → handle_mcp_stdio()
-        Commands::Token    → handle_token_generation()
-        Commands::BridgeImport → handle_bridge_import()
-        _ (default)        → start_server()  // <-- "server" command
+        Commands::Sync     ? handle_sync()
+        Commands::McpStdio  ? handle_mcp_stdio()
+        Commands::Token    ? handle_token_generation()
+        Commands::BridgeImport ? handle_bridge_import()
+        _ (default)        ? start_server()  // <-- "server" command
     }
 }
 ```
@@ -347,10 +347,10 @@ Get-EventLog -LogName Application -Newest 10 -EntryType Error
 
 | Scenario | Stability | Notes |
 |---------|-----------|-------|
-| Docker on host (direct) | ✅ High | Recommended for production |
-| Docker via OpenClaw exec | ⚠️  May fail | Sandbox may kill port-binding processes |
-| Native cargo run | ✅ High | Best for development |
-| Native binary (target/release/xavier.exe) | ✅ High | If binary exists |
+| Docker on host (direct) | ? High | Recommended for production |
+| Docker via OpenClaw exec | ??  May fail | Sandbox may kill port-binding processes |
+| Native cargo run | ? High | Best for development |
+| Native binary (target/release/xavier.exe) | ? High | If binary exists |
 
 ---
 
@@ -374,7 +374,7 @@ Get-EventLog -LogName Application -Newest 10 -EntryType Error
 
 ## 10. Fixes Applied (2026-04-16)
 
-### Fix 1: Graceful Shutdown + Improved Port Binding Error (DONE ✅)
+### Fix 1: Graceful Shutdown + Improved Port Binding Error (DONE ?)
 
 **File:** `src/main.rs` - `start_server()` function
 

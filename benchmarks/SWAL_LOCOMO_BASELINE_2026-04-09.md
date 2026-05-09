@@ -1,4 +1,4 @@
-﻿# SWAL LoCoMo Benchmark Results
+# SWAL LoCoMo Benchmark Results
 
 **Date:** 2026-04-09
 **Category:** all
@@ -11,12 +11,12 @@
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
 | Total Queries | 22 | - | - |
-| Successful | 22 | - | âœ… |
-| Failed | 0 | 0 | âœ… |
-| Avg Latency | 977.1ms | < 500ms | âŒ |
-| Avg Precision | 4.15/5 | â‰¥ 4.0 | âœ… |
-| Avg Recall | 96.8% | â‰¥ 80% | âœ… |
-| Avg FPR | 15.5% | < 20% | âœ… |
+| Successful | 22 | - | ✅ |
+| Failed | 0 | 0 | ✅ |
+| Avg Latency | 977.1ms | < 500ms | ❌ |
+| Avg Precision | 4.15/5 | ≥ 4.0 | ✅ |
+| Avg Recall | 96.8% | ≥ 80% | ✅ |
+| Avg FPR | 15.5% | < 20% | ✅ |
 
 ---
 
@@ -34,28 +34,28 @@
 
 | ID | Type | Query | Latency | Precision | Recall | FPR | Status |
 |----|------|-------|---------|-----------|--------|-----|--------|
-| SH-01 | single_hop | What is BELA's timezone? | 813ms | 4.4/5 | 100% | 0% | âœ… |
-| SH-02 | single_hop | What is ManteniApp's pricing? | 896ms | 3.2/5 | 100% | 20% | âœ… |
-| SH-03 | single_hop | Who is Leonardo working with? | 1052ms | 2.6/5 | 100% | 80% | âœ… |
-| SH-04 | single_hop | What product are we selling to Rodacenter? | 974ms | 3.8/5 | 100% | 40% | âœ… |
-| SH-05 | single_hop | What is Xavier's current version? | 959ms | 5/5 | 100% | 0% | âœ… |
-| SH-06 | single_hop | What is pplx-embed status? | 1481ms | 4.4/5 | 100% | 20% | âœ… |
-| SH-07 | single_hop | What is the Tripro demo URL? | 1026ms | 3/5 | 100% | 60% | âœ… |
-| SH-08 | single_hop | Where should projects be stored? | 787ms | 5/5 | 100% | 0% | âœ… |
-| MH-01 | multi_hop | Who worked on Xavier fixes and what decisions w... | 999ms | 5/5 | 100% | 0% | âœ… |
-| MH-02 | multi_hop | Find a client interested in maintenance monitor... | 1206ms | 3.4/5 | 80% | 0% | âœ… |
-| MH-03 | multi_hop | What projects involve Chile and what is the sta... | 966ms | 3.8/5 | 100% | 40% | âœ… |
-| MH-04 | multi_hop | What are the active SWAL cron jobs? | 898ms | 4.4/5 | 100% | 20% | âœ… |
-| MH-05 | multi_hop | What security measures are active for SWAL? | 829ms | 4/5 | 75% | 0% | âœ… |
-| MH-06 | multi_hop | What is the Xavier memory architecture? | 901ms | 3.4/5 | 100% | 40% | âœ… |
-| TR-01 | temporal | When was pplx-embed fixed? | 1016ms | 4.8/5 | 100% | 0% | âœ… |
-| TR-02 | temporal | What decisions were made about SurrealDB persis... | 888ms | 4.6/5 | 100% | 0% | âœ… |
-| TR-03 | temporal | What happened in the last session about Xavier? | 844ms | 4.8/5 | 100% | 0% | âœ… |
-| TR-04 | temporal | What is the timeline of Xavier versions? | 1111ms | 4.4/5 | 100% | 0% | âœ… |
-| OD-01 | open_domain | Summarize the Xavier memory system improvements... | 881ms | 4/5 | 100% | 20% | âœ… |
-| OD-02 | open_domain | What is the overall status of SWAL operations? | 969ms | 3.4/5 | 75% | 0% | âœ… |
-| OD-03 | open_domain | What skills are available for sales operations? | 1003ms | 5/5 | 100% | 0% | âœ… |
-| OD-04 | open_domain | What is the complete SWAL product portfolio? | 998ms | 5/5 | 100% | 0% | âœ… |
+| SH-01 | single_hop | What is BELA's timezone? | 813ms | 4.4/5 | 100% | 0% | ✅ |
+| SH-02 | single_hop | What is ManteniApp's pricing? | 896ms | 3.2/5 | 100% | 20% | ✅ |
+| SH-03 | single_hop | Who is Leonardo working with? | 1052ms | 2.6/5 | 100% | 80% | ✅ |
+| SH-04 | single_hop | What product are we selling to Rodacenter? | 974ms | 3.8/5 | 100% | 40% | ✅ |
+| SH-05 | single_hop | What is Xavier's current version? | 959ms | 5/5 | 100% | 0% | ✅ |
+| SH-06 | single_hop | What is pplx-embed status? | 1481ms | 4.4/5 | 100% | 20% | ✅ |
+| SH-07 | single_hop | What is the Tripro demo URL? | 1026ms | 3/5 | 100% | 60% | ✅ |
+| SH-08 | single_hop | Where should projects be stored? | 787ms | 5/5 | 100% | 0% | ✅ |
+| MH-01 | multi_hop | Who worked on Xavier fixes and what decisions w... | 999ms | 5/5 | 100% | 0% | ✅ |
+| MH-02 | multi_hop | Find a client interested in maintenance monitor... | 1206ms | 3.4/5 | 80% | 0% | ✅ |
+| MH-03 | multi_hop | What projects involve Chile and what is the sta... | 966ms | 3.8/5 | 100% | 40% | ✅ |
+| MH-04 | multi_hop | What are the active SWAL cron jobs? | 898ms | 4.4/5 | 100% | 20% | ✅ |
+| MH-05 | multi_hop | What security measures are active for SWAL? | 829ms | 4/5 | 75% | 0% | ✅ |
+| MH-06 | multi_hop | What is the Xavier memory architecture? | 901ms | 3.4/5 | 100% | 40% | ✅ |
+| TR-01 | temporal | When was pplx-embed fixed? | 1016ms | 4.8/5 | 100% | 0% | ✅ |
+| TR-02 | temporal | What decisions were made about SurrealDB persis... | 888ms | 4.6/5 | 100% | 0% | ✅ |
+| TR-03 | temporal | What happened in the last session about Xavier? | 844ms | 4.8/5 | 100% | 0% | ✅ |
+| TR-04 | temporal | What is the timeline of Xavier versions? | 1111ms | 4.4/5 | 100% | 0% | ✅ |
+| OD-01 | open_domain | Summarize the Xavier memory system improvements... | 881ms | 4/5 | 100% | 20% | ✅ |
+| OD-02 | open_domain | What is the overall status of SWAL operations? | 969ms | 3.4/5 | 75% | 0% | ✅ |
+| OD-03 | open_domain | What skills are available for sales operations? | 1003ms | 5/5 | 100% | 0% | ✅ |
+| OD-04 | open_domain | What is the complete SWAL product portfolio? | 998ms | 5/5 | 100% | 0% | ✅ |
 ---
 
 ## Areas Needing Improvement

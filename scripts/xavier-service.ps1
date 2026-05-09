@@ -25,11 +25,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PROJECT_ROOT = 'E:\scripts-python\xavier'
-$BINARY = "$PROJECT_ROOT\target\release\xavier.exe"
+$env:XAVIER_PORT = '8003'
+$env:XAVIER_DEV_MODE = 'true'
+$env:XAVIER_TOKEN = 'dev-token'
+$env:XAVIER_WORKSPACE_DIR = "$PROJECT_ROOT\data"
+$env:XAVIER_DATA_DIR = "$PROJECT_ROOT\data"
+$BINARY = "C:\Users\belal\.cargo\target_global\release\xavier.exe"
 $PID_FILE = "$PROJECT_ROOT\data\xavier.pid"
 $LOG_DIR = "$PROJECT_ROOT\logs"
 $LOG_FILE = "$LOG_DIR\xavier.log"
-$PORT = if ($env:XAVIER_PORT) { $env:XAVIER_PORT } else { 8040 }
+$PORT = if ($env:XAVIER_PORT) { $env:XAVIER_PORT } else { 8003 }
 $HEALTH_URL = "http://localhost:$PORT/health"
 $READY_URL = "http://localhost:$PORT/ready"
 $MAX_LOG_BYTES = 5MB
@@ -78,10 +83,10 @@ function Get-ProcessForPort {
 
 function Find-HostProcess {
     param([int]$Port)
-    $pid = Get-ProcessForPort $Port
-    if ($pid -and $pid -ne 0) {
+    $targetPid = Get-ProcessForPort $Port
+    if ($targetPid -and $targetPid -ne 0) {
         try {
-            Get-Process -Id $pid -ErrorAction SilentlyContinue
+            Get-Process -Id $targetPid -ErrorAction SilentlyContinue
         } catch { $null }
     } else { $null }
 }
@@ -94,7 +99,7 @@ function Test-PortFree {
         $listener.Start()
         $true
     } catch { $false }
-    } finally {
+    finally {
         if ($listener) { $listener.Stop(); $listener = $null }
     }
 }
@@ -124,17 +129,17 @@ function Test-XavierHealthy {
 }
 
 function Stop-XavierProcess {
-    $pid = Get-Pid
-    if ($pid) {
+    $targetPid = Get-Pid
+    if ($targetPid) {
         try {
-            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            $proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
             if ($proc) {
-                Write-Log "Sending SIGTERM to PID $pid" 'INFO'
+                Write-Log "Sending SIGTERM to PID $targetPid" 'INFO'
                 $proc.CloseMainWindow() | Out-Null
                 Start-Sleep -Seconds 3
                 if (-not $proc.HasExited) {
                     Write-Log "Process still alive, forcing kill" 'WARN'
-                    Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+                    Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue
                 }
             }
         } catch {}
@@ -148,10 +153,10 @@ function Stop-XavierProcess {
 }
 
 function Test-IsRunning {
-    $pid = Get-Pid
-    if ($pid) {
+    $targetPid = Get-Pid
+    if ($targetPid) {
         try {
-            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            $proc = Get-Process -Id $targetPid -ErrorAction SilentlyContinue
             if ($proc -and -not $proc.HasExited) { return $true }
         } catch {}
     }
@@ -183,14 +188,14 @@ function Uninstall-Service {
 
 function Show-Status {
     $running = Test-IsRunning
-    $pid = Get-Pid
-    $proc = if ($pid) { Get-Process -Id $pid -ErrorAction SilentlyContinue } else { $null }
+    $targetPid = Get-Pid
+    $proc = if ($targetPid) { Get-Process -Id $targetPid -ErrorAction SilentlyContinue } else { $null }
 
     Write-Host ""
     Write-Host "══ Xavier Service Status ══" -ForegroundColor Cyan
     Write-Host "  Running    : $(if ($running) { 'YES' } else { 'NO' })"
     Write-Host "  PID File   : $PID_FILE"
-    Write-Host "  PID        : $(if ($pid) { $pid } else { 'N/A' })"
+    Write-Host "  PID        : $(if ($targetPid) { $targetPid } else { 'N/A' })"
     if ($proc) {
         Write-Host "  Process    : $($proc.ProcessName) (CPU: $([math]::Round($proc.CPU,1))s, Mem: $([math]::Round($proc.WorkingSet64/1MB,0))MB)"
         Write-Host "  Started    : $($proc.StartTime)"
@@ -234,8 +239,8 @@ function Start-Xavier {
 
     # Check if already running
     if (Test-IsRunning) {
-        $pid = Get-Pid
-        Write-Log "Xavier already running (PID $pid). Use 'restart' to force." 'INFO'
+        $targetPid = Get-Pid
+        Write-Log "Xavier already running (PID $targetPid). Use 'restart' to force." 'INFO'
         return
     }
 
@@ -265,10 +270,10 @@ function Start-Xavier {
     Rotate-Logs
 
     Write-Log "Starting Xavier..." 'INFO'
-    $env:RUST_LOG = $env:RUST_LOG ?? 'info'
+    if (-not $env:RUST_LOG) { $env:RUST_LOG = 'info' }
 
     $proc = Start-Process -FilePath $BINARY `
-        -ArgumentList "server --port $PORT $ExtraArgs" `
+        -ArgumentList "http $PORT $ExtraArgs" `
         -WorkingDirectory $PROJECT_ROOT `
         -PassThru `
         -NoNewWindow `
@@ -288,6 +293,29 @@ function Start-Xavier {
         Write-Log "Xavier is ready and listening on port $PORT" 'INFO'
     } else {
         Write-Log "Xavier started but not responding to health checks. Check logs." 'WARN'
+    }
+
+    # ─── Watchdog Loop ──────────────────────────────────────────────────────
+    Write-Log "Entering Watchdog loop..." 'INFO'
+    $lastHealthCheck = Get-Date
+    
+    while ($true) {
+        Start-Sleep -Seconds $HEALTH_INTERVAL
+        
+        if ($proc.HasExited) {
+            Write-Log "Xavier process (PID $($proc.Id)) exited unexpectedly!" 'ERROR'
+            Restart-Xavier
+            return
+        }
+
+        if ((Get-Date) - (New-TimeSpan -Seconds $WATCHDOG_TIMEOUT) -gt $lastHealthCheck) {
+            if (-not (Test-XavierHealthy)) {
+                Write-Log "Xavier is unresponsive (Watchdog timeout)! Restarting..." 'ERROR'
+                Restart-Xavier
+                return
+            }
+            $lastHealthCheck = Get-Date
+        }
     }
 }
 

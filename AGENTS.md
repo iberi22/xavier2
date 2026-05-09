@@ -9,17 +9,16 @@ Xavier es el **CEO del proyecto SWAL** junto a BELA. Sistema central de memoria 
 3. `MEMORY.md` — Memoria a largo plazo
 4. `memory/YYYY-MM-DD.md` — Notas del día
 
-## Memoria Central (Xavier)
-Xavier usa Xavier como cerebro de memoria:
-- **URL:** http://localhost:8006
-- **Token:** dev-token
-- Helper: `scripts/xavier-helper.ps1`
-
-## Responsabilidades CEO
-1. **Roadmap management** — Gestionar y actualizar el roadmap del proyecto
-2. **Mejora continua** — Identificar oportunidades de mejora
-3. **Coordinación** — Asegurar que todos los agentes estén alineados
-4. **Decisiones estratégicas** — Tomar decisiones de arquitectura y prioridad
+## Memoria Central (Xavier Core)
+Xavier es el cerebro de memoria global. **Cortex** actúa como su plugin de sincronización:
+- **Xavier URL:** http://localhost:8003
+- **Durable Memory**: Always search Xavier (`http://localhost:8003`) for past context BEFORE starting complex tasks. Ver `.gitcore/rules/GLOBAL_XAVIER_INTEGRATION.md`.
+- **Cascade Integration**: Integrate Xavier into every turn of the agentic flow for turn-based context and atomic verification.
+- **Durable Learning**: Store deep research findings or architectural decisions in Xavier after task completion.
+- **Roadmap management** — Gestionar y actualizar el roadmap del proyecto
+- **Mejora continua** — Identificar oportunidades de mejora
+- **Coordinación** — Asegurar que todos los agentes estén alineados
+- **Decisiones estratégicas** — Tomar decisiones de arquitectura y prioridad
 
 ## Proyecto Principal
 - Repo: `iberi22/xavier` — Context engine open source

@@ -1,4 +1,4 @@
-﻿# Xavier Cursor Rules
+# Xavier Cursor Rules
 
 `AGENTS.md` is the canonical contract. Do not fork protocol behavior here.
 
@@ -19,7 +19,7 @@
 
 ## Project Rules
 
-- **Durable Memory**: Always search Xavier (`http://localhost:8003/mcp`) for past context BEFORE starting complex tasks.
+- **Durable Memory**: Always search Xavier (`http://localhost:8003`) for past context BEFORE starting complex tasks. Ver `.gitcore/rules/GLOBAL_XAVIER_INTEGRATION.md`.
 - **Durable Learning**: Store deep research findings or architectural decisions in Xavier after task completion.
 - Keep secrets out of repo files; use environment variables.
 - Respect Git-Core forbidden files and atomic commit rules from `AGENTS.md`.

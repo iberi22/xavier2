@@ -1,7 +1,7 @@
 # Xavier — Project Tasks
 
 **Project:** iberi22/xavier
-**Last Updated:** 2026-05-08
+**Last Updated:** 2026-05-09
 **Status:** Active Development
 
 ---
@@ -44,7 +44,6 @@
 ### Developer Experience
 - [ ] **SDK packages** — Official SDKs (Python, JavaScript, Go)
 - [ ] **CLI improvements** — Enhanced `xavier` CLI
-- [ ] **VS Code extension** — IDE integration
 
 ### Advanced Features
 - [ ] **Federated learning** — Train on distributed data

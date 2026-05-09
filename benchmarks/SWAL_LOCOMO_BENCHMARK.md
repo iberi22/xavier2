@@ -1,4 +1,4 @@
-﻿# SWAL Operations Memory Benchmark (LoCoMo-SWAL)
+# SWAL Operations Memory Benchmark (LoCoMo-SWAL)
 
 **Framework Version:** 1.0
 **Created:** 2026-04-05
@@ -52,14 +52,14 @@ Direct lookup of a specific fact stored in memory.
 
 | ID | Query | Expected Answer Source |
 |----|-------|------------------------|
-| SH-01 | What is BELA's timezone? | USER.md → America/Bogota |
-| SH-02 | What is ManteniApp's pricing? | MEMORY.md → Starter $499, Pro $999, Enterprise $2,499 |
-| SH-03 | Who is Leonardo working with? | MEMORY.md → Rodacenter (Chile) |
-| SH-04 | What product are we selling to Rodacenter? | MEMORY.md → ManteniApp |
-| SH-05 | What is Xavier's current version? | BENCHMARKS.md → v0.4.1 |
-| SH-06 | What is pplx-embed status? | 2026-04-05.md → Healthy |
-| SH-07 | What is the Tripro demo URL? | MEMORY.md → tripro.cl/manteniapp |
-| SH-08 | Where should projects be stored? | MEMORY.md → E:\scripts-python\ |
+| SH-01 | What is BELA's timezone? | USER.md ? America/Bogota |
+| SH-02 | What is ManteniApp's pricing? | MEMORY.md ? Starter $499, Pro $999, Enterprise $2,499 |
+| SH-03 | Who is Leonardo working with? | MEMORY.md ? Rodacenter (Chile) |
+| SH-04 | What product are we selling to Rodacenter? | MEMORY.md ? ManteniApp |
+| SH-05 | What is Xavier's current version? | BENCHMARKS.md ? v0.4.1 |
+| SH-06 | What is pplx-embed status? | 2026-04-05.md ? Healthy |
+| SH-07 | What is the Tripro demo URL? | MEMORY.md ? tripro.cl/manteniapp |
+| SH-08 | Where should projects be stored? | MEMORY.md ? E:\scripts-python\ |
 
 ### B. Multi-Hop Reasoning
 
@@ -68,11 +68,11 @@ Requires connecting multiple pieces of information.
 | ID | Query | Required Connections |
 |----|-------|---------------------|
 | MH-01 | Who worked on Xavier fixes and what decisions were made? | 2026-04-05.md + MEMORY.md connections |
-| MH-02 | Find a client interested in maintenance monitoring with AI | MEMORY.md → Rodacenter + ManteniApp |
+| MH-02 | Find a client interested in maintenance monitoring with AI | MEMORY.md ? Rodacenter + ManteniApp |
 | MH-03 | What projects involve Chile and what is the status? | tripro_landing_page + Rodacenter + manteniapp |
-| MH-04 | What are the active SWAL cron jobs? | MEMORY.md → Project Synthesizer, Security Audit, etc. |
-| MH-05 | What security measures are active for SWAL? | 2026-03-31.md → Security Audit, GitHub monitoring |
-| MH-06 | What is the Xavier architecture for memory? | memory-store.json → schema, bridge, stores |
+| MH-04 | What are the active SWAL cron jobs? | MEMORY.md ? Project Synthesizer, Security Audit, etc. |
+| MH-05 | What security measures are active for SWAL? | 2026-03-31.md ? Security Audit, GitHub monitoring |
+| MH-06 | What is the Xavier architecture for memory? | memory-store.json ? schema, bridge, stores |
 
 ### C. Temporal Reasoning
 
@@ -80,11 +80,11 @@ Questions about timing and sequence of events.
 
 | ID | Query | Expected Temporal Data |
 |----|-------|------------------------|
-| TR-01 | When was pplx-embed fixed? | 2026-04-05.md → "Fixed pplx-embed (docker restart)" |
-| TR-02 | What decisions were made about SurrealDB persistence? | 2026-04-05.md → FileMemoryStore chosen |
-| TR-03 | What happened in the last Xavier session? | 2026-04-05.md → Full night of fixes |
-| TR-04 | When was the last security audit? | 2026-03-31.md → 8 AM daily |
-| TR-05 | What is the timeline of Xavier versions? | BENCHMARKS.md → v0.4.0 (failed), v0.4.1 (current) |
+| TR-01 | When was pplx-embed fixed? | 2026-04-05.md ? "Fixed pplx-embed (docker restart)" |
+| TR-02 | What decisions were made about SurrealDB persistence? | 2026-04-05.md ? FileMemoryStore chosen |
+| TR-03 | What happened in the last Xavier session? | 2026-04-05.md ? Full night of fixes |
+| TR-04 | When was the last security audit? | 2026-03-31.md ? 8 AM daily |
+| TR-05 | What is the timeline of Xavier versions? | BENCHMARKS.md ? v0.4.0 (failed), v0.4.1 (current) |
 
 ### D. Open-Domain Reasoning
 
@@ -96,7 +96,7 @@ Broad questions requiring synthesis and analysis.
 | OD-02 | What is the overall status of SWAL operations? | Cross-reference all memory files |
 | OD-03 | Analyze the memory hygiene situation | Identify gaps, duplicates, stale data |
 | OD-04 | What skills are available for sales operations? | MEMORY.md + TOOLS.md synthesis |
-| OD-05 | What is the complete SWAL product portfolio? | MEMORY.md → Xavier, ManteniApp, Software Factory, etc. |
+| OD-05 | What is the complete SWAL product portfolio? | MEMORY.md ? Xavier, ManteniApp, Software Factory, etc. |
 
 ---
 
@@ -106,8 +106,8 @@ Broad questions requiring synthesis and analysis.
 
 | Metric | Description | Target |
 |--------|-------------|--------|
-| **Precision** | Did we retrieve the RIGHT memory? (1-5 scale) | ≥ 4.0 |
-| **Recall** | Did we retrieve ALL relevant memories? | ≥ 80% |
+| **Precision** | Did we retrieve the RIGHT memory? (1-5 scale) | = 4.0 |
+| **Recall** | Did we retrieve ALL relevant memories? | = 80% |
 | **Latency (Cold)** | First search for a query | < 500ms |
 | **Latency (Warm)** | Subsequent search for same query | < 100ms |
 | **False Positive Rate** | Irrelevant results returned | < 20% |

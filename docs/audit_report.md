@@ -1,4 +1,4 @@
-﻿# Xavier Code Audit Report
+# Xavier Code Audit Report
 Generated: 2026-04-20 15:04
 Purpose: Pre-release audit for client OpenClaw deployment
 
@@ -14,17 +14,17 @@ before client deployment.
 
 | Endpoint | Handler | Security | Status |
 |----------|---------|----------|--------|
-| GET /health | health_handler | None | ⚠️ Acceptable (read-only) |
-| GET /ready | readiness_handler | None | ⚠️ Acceptable (read-only) |
-| GET /memory/stats | stats_handler | None | ⚠️ Acceptable (read-only) |
-| GET /code/stats | code_stats_handler | None | ⚠️ Acceptable (read-only) |
-| POST /memory/search | search_handler | ✅ | OK |
-| POST /memory/add | add_handler | ✅ | OK |
-| POST /memory/query | memory_query_handler | ✅ | OK |
-| POST /security/scan | security_scan_handler | ✅ | OK (internal) |
-| POST /code/find | code_find_handler | ✅ | OK |
-| POST /code/context | code_context_handler | ✅ | OK |
-| POST /code/scan | code_scan_handler | ❌ | **NEEDS SECURITY** |
+| GET /health | health_handler | None | ?? Acceptable (read-only) |
+| GET /ready | readiness_handler | None | ?? Acceptable (read-only) |
+| GET /memory/stats | stats_handler | None | ?? Acceptable (read-only) |
+| GET /code/stats | code_stats_handler | None | ?? Acceptable (read-only) |
+| POST /memory/search | search_handler | ? | OK |
+| POST /memory/add | add_handler | ? | OK |
+| POST /memory/query | memory_query_handler | ? | OK |
+| POST /security/scan | security_scan_handler | ? | OK (internal) |
+| POST /code/find | code_find_handler | ? | OK |
+| POST /code/context | code_context_handler | ? | OK |
+| POST /code/scan | code_scan_handler | ? | **NEEDS SECURITY** |
 
 ### Critical Issue: code_scan_handler has NO security
 

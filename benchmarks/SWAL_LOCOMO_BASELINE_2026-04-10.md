@@ -1,4 +1,4 @@
-﻿# SWAL LoCoMo Benchmark Results
+# SWAL LoCoMo Benchmark Results
 
 **Date:** 2026-04-10
 **Category:** all
@@ -11,12 +11,12 @@
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
 | Total Queries | 22 | - | - |
-| Successful | 0 | - | âš ï¸ |
-| Failed | 22 | 0 | âŒ |
-| Avg Latency | 0ms | < 500ms | âœ… |
-| Avg Precision | 0/5 | â‰¥ 4.0 | âš ï¸ |
-| Avg Recall | 0% | â‰¥ 80% | âš ï¸ |
-| Avg FPR | 0% | < 20% | âœ… |
+| Successful | 0 | - | ⚠️ |
+| Failed | 22 | 0 | ❌ |
+| Avg Latency | 0ms | < 500ms | ✅ |
+| Avg Precision | 0/5 | ≥ 4.0 | ⚠️ |
+| Avg Recall | 0% | ≥ 80% | ⚠️ |
+| Avg FPR | 0% | < 20% | ✅ |
 
 ---
 
@@ -34,28 +34,28 @@
 
 | ID | Type | Query | Latency | Precision | Recall | FPR | Status |
 |----|------|-------|---------|-----------|--------|-----|--------|
-| SH-01 | single_hop | What is BELA's timezone? | 0ms | 0/5 | 0% | 0% | âŒ |
-| SH-02 | single_hop | What is ManteniApp's pricing? | 0ms | 0/5 | 0% | 0% | âŒ |
-| SH-03 | single_hop | Who is Leonardo working with? | 0ms | 0/5 | 0% | 0% | âŒ |
-| SH-04 | single_hop | What product are we selling to Rodacenter? | 0ms | 0/5 | 0% | 0% | âŒ |
-| SH-05 | single_hop | What is Xavier's current version? | 0ms | 0/5 | 0% | 0% | âŒ |
-| SH-06 | single_hop | What is pplx-embed status? | 0ms | 0/5 | 0% | 0% | âŒ |
-| SH-07 | single_hop | What is the Tripro demo URL? | 0ms | 0/5 | 0% | 0% | âŒ |
-| SH-08 | single_hop | Where should projects be stored? | 0ms | 0/5 | 0% | 0% | âŒ |
-| MH-01 | multi_hop | Who worked on Xavier fixes and what decisions w... | 0ms | 0/5 | 0% | 0% | âŒ |
-| MH-02 | multi_hop | Find a client interested in maintenance monitor... | 0ms | 0/5 | 0% | 0% | âŒ |
-| MH-03 | multi_hop | What projects involve Chile and what is the sta... | 0ms | 0/5 | 0% | 0% | âŒ |
-| MH-04 | multi_hop | What are the active SWAL cron jobs? | 0ms | 0/5 | 0% | 0% | âŒ |
-| MH-05 | multi_hop | What security measures are active for SWAL? | 0ms | 0/5 | 0% | 0% | âŒ |
-| MH-06 | multi_hop | What is the Xavier memory architecture? | 0ms | 0/5 | 0% | 0% | âŒ |
-| TR-01 | temporal | When was pplx-embed fixed? | 0ms | 0/5 | 0% | 0% | âŒ |
-| TR-02 | temporal | What decisions were made about SurrealDB persis... | 0ms | 0/5 | 0% | 0% | âŒ |
-| TR-03 | temporal | What happened in the last session about Xavier? | 0ms | 0/5 | 0% | 0% | âŒ |
-| TR-04 | temporal | What is the timeline of Xavier versions? | 0ms | 0/5 | 0% | 0% | âŒ |
-| OD-01 | open_domain | Summarize the Xavier memory system improvements... | 0ms | 0/5 | 0% | 0% | âŒ |
-| OD-02 | open_domain | What is the overall status of SWAL operations? | 0ms | 0/5 | 0% | 0% | âŒ |
-| OD-03 | open_domain | What skills are available for sales operations? | 0ms | 0/5 | 0% | 0% | âŒ |
-| OD-04 | open_domain | What is the complete SWAL product portfolio? | 0ms | 0/5 | 0% | 0% | âŒ |
+| SH-01 | single_hop | What is BELA's timezone? | 0ms | 0/5 | 0% | 0% | ❌ |
+| SH-02 | single_hop | What is ManteniApp's pricing? | 0ms | 0/5 | 0% | 0% | ❌ |
+| SH-03 | single_hop | Who is Leonardo working with? | 0ms | 0/5 | 0% | 0% | ❌ |
+| SH-04 | single_hop | What product are we selling to Rodacenter? | 0ms | 0/5 | 0% | 0% | ❌ |
+| SH-05 | single_hop | What is Xavier's current version? | 0ms | 0/5 | 0% | 0% | ❌ |
+| SH-06 | single_hop | What is pplx-embed status? | 0ms | 0/5 | 0% | 0% | ❌ |
+| SH-07 | single_hop | What is the Tripro demo URL? | 0ms | 0/5 | 0% | 0% | ❌ |
+| SH-08 | single_hop | Where should projects be stored? | 0ms | 0/5 | 0% | 0% | ❌ |
+| MH-01 | multi_hop | Who worked on Xavier fixes and what decisions w... | 0ms | 0/5 | 0% | 0% | ❌ |
+| MH-02 | multi_hop | Find a client interested in maintenance monitor... | 0ms | 0/5 | 0% | 0% | ❌ |
+| MH-03 | multi_hop | What projects involve Chile and what is the sta... | 0ms | 0/5 | 0% | 0% | ❌ |
+| MH-04 | multi_hop | What are the active SWAL cron jobs? | 0ms | 0/5 | 0% | 0% | ❌ |
+| MH-05 | multi_hop | What security measures are active for SWAL? | 0ms | 0/5 | 0% | 0% | ❌ |
+| MH-06 | multi_hop | What is the Xavier memory architecture? | 0ms | 0/5 | 0% | 0% | ❌ |
+| TR-01 | temporal | When was pplx-embed fixed? | 0ms | 0/5 | 0% | 0% | ❌ |
+| TR-02 | temporal | What decisions were made about SurrealDB persis... | 0ms | 0/5 | 0% | 0% | ❌ |
+| TR-03 | temporal | What happened in the last session about Xavier? | 0ms | 0/5 | 0% | 0% | ❌ |
+| TR-04 | temporal | What is the timeline of Xavier versions? | 0ms | 0/5 | 0% | 0% | ❌ |
+| OD-01 | open_domain | Summarize the Xavier memory system improvements... | 0ms | 0/5 | 0% | 0% | ❌ |
+| OD-02 | open_domain | What is the overall status of SWAL operations? | 0ms | 0/5 | 0% | 0% | ❌ |
+| OD-03 | open_domain | What skills are available for sales operations? | 0ms | 0/5 | 0% | 0% | ❌ |
+| OD-04 | open_domain | What is the complete SWAL product portfolio? | 0ms | 0/5 | 0% | 0% | ❌ |
 ---
 
 ## Areas Needing Improvement

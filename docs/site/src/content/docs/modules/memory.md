@@ -1,4 +1,4 @@
-﻿---
+---
 title: Memory Module
 description: Core memory operations and storage
 ---

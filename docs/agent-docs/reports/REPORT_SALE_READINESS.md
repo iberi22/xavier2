@@ -1,4 +1,4 @@
-Ôªø---
+---
 title: "Xavier Sale Readiness Review"
 type: REPORT
 id: "report-sale-readiness-2026-03-22"
@@ -230,7 +230,7 @@ Xavier should **not** be priced like Mem0 Pro or Mem0 Enterprise yet. The codeba
 
 - Price it **below Mem0** until the security, compliance, and ops story catches up.
 - Price it **above pure open-source/Bureau-style tooling** only when you are clearly selling a maintained product, not just interesting infrastructure.
-- The best near-term offer is likely: **self-hosted memory substrate for agent teams with paid setup and support**, not ‚Äúenterprise memory platform‚Äù yet.
+- The best near-term offer is likely: **self-hosted memory substrate for agent teams with paid setup and support**, not ìenterprise memory platformî yet.
 
 ## Bottom Line
 
