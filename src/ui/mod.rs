@@ -20,6 +20,8 @@ pub mod board;
 pub mod card;
 #[cfg(feature = "egui")]
 pub mod state;
+#[cfg(feature = "egui")]
+pub mod config;
 
 #[cfg(feature = "cli-interactive")]
 pub mod dashboard;
@@ -34,3 +36,5 @@ pub use board::BoardView;
 pub use card::CardView;
 #[cfg(feature = "egui")]
 pub use state::{EguiState, KanbanState};
+#[cfg(feature = "egui")]
+pub use config::ConfigView;

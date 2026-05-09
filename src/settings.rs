@@ -1,11 +1,11 @@
 use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 const DEFAULT_CONFIG_PATH: &str = "config/xavier.config.json";
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct XavierSettings {
     #[serde(default)]
     pub server: ServerSettings,
@@ -21,10 +21,11 @@ pub struct XavierSettings {
     pub sync: SyncSettings,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerSettings {
     pub host: String,
     pub port: u16,
+    pub token: Option<String>,
     pub log_level: String,
     pub code_graph_db_path: String,
 }
@@ -34,13 +35,14 @@ impl Default for ServerSettings {
         Self {
             host: "127.0.0.1".to_string(),
             port: 8006,
+            token: None,
             log_level: "info".to_string(),
             code_graph_db_path: "data/code_graph.db".to_string(),
         }
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceSettings {
     pub default_workspace_id: String,
     pub default_plan: String,
@@ -67,7 +69,7 @@ impl Default for WorkspaceSettings {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemorySettings {
     pub backend: String,
     pub data_dir: String,
@@ -92,7 +94,7 @@ impl Default for MemorySettings {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelSettings {
     pub provider: String,
     pub api_flavor: String,
@@ -119,7 +121,7 @@ impl Default for ModelSettings {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetrievalSettings {
     pub disable_hyde: bool,
 }
@@ -130,7 +132,7 @@ impl Default for RetrievalSettings {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncSettings {
     pub interval_ms: u64,
     pub lag_threshold_ms: u64,
@@ -263,6 +265,27 @@ impl XavierSettings {
             "XAVIER_SYNC_RETRY_DELAY_MS",
             &self.sync.retry_delay_ms.to_string(),
         );
+    }
+
+    pub fn save(&self) -> Result<()> {
+        let path = std::env::var("XAVIER_CONFIG_PATH")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from(DEFAULT_CONFIG_PATH));
+
+        // Ensure directory exists
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).with_context(|| {
+                format!("failed to create config directory at {}", parent.display())
+            })?;
+        }
+
+        let serialized = serde_json::to_string_pretty(self)
+            .with_context(|| "failed to serialize settings to JSON")?;
+
+        fs::write(&path, serialized)
+            .with_context(|| format!("failed to write config file at {}", path.display()))?;
+
+        Ok(())
     }
 
     pub fn current() -> Self {
