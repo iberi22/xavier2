@@ -69,4 +69,12 @@ impl MemoryQueryPort for QmdMemoryAdapter {
             .map(|doc| MemoryRecord::from_document(workspace_id, &doc, true, None))
             .collect())
     }
+
+    async fn count(&self, _workspace_id: &str) -> anyhow::Result<usize> {
+        self.inner.count().await
+    }
+
+    async fn storage_usage(&self, _workspace_id: &str) -> anyhow::Result<u64> {
+        Ok(self.inner.usage().await.storage_bytes as u64)
+    }
 }

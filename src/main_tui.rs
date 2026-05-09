@@ -64,9 +64,12 @@ impl XavierClient {
             active_agents: 1,
             queries_today: resp["requests_used"].as_u64().unwrap_or(0) as usize,
             avg_response_time_ms: 0,
-            uptime_seconds: 0,
+            uptime_seconds: resp["uptime_seconds"].as_u64().unwrap_or(0),
             storage_used: resp["storage_bytes_used"].as_u64().unwrap_or(0),
             storage_limit: resp["storage_bytes_limit"].as_u64().unwrap_or(0),
+            cpu_usage: resp["cpu_usage"].as_f64().unwrap_or(0.0) as f32,
+            memory_usage: resp["memory_usage"].as_u64().unwrap_or(0),
+            port: resp["port"].as_u64().unwrap_or(0) as u16,
         };
         Ok(metrics)
     }
@@ -190,9 +193,13 @@ impl TuiApp {
             if let Ok(m) = self.client.get_metrics().await {
                 self.metrics = m;
             }
-            if let Ok(mem) = self.client.get_memories().await {
-                self.memories = mem;
+
+            if self.current_tab == 1 {
+                if let Ok(mem) = self.client.get_memories().await {
+                    self.memories = mem;
+                }
             }
+
             if let Ok(l) = self.client.get_logs().await {
                 self.logs = l;
             }

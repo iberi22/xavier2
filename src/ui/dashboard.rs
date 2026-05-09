@@ -23,6 +23,9 @@ pub struct DashboardMetrics {
     pub uptime_seconds: u64,
     pub storage_used: u64,
     pub storage_limit: u64,
+    pub cpu_usage: f32,
+    pub memory_usage: u64,
+    pub port: u16,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,24 +80,10 @@ pub fn render_tui<S: TuiAppState>(f: &mut Frame, app: &S) {
         .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(f.area());
 
-    let titles = vec!["Dashboard", "Memory Explorer", "Log Stream"];
-    let tabs = Tabs::new(titles)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Xavier Monitor"),
-        )
-        .select(app.current_tab())
-        .style(Style::default().fg(Color::Cyan))
-        .highlight_style(
-            Style::default()
-                .add_modifier(Modifier::BOLD)
-                .bg(Color::Black),
-        );
-    f.render_widget(tabs, chunks[0]);
+    render_header(f, chunks[0], app.current_tab(), app.metrics());
 
     match app.current_tab() {
-        0 => render_stats(f, app.metrics(), chunks[1]),
+        0 => render_dashboard(f, app, chunks[1]),
         1 => {
             let mut memory_view = crate::ui::memory_view::MemoryView::new();
             memory_view.state = app.memory_state().clone();
@@ -108,16 +97,55 @@ pub fn render_tui<S: TuiAppState>(f: &mut Frame, app: &S) {
     }
 }
 
-fn render_stats(f: &mut Frame, metrics: &DashboardMetrics, area: Rect) {
-    let vertical_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(10), Constraint::Min(0)])
+fn render_header(f: &mut Frame, area: Rect, current_tab: usize, metrics: &DashboardMetrics) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(25), Constraint::Min(0)])
         .split(area);
 
+    // ASCII Logo in Mint Green
+    let logo = Paragraph::new("    /\\\n   /  \\\n  /____\\")
+        .style(Style::default().fg(Color::Rgb(152, 255, 152))) // Mint Green
+        .block(Block::default());
+    f.render_widget(logo, chunks[0]);
+
+    let titles = vec!["Dashboard", "Memory Explorer", "Log Stream"];
+    let status_title = format!("Xavier Monitor (Port: {})", metrics.port);
+    let tabs = Tabs::new(titles)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(status_title),
+        )
+        .select(current_tab)
+        .style(Style::default().fg(Color::Cyan))
+        .highlight_style(
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .bg(Color::Black),
+        );
+    f.render_widget(tabs, chunks[1]);
+}
+
+fn render_dashboard<S: TuiAppState>(f: &mut Frame, app: &S, area: Rect) {
     let horizontal_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(vertical_chunks[0]);
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+        .split(area);
+
+    render_stats_panel(f, app.metrics(), horizontal_chunks[0]);
+    render_activity_panel(f, app.logs(), horizontal_chunks[1]);
+}
+
+fn render_stats_panel(f: &mut Frame, metrics: &DashboardMetrics, area: Rect) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(8),
+            Constraint::Length(6),
+            Constraint::Min(0),
+        ])
+        .split(area);
 
     let stats = vec![
         Line::from(vec![
@@ -128,6 +156,13 @@ fn render_stats(f: &mut Frame, metrics: &DashboardMetrics, area: Rect) {
             ),
         ]),
         Line::from(vec![
+            Span::raw("Active Agents: "),
+            Span::styled(
+                metrics.active_agents.to_string(),
+                Style::default().fg(Color::Magenta),
+            ),
+        ]),
+        Line::from(vec![
             Span::raw("Queries Today: "),
             Span::styled(
                 metrics.queries_today.to_string(),
@@ -135,53 +170,75 @@ fn render_stats(f: &mut Frame, metrics: &DashboardMetrics, area: Rect) {
             ),
         ]),
         Line::from(vec![
-            Span::raw("Active Agents: "),
+            Span::raw("Uptime: "),
             Span::styled(
-                metrics.active_agents.to_string(),
-                Style::default().fg(Color::Magenta),
+                format_duration(metrics.uptime_seconds),
+                Style::default().fg(Color::Cyan),
             ),
         ]),
     ];
 
-    let p = Paragraph::new(stats)
+    let p_stats = Paragraph::new(stats)
         .block(Block::default().borders(Borders::ALL).title("Statistics"))
         .style(Style::default().fg(Color::White));
-    f.render_widget(p, horizontal_chunks[0]);
+    f.render_widget(p_stats, chunks[0]);
 
-    let help = vec![
-        Line::from("Navigation:"),
-        Line::from("  Tab: Switch tabs"),
-        Line::from("  q: Quit"),
-        Line::from(""),
-        Line::from("Keybindings:"),
-        Line::from("  j/k: Scroll down/up"),
-        Line::from("  Enter: View details"),
-        Line::from("  /: Search (Memory Explorer only)"),
+    let sys_metrics = vec![
+        Line::from(vec![
+            Span::raw("CPU Usage: "),
+            Span::styled(
+                format!("{:.1}%", metrics.cpu_usage),
+                Style::default().fg(Color::Red),
+            ),
+        ]),
+        Line::from(vec![
+            Span::raw("Memory Usage: "),
+            Span::styled(
+                format_bytes(metrics.memory_usage),
+                Style::default().fg(Color::Blue),
+            ),
+        ]),
     ];
-    let p_help = Paragraph::new(help)
-        .block(Block::default().borders(Borders::ALL).title("Help"))
-        .style(Style::default().fg(Color::Gray));
-    f.render_widget(p_help, horizontal_chunks[1]);
+
+    let p_sys = Paragraph::new(sys_metrics)
+        .block(Block::default().borders(Borders::ALL).title("System Resources"))
+        .style(Style::default().fg(Color::White));
+    f.render_widget(p_sys, chunks[1]);
 
     if metrics.storage_limit > 0 {
         let ratio = metrics.storage_used as f64 / metrics.storage_limit as f64;
         let label = format!(
-            "Storage Usage: {:.2}% ({}/{})",
+            "Storage: {:.1}% ({}/{})",
             ratio * 100.0,
             format_bytes(metrics.storage_used),
             format_bytes(metrics.storage_limit)
         );
         let gauge = Gauge::default()
-            .block(Block::default().borders(Borders::ALL).title("Quotas"))
-            .gauge_style(
-                Style::default()
-                    .fg(Color::Blue)
-                    .bg(Color::Black)
-                    .add_modifier(Modifier::ITALIC),
-            )
+            .block(Block::default().borders(Borders::ALL).title("Storage Quota"))
+            .gauge_style(Style::default().fg(Color::Green).bg(Color::Black))
             .ratio(ratio.min(1.0))
             .label(label);
-        f.render_widget(gauge, vertical_chunks[1]);
+        f.render_widget(gauge, chunks[2]);
+    }
+}
+
+fn render_activity_panel(f: &mut Frame, logs: &[String], area: Rect) {
+    let mut log_stream = crate::ui::log_stream::LogStream::new();
+    log_stream.render(f, logs, area);
+}
+
+fn format_duration(seconds: u64) -> String {
+    let days = seconds / 86400;
+    let hours = (seconds % 86400) / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let secs = seconds % 60;
+
+    if days > 0 {
+        format!("{}d {}h {}m", days, hours, minutes)
+    } else if hours > 0 {
+        format!("{}h {}m {}s", hours, minutes, secs)
+    } else {
+        format!("{}m {}s", minutes, secs)
     }
 }
 

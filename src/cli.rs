@@ -45,6 +45,7 @@ use crate::settings::XavierSettings;
 #[derive(Clone)]
 pub struct CliState {
     pub memory: Arc<dyn MemoryQueryPort>,
+    pub sys: Arc<tokio::sync::Mutex<sysinfo::System>>,
     pub store: Arc<dyn MemoryStore>,
     pub workspace_id: String,
     pub workspace_dir: PathBuf,
@@ -233,8 +234,17 @@ async fn start_http_server(port: u16) -> Result<()> {
         workspace_dir.display()
     );
 
+    // Initialize system monitor
+    use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
+    let sys = System::new_with_specifics(
+        RefreshKind::nothing()
+            .with_cpu(CpuRefreshKind::everything())
+            .with_memory(MemoryRefreshKind::everything()),
+    );
+
     let state = CliState {
         memory: memory_port,
+        sys: Arc::new(tokio::sync::Mutex::new(sys)),
         store,
         workspace_id,
         workspace_dir,
@@ -493,7 +503,7 @@ async fn build_handler(State(state): State<CliState>) -> Response {
     )
 }
 
-async fn account_usage_handler(State(_state): State<CliState>, headers: HeaderMap) -> Response {
+async fn account_usage_handler(State(state): State<CliState>, headers: HeaderMap) -> Response {
     let expected_token = match std::env::var("XAVIER_TOKEN") {
         Ok(token) => token,
         Err(_) => {
@@ -520,10 +530,40 @@ async fn account_usage_handler(State(_state): State<CliState>, headers: HeaderMa
         );
     }
 
+    // Gather system metrics using persistent sysinfo
+    let mut sys = state.sys.lock().await;
+    // Refresh to get latest CPU usage
+    sys.refresh_cpu_all();
+    sys.refresh_memory();
+
+    let cpu_usage = sys.global_cpu_usage();
+    let memory_usage = sys.used_memory();
+    let total_memory = sys.total_memory();
+    let uptime = sysinfo::System::uptime();
+    drop(sys);
+
+    // Query memory store for document count and storage usage
+    let doc_count = match state.memory.count(&state.workspace_id).await {
+        Ok(count) => count,
+        Err(_) => 0,
+    };
+
+    let storage_bytes_used = match state.memory.storage_usage(&state.workspace_id).await {
+        Ok(usage) => usage,
+        Err(_) => 0,
+    };
+
     json_response(
         StatusCode::OK,
         serde_json::json!({
             "status": "ok",
+            "document_count": doc_count,
+            "cpu_usage": cpu_usage,
+            "memory_usage": memory_usage,
+            "storage_bytes_used": storage_bytes_used,
+            "storage_bytes_limit": total_memory, // Using total memory as a proxy for storage limit if not configured
+            "uptime_seconds": uptime,
+            "port": resolve_http_port(),
             "optimization": {
                 "router_direct_count": 0,
                 "semantic_cache_hits": 0,
@@ -1817,6 +1857,15 @@ async fn agent_unregister_handler(
 /// Uses JSON-RPC 2.0 over stdin/stdout (newline-delimited messages).
 /// This call blocks indefinitely, processing MCP protocol messages.
 async fn start_mcp_stdio() -> Result<()> {
+    // Initialize system monitor
+    use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
+    let mut sys = System::new_with_specifics(
+        RefreshKind::nothing()
+            .with_cpu(CpuRefreshKind::everything())
+            .with_memory(MemoryRefreshKind::everything()),
+    );
+    sys.refresh_all();
+
     // Initialize memory store directly (same as HTTP server)
     let store: Arc<dyn MemoryStore> = Arc::new(VecSqliteMemoryStore::from_env().await?);
     let workspace_id =

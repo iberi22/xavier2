@@ -12,4 +12,6 @@ pub trait MemoryQueryPort: Send + Sync {
     async fn delete(&self, id: &str) -> anyhow::Result<Option<MemoryRecord>>;
     async fn get(&self, id: &str) -> anyhow::Result<Option<MemoryRecord>>;
     async fn list(&self, workspace_id: &str, limit: usize) -> anyhow::Result<Vec<MemoryRecord>>;
+    async fn count(&self, workspace_id: &str) -> anyhow::Result<usize>;
+    async fn storage_usage(&self, workspace_id: &str) -> anyhow::Result<u64>;
 }
