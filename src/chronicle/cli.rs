@@ -7,15 +7,15 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock as AsyncRwLock;
 
-use xavier::chronicle::generate::{ChronicleGenerator, ChronicleInput};
-use xavier::chronicle::harvest::{HarvestOutput, Harvester};
-use xavier::chronicle::publish::{
+use crate::chronicle::generate::{ChronicleGenerator, ChronicleInput};
+use crate::chronicle::harvest::{HarvestOutput, Harvester};
+use crate::chronicle::publish::{
     ChroniclePost, ChroniclePublishHook, FilePublishHook, StdoutPublishHook,
 };
-use xavier::chronicle::redact::process_output;
-use xavier::memory::qmd_memory::QmdMemory;
-use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
-use xavier::memory::store::{MemoryRecord, MemoryStore};
+use crate::chronicle::redact::process_output;
+use crate::memory::qmd_memory::QmdMemory;
+use crate::memory::sqlite_vec_store::VecSqliteMemoryStore;
+use crate::memory::store::{MemoryRecord, MemoryStore};
 
 use crate::settings::XavierSettings;
 
@@ -268,39 +268,38 @@ fn extract_title(markdown: &str) -> Option<String> {
 mod tests {
     use super::*;
     use clap::Parser;
-    use crate::cli::{Cli, Command};
+
+    #[derive(Parser)]
+    struct TestCli {
+        #[command(subcommand)]
+        cmd: ChronicleCommand,
+    }
 
     #[test]
     fn test_chronicle_harvest_parsing() {
-        let args = vec!["xavier", "chronicle", "harvest", "--since", "2026-05-01", "--workspace", "/path/to/ws"];
-        let cli = Cli::parse_from(args);
+        let args = vec!["xavier", "harvest", "--since", "2026-05-01", "--workspace", "/path/to/ws"];
+        let cli = TestCli::parse_from(args);
 
-        match cli.cmd.unwrap() {
-            Command::Chronicle { cmd } => match cmd {
-                ChronicleCommand::Harvest { since, workspace } => {
-                    assert_eq!(since, Some("2026-05-01".to_string()));
-                    assert_eq!(workspace, Some("/path/to/ws".to_string()));
-                }
-                _ => panic!("Expected Harvest command"),
-            },
-            _ => panic!("Expected Chronicle command"),
+        match cli.cmd {
+            ChronicleCommand::Harvest { since, workspace } => {
+                assert_eq!(since, Some("2026-05-01".to_string()));
+                assert_eq!(workspace, Some("/path/to/ws".to_string()));
+            }
+            _ => panic!("Expected Harvest command"),
         }
     }
 
     #[test]
     fn test_chronicle_generate_parsing() {
-        let args = vec!["xavier", "chronicle", "generate", "--since", "2026-05-01", "--output", "post.md"];
-        let cli = Cli::parse_from(args);
+        let args = vec!["xavier", "generate", "--since", "2026-05-01", "--output", "post.md"];
+        let cli = TestCli::parse_from(args);
 
-        match cli.cmd.unwrap() {
-            Command::Chronicle { cmd } => match cmd {
-                ChronicleCommand::Generate { since, output } => {
-                    assert_eq!(since, Some("2026-05-01".to_string()));
-                    assert_eq!(output, Some("post.md".to_string()));
-                }
-                _ => panic!("Expected Generate command"),
-            },
-            _ => panic!("Expected Chronicle command"),
+        match cli.cmd {
+            ChronicleCommand::Generate { since, output } => {
+                assert_eq!(since, Some("2026-05-01".to_string()));
+                assert_eq!(output, Some("post.md".to_string()));
+            }
+            _ => panic!("Expected Generate command"),
         }
     }
 
