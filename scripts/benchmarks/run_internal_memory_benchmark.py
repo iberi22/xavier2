@@ -15,6 +15,17 @@ DEFAULT_DATASET = ROOT / "scripts" / "benchmarks" / "datasets" / "internal_swal_
 HTTP_TIMEOUT_SECONDS = 60
 
 
+def get_required_xavier_token() -> str:
+    for env_var in ("XAVIER_TOKEN", "XAVIER_API_KEY", "XAVIER_TOKEN"):
+        token = os.environ.get(env_var, "").strip()
+        if token:
+            return token
+    raise RuntimeError("Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.")
+
+
+TOKEN = get_required_xavier_token()
+
+
 def http_json(url: str, payload: dict, method: str = "POST") -> dict:
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
@@ -23,7 +34,7 @@ def http_json(url: str, payload: dict, method: str = "POST") -> dict:
         method=method,
         headers={
             "Content-Type": "application/json",
-            "X-Xavier2-Token": "dev-token",
+            "X-Xavier-Token": TOKEN,
         },
     )
     with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
@@ -38,7 +49,7 @@ def wait_for_health(base_url: str) -> None:
                     return
         except Exception:
             time.sleep(1)
-    raise RuntimeError("Xavier2 did not become healthy in time")
+    raise RuntimeError("Xavier did not become healthy in time")
 
 
 def add_documents(base_url: str, dataset: dict) -> None:
@@ -130,18 +141,18 @@ def main() -> None:
         parsed = urllib.parse.urlparse(base_url)
         env = os.environ.copy()
         if parsed.hostname:
-            env["XAVIER2_HOST"] = parsed.hostname
+            env["XAVIER_HOST"] = parsed.hostname
         if parsed.port:
-            env["XAVIER2_PORT"] = str(parsed.port)
+            env["XAVIER_PORT"] = str(parsed.port)
         # Keep the internal suite deterministic and evidence-first.
-        env["XAVIER2_DISABLE_HYDE"] = "1"
-        env["XAVIER2_MODEL_PROVIDER"] = "disabled"
+        env["XAVIER_DISABLE_HYDE"] = "1"
+        env["XAVIER_MODEL_PROVIDER"] = "disabled"
         child = subprocess.Popen(
-            ["cargo", "run", "--bin", "xavier2"],
+            ["cargo", "run", "--bin", "xavier"],
             cwd=ROOT,
             env=env,
-            stdout=(output_dir / "xavier2.stdout.log").open("wb"),
-            stderr=(output_dir / "xavier2.stderr.log").open("wb"),
+            stdout=(output_dir / "xavier.stdout.log").open("wb"),
+            stderr=(output_dir / "xavier.stderr.log").open("wb"),
         )
 
     try:

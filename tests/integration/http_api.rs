@@ -1,6 +1,6 @@
 //! HTTP API Integration Tests
 //!
-//! Tests the Xavier2 HTTP API endpoints using a real server spawned
+//! Tests the Xavier HTTP API endpoints using a real server spawned
 //! on a random port, accessed via reqwest.
 
 use reqwest::Client;
@@ -8,8 +8,8 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::{net::TcpListener, task::JoinHandle};
-use xavier2::adapters::inbound::http::routes::create_router_with_agent_registry;
-use xavier2::coordination::SimpleAgentRegistry;
+use xavier::adapters::inbound::http::routes::create_router_with_agent_registry;
+use xavier::coordination::SimpleAgentRegistry;
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
 
@@ -93,7 +93,7 @@ async fn test_session_event_endpoint() {
 
     let response = server
         .client
-        .post(format!("{}/xavier2/events/session", server.base_url))
+        .post(format!("{}/xavier/events/session", server.base_url))
         .json(&json!({
             "session_id": "http-api-test-session",
             "event_type": "message",
@@ -123,7 +123,7 @@ async fn test_session_event_with_injection() {
     // SQL injection attempt should be blocked
     let response = server
         .client
-        .post(format!("{}/xavier2/events/session", server.base_url))
+        .post(format!("{}/xavier/events/session", server.base_url))
         .json(&json!({
             "session_id": "injection-test",
             "event_type": "message",
@@ -158,7 +158,7 @@ async fn test_time_metric_endpoint() {
 
     let response = server
         .client
-        .post(format!("{}/xavier2/time/metric", server.base_url))
+        .post(format!("{}/xavier/time/metric", server.base_url))
         .json(&json!({
             "metric_type": "agent_execution",
             "agent_id": "http-api-agent",
@@ -178,10 +178,7 @@ async fn test_time_metric_endpoint() {
         .await
         .expect("time metric request");
 
-    assert!(
-        response.status().is_success(),
-        "time metric should succeed"
-    );
+    assert!(response.status().is_success(), "time metric should succeed");
     let body: Value = response.json().await.expect("parse time metric response");
     assert!(matches!(body["status"].as_str(), Some("ok" | "saved")));
     assert_eq!(body["metric_type"], "agent_execution");
@@ -196,15 +193,12 @@ async fn test_sync_check_endpoint() {
 
     let response = server
         .client
-        .post(format!("{}/xavier2/sync/check", server.base_url))
+        .post(format!("{}/xavier/sync/check", server.base_url))
         .send()
         .await
         .expect("sync check request");
 
-    assert!(
-        response.status().is_success(),
-        "sync check should succeed"
-    );
+    assert!(response.status().is_success(), "sync check should succeed");
     let body: Value = response.json().await.expect("parse sync response");
     assert!(body["status"].is_string());
     assert!(body["lag_ms"].is_number());
@@ -228,7 +222,7 @@ async fn test_agent_unregister_existing() {
     let server = spawn_test_server().await;
 
     // Register an agent via the registry directly
-    use xavier2::coordination::agent_registry::AgentMetadata;
+    use xavier::coordination::agent_registry::AgentMetadata;
     assert!(
         server
             .registry
@@ -250,17 +244,14 @@ async fn test_agent_unregister_existing() {
     let response = server
         .client
         .post(format!(
-            "{}/xavier2/agents/http-api-agent-1/unregister",
+            "{}/xavier/agents/http-api-agent-1/unregister",
             server.base_url
         ))
         .send()
         .await
         .expect("unregister request");
 
-    assert!(
-        response.status().is_success(),
-        "unregister should succeed"
-    );
+    assert!(response.status().is_success(), "unregister should succeed");
     let body: Value = response.json().await.expect("parse unregister response");
     assert_eq!(body["status"], "ok");
     assert_eq!(body["agent_id"], "http-api-agent-1");
@@ -274,7 +265,7 @@ async fn test_agent_unregister_missing() {
     let response = server
         .client
         .post(format!(
-            "{}/xavier2/agents/nonexistent-agent/unregister",
+            "{}/xavier/agents/nonexistent-agent/unregister",
             server.base_url
         ))
         .send()
@@ -299,7 +290,7 @@ async fn test_verify_save_without_env_vars() {
 
     let response = server
         .client
-        .post(format!("{}/xavier2/verify/save", server.base_url))
+        .post(format!("{}/xavier/verify/save", server.base_url))
         .json(&json!({
             "path": "integration-test/path",
             "content": "Test content for verify/save"
@@ -410,7 +401,7 @@ async fn test_auth_protected_endpoints_not_available_in_minimal_router() {
     let server = spawn_test_server().await;
 
     // The minimal router does not have any auth-protected endpoints.
-    // /memory/delete requires X-Xavier2-Token in the full CLI server.
+    // /memory/delete requires X-Xavier-Token in the full CLI server.
     let response = server
         .client
         .post(format!("{}/memory/delete", server.base_url))
@@ -508,7 +499,7 @@ async fn test_multi_step_workflow() {
     // 2. Session event
     let session = server
         .client
-        .post(format!("{}/xavier2/events/session", server.base_url))
+        .post(format!("{}/xavier/events/session", server.base_url))
         .json(&json!({
             "session_id": "workflow-session",
             "event_type": "message",
@@ -526,7 +517,7 @@ async fn test_multi_step_workflow() {
     // 3. Time metric
     let metric = server
         .client
-        .post(format!("{}/xavier2/time/metric", server.base_url))
+        .post(format!("{}/xavier/time/metric", server.base_url))
         .json(&json!({
             "metric_type": "workflow",
             "agent_id": "workflow-agent",
@@ -552,7 +543,7 @@ async fn test_multi_step_workflow() {
     // 4. Sync check
     let sync = server
         .client
-        .post(format!("{}/xavier2/sync/check", server.base_url))
+        .post(format!("{}/xavier/sync/check", server.base_url))
         .send()
         .await
         .expect("sync");

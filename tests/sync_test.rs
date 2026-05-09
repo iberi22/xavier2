@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tempfile::tempdir;
-use xavier2::memory::qmd_memory::MemoryDocument;
-use xavier2::sync::chunks::{export_to_chunk, import_from_chunk, load_manifest, ChunkManifest};
+use xavier::memory::qmd_memory::MemoryDocument;
+use xavier::sync::chunks::{export_to_chunk, import_from_chunk, load_manifest, ChunkManifest};
 
 #[test]
 fn test_sync_protocol_integration() -> Result<()> {

@@ -1,7 +1,7 @@
 ---
-title: "Xavier2 Overdrive: Road to 100% Accuracy & Extreme Efficiency"
+title: "Xavier Overdrive: Road to 100% Accuracy & Extreme Efficiency"
 type: SPEC
-id: "spec-xavier2-overdrive"
+id: "spec-xavier-overdrive"
 created: 2026-03-22
 updated: 2026-03-22
 agent: antigravity
@@ -12,9 +12,9 @@ summary: |
 keywords: [rag, accuracy, efficiency, hyde, self-rag, caching]
 ---
 
-# 🚀 Xavier2 Overdrive Spec
+# 🚀 Xavier Overdrive Spec
 
-To achieve **100% accuracy** and **maximum savings**, Xavier2 will move from "Retrieve-then-Generate" to an **Agentic-Reflective Pipeline**.
+To achieve **100% accuracy** and **maximum savings**, Xavier will move from "Retrieve-then-Generate" to an **Agentic-Reflective Pipeline**.
 
 ## 1. Accuracy: The "Triple-Check" Pipeline
 

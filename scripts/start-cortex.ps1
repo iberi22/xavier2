@@ -1,2 +1,2 @@
-Set-Location 'E:\scripts-python\xavier2'
-docker-compose up -d xavier2
+Set-Location 'E:\scripts-python\xavier'
+docker-compose up -d xavier

@@ -2,9 +2,9 @@
 
 ## Context
 
-xavier2 stores memories as flat documents, but human memory is structured with entities and relationships. "BELA works at SWAL" connects two entities (BELA, SWAL) with a relation (works_at).
+xavier stores memories as flat documents, but human memory is structured with entities and relationships. "BELA works at SWAL" connects two entities (BELA, SWAL) with a relation (works_at).
 
-**Why this matters:** 
+**Why this matters:**
 - Entity tracking enables queries like "What does BELA know?" or "Who works at SWAL?"
 - Relationship graphs reveal connections that keyword search would miss
 - Enables sophisticated reasoning about connected concepts
@@ -118,7 +118,7 @@ impl EntityExtractor {
     /// Extract entities from text content
     pub fn extract(text: &str) -> Vec<ExtractedEntity> {
         let mut entities = Vec::new();
-        
+
         // Extract emails
         for cap in EMAIL_PATTERN.captures_iter(text) {
             entities.push(ExtractedEntity {
@@ -127,7 +127,7 @@ impl EntityExtractor {
                 span: cap.get(0).map(|m| (m.start(), m.end())).unwrap_or((0, 0)),
             });
         }
-        
+
         // Extract URLs
         for cap in URL_PATTERN.captures_iter(text) {
             entities.push(ExtractedEntity {
@@ -136,7 +136,7 @@ impl EntityExtractor {
                 span: cap.get(0).map(|m| (m.start(), m.end())).unwrap_or((0, 0)),
             });
         }
-        
+
         // Extract capitalized words (potential persons/orgs)
         for cap in CAPITALIZED_WORD.captures_iter(text) {
             let name = cap[1].to_string();
@@ -149,14 +149,14 @@ impl EntityExtractor {
                 });
             }
         }
-        
+
         entities
     }
-    
+
     fn is_common_word(word: &str) -> bool {
         matches!(word, "The" | "This" | "That" | "These" | "Those" | "OpenClaw" | "Windows" | "Docker")
     }
-    
+
     fn guess_entity_type(name: &str) -> EntityType {
         // Simple heuristics
         if name.ends_with(" Inc") || name.ends_with(" Corp") || name.ends_with(" LLC") {
@@ -219,21 +219,21 @@ impl BeliefGraph {
     pub async fn process_memory(&mut self, memory: &Memory) -> Result<Vec<Relation>> {
         let entities = EntityExtractor::extract(&memory.content);
         let mut new_relations = Vec::new();
-        
+
         for entity in entities {
             // Upsert entity
             let entity_id = self.upsert_entity(&entity).await?;
-            
+
             // Try to extract relations (subject-verb-object patterns)
             if let Some(relation) = self.extract_relation(&memory.content, &entity.name) {
                 let rel = self.upsert_relation(entity_id, &relation).await?;
                 new_relations.push(rel);
             }
         }
-        
+
         Ok(new_relations)
     }
-    
+
     /// BFS traversal from an entity
     pub async fn traverse(
         &self,
@@ -244,15 +244,15 @@ impl BeliefGraph {
         let mut visited: HashSet<String> = HashSet::new();
         let mut queue: VecDeque<(String, usize, Vec<Relation>)> = VecDeque::new();
         let mut results = Vec::new();
-        
+
         queue.push_back((start_entity.to_string(), 0, vec![]));
-        
+
         while let Some((current, depth, path)) = queue.pop_front() {
             if depth >= max_depth || visited.contains(&current) {
                 continue;
             }
             visited.insert(current.clone());
-            
+
             // Get outgoing relations
             if let Some(relations) = self.relations.get(&current) {
                 for rel in relations {
@@ -261,7 +261,7 @@ impl BeliefGraph {
                             continue;
                         }
                     }
-                    
+
                     results.push(TraversalResult {
                         from: current.clone(),
                         to: rel.to.clone(),
@@ -269,21 +269,21 @@ impl BeliefGraph {
                         depth,
                         path: path.iter().chain(std::iter::once(rel)).cloned().collect(),
                     });
-                    
+
                     queue.push_back((rel.to.clone(), depth + 1, path.iter().cloned().chain(std::iter::once(rel)).collect()));
                 }
             }
         }
-        
+
         Ok(results)
     }
-    
+
     async fn upsert_entity(&mut self, extracted: &ExtractedEntity) -> Result<String> {
         let id = self.db.find_or_create_entity(
             &extracted.name,
             &format!("{:?}", extracted.entity_type),
         ).await?;
-        
+
         self.entities.insert(id.clone(), Entity {
             id: id.clone(),
             name: extracted.name.clone(),
@@ -291,10 +291,10 @@ impl BeliefGraph {
             description: None,
             belief_count: 0,
         });
-        
+
         Ok(id)
     }
-    
+
     fn extract_relation(&self, text: &str, subject: &str) -> Option<ExtractedRelation> {
         // Simple pattern: "X [relation_verb] Y"
         let relation_patterns = [
@@ -304,7 +304,7 @@ impl BeliefGraph {
             (r"(\w+)\s+is\s+a[n]?\s+(\w+)", "is_a"),
             (r"(\w+)\s+part\s+of\s+(\w+)", "part_of"),
         ];
-        
+
         for (pattern, rel_type) in relation_patterns {
             if let Ok(re) = regex::Regex::new(pattern) {
                 if let Some(caps) = re.captures(text) {
@@ -316,7 +316,7 @@ impl BeliefGraph {
                 }
             }
         }
-        
+
         None
     }
 }
@@ -376,9 +376,9 @@ pub async fn graph_query(
 ) -> Result<Json<GraphResponse>, StatusCode> {
     let max_depth = query.max_depth.unwrap_or(2);
     let direction = query.direction.as_deref().unwrap_or("outgoing");
-    
+
     let graph = &state.belief_graph;
-    
+
     // Traverse graph
     let relations = graph.traverse(
         &query.entity,
@@ -386,7 +386,7 @@ pub async fn graph_query(
         query.relation_types.as_deref(),
     ).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     // Filter by direction
     let filtered: Vec<_> = relations.into_iter()
         .filter(|r| {
@@ -398,7 +398,7 @@ pub async fn graph_query(
             }
         })
         .collect();
-    
+
     let response = GraphResponse {
         entity: query.entity,
         relations: filtered.iter().map(|r| RelationResponse {
@@ -409,7 +409,7 @@ pub async fn graph_query(
         }).collect(),
         total_relations: filtered.len(),
     };
-    
+
     Ok(Json(response))
 }
 ```
@@ -426,19 +426,19 @@ pub async fn add_memory(
     Json(payload): Json<AddMemoryRequest>,
 ) -> Result<Json<AddMemoryResponse>, StatusCode> {
     // ... existing code ...
-    
+
     // Generate embedding (Phase 1)
     let content_vector = state.embedder.encode(&payload.content).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     // Store memory
     let doc = MemoryDoc { /* ... */ };
     state.db.insert_memory(&doc).await?;
-    
+
     // NEW: Process entities and relations
     let relations = state.belief_graph.process_memory(&doc).await
         .unwrap_or_default();  // Don't fail on entity extraction errors
-    
+
     Ok(Json(AddMemoryResponse {
         id: doc.id,
         status: "ok".into(),
@@ -467,8 +467,8 @@ pub async fn add_memory(
 | knows | "BELA knows Leonardo" | Person-person connection |
 | works_at | "BELA works at SWAL" | Person-organization |
 | part_of | "ManteniApp part_of SWAL" | Project-organization |
-| uses | "BELA uses xavier2" | Person-tool/service |
-| is_a | "xavier2 is_a memory system" | Object categorization |
+| uses | "BELA uses xavier" | Person-tool/service |
+| is_a | "xavier is_a memory system" | Object categorization |
 | related_to | "ManteniApp related_to Cortex" | General relation |
 
 ## Acceptance Criteria

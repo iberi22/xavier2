@@ -1,5 +1,5 @@
 [package]
-name = "xavier2"
+name = "xavier"
 version = "0.4.1"
 edition = "2021"
 license = "Apache-2.0"
@@ -82,16 +82,16 @@ tempfile = "3.10"
 criterion = "0.8"
 
 [[bin]]
-name = "xavier2-gui"
+name = "xavier-gui"
 path = "src/main_egui.rs"
 required-features = ["egui-standalone"]
 
 [[bin]]
-name = "xavier2-tui"
+name = "xavier-tui"
 path = "src/main_tui.rs"
 
 [[bench]]
-name = "xavier2"
+name = "xavier"
 harness = false
 
 [[bench]]

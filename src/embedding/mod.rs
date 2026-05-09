@@ -93,15 +93,15 @@ pub(crate) enum EmbedderConfig {
 
 impl EmbedderConfig {
     pub fn from_env() -> Self {
-        let provider_mode = std::env::var("XAVIER2_EMBEDDING_PROVIDER_MODE")
+        let provider_mode = std::env::var("XAVIER_EMBEDDING_PROVIDER_MODE")
             .ok()
             .and_then(|value| ProviderMode::from_env(&value));
-        let api_flavor = std::env::var("XAVIER2_EMBEDDING_API_FLAVOR")
+        let api_flavor = std::env::var("XAVIER_EMBEDDING_API_FLAVOR")
             .ok()
             .and_then(|value| ApiFlavor::from_env(&value))
             .unwrap_or(ApiFlavor::OpenAICompatible);
 
-        let explicit_embedder = std::env::var("XAVIER2_EMBEDDER")
+        let explicit_embedder = std::env::var("XAVIER_EMBEDDER")
             .ok()
             .map(|value| value.trim().to_ascii_lowercase());
 
@@ -169,7 +169,7 @@ impl EmbedderConfig {
     fn auto(api_flavor: ApiFlavor) -> Self {
         let local_signal = local_embedding_signal_present();
         let cloud_signal = cloud_embedding_signal_present();
-        let explicit_local_llm = std::env::var("XAVIER2_MODEL_PROVIDER")
+        let explicit_local_llm = std::env::var("XAVIER_MODEL_PROVIDER")
             .map(|value| value.eq_ignore_ascii_case("local"))
             .unwrap_or(false);
 
@@ -269,18 +269,18 @@ impl Embedder for FallbackEmbedder {
 }
 
 fn local_embedding_signal_present() -> bool {
-    std::env::var("XAVIER2_EMBEDDING_ENDPOINT").is_ok()
-        || std::env::var("XAVIER2_EMBEDDING_URL").is_ok()
-        || std::env::var("XAVIER2_EMBEDDING_MODEL").is_ok()
-        || std::env::var("XAVIER2_EMBEDDING_PROVIDER_MODE")
+    std::env::var("XAVIER_EMBEDDING_ENDPOINT").is_ok()
+        || std::env::var("XAVIER_EMBEDDING_URL").is_ok()
+        || std::env::var("XAVIER_EMBEDDING_MODEL").is_ok()
+        || std::env::var("XAVIER_EMBEDDING_PROVIDER_MODE")
             .map(|value| value.eq_ignore_ascii_case("local"))
             .unwrap_or(false)
 }
 
 fn cloud_embedding_signal_present() -> bool {
     std::env::var("OPENAI_API_KEY").is_ok()
-        || std::env::var("XAVIER2_EMBEDDING_API_KEY").is_ok()
-        || std::env::var("XAVIER2_EMBEDDING_PROVIDER_MODE")
+        || std::env::var("XAVIER_EMBEDDING_API_KEY").is_ok()
+        || std::env::var("XAVIER_EMBEDDING_PROVIDER_MODE")
             .map(|value| value.eq_ignore_ascii_case("cloud"))
             .unwrap_or(false)
 }
@@ -303,10 +303,10 @@ fn build_backend(config: EmbedderBackendConfig) -> Result<Arc<dyn Embedder>, Emb
 }
 
 fn gllm_config() -> GllmConfig {
-    let raw_model = std::env::var("XAVIER2_GLLM_MODEL")
+    let raw_model = std::env::var("XAVIER_GLLM_MODEL")
         .unwrap_or_else(|_| gllm::DEFAULT_GLLM_MODEL.to_string());
     let model = gllm::normalize_model_name(&raw_model);
-    let dimension = std::env::var("XAVIER2_GLLM_DIMENSION")
+    let dimension = std::env::var("XAVIER_GLLM_DIMENSION")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .filter(|dimension| *dimension > 0)
@@ -316,16 +316,16 @@ fn gllm_config() -> GllmConfig {
 }
 
 fn local_config() -> OpenAICompatibleConfig {
-    let endpoint = std::env::var("XAVIER2_EMBEDDING_ENDPOINT")
-        .or_else(|_| std::env::var("XAVIER2_EMBEDDING_URL"))
+    let endpoint = std::env::var("XAVIER_EMBEDDING_ENDPOINT")
+        .or_else(|_| std::env::var("XAVIER_EMBEDDING_URL"))
         .map(|value| normalize_openai_embeddings_endpoint(&value))
         .unwrap_or_else(|_| DEFAULT_LOCAL_EMBEDDING_ENDPOINT.to_string());
 
-    let model = std::env::var("XAVIER2_EMBEDDING_MODEL")
+    let model = std::env::var("XAVIER_EMBEDDING_MODEL")
         .unwrap_or_else(|_| DEFAULT_LOCAL_EMBEDDING_MODEL.to_string());
 
     OpenAICompatibleConfig {
-        api_key: std::env::var("XAVIER2_EMBEDDING_API_KEY")
+        api_key: std::env::var("XAVIER_EMBEDDING_API_KEY")
             .ok()
             .or_else(|| Some("ollama".to_string())),
         endpoint,
@@ -335,16 +335,16 @@ fn local_config() -> OpenAICompatibleConfig {
 }
 
 fn cloud_config() -> OpenAICompatibleConfig {
-    let endpoint = std::env::var("XAVIER2_EMBEDDING_ENDPOINT")
-        .or_else(|_| std::env::var("XAVIER2_EMBEDDING_URL"))
+    let endpoint = std::env::var("XAVIER_EMBEDDING_ENDPOINT")
+        .or_else(|_| std::env::var("XAVIER_EMBEDDING_URL"))
         .map(|value| normalize_openai_embeddings_endpoint(&value))
         .unwrap_or_else(|_| DEFAULT_CLOUD_EMBEDDING_ENDPOINT.to_string());
 
-    let model = std::env::var("XAVIER2_EMBEDDING_MODEL")
+    let model = std::env::var("XAVIER_EMBEDDING_MODEL")
         .unwrap_or_else(|_| DEFAULT_CLOUD_EMBEDDING_MODEL.to_string());
 
     OpenAICompatibleConfig {
-        api_key: std::env::var("XAVIER2_EMBEDDING_API_KEY")
+        api_key: std::env::var("XAVIER_EMBEDDING_API_KEY")
             .ok()
             .or_else(|| std::env::var("OPENAI_API_KEY").ok()),
         endpoint,

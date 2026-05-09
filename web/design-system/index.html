@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Xavier2 — Design System Templates</title>
+  <title>Xavier — Design System Templates</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -185,7 +185,7 @@
       );
     }
 
-    function Comparison({left={v:'Xavier2',l:'99.1%'}, right={v:'Mem0',l:'66.88%'}, vs='vs'}) {
+    function Comparison({left={v:'Xavier',l:'99.1%'}, right={v:'Mem0',l:'66.88%'}, vs='vs'}) {
       return (
         <div className="t-comparison">
           <div className="t-comp-side">
@@ -204,7 +204,7 @@
     function Timeline({items}) {
       return (
         <div className="t-timeline">
-          {(items||[{d:'Apr 5, 2026',t:'Xavier2 99.1% recall',dd:'LoCoMo benchmark'},{d:'Apr 4, 2026',t:'Memory manager',dd:'Decay+consolidate+evict'},{d:'Apr 3, 2026',t:'SurrealDB v3',dd:'Upgrade complete'}]).map((item,i)=>(
+          {(items||[{d:'Apr 5, 2026',t:'Xavier 99.1% recall',dd:'LoCoMo benchmark'},{d:'Apr 4, 2026',t:'Memory manager',dd:'Decay+consolidate+evict'},{d:'Apr 3, 2026',t:'SurrealDB v3',dd:'Upgrade complete'}]).map((item,i)=>(
             <div key={i} className="t-tl-item">
               <div className="t-tl-date">{item.d}</div>
               <div className="t-tl-title">{item.t}</div>
@@ -231,7 +231,7 @@
     function Leaderboard({items}) {
       return (
         <div className="t-leader">
-          {(items||[{n:'ManteniApp',v:'100'},{n:'Xavier2',v:'95'},{n:'Synapse',v:'87'},{n:'Edge Hive',v:'72'}]).map((l,i)=>(
+          {(items||[{n:'ManteniApp',v:'100'},{n:'Xavier',v:'95'},{n:'Synapse',v:'87'},{n:'Edge Hive',v:'72'}]).map((l,i)=>(
             <div key={i} className="t-leader-row">
               <span className={`t-leader-rank ${i===0?'g1':i===1?'g2':i===2?'g3':''}`}>{i+1}</span>
               <span>{l.n}</span>
@@ -249,7 +249,7 @@
             <div className="t-report-title">{title}</div>
             <div className="t-report-date">{date}</div>
           </div>
-          {(sections||[{t:'Summary',p:'Major improvements across all metrics.'},{t:'Key Achievements','p':'Launched Xavier2 with 99.1% recall.'},{t:'Next Steps','p':'Focus on enterprise features.'}]).map((s,i)=>(
+          {(sections||[{t:'Summary',p:'Major improvements across all metrics.'},{t:'Key Achievements','p':'Launched Xavier with 99.1% recall.'},{t:'Next Steps','p':'Focus on enterprise features.'}]).map((s,i)=>(
             <div key={i} className="t-report-sec">
               <div className="t-report-sec-title">{s.t}</div>
               <p>{s.p}</p>
@@ -278,7 +278,7 @@
     function ListCards({items}) {
       return (
         <div className="t-list">
-          {(items||[{i:'📊',t:'Xavier2 Memory',s:'AI-powered search'},{i:'🔒',t:'E2E Encryption',s:'AES-256-GCM'},{i:'🛡️',t:'Anticipator',s:'Prompt injection protection'}]).map((item,i)=>(
+          {(items||[{i:'📊',t:'Xavier Memory',s:'AI-powered search'},{i:'🔒',t:'E2E Encryption',s:'AES-256-GCM'},{i:'🛡️',t:'Anticipator',s:'Prompt injection protection'}]).map((item,i)=>(
             <div key={i} className="t-list-item">
               <div className="t-list-icon">{item.i}</div>
               <div className="t-list-content">
@@ -329,7 +329,7 @@
     function BadgeRow({badges}) {
       return (
         <div className="t-badge-row">
-          {(badges||['Xavier2','Memory','AI','Secure','Fast']).map((b,i)=>(
+          {(badges||['Xavier','Memory','AI','Secure','Fast']).map((b,i)=>(
             <span key={i} className={`t-badge ${['blue','green','purple','yellow'][i%4]}`}>{b}</span>
           ))}
         </div>
@@ -445,7 +445,7 @@
           </div>
           <div className="main">
             <div className="header">
-              <h1>🧠 Xavier2 Design System</h1>
+              <h1>🧠 Xavier Design System</h1>
               <p>20 pre-built infographic templates — AI fills with data, no generation cost</p>
             </div>
             <div className="grid">

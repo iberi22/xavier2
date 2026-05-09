@@ -6,7 +6,7 @@
 
 ## Contexto
 
-Xavier2 tenía una definición de arquitectura hexagonal con:
+Xavier tenía una definición de arquitectura hexagonal con:
 - `ports/inbound/memory_port.rs` — trait `MemoryQueryPort` definido
 - `app/memory_service.rs` — `impl MemoryQueryPort for QmdMemory` (creado en P0)
 - `app/pattern_service.rs` — todos los métodos `todo!()`

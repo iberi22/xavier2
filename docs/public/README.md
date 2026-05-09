@@ -1,11 +1,11 @@
-# Xavier2 Documentation
+# Xavier Documentation
 
-Welcome to Xavier2 — Fast Vector Memory for AI Agents.
+Welcome to Xavier — Fast Vector Memory for AI Agents.
 
 ## Getting Started
 
 - [Quick Start](QUICKSTART.md) — Install, configure, and run in 5 minutes
-- [Architecture](ARCHITECTURE.md) — How Xavier2 works under the hood
+- [Architecture](ARCHITECTURE.md) — How Xavier works under the hood
 - [API Reference](API.md) — Complete HTTP API documentation
 
 ## Examples
@@ -14,6 +14,6 @@ See the [examples directory](../examples/) for working CLI, HTTP, and MCP exampl
 
 ## Resources
 
-- **GitHub:** https://github.com/iberi22/xavier2
-- **CLI:** `xavier2 --help` for all available commands
-- **MCP:** `xavier2 mcp` to start the MCP stdio server
+- **GitHub:** https://github.com/iberi22/xavier
+- **CLI:** `xavier --help` for all available commands
+- **MCP:** `xavier mcp` to start the MCP stdio server

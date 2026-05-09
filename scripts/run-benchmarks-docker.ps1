@@ -14,7 +14,7 @@ function Invoke-Compose {
         [string[]]$ComposeArgs
     )
 
-    $env:XAVIER2_BENCHMARK_PORT = [string]$HostPort
+    $env:XAVIER_BENCHMARK_PORT = [string]$HostPort
     & docker compose -f $compose @ComposeArgs
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose failed with exit code $LASTEXITCODE"
@@ -23,12 +23,12 @@ function Invoke-Compose {
 
 $compose = "docker-compose.benchmarks.yml"
 
-Write-Host "Building Xavier2 benchmark images..."
-Invoke-Compose build xavier2-benchmark locomo-benchmark
+Write-Host "Building Xavier benchmark images..."
+Invoke-Compose build xavier-benchmark locomo-benchmark
 
 try {
-    Write-Host "Starting Xavier2 benchmark service..."
-    Invoke-Compose @("up", "-d", "--wait", "xavier2-benchmark")
+    Write-Host "Starting Xavier benchmark service..."
+    Invoke-Compose @("up", "-d", "--wait", "xavier-benchmark")
 
     Write-Host "Running LoCoMo benchmark in Docker..."
     Invoke-Compose @(
@@ -40,7 +40,7 @@ try {
         "python",
         "scripts/benchmarks/run_locomo_benchmark.py",
         "--base-url",
-        "http://xavier2-benchmark:8003",
+        "http://xavier-benchmark:8003",
         "--output-dir",
         $OutputDir,
         "--sample-limit",

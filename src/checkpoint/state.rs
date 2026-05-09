@@ -206,7 +206,7 @@ mod tests {
 
     async fn temp_checkpoint_root() -> PathBuf {
         let root = std::env::temp_dir()
-            .join("xavier2-checkpoint-tests")
+            .join("xavier-checkpoint-tests")
             .join(ulid::Ulid::new().to_string());
         fs::create_dir_all(&root).await.unwrap();
         root

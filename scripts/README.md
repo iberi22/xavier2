@@ -1,20 +1,21 @@
-﻿# Scripts Directory
+# Scripts Directory
 
-This directory contains utility scripts for Xavier2 development and operations.
+This directory contains utility scripts for Xavier development and operations.
 
 ## Organization
 
 - enchmarks/ - Benchmarking scripts for memory systems
 - dev/ - Development utilities
-- elease/ - Release and deployment scripts
+-
+elease/ - Release and deployment scripts
 
 ## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| xavier2-service.ps1 | Windows service management |
-| xavier2_client.ps1 | Client/CLI testing |
-| xavier2-optimizer.ps1 | Performance optimization |
+| xavier-service.ps1 | Windows service management |
+| xavier_client.ps1 | Client/CLI testing |
+| xavier-optimizer.ps1 | Performance optimization |
 | locomo_benchmark*.ps1 | LOCOMO benchmark suite |
 | cortex_cli.py | Cortex CLI utilities |
 | enchmark_*.py | Various benchmark scripts |

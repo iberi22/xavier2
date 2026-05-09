@@ -1,11 +1,11 @@
-# Investigación de Embeddings para Xavier2
+# Investigación de Embeddings para Xavier
 
-> Documentación de referencia para la implementación de embeddings en Xavier2.
+> Documentación de referencia para la implementación de embeddings en Xavier.
 > Última actualización: 2026-05-03
 
 ## Estado Actual del Código
 
-Xavier2 tiene **tres caminos de embedding**, con redundancia y código heredado:
+Xavier tiene **tres caminos de embedding**, con redundancia y código heredado:
 
 ### 1. Embedder Port + Adapter (HexArch, pero incompleto)
 
@@ -18,14 +18,14 @@ Xavier2 tiene **tres caminos de embedding**, con redundancia y código heredado:
 
 ### 2. Embedder Nuevo (src/embedding/)
 
-- Trait `Embedder` + `EmbedderConfig::from_env()` lee `XAVIER2_EMBEDDER=openai`
+- Trait `Embedder` + `EmbedderConfig::from_env()` lee `XAVIER_EMBEDDER=openai`
 - Único proveedor concreto: OpenAI (API key + endpoint configurable)
 - `NoopEmbedder` por defecto (retorna vector vacío)
 - **Solo llama a `build_embedder_from_env()` desde `qmd_memory.rs:2339`**
 
 ### 3. Embedder Legacy (src/memory/embedder.rs)
 
-- `EmbeddingClient::from_env()` lee `XAVIER2_EMBEDDING_URL` y `XAVIER2_EMBEDDING_MODEL`
+- `EmbeddingClient::from_env()` lee `XAVIER_EMBEDDING_URL` y `XAVIER_EMBEDDING_MODEL`
 - Soporta: Ollama, OpenAI-compatible, Legacy (endpoint /embed)
 - Detecta proveedor por URL: localhost → Ollama, /v1/ → OpenAI
 - **Es el que realmente se usa en producción** (llamado en `generate_embedding`)
@@ -34,7 +34,7 @@ Xavier2 tiene **tres caminos de embedding**, con redundancia y código heredado:
 
 1. **HexArch incompleto**: `embedding_adapter.rs` es `todo!()`, nunca se usa
 2. **Redundancia**: Dos sistemas de embedding paralelos (el nuevo `src/embedding/` y el legacy `src/memory/embedder.rs`)
-3. **Noop por defecto**: Si no hay `XAVIER2_EMBEDDING_URL` ni `OPENAI_API_KEY`, las embeddings son `Vec::new()` — la búsqueda semántica no funciona
+3. **Noop por defecto**: Si no hay `XAVIER_EMBEDDING_URL` ni `OPENAI_API_KEY`, las embeddings son `Vec::new()` — la búsqueda semántica no funciona
 4. **Dimensiones hardcodeadas**: `OpenAIEmbedder::dimension()` usa match con valores fijos
 5. **Cache funcional**: Hay cache de embeddings con TTL 1h en `qmd_memory.rs`, pero solo evita re-embedding de contenido idéntico
 
@@ -54,7 +54,7 @@ Xavier2 tiene **tres caminos de embedding**, con redundancia y código heredado:
 | **mxbai-embed-large** | 64.68 | 59.25% | 1,024 | 512 | Apache 2.0 |
 | **Nomic Embed v2** | 62.39 | 57.25% | 768 | 8,192 | Apache 2.0 |
 
-### Análisis para el stack de Xavier2
+### Análisis para el stack de Xavier
 
 #### Opción 1: Solo Ollama Local (recomendado para ahora)
 
@@ -120,7 +120,7 @@ Uniformizar: un solo Embedder trait, eliminar el legacy
 ```
 Qwen3-Embedding-8B o Gemini Embedding API
 Matryoshka dimensions para balance velocidad/precisión
-Embedding adapters entrenables (fine-tuning sobre datos de Xavier2)
+Embedding adapters entrenables (fine-tuning sobre datos de Xavier)
 ```
 
 ### Fase 4 (Largo plazo)
@@ -143,8 +143,8 @@ Crear estos issues para trackear el trabajo:
 
 2. **#171** — [embed] Configurar Ollama + nomic-embed-text como proveedor local
    - Verificar que Ollama corre en localhost:11434
-   - Probar `xavier2 search` con embeddings reales (hoy devuelve vector vacío si no hay API key)
-   - Setear defaults: `XAVIER2_EMBEDDING_URL=http://localhost:11434`, `XAVIER2_EMBEDDING_MODEL=nomic-embed-text`
+   - Probar `xavier search` con embeddings reales (hoy devuelve vector vacío si no hay API key)
+   - Setear defaults: `XAVIER_EMBEDDING_URL=http://localhost:11434`, `XAVIER_EMBEDDING_MODEL=nomic-embed-text`
 
 3. **#172** — [embed] Evaluación bge-m3 como upgrade de calidad
    - Benchmarks retrieval vs nomic-embed-text
@@ -162,14 +162,14 @@ Crear estos issues para trackear el trabajo:
 
 ```env
 # EMBEDDINGS - Local Ollama (recomendado para CPU)
-XAVIER2_EMBEDDER=openai
-XAVIER2_EMBEDDING_URL=http://localhost:11434
-XAVIER2_EMBEDDING_MODEL=nomic-embed-text
+XAVIER_EMBEDDER=openai
+XAVIER_EMBEDDING_URL=http://localhost:11434
+XAVIER_EMBEDDING_MODEL=nomic-embed-text
 
 # Alternativa API (cuando no hay Ollama)
-# XAVIER2_EMBEDDER=openai
-# XAVIER2_EMBEDDING_ENDPOINT=https://api.openai.com/v1/embeddings
-# XAVIER2_EMBEDDING_MODEL=text-embedding-3-small
+# XAVIER_EMBEDDER=openai
+# XAVIER_EMBEDDING_ENDPOINT=https://api.openai.com/v1/embeddings
+# XAVIER_EMBEDDING_MODEL=text-embedding-3-small
 # OPENAI_API_KEY=sk-...
 ```
 

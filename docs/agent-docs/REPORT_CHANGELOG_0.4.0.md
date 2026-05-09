@@ -1,5 +1,5 @@
 ---
-title: "Xavier2 0.4.0 Release Changelog"
+title: "Xavier 0.4.0 Release Changelog"
 type: REPORT
 id: "report-changelog-0-4-0"
 created: 2026-03-11
@@ -10,10 +10,10 @@ requested_by: user
 summary: |
   Initial 0.4.0 changelog entry for benchmark infrastructure,
   test system migration, and first LoCoMo baseline reporting.
-keywords: [xavier2, changelog, benchmarks, locomo, swe-bench]
-tags: ["#xavier2", "#release", "#benchmarks", "#locomo", "#0.4.0"]
+keywords: [xavier, changelog, benchmarks, locomo, swe-bench]
+tags: ["#xavier", "#release", "#benchmarks", "#locomo", "#0.4.0"]
 topics: [memory, benchmarking, agentic-workflows]
-project: Xavier2
+project: Xavier
 module: benchmarks
 language: markdown
 priority: high
@@ -23,19 +23,19 @@ token_estimate: 400
 complexity: moderate
 ---
 
-# Xavier2 0.4.0
+# Xavier 0.4.0
 
 ## Added
 
 - Standardized Cargo test layout with dedicated integration, E2E, and benchmark targets.
 - GitHub Actions workflows for `LoCoMo` and `SWE-bench` benchmarking.
-- `LoCoMo` benchmark runner that clones the official dataset to a temporary workspace and scores Xavier2 on QA recall quality.
+- `LoCoMo` benchmark runner that clones the official dataset to a temporary workspace and scores Xavier on QA recall quality.
 - `SWE-bench` evaluation harness wrapper for self-hosted Linux runners with Docker and sufficient disk.
 - `/memory/reset` endpoint to reset in-memory state between benchmark conversations.
 
 ## Changed
 
-- Architecture clarified to position Xavier2 as a memory substrate for bidirectional agentic/RAG execution.
+- Architecture clarified to position Xavier as a memory substrate for bidirectional agentic/RAG execution.
 - CI updated to use valid Cargo targets for integration tests, E2E tests, and benches.
 - Benchmark strategy split by viability:
   - `LoCoMo`: continuous benchmark for conversational memory quality.
@@ -63,4 +63,4 @@ This first number is intentionally preserved as the starting baseline for future
   - Exact Match: `0.0`
   - Token F1: `0.06021547660628042`
 
-This moved Xavier2 from the initial baseline of `0.023191227171872334` Token F1 to `0.06021547660628042`, a `2.60x` improvement on the same slice.
+This moved Xavier from the initial baseline of `0.023191227171872334` Token F1 to `0.06021547660628042`, a `2.60x` improvement on the same slice.

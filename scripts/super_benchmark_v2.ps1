@@ -1,10 +1,20 @@
 # Super Memory Benchmark v2 - Beat 98%
 # Tests using the FULL hybrid RRF system (not just vector search)
 
-$XAVIER2 = "http://localhost:8006"
-$TOKEN = "dev-token"
+$XAVIER = "http://localhost:8006"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
+$TOKEN = Get-XavierToken
 $headers = @{
-    "X-Xavier2-Token" = $TOKEN
+    "X-Xavier-Token" = $TOKEN
     "Content-Type" = "application/json"
 }
 
@@ -21,7 +31,7 @@ function Add-Memory {
     param([string]$Path, [string]$Content)
     try {
         $body = @{path=$Path; content=$Content; metadata=@{}} | ConvertTo-Json -Compress
-        $null = Invoke-RestMethod -Uri "$XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing -TimeoutSec 10
+        $null = Invoke-RestMethod -Uri "$XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing -TimeoutSec 10
         return $true
     } catch {
         Write-Host "Add error: $_" -ForegroundColor Red
@@ -50,7 +60,7 @@ function Test-Query {
     # Use agents/run which uses full RRF hybrid search
     try {
         $agentBody = @{query=$Query; limit=5; system3_mode="disabled"} | ConvertTo-Json -Compress
-        $agent = Invoke-RestMethod -Uri "$XAVIER2/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $agentBody -UseBasicParsing -TimeoutSec 30
+        $agent = Invoke-RestMethod -Uri "$XAVIER/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $agentBody -UseBasicParsing -TimeoutSec 30
 
         if ($agent -and $agent.response) {
             $responseText = $agent.response.ToString().ToLower()
@@ -98,7 +108,7 @@ Write-Host "========================================" -ForegroundColor Magenta
 
 Write-Host "`n[Setup] Resetting..." -ForegroundColor Yellow
 try {
-    $null = Invoke-RestMethod -Uri "$XAVIER2/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}' -UseBasicParsing -TimeoutSec 10
+    $null = Invoke-RestMethod -Uri "$XAVIER/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}' -UseBasicParsing -TimeoutSec 10
     Write-Host "  ✅ Reset complete" -ForegroundColor Green
 } catch {
     Write-Host "  ⚠️  Reset: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -130,7 +140,7 @@ Test-Query -Name "project_status" -MemoryPath "mem/project1" -Content "Project N
 
 Test-Query -Name "repo_lang" -MemoryPath "mem/repo1" -Content "Repository gestalt-rust uses Rust programming language with 95 percent test coverage" -Query "What language is gestalt-rust written in?" -ExpectedKeywords @("rust", "language") -Weight 2
 
-Test-Query -Name "docker_port" -MemoryPath "mem/docker1" -Content "Docker container xavier2 exposes port 8006 and uses 2GB RAM" -Query "What port does xavier2 expose?" -ExpectedKeywords @("8006", "port") -Weight 2
+Test-Query -Name "docker_port" -MemoryPath "mem/docker1" -Content "Docker container xavier exposes port 8006 and uses 2GB RAM" -Query "What port does xavier expose?" -ExpectedKeywords @("8006", "port") -Weight 2
 
 # === RELATIONSHIPS ===
 Write-Host "`n=== RELATIONSHIPS ===" -ForegroundColor Yellow
@@ -202,7 +212,7 @@ Write-Host ""
 
 if ($percentage -ge 98) {
     Write-Host "🏆🏆🏆 LEGENDARY 98%+ ACHIEVED! 🏆🏆🏆" -ForegroundColor Magenta
-    Write-Host "Xavier2 is STATE OF THE ART memory!" -ForegroundColor Green
+    Write-Host "Xavier is STATE OF THE ART memory!" -ForegroundColor Green
 } elseif ($percentage -ge 95) {
     Write-Host "🌟🌟🌟 EXCELLENT 95%+! 🌟🌟🌟" -ForegroundColor Cyan
     Write-Host "Outstanding memory performance!" -ForegroundColor Green

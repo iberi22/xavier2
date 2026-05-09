@@ -1,4 +1,4 @@
-//! Pattern domain types for Xavier2 cognitive memory system.
+//! Pattern domain types for Xavier cognitive memory system.
 //!
 //! Patterns represent discovered code patterns, naming conventions, architectural
 //! decisions, and workflow practices that have been verified through usage.
@@ -15,7 +15,7 @@ pub struct VerifiedPattern {
     pub category: PatternCategory,
     /// The actual pattern text or code snippet
     pub pattern: String,
-    /// Which project this pattern belongs to (e.g., "xavier2", "gestalt-rust")
+    /// Which project this pattern belongs to (e.g., "xavier", "gestalt-rust")
     pub project: String,
     /// Agent or session that discovered this pattern
     pub discovered_by: String,

@@ -97,7 +97,7 @@ check_hooks() {
 
 install_hooks() {
     echo -e "${CYAN}Installing repository guardrail hooks...${NC}"
-    
+
     # Check if this is a git repository, including worktrees where .git is a file.
     if [ ! -d "$REPO_ROOT/.git" ] && [ ! -f "$REPO_ROOT/.git" ]; then
         echo -e "${RED}❌ Error: Not a git repository${NC}"
@@ -108,10 +108,10 @@ install_hooks() {
         echo -e "${RED}❌ Error: Could not resolve git hooks directory${NC}"
         exit 1
     fi
-    
+
     # Create hooks directory if it doesn't exist
     mkdir -p "$GIT_HOOKS_DIR"
-    
+
     # Check for existing pre-commit hook
     if [ -f "$GIT_HOOKS_DIR/pre-commit" ]; then
         if grep -q "git-core-protocol" "$GIT_HOOKS_DIR/pre-commit" 2>/dev/null; then
@@ -122,7 +122,7 @@ install_hooks() {
             echo -e "${YELLOW}⚠️  Existing pre-commit hook backed up${NC}"
         fi
     fi
-    
+
     # Create wrapper script that calls our hook
     cat > "$GIT_HOOKS_DIR/pre-commit" << 'EOF'
 #!/bin/bash
@@ -145,10 +145,10 @@ else
     exit 0
 fi
 EOF
-    
+
     chmod +x "$GIT_HOOKS_DIR/pre-commit" 2>/dev/null || true
     chmod +x "$SCRIPT_DIR/pre-commit" 2>/dev/null || true
-    
+
     echo -e "${GREEN}✅ Repository guardrail hooks installed successfully${NC}"
     echo ""
     echo -e "${CYAN}Configuration:${NC}"
@@ -160,12 +160,12 @@ EOF
 
 uninstall_hooks() {
     echo -e "${CYAN}Uninstalling repository guardrail hooks...${NC}"
-    
+
     if [ -f "$GIT_HOOKS_DIR/pre-commit" ]; then
         if grep -q "git-core-protocol" "$GIT_HOOKS_DIR/pre-commit" 2>/dev/null; then
             rm "$GIT_HOOKS_DIR/pre-commit"
             echo -e "${GREEN}✓ Pre-commit hook removed${NC}"
-            
+
             # Restore backup if exists
             LATEST_BACKUP=$(ls -t "$GIT_HOOKS_DIR/pre-commit.backup."* 2>/dev/null | head -1)
             if [ -n "$LATEST_BACKUP" ]; then
@@ -179,7 +179,7 @@ uninstall_hooks() {
     else
         echo -e "${YELLOW}○ No pre-commit hook installed${NC}"
     fi
-    
+
     echo -e "${GREEN}✅ Repository guardrail hooks uninstalled${NC}"
 }
 

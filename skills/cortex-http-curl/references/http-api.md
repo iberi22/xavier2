@@ -1,4 +1,4 @@
-# Xavier2 HTTP API
+# Xavier HTTP API
 
 Base URL:
 
@@ -9,7 +9,7 @@ http://localhost:8003
 Auth header:
 
 ```text
-X-Xavier2-Token: <token>
+X-Xavier-Token: <token>
 ```
 
 Implemented routes:
@@ -42,7 +42,7 @@ Payload shapes:
 ```
 
 ```json
-{"path":"E:/scripts-python/xavier2"}
+{"path":"E:/scripts-python/xavier"}
 ```
 
 ```json

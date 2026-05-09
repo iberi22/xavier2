@@ -1,8 +1,8 @@
 //! Integration tests for Security Hardening Phase 1
 
 use std::env;
-use xavier2::security::auth::{LoginRequest, User, UserRole};
-use xavier2::security::prompt_guard::{detect_injection, AttackType};
+use xavier::security::auth::{LoginRequest, User, UserRole};
+use xavier::security::prompt_guard::{detect_injection, AttackType};
 
 #[test]
 fn test_security_hardening_prompt_injection() {
@@ -25,7 +25,7 @@ fn test_security_hardening_prompt_injection() {
 fn test_security_hardening_debug_redaction() {
     // User struct redaction
     let user = User::new(
-        "admin@xavier2.local".to_string(),
+        "admin@xavier.local".to_string(),
         "Admin".to_string(),
         UserRole::Admin,
     );
@@ -41,7 +41,7 @@ fn test_security_hardening_debug_redaction() {
 
     // Login request redaction
     let login_req = LoginRequest {
-        email: "user@xavier2.local".to_string(),
+        email: "user@xavier.local".to_string(),
         password: "SuperSecretPassword123".to_string(),
     };
     let debug_output = format!("{:?}", login_req);

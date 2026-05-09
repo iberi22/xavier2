@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
-const xavier2Target = process.env.XAVIER2_WEB_PROXY_TARGET ?? "http://127.0.0.1:8003";
+const xavierTarget = process.env.XAVIER_WEB_PROXY_TARGET ?? "http://127.0.0.1:8003";
 
 export default defineConfig(({ command }) => {
   const isBuild = command === "build";
@@ -28,11 +28,11 @@ export default defineConfig(({ command }) => {
       port: 4174,
       proxy: {
         "/health": {
-          target: xavier2Target,
+          target: xavierTarget,
           changeOrigin: true,
         },
         "/panel/api": {
-          target: xavier2Target,
+          target: xavierTarget,
           changeOrigin: true,
         },
       },

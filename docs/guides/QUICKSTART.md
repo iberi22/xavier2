@@ -5,10 +5,10 @@
 ### From Source
 
 \\\ash
-git clone https://github.com/iberi22/xavier2.git
-cd xavier2
+git clone https://github.com/iberi22/xavier.git
+cd xavier
 cargo build --release
-./target/release/xavier2 http
+./target/release/xavier http
 \\\
 
 ### From Binary
@@ -18,29 +18,29 @@ Download from GitHub Releases for your platform.
 ### Docker
 
 \\\ash
-docker run -p 8006:8006 ghcr.io/iberi22/xavier2:latest
+docker run -p 8006:8006 ghcr.io/iberi22/xavier:latest
 \\\
 
 ## First Steps
 
 1. **Start the server:**
    \\\ash
-   xavier2 http
+   xavier http
    \\\
 
 2. **Add your first memory:**
    \\\ash
-   xavier2 add "Hello Xavier2!" --title "First Memory"
+   xavier add "Hello Xavier!" --title "First Memory"
    \\\
 
 3. **Search:**
    \\\ash
-   xavier2 search "hello"
+   xavier search "hello"
    \\\
 
 4. **Check stats:**
    \\\ash
-   xavier2 stats
+   xavier stats
    \\\
 
 ## Next Steps

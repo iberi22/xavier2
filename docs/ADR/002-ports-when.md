@@ -6,7 +6,7 @@
 
 ## Contexto
 
-El codebase de Xavier2 tenía 6 ports definidos:
+El codebase de Xavier tenía 6 ports definidos:
 - `MemoryQueryPort` (inbound)
 - `PatternDiscoverPort` (inbound)
 - `SecurityScanPort` (inbound)
@@ -39,7 +39,7 @@ Un port se crea cuando se cumplen al menos 2 de estos 3 criterios:
 
 ---
 
-## Aplicación en Xavier2
+## Aplicación en Xavier
 
 | Port | ¿Crear/Eliminar? | Razón |
 |------|-------------------|-------|

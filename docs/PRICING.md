@@ -1,4 +1,4 @@
-# Xavier2 Pricing & Commercial Model
+# Xavier Pricing & Commercial Model
 
 > Built and maintained by [SouthWest AI Labs](mailto:enterprise@southwest-ai-labs.com)
 
@@ -6,16 +6,16 @@
 
 ## Our Philosophy
 
-Xavier2 is **MIT licensed and always will be.** The open source core is free forever. Our commercial products exist to fund the open source development — not to restrict it.
+Xavier is **MIT licensed and always will be.** The open source core is free forever. Our commercial products exist to fund the open source development — not to restrict it.
 
-**If you build a product on Xavier2, we want to be part of your success.** Commercial licensing is how we align that interest.
+**If you build a product on Xavier, we want to be part of your success.** Commercial licensing is how we align that interest.
 
 ---
 
 ## 🏷️ License Tiers
 
 ### MIT License (Free)
-Everyone can use Xavier2 under MIT — no strings attached.
+Everyone can use Xavier under MIT — no strings attached.
 
 ✅ Use in any open source or commercial project
 ✅ Fork, modify, distribute
@@ -73,8 +73,8 @@ Some capabilities are offered as **metered services** — pay only for what you 
 - Fallback to open embedding providers (OpenAI, Cohere, Voyage)
 
 ```bash
-export XAVIER2_EMBEDDING_PROVIDER=swal-enterprise
-export XAVIER2_ENTERPRISE_API_KEY=your-enterprise-key
+export XAVIER_EMBEDDING_PROVIDER=swal-enterprise
+export XAVIER_ENTERPRISE_API_KEY=your-enterprise-key
 ```
 
 ### 2. Private Fine-Tuning
@@ -95,9 +95,9 @@ Train a custom embedding model on your private dataset. This runs on **dedicated
 
 ```bash
 # Submit a fine-tuning job
-curl -X POST https://api.xavier2.ai/v1/fine-tune \
+curl -X POST https://api.xavier.ai/v1/fine-tune \
   -H "Authorization: Bearer $ENTERPRISE_API_KEY" \
-  -d '{"dataset":"legal_memos_2026","model":"xavier2-embed-base","epochs":10}'
+  -d '{"dataset":"legal_memos_2026","model":"xavier-embed-base","epochs":10}'
 ```
 
 ### 3. Dedicated GPU Resources
@@ -118,15 +118,15 @@ For enterprise customers who need **guaranteed isolated GPU capacity** — no sh
 ### 4. Colab Integration
 **Consumption:** 50 credits per fine-tuning job
 
-Connect your Google Colab account to Xavier2's interface and run fine-tuning jobs directly — using Colab's GPU credits for compute, while SWAL handles orchestration and model management.
+Connect your Google Colab account to Xavier's interface and run fine-tuning jobs directly — using Colab's GPU credits for compute, while SWAL handles orchestration and model management.
 
 **Setup:**
-1. Link your Colab account in Xavier2's panel UI (Settings → Integrations → Google Colab)
+1. Link your Colab account in Xavier's panel UI (Settings → Integrations → Google Colab)
 2. Authorize via OAuth — SWAL never stores your Colab credentials
 3. Submit fine-tuning jobs that execute on your Colab runtime
-4. Model is imported back into Xavier2 when complete
+4. Model is imported back into Xavier when complete
 
-This gives you Colab's free/paid GPU access combined with Xavier2's model management — without duplicating GPU costs.
+This gives you Colab's free/paid GPU access combined with Xavier's model management — without duplicating GPU costs.
 
 ---
 
@@ -134,7 +134,7 @@ This gives you Colab's free/paid GPU access combined with Xavier2's model manage
 
 For large teams, governments, or regulated industries:
 
-- **On-premise deployment** — Xavier2 installed in your private cloud
+- **On-premise deployment** — Xavier installed in your private cloud
 - **SOC2 / ISO 27001 compliance** — full security documentation
 - **Custom SLAs** — 99.99% uptime guarantees available
 - **Reserved GPU capacity** — guaranteed H100/A100 slots for your use
@@ -149,7 +149,7 @@ Contact: **enterprise@southwest-ai-labs.com**
 
 | Feature | MIT (Free) | Starter | Pro | Enterprise |
 |---------|-----------|---------|-----|------------|
-| Xavier2 runtime | ✅ | ✅ | ✅ | ✅ |
+| Xavier runtime | ✅ | ✅ | ✅ | ✅ |
 | Self-hosting | ✅ | ✅ | ✅ | ✅ |
 | Vector + FTS + KG search | ✅ | ✅ | ✅ | ✅ |
 | MCP transport | ✅ | ✅ | ✅ | ✅ |
@@ -167,8 +167,8 @@ Contact: **enterprise@southwest-ai-labs.com**
 **Q: Does buying an enterprise license affect my MIT rights?**
 A: No. The MIT license is permanent. An enterprise license adds separate commercial terms — it never modifies or restricts your MIT rights.
 
-**Q: Can I use Xavier2 in a commercial product without paying?**
-A: Yes — MIT allows commercial use. However, if you're building a product that depends heavily on Xavier2, a commercial subscription is how you support the project and gain priority access to new features.
+**Q: Can I use Xavier in a commercial product without paying?**
+A: Yes — MIT allows commercial use. However, if you're building a product that depends heavily on Xavier, a commercial subscription is how you support the project and gain priority access to new features.
 
 **Q: How does the credit system work?**
 A: Credits are deducted when you use metered services (embedding API, fine-tuning, dedicated GPU). You purchase credit packs upfront and draw down as you use them. Credits expire based on the pack validity period.

@@ -1,7 +1,7 @@
-# Xavier2 — Project State
+# Xavier — Project State
 
-**Project:** iberi22/xavier2
-**Last Updated:** 2026-03-25
+**Project:** iberi22/xavier
+**Last Updated:** 2026-05-08
 **Status:** Active Development
 
 ---

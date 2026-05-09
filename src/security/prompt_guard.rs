@@ -1,7 +1,7 @@
 //! Prompt Guard - Detección de Prompt Injection
 //!
 //! Módulo de seguridad para detectar y prevenir ataques de prompt injection
-//! en el sistema Xavier2.
+//! en el sistema Xavier.
 //!
 //! Ataques detectados:
 //! - Direct prompt injection: Intentos directos de modificar el comportamiento del modelo
@@ -378,21 +378,48 @@ impl PromptInjectionDetector {
             (r"(?i)onerror\s*=", "[EVENT_FILTERED]"),
             (r"(?i)onload\s*=", "[EVENT_FILTERED]"),
             // Context switching
-            (r"(?i)for\s+(the\s+)?(purposes?|sake|scope)\s+of\s+(this\s+)?(exercise|scenario|conversation)", "[FILTERED]"),
-            (r"(?i)from\s+now\s+on[,;]\s+you\s+(are|will|must)", "[FILTERED]"),
-            (r"(?i)hypothetical\s+(scenario|situation|context)", "[FILTERED]"),
+            (
+                r"(?i)for\s+(the\s+)?(purposes?|sake|scope)\s+of\s+(this\s+)?(exercise|scenario|conversation)",
+                "[FILTERED]",
+            ),
+            (
+                r"(?i)from\s+now\s+on[,;]\s+you\s+(are|will|must)",
+                "[FILTERED]",
+            ),
+            (
+                r"(?i)hypothetical\s+(scenario|situation|context)",
+                "[FILTERED]",
+            ),
             // URL injection - generic URLs replaced
             (r"(?i)https?://[^\s]+", "[URL_FILTERED]"),
             (r"(?i)file:///[^\s]+", "[URL_FILTERED]"),
             (r"(?i)data:\s*\w+/\w+;?\w*[^\s]*", "[URL_FILTERED]"),
             // Expanded jailbreak sanitization
-            (r"(?i)no\s+(restrictions?|limits?|boundaries?|filter|constraints?)", "[FILTERED]"),
-            (r"(?i)without\s+(any\s+)?(restrictions?|limits?|filter|censorship)", "[FILTERED]"),
+            (
+                r"(?i)no\s+(restrictions?|limits?|boundaries?|filter|constraints?)",
+                "[FILTERED]",
+            ),
+            (
+                r"(?i)without\s+(any\s+)?(restrictions?|limits?|filter|censorship)",
+                "[FILTERED]",
+            ),
             (r"(?i)(unfiltered|uncensored|unconstrained)", "[FILTERED]"),
-            (r"(?i)bypass\s+(your\s+)?(safety|ethics?|ethical|filter|restrictions?)", "[FILTERED]"),
-            (r"(?i)you\s+(can|may)\s+(now\s+)?(say|tell|do|answer|output)\s+anything", "[FILTERED]"),
-            (r"(?i)reprogram\s+(yourself|your\s+(core|system))", "[FILTERED]"),
-            (r"(?i)do\s+(not|n['\u{2019}t])\s+(refuse|decline|reject)", "[FILTERED]"),
+            (
+                r"(?i)bypass\s+(your\s+)?(safety|ethics?|ethical|filter|restrictions?)",
+                "[FILTERED]",
+            ),
+            (
+                r"(?i)you\s+(can|may)\s+(now\s+)?(say|tell|do|answer|output)\s+anything",
+                "[FILTERED]",
+            ),
+            (
+                r"(?i)reprogram\s+(yourself|your\s+(core|system))",
+                "[FILTERED]",
+            ),
+            (
+                r"(?i)do\s+(not|n['\u{2019}t])\s+(refuse|decline|reject)",
+                "[FILTERED]",
+            ),
             (r"(?i)always\s+(say\s+)?yes\s+(to|and)", "[FILTERED]"),
             // Encoding bypass - hex escapes
             (r"\\x[0-9a-fA-F]{2}", "[HEX_FILTERED]"),

@@ -1,7 +1,7 @@
 use reqwest::Url;
 use std::net::IpAddr;
 
-/// Validates a URL intended for internal Xavier2 communication.
+/// Validates a URL intended for internal Xavier communication.
 /// Prevents SSRF by blocking access to sensitive metadata services and
 /// ensuring the URL matches an optional allowlist.
 pub fn validate_internal_url(url_str: &str) -> Result<Url, String> {
@@ -50,7 +50,7 @@ pub fn validate_internal_url(url_str: &str) -> Result<Url, String> {
     }
 
     // 5. Allowlist validation (optional)
-    if let Ok(allowlist) = std::env::var("XAVIER2_ALLOWED_DOMAINS") {
+    if let Ok(allowlist) = std::env::var("XAVIER_ALLOWED_DOMAINS") {
         let domains: Vec<&str> = allowlist.split(',').collect();
         if !domains.iter().any(|&d| host.eq_ignore_ascii_case(d.trim())) {
             return Err(format!(
@@ -99,12 +99,12 @@ mod tests {
 
     #[test]
     fn test_validate_allowlist() {
-        std::env::set_var("XAVIER2_ALLOWED_DOMAINS", "local.host, internal.corp");
+        std::env::set_var("XAVIER_ALLOWED_DOMAINS", "local.host, internal.corp");
 
         assert!(validate_internal_url("http://local.host").is_ok());
         assert!(validate_internal_url("http://internal.corp").is_ok());
         assert!(validate_internal_url("http://example.com").is_err());
 
-        std::env::remove_var("XAVIER2_ALLOWED_DOMAINS");
+        std::env::remove_var("XAVIER_ALLOWED_DOMAINS");
     }
 }

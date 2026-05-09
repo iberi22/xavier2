@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod a2a_message_tests {
-    use xavier2::a2a::{A2AMessage, MessageType};
+    use xavier::a2a::{A2AMessage, MessageType};
 
     #[test]
     fn test_a2a_message_creation() {
@@ -49,7 +49,7 @@ mod a2a_message_tests {
 
 #[cfg(test)]
 mod a2a_protocol_tests {
-    use xavier2::a2a::A2AProtocol;
+    use xavier::a2a::A2AProtocol;
 
     #[test]
     fn test_protocol_creation() {

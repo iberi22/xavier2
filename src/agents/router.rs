@@ -140,7 +140,7 @@ impl Router {
         if is_complex_query(trimmed, &lowered) {
             return RouteDecision {
                 category: RouteCategory::Complex,
-                model_override: env_model("XAVIER2_ROUTER_COMPLEX_MODEL"),
+                model_override: env_model("XAVIER_ROUTER_COMPLEX_MODEL"),
                 should_skip_retrieval: false,
                 should_skip_reasoning: false,
             };
@@ -148,7 +148,7 @@ impl Router {
 
         RouteDecision {
             category: RouteCategory::Retrieved,
-            model_override: env_model("XAVIER2_ROUTER_RETRIEVED_MODEL"),
+            model_override: env_model("XAVIER_ROUTER_RETRIEVED_MODEL"),
             should_skip_retrieval: false,
             should_skip_reasoning: false,
         }
@@ -161,12 +161,12 @@ impl Router {
         reasoning_result: &ReasoningResult,
     ) -> Option<String> {
         let policy = load_routing_policy();
-        let fast_model = env_model("XAVIER2_ROUTER_FAST_MODEL").or_else(|| {
+        let fast_model = env_model("XAVIER_ROUTER_FAST_MODEL").or_else(|| {
             policy
                 .as_ref()
                 .and_then(|policy| candidate_name(&policy.models.fast))
         });
-        let quality_model = env_model("XAVIER2_ROUTER_QUALITY_MODEL").or_else(|| {
+        let quality_model = env_model("XAVIER_ROUTER_QUALITY_MODEL").or_else(|| {
             policy
                 .as_ref()
                 .and_then(|policy| candidate_name(&policy.models.quality))
@@ -221,7 +221,7 @@ impl Router {
         .iter()
         .any(|greeting| lowered == *greeting)
         {
-            return Some("Hello. How can I help with Xavier2?".to_string());
+            return Some("Hello. How can I help with Xavier?".to_string());
         }
 
         if lowered.contains("thank") || lowered == "thanks" || lowered == "gracias" {
@@ -238,13 +238,13 @@ fn routing_policy_cache() -> &'static Mutex<Option<CachedPolicy>> {
 }
 
 fn load_routing_policy() -> Option<RoutingPolicy> {
-    let path = std::env::var("XAVIER2_ROUTER_POLICY_PATH")
+    let path = std::env::var("XAVIER_ROUTER_POLICY_PATH")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .map(PathBuf::from);
     let refresh = Duration::from_secs(
-        std::env::var("XAVIER2_ROUTER_POLICY_REFRESH_SECS")
+        std::env::var("XAVIER_ROUTER_POLICY_REFRESH_SECS")
             .ok()
             .and_then(|value| value.parse::<u64>().ok())
             .filter(|value| *value > 0)
@@ -461,7 +461,7 @@ mod tests {
     #[test]
     fn classifies_simple_fact_queries_as_retrieved() {
         let router = Router::new();
-        let decision = router.classify("What is Xavier2?");
+        let decision = router.classify("What is Xavier?");
         assert_eq!(decision.category, RouteCategory::Retrieved);
         assert!(!decision.should_skip_retrieval);
     }
@@ -478,9 +478,9 @@ mod tests {
     #[test]
     fn selects_quality_model_for_high_priority_memories() {
         let _guard = env_lock().lock().unwrap();
-        std::env::set_var("XAVIER2_ROUTER_FAST_MODEL", "fast-model");
-        std::env::set_var("XAVIER2_ROUTER_QUALITY_MODEL", "quality-model");
-        std::env::remove_var("XAVIER2_ROUTER_POLICY_PATH");
+        std::env::set_var("XAVIER_ROUTER_FAST_MODEL", "fast-model");
+        std::env::set_var("XAVIER_ROUTER_QUALITY_MODEL", "quality-model");
+        std::env::remove_var("XAVIER_ROUTER_POLICY_PATH");
 
         let router = Router::new();
         let retrieval = RetrievalResult {
@@ -507,9 +507,9 @@ mod tests {
     #[test]
     fn selects_fast_model_for_strong_medium_priority_retrieval() {
         let _guard = env_lock().lock().unwrap();
-        std::env::set_var("XAVIER2_ROUTER_FAST_MODEL", "fast-model");
-        std::env::set_var("XAVIER2_ROUTER_QUALITY_MODEL", "quality-model");
-        std::env::remove_var("XAVIER2_ROUTER_POLICY_PATH");
+        std::env::set_var("XAVIER_ROUTER_FAST_MODEL", "fast-model");
+        std::env::set_var("XAVIER_ROUTER_QUALITY_MODEL", "quality-model");
+        std::env::remove_var("XAVIER_ROUTER_POLICY_PATH");
 
         let router = Router::new();
         let retrieval = RetrievalResult {

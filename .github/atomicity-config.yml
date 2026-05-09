@@ -35,7 +35,7 @@ concern_patterns:
     - "*.ts"
     - "*.rs"
     - "*.go"
-  
+
   # Test files
   tests:
     - "tests/**"
@@ -44,13 +44,13 @@ concern_patterns:
     - "**/*.spec.*"
     - "*_test.*"
     - "test_*.*"
-  
+
   # Documentation
   docs:
     - "docs/**"
     - "*.md"
     - "README*"
-  
+
   # Configuration files
   config:
     - "*.yml"
@@ -60,7 +60,7 @@ concern_patterns:
     - ".github/**"
     - ".*rc"
     - ".*ignore"
-  
+
   # Scripts/CI
   infra:
     - "scripts/**"

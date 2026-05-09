@@ -17,7 +17,7 @@ const variantConfig = {
 
 export function BadgeRow({ badges }: BadgeRowProps) {
   const defaultBadges = [
-    { label: 'Xavier2', variant: 'blue' as const },
+    { label: 'Xavier', variant: 'blue' as const },
     { label: 'Memory', variant: 'green' as const },
     { label: 'AI', variant: 'purple' as const },
     { label: 'Secure', variant: 'yellow' as const },

@@ -1,6 +1,6 @@
-# Xavier2 Docs Site
+# Xavier Docs Site
 
-Published documentation site source for Xavier2.
+Published documentation site source for Xavier.
 
 ## Purpose
 

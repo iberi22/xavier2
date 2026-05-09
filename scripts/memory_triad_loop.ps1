@@ -1,4 +1,4 @@
-param(
+﻿param(
     [int]$IntervalSeconds = 900,
     [switch]$RebuildCortex,
     [switch]$StopWhenGreen,
@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = "Continue"
 
-$XavierRoot = "E:\scripts-python\xavier2"
+$XavierRoot = "E:\scripts-python\xavier"
 $CortexRoot = "E:\scripts-python\cortex"
 $LogRoot = Join-Path $XavierRoot "benchmark_results\loop"
 New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
@@ -113,10 +113,10 @@ function Get-LatestBenchmarkSummary {
         return @{
             report = $latest.FullName
             cortex_memory = $json.summary.cortex.matched_expected
-            xavier2_memory = $json.summary.xavier2.matched_expected
+            xavier_memory = $json.summary.xavier.matched_expected
             engram_memory = $json.summary.engram.matched_expected
             cortex_code = $json.code_context.summary.cortex.matched_expected
-            xavier2_code = $json.code_context.summary.xavier2.matched_expected
+            xavier_code = $json.code_context.summary.xavier.matched_expected
         }
     } catch {
         return @{
@@ -133,15 +133,15 @@ function Invoke-Cycle {
 
     if (Test-CargoBusy) {
         $reason = "cargo_or_rustc_already_running"
-        $results += New-SkippedStep -Name "xavier2_code_graph_tests" -Reason $reason
-        $results += New-SkippedStep -Name "xavier2_check" -Reason $reason
+        $results += New-SkippedStep -Name "xavier_code_graph_tests" -Reason $reason
+        $results += New-SkippedStep -Name "xavier_check" -Reason $reason
         $results += New-SkippedStep -Name "cortex_code_graph_tests" -Reason $reason
         $results += New-SkippedStep -Name "cortex_check" -Reason $reason
     } else {
-        $results += Invoke-Step -Name "xavier2_code_graph_tests" -WorkingDirectory $XavierRoot -Command "cargo test -p code-graph" -TimeoutSeconds 300
-        $results += Invoke-Step -Name "xavier2_check" -WorkingDirectory $XavierRoot -Command "cargo check -p xavier2 --bin xavier2" -TimeoutSeconds 600
+        $results += Invoke-Step -Name "xavier_code_graph_tests" -WorkingDirectory $XavierRoot -Command "cargo test -p code-graph" -TimeoutSeconds 300
+        $results += Invoke-Step -Name "xavier_check" -WorkingDirectory $XavierRoot -Command "cargo check -p xavier --bin xavier" -TimeoutSeconds 600
         $results += Invoke-Step -Name "cortex_code_graph_tests" -WorkingDirectory $CortexRoot -Command "cargo test -p code-graph" -TimeoutSeconds 300
-        $results += Invoke-Step -Name "cortex_check" -WorkingDirectory $CortexRoot -Command "cargo check -p xavier2 --features ci-safe --bin xavier2" -TimeoutSeconds 600
+        $results += Invoke-Step -Name "cortex_check" -WorkingDirectory $CortexRoot -Command "cargo check -p xavier --features ci-safe --bin xavier" -TimeoutSeconds 600
     }
 
     if ($RebuildCortex) {
@@ -149,7 +149,7 @@ function Invoke-Cycle {
         $results += Invoke-Step -Name "cortex_docker_restart" -WorkingDirectory $CortexRoot -Command "docker compose up -d --force-recreate --no-deps cortex" -TimeoutSeconds 300
     }
 
-    $results += Invoke-Step -Name "memory_triad_benchmark" -WorkingDirectory $XavierRoot -Command "python scripts\memory_triad_benchmark.py --start-xavier2" -TimeoutSeconds 600
+    $results += Invoke-Step -Name "memory_triad_benchmark" -WorkingDirectory $XavierRoot -Command "python scripts\memory_triad_benchmark.py --start-xavier" -TimeoutSeconds 600
     $summary = Get-LatestBenchmarkSummary
 
     $cycleReport = @{
@@ -167,8 +167,8 @@ function Invoke-Cycle {
     if ($summary -and -not $summary.error) {
         $green = $allStepsOk -and
             $summary.cortex_memory -eq 3 -and
-            $summary.xavier2_memory -eq 3 -and
-            $summary.xavier2_code -eq 5 -and
+            $summary.xavier_memory -eq 3 -and
+            $summary.xavier_code -eq 5 -and
             $summary.cortex_code -eq 5
     }
 

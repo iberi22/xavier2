@@ -1,15 +1,15 @@
 #!/bin/bash
 # examples/mcp.sh
-# Ejemplo de uso del protocolo MCP (Model Context Protocol) con Xavier2
+# Ejemplo de uso del protocolo MCP (Model Context Protocol) con Xavier
 #
 # Prerrequisitos:
-#   1. Tener xavier2 instalado en el PATH
+#   1. Tener xavier instalado en el PATH
 #
 # Uso:
 #   chmod +x mcp.sh
 #   ./mcp.sh
 
-echo "=== Xavier2 MCP Examples ==="
+echo "=== Xavier MCP Examples ==="
 echo ""
 
 # ── 1. Inicializar sesión MCP (stdio) ──
@@ -26,7 +26,7 @@ echo '{
       "version": "1.0"
     }
   }
-}' | xavier2 mcp
+}' | xavier mcp
 echo ""
 
 # ── 2. Listar herramientas disponibles ──
@@ -36,7 +36,7 @@ echo '{
   "id": 2,
   "method": "tools/list",
   "params": {}
-}' | xavier2 mcp
+}' | xavier mcp
 echo ""
 
 # ── 3. Llamar a la herramienta add_memory ──
@@ -54,7 +54,7 @@ echo '{
       }
     }
   }
-}' | xavier2 mcp
+}' | xavier mcp
 echo ""
 
 # ── 4. Llamar a la herramienta search_memory ──
@@ -70,7 +70,7 @@ echo '{
       "limit": 5
     }
   }
-}' | xavier2 mcp
+}' | xavier mcp
 echo ""
 
 echo "=== Done ==="

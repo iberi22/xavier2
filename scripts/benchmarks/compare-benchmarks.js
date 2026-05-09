@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Xavier2 Benchmark Comparator
+ * Xavier Benchmark Comparator
  * Compara resultados de benchmarks entre backends usando timestamps
  * Uso: node compare-benchmarks.js [directorio-resultados]
  */
@@ -131,7 +131,7 @@ function detailedCaseComparison(a, b) {
 
 function generateReport(benchmarks) {
   console.log(`\n${BOLD}${'='.repeat(70)}`);
-  console.log(` XAVIER2 BENCHMARK REPORT — ${new Date().toISOString().slice(0,10)}`);
+  console.log(` XAVIER BENCHMARK REPORT — ${new Date().toISOString().slice(0,10)}`);
   console.log(`${'='.repeat(70)}${RESET}\n`);
 
   console.log(`${BOLD}Backends encontrados:${RESET}`);

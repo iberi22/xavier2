@@ -1,31 +1,31 @@
-# Xavier2 Service Management
+# Xavier Service Management
 
 ## Overview
 
-Xavier2 can run as a reliable background service with self-healing, graceful shutdown, and process monitoring.
+Xavier can run as a reliable background service with self-healing, graceful shutdown, and process monitoring.
 
 ## Quick Start
 
 ```powershell
-cd E:\scripts-python\xavier2
+cd E:\scripts-python\xavier
 
 # Start the service
-.\scripts\xavier2-service.ps1 start
+.\scripts\xavier-service.ps1 start
 
 # Check status
-.\scripts\xavier2-service.ps1 status
+.\scripts\xavier-service.ps1 status
 
 # View logs
-.\scripts\xavier2-service.ps1 logs
+.\scripts\xavier-service.ps1 logs
 
 # Restart
-.\scripts\xavier2-service.ps1 restart
+.\scripts\xavier-service.ps1 restart
 
 # Stop
-.\scripts\xavier2-service.ps1 stop
+.\scripts\xavier-service.ps1 stop
 
 # Install as auto-start (Windows Task Scheduler)
-.\scripts\xavier2-service.ps1 install
+.\scripts\xavier-service.ps1 install
 ```
 
 ## Service Script Features
@@ -48,7 +48,7 @@ cd E:\scripts-python\xavier2
 
 ```bash
 curl http://localhost:8040/health
-# {"status":"ok","service":"xavier2","version":"0.4.1"}
+# {"status":"ok","service":"xavier","version":"0.4.1"}
 ```
 
 ### Readiness Response
@@ -62,16 +62,16 @@ curl http://localhost:8040/readiness
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XAVIER2_PORT` | `8040` | HTTP server port |
-| `XAVIER2_TOKEN` | `dev-token` | Auth token |
+| `XAVIER_PORT` | `8040` | HTTP server port |
+| `XAVIER_TOKEN` | `dev-token` | Auth token |
 | `RUST_LOG` | `info` | Log filter (trace,debug,info,warn,error) |
-| `XAVIER2_LOG_LEVEL` | `info` | Alternative log filter |
-| `XAVIER2_MEMORY_BACKEND` | `vec` | Memory backend: `vec`, `surrealdb`, `auto` |
-| `XAVIER2_CODE_GRAPH_DB_PATH` | `data/code_graph.db` | Code graph DB path |
+| `XAVIER_LOG_LEVEL` | `info` | Alternative log filter |
+| `XAVIER_MEMORY_BACKEND` | `vec` | Memory backend: `vec`, `surrealdb`, `auto` |
+| `XAVIER_CODE_GRAPH_DB_PATH` | `data/code_graph.db` | Code graph DB path |
 
 ## Graceful Shutdown
 
-Xavier2 handles the following shutdown signals:
+Xavier handles the following shutdown signals:
 
 - **SIGTERM / SIGINT**: Connection draining then exit
 - **Ctrl+C**: Same as SIGTERM on Windows
@@ -97,8 +97,8 @@ Panics are never silently swallowed.
 
 ```
 ┌─────────────────────────────────────────┐
-│   xavier2-service.ps1 (wrapper)        │
-│   - PID tracking (data/xavier2.pid)   │
+│   xavier-service.ps1 (wrapper)        │
+│   - PID tracking (data/xavier.pid)   │
 │   - Health watchdog (60s timeout)      │
 │   - Auto-restart on crash               │
 │   - Port conflict resolution             │
@@ -107,7 +107,7 @@ Panics are never silently swallowed.
              │
              ▼
 ┌─────────────────────────────────────────┐
-│   xavier2.exe server                    │
+│   xavier.exe server                    │
 │   - /health  (liveness)                │
 │   - /readiness (readiness)              │
 │   - SIGTERM/SIGINT handling             │
@@ -132,21 +132,21 @@ taskkill /PID <PID> /F
 
 ```powershell
 # Check logs
-.\scripts\xavier2-service.ps1 logs
+.\scripts\xavier-service.ps1 logs
 
 # Check binary exists
-Test-Path E:\scripts-python\xavier2\target\release\xavier2.exe
+Test-Path E:\scripts-python\xavier\target\release\xavier.exe
 
 # Build if needed
-cd E:\scripts-python\xavier2
+cd E:\scripts-python\xavier
 cargo build --release
 ```
 
 ### Health endpoint not responding
 
 ```powershell
-# Check if xavier2 process is running
-.\scripts\xavier2-service.ps1 status
+# Check if xavier process is running
+.\scripts\xavier-service.ps1 status
 
 # Check port is bound
 netstat -ano | findstr :8040
@@ -185,12 +185,12 @@ readinessProbe:
 
 Install via Task Scheduler:
 ```powershell
-.\scripts\xavier2-service.ps1 install
+.\scripts\xavier-service.ps1 install
 ```
 
-This creates a task that starts Xavier2 at system boot under your user account.
+This creates a task that starts Xavier at system boot under your user account.
 
 Uninstall:
 ```powershell
-.\scripts\xavier2-service.ps1 uninstall
+.\scripts\xavier-service.ps1 uninstall
 ```

@@ -4,28 +4,28 @@ _Organized by phase. Each prompt is self-contained with full context._
 
 ---
 
-## Phase 1: SEVIER2 Core Stability
+## Phase 1: SEVIER Core Stability
 
 ### 🔴 Prompt 1: Fix Docker Missing Env Vars (#78)
 
-**Title:** [sevier2][P1] Docker: Missing critical env vars for SEVIER2 endpoints
+**Title:** [sevier][P1] Docker: Missing critical env vars for SEVIER endpoints
 
-**Context:** Sevier2 endpoints in Docker deployment are missing critical environment variables. The Docker container needs `SEVIER2_BASE_URL`, `SEVIER2_API_KEY`, `SEVIER2_SESSION_ID`, and potentially `XAVIER2_BASE_URL` to connect to the SEVIER2 service.
+**Context:** Sevier endpoints in Docker deployment are missing critical environment variables. The Docker container needs `SEVIER_BASE_URL`, `SEVIER_API_KEY`, `SEVIER_SESSION_ID`, and potentially `XAVIER_BASE_URL` to connect to the SEVIER service.
 
 **Task:**
-1. Read `src/adapters/inbound/http/routes.rs` — find where Sevier2 handlers are registered
-2. Read `src/agents/` — find where env vars are currently read for Sevier2 config
+1. Read `src/adapters/inbound/http/routes.rs` — find where Sevier handlers are registered
+2. Read `src/agents/` — find where env vars are currently read for Sevier config
 3. Check `docker-compose.yml` or `Dockerfile` for current env var definitions
 4. Add missing env vars to Docker configuration:
-   - `SEVIER2_BASE_URL` (e.g., `http://sevier2:8080`)
-   - `SEVIER2_API_KEY`
-   - `SEVIER2_SESSION_ID`
-5. Update `src/agents/` or `src/app/` to read these env vars and pass to Sevier2 handlers
+   - `SEVIER_BASE_URL` (e.g., `http://sevier:8080`)
+   - `SEVIER_API_KEY`
+   - `SEVIER_SESSION_ID`
+5. Update `src/agents/` or `src/app/` to read these env vars and pass to Sevier handlers
 6. Verify `sync_check_handler` and `session_event_handler` can read these values
 
 **Acceptance:**
-- Docker compose shows SEVIER2 env vars in service definition
-- Sevier2 handlers can access `SEVIER2_BASE_URL` and `SEVIER2_API_KEY`
+- Docker compose shows SEVIER env vars in service definition
+- Sevier handlers can access `SEVIER_BASE_URL` and `SEVIER_API_KEY`
 - No hardcoded fallback URLs in the codebase
 
 **Reference:** Related to #77, #80 which established SessionSyncTask configuration.
@@ -34,15 +34,15 @@ _Organized by phase. Each prompt is self-contained with full context._
 
 ### 🔴 Prompt 2: Add /agents/{id}/unregister Endpoint (#75)
 
-**Title:** [sevier2][P1] Missing /xavier2/agents/{id}/unregister endpoint
+**Title:** [sevier][P1] Missing /xavier/agents/{id}/unregister endpoint
 
-**Context:** There's a register endpoint (`/xavier2/agents/register`) but no corresponding unregister endpoint. When agents need to leave, they can't notify the system.
+**Context:** There's a register endpoint (`/xavier/agents/register`) but no corresponding unregister endpoint. When agents need to leave, they can't notify the system.
 
 **Task:**
 1. Read `src/adapters/inbound/http/routes.rs` — find register endpoint pattern
 2. Read `src/agents/unregister_agent_handler.rs` — this handler exists but may not be wired
 3. Check `src/cli.rs` — see how router is set up
-4. Add route `DELETE /xavier2/agents/{id}/unregister` to routes.rs
+4. Add route `DELETE /xavier/agents/{id}/unregister` to routes.rs
 5. Wire `unregister_agent_handler` to the router in cli.rs
 6. The handler should:
    - Accept agent ID from path
@@ -50,7 +50,7 @@ _Organized by phase. Each prompt is self-contained with full context._
    - Return 200 on success, 404 if agent not found
 
 **Acceptance:**
-- `DELETE /xavier2/agents/{id}/unregister` returns 200 for registered agents
+- `DELETE /xavier/agents/{id}/unregister` returns 200 for registered agents
 - Returns 404 for unknown agents
 - Agent is removed from registry
 
@@ -58,9 +58,9 @@ _Organized by phase. Each prompt is self-contained with full context._
 
 ### 🔴 Prompt 3: Fix /agents/register Wrong Payload (#74)
 
-**Title:** [sevier2][P1] Test script sends wrong payload for /xavier2/agents/register
+**Title:** [sevier][P1] Test script sends wrong payload for /xavier/agents/register
 
-**Context:** The test script sends an incorrect JSON payload to `/xavier2/agents/register`. The endpoint expects certain fields but the test sends wrong ones.
+**Context:** The test script sends an incorrect JSON payload to `/xavier/agents/register`. The endpoint expects certain fields but the test sends wrong ones.
 
 **Task:**
 1. Read `src/adapters/inbound/http/routes.rs` — find the register handler
@@ -83,7 +83,7 @@ _Organized by phase. Each prompt is self-contained with full context._
 
 ### 🟡 Prompt 4: SessionSyncTask Graceful Shutdown (#76)
 
-**Title:** [sevier2][P2] SessionSyncTask cron has no graceful shutdown mechanism
+**Title:** [sevier][P2] SessionSyncTask cron has no graceful shutdown mechanism
 
 **Context:** The SessionSyncTask runs on a cron schedule but has no mechanism to shut down gracefully. When the application stops, the cron task may be interrupted mid-sync, causing inconsistent state.
 
@@ -107,7 +107,7 @@ _Organized by phase. Each prompt is self-contained with full context._
 
 ### 🟡 Prompt 5: Duplicate session_event_handler (#84)
 
-**Title:** [sevier2][P3] Duplicate session_event_handler definitions in routes.rs and cli.rs
+**Title:** [sevier][P3] Duplicate session_event_handler definitions in routes.rs and cli.rs
 
 **Context:** `session_event_handler` is defined in both `routes.rs` and `cli.rs` — this is code duplication and can cause confusion about which one is actually used.
 
@@ -169,7 +169,7 @@ _Organized by phase. Each prompt is self-contained with full context._
 2. Create `src/app/qmd_memory/` directory with modules:
    - `mod.rs` — re-exports everything
    - `search.rs` — search operations
-   - `storage.rs` — add/update operations  
+   - `storage.rs` — add/update operations
    - `index.rs` — index management
    - `cache.rs` — cache operations
 3. Keep `qmd_memory.rs` as a thin re-export hub
@@ -201,7 +201,7 @@ _Organized by phase. Each prompt is self-contained with full context._
    - `HTTP_*` for HTTP server settings
    - `AGENT_*` for agent settings
 4. Replace all magic constants with imports from config
-5. Add config loading from env vars where appropriate (like #152 did for Sevier2)
+5. Add config loading from env vars where appropriate (like #152 did for Sevier)
 
 **Acceptance:**
 - All magic constants replaced with named constants

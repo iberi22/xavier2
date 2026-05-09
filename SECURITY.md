@@ -11,7 +11,7 @@ We currently support the latest stable release with security updates. Older vers
 
 ## Reporting a Vulnerability
 
-We take the security of Xavier2 seriously. If you discover a security vulnerability, please report it privately.
+We take the security of Xavier seriously. If you discover a security vulnerability, please report it privately.
 
 **Do not report security vulnerabilities through public GitHub issues.**
 
@@ -43,7 +43,7 @@ We aim to release fixes within 14 days of confirmation, depending on severity.
 ## Scope
 
 This policy covers:
-- The Xavier2 context engine (Rust binary)
+- The Xavier context engine (Rust binary)
 - REST API endpoints
 - Authentication and authorization mechanisms
 - Data storage and encryption

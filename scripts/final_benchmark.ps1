@@ -1,10 +1,20 @@
-# Final Benchmark - Optimized for Current Xavier2 Setup
+# Final Benchmark - Optimized for Current Xavier Setup
 # Target: Beat 98% or document limitations
 
-$XAVIER2 = "http://localhost:8006"
-$TOKEN = "dev-token"
+$XAVIER = "http://localhost:8006"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
+$TOKEN = Get-XavierToken
 $headers = @{
-    "X-Xavier2-Token" = $TOKEN
+    "X-Xavier-Token" = $TOKEN
     "Content-Type" = "application/json"
 }
 
@@ -22,7 +32,7 @@ function Add-Memory {
     param([string]$Path, [string]$Content)
     try {
         $body = @{path=$Path; content=$Content; metadata=@{}} | ConvertTo-Json -Compress
-        $null = Invoke-RestMethod -Uri "$XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing -TimeoutSec 15
+        $null = Invoke-RestMethod -Uri "$XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing -TimeoutSec 15
         return $true
     } catch {
         $results.errors += "Add failed: $_"
@@ -35,7 +45,7 @@ function Query-Agent {
     try {
         $body = @{query=$Query; limit=5; system3_mode="disabled"} | ConvertTo-Json -Compress
         $sw = [Diagnostics.Stopwatch]::StartNew()
-        $resp = Invoke-RestMethod -Uri "$XAVIER2/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing -TimeoutSec $TimeoutSec
+        $resp = Invoke-RestMethod -Uri "$XAVIER/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing -TimeoutSec $TimeoutSec
         $sw.Stop()
         return @{success=$true; response=$resp.response; time=$sw.ElapsedMilliseconds}
     } catch {
@@ -98,7 +108,7 @@ Write-Host "========================================" -ForegroundColor Magenta
 # Reset
 Write-Host "`n[Setup] Resetting..." -ForegroundColor Yellow
 try {
-    $null = Invoke-RestMethod -Uri "$XAVIER2/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}' -UseBasicParsing -TimeoutSec 10
+    $null = Invoke-RestMethod -Uri "$XAVIER/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}' -UseBasicParsing -TimeoutSec 10
     Write-Host "  ✅ Reset" -ForegroundColor Green
 } catch {
     Write-Host "  ⚠️ $($_.Exception.Message)" -ForegroundColor Yellow

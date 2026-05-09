@@ -1,5 +1,15 @@
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
 $headers = @{
-    "X-Xavier2-Token" = "dev-token"
+    "X-Xavier-Token" = Get-XavierToken
     "Content-Type" = "application/json"
 }
 

@@ -1,5 +1,5 @@
 //! Planka Sync Service - Bidirectional sync between internal tasks and Planka
-//! Tasks are stored in Xavier2, Planka is just a view/sync target
+//! Tasks are stored in Xavier, Planka is just a view/sync target
 
 use crate::tasks::models::{Project, Task, TaskStatus};
 use crate::tasks::store::{InMemoryTaskStore, TaskService, TaskStore};
@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
-/// Sync status between Xavier2 and Planka
+/// Sync status between Xavier and Planka
 #[derive(Debug, Clone)]
 pub enum SyncStatus {
     Synced,
@@ -154,7 +154,7 @@ impl<S: TaskStore> PlankaSyncService<S> {
         Ok(stats)
     }
 
-    /// Import tasks from Planka to Xavier2
+    /// Import tasks from Planka to Xavier
     pub async fn import_from_planka(&self, project_name: &str) -> Result<Vec<Task>> {
         let client = self
             .planka_client
@@ -193,9 +193,9 @@ impl<S: TaskStore> PlankaSyncService<S> {
         Ok(imported)
     }
 
-    /// Create project in both Xavier2 and Planka
+    /// Create project in both Xavier and Planka
     pub async fn create_project_full(&self, name: &str, description: &str) -> Result<Project> {
-        // Create in Xavier2 first
+        // Create in Xavier first
         let project = self
             .task_service
             .get_or_create_project(name, description)
@@ -262,12 +262,12 @@ mod tests {
         let (_store, service, _sync) = create_task_system();
 
         let task = service
-            .create_task("Test task", "Xavier2", "test-user")
+            .create_task("Test task", "Xavier", "test-user")
             .await
             .unwrap();
 
         assert_eq!(task.title, "Test task");
-        assert_eq!(task.project, "Xavier2");
+        assert_eq!(task.project, "Xavier");
         assert_eq!(task.status, TaskStatus::Backlog);
     }
 
@@ -277,12 +277,12 @@ mod tests {
 
         // Create tasks in different statuses
         service
-            .create_task("Task 1", "Xavier2", "user")
+            .create_task("Task 1", "Xavier", "user")
             .await
             .unwrap();
 
         let task2 = service
-            .create_task("Task 2", "Xavier2", "user")
+            .create_task("Task 2", "Xavier", "user")
             .await
             .unwrap();
         service
@@ -290,7 +290,7 @@ mod tests {
             .await
             .unwrap();
 
-        let board = service.get_task_board("Xavier2").await.unwrap();
+        let board = service.get_task_board("Xavier").await.unwrap();
 
         assert!(!board.get("Backlog").unwrap().is_empty());
         assert!(!board.get("In Progress").unwrap().is_empty());

@@ -1,12 +1,22 @@
-# LoCoMo Benchmark for Xavier2
+# LoCoMo Benchmark for Xavier
 # Based on ACL 2024 Long Conversation Memory benchmark
 # Tests: QA (recall), temporal reasoning, multi-hop
 
 $ErrorActionPreference = "Continue"
 
-$XAVIER2 = "http://localhost:8006"
-$TOKEN = "dev-token"
-$headers = @{"X-Xavier2-Token" = $TOKEN}
+$XAVIER = "http://localhost:8006"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
+$TOKEN = Get-XavierToken
+$headers = @{"X-Xavier-Token" = $TOKEN}
 
 $results = @{
     total = 0
@@ -33,7 +43,7 @@ function Test-Case {
     Write-Host "  Expected: $ExpectedSubstring" -ForegroundColor Gray
 
     # Add memory
-    $null = Invoke-RestMethod -Uri "$XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
+    $null = Invoke-RestMethod -Uri "$XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
         path = "bench/$([guid]::NewGuid().ToString('N').Substring(0,8))"
         content = $SetupMemory
         metadata = @{benchmark = "locomo"; type = $Name}
@@ -41,7 +51,7 @@ function Test-Case {
 
     # Query via agents/run (uses LLM + memory)
     try {
-        $resp = Invoke-RestMethod -Uri "$XAVIER2/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
+        $resp = Invoke-RestMethod -Uri "$XAVIER/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
             query = $Query
             limit = 3
             system3_mode = "disabled"
@@ -71,13 +81,13 @@ function Test-Case {
 }
 
 Write-Host "========================================" -ForegroundColor Magenta
-Write-Host "   LoCoMo Benchmark for Xavier2" -ForegroundColor Magenta
+Write-Host "   LoCoMo Benchmark for Xavier" -ForegroundColor Magenta
 Write-Host "   Long Conversation Memory (ACL 2024)" -ForegroundColor Magenta
 Write-Host "========================================" -ForegroundColor Magenta
 
 # Reset memories
 Write-Host "`n[Setup] Resetting memories..." -ForegroundColor Yellow
-$null = Invoke-RestMethod -Uri "$XAVIER2/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}'
+$null = Invoke-RestMethod -Uri "$XAVIER/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}'
 Start-Sleep -Seconds 2
 
 # === SINGLE-HOP RECALL ===
@@ -105,9 +115,9 @@ Test-Case -Name "single_hop_company" `
 Write-Host "`n=== TEMPORAL REASONING ===" -ForegroundColor Yellow
 
 Test-Case -Name "temporal_before" `
-    -SetupMemory "Yesterday I worked on the Xavier2 project. Today I am testing Xavier2." `
+    -SetupMemory "Yesterday I worked on the Xavier project. Today I am testing Xavier." `
     -Query "What did I work on yesterday?" `
-    -ExpectedSubstring "Xavier2" `
+    -ExpectedSubstring "Xavier" `
     -Description "Temporal - what happened before"
 
 Test-Case -Name "temporal_after" `
@@ -141,8 +151,8 @@ Test-Case -Name "multihop_relationship" `
 Write-Host "`n=== ENTITY RECALL ===" -ForegroundColor Yellow
 
 Test-Case -Name "entity_project" `
-    -SetupMemory "Project Xavier2 is a cognitive memory system. It uses SQLite and vector embeddings. Current version is 0.4.1." `
-    -Query "What is Project Xavier2 and what version is it?" `
+    -SetupMemory "Project Xavier is a cognitive memory system. It uses SQLite and vector embeddings. Current version is 0.4.1." `
+    -Query "What is Project Xavier and what version is it?" `
     -ExpectedSubstring "0.4" `
     -Description "Entity recall with details"
 
@@ -156,9 +166,9 @@ Test-Case -Name "entity_person_role" `
 Write-Host "`n=== CONTEXT INTEGRATION ===" -ForegroundColor Yellow
 
 Test-Case -Name "context_summary" `
-    -SetupMemory "Monday: Had a call with the team about the Xavier2 migration. Tuesday: Deployed Xavier2 to production. Wednesday: Found a bug in the vector search. Thursday: Filed a bug report. Friday: Started working on the fix." `
+    -SetupMemory "Monday: Had a call with the team about the Xavier migration. Tuesday: Deployed Xavier to production. Wednesday: Found a bug in the vector search. Thursday: Filed a bug report. Friday: Started working on the fix." `
     -Query "Summarize what happened this week" `
-    -ExpectedSubstring "Xavier2" `
+    -ExpectedSubstring "Xavier" `
     -Description "Long context summary"
 
 # === ADVERSARIAL (Similar Names) ===
@@ -171,7 +181,7 @@ Test-Case -Name "adversarial_disambiguation" `
     -Description "Disambiguate similar roles"
 
 Test-Case -Name "adversarial_negation" `
-    -SetupMemory "The system is NOT using SQLite for the main database. It IS using the vector backend. The old xavier2 WAS using file backend." `
+    -SetupMemory "The system is NOT using SQLite for the main database. It IS using the vector backend. The old xavier WAS using file backend." `
     -Query "What backend is the system using?" `
     -ExpectedSubstring "vector" `
     -Description "Negation understanding"
@@ -188,11 +198,11 @@ Write-Host "Failed: $($results.failed)  $([Math]::Round($results.failed/$results
 Write-Host ""
 
 if ($results.passed -eq $results.total) {
-    Write-Host "🏆 PERFECT SCORE! Xavier2 memory is excellent." -ForegroundColor Green
+    Write-Host "🏆 PERFECT SCORE! Xavier memory is excellent." -ForegroundColor Green
 } elseif ($results.passed -ge ($results.total * 0.7)) {
-    Write-Host "👍 GOOD! Xavier2 memory is functional." -ForegroundColor Yellow
+    Write-Host "👍 GOOD! Xavier memory is functional." -ForegroundColor Yellow
 } else {
-    Write-Host "⚠️  NEEDS WORK. Xavier2 memory has issues." -ForegroundColor Red
+    Write-Host "⚠️  NEEDS WORK. Xavier memory has issues." -ForegroundColor Red
 }
 
 Write-Host ""

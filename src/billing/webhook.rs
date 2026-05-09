@@ -134,7 +134,7 @@ async fn handle_subscription_updated(event: &WebhookEvent, _state: &AppState) ->
 
     // Map Stripe status to our internal status
     let is_active = status == "active" || status == "trialing";
-    
+
     // If subscription became active, could trigger welcome email, etc.
     if is_active {
         info!("Subscription {} is now active", subscription_id);

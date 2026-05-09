@@ -222,7 +222,7 @@ mod tests {
     use super::*;
 
     fn temp_store_root() -> PathBuf {
-        std::env::temp_dir().join(format!("xavier2-session-store-{}", Ulid::new()))
+        std::env::temp_dir().join(format!("xavier-session-store-{}", Ulid::new()))
     }
 
     #[tokio::test]
@@ -267,7 +267,7 @@ mod tests {
         let message = PanelMessage {
             id: Ulid::new().to_string(),
             role: "user".to_string(),
-            plain_text: "Explain xavier2 memory and show a structured UI.".to_string(),
+            plain_text: "Explain xavier memory and show a structured UI.".to_string(),
             openui_lang: None,
             created_at: Utc::now(),
             metadata: serde_json::json!({}),
@@ -279,7 +279,7 @@ mod tests {
         assert_ne!(updated.title, "New Thread");
         assert_eq!(
             updated.title,
-            "Explain xavier2 memory and show a structured UI."
+            "Explain xavier memory and show a structured UI."
         );
     }
 }

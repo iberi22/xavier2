@@ -1,4 +1,4 @@
-package com.swalsystems.xavier2
+package com.swalsystems.xavier
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

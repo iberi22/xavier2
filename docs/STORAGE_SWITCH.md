@@ -1,12 +1,12 @@
 # Storage Switch Guide
 
-Switching Xavier2 between file, SurrealDB, SQLite, and Vec backends — including migration and rollback procedures.
+Switching Xavier between file, SurrealDB, SQLite, and Vec backends — including migration and rollback procedures.
 
 ## Overview
 
-Xavier2 supports four storage backends controlled by `XAVIER2_MEMORY_BACKEND`:
+Xavier supports four storage backends controlled by `XAVIER_MEMORY_BACKEND`:
 
-| Backend | `XAVIER2_MEMORY_BACKEND` value | Use Case |
+| Backend | `XAVIER_MEMORY_BACKEND` value | Use Case |
 |---------|-------------------------------|----------|
 | **Vec** | `vec` | **Recommended default** — fastest, no external dependencies |
 | SurrealDB | `surreal` | High-concurrency distributed setups |
@@ -37,13 +37,13 @@ The `vec` backend uses SQLite with Pro extensions (FTS5, RRF, Knowledge Graph, H
 
 ```env
 # Backend selection
-XAVIER2_MEMORY_BACKEND=vec
+XAVIER_MEMORY_BACKEND=vec
 
 # Vec backend
-XAVIER2_MEMORY_VEC_PATH=./data/workspaces/default/vec-store.sqlite3
+XAVIER_MEMORY_VEC_PATH=./data/workspaces/default/vec-store.sqlite3
 
 # Embedding configuration
-XAVIER2_EMBEDDING_DIMENSIONS=768   # Default: 768. Change only if your embedding model uses a different size.
+XAVIER_EMBEDDING_DIMENSIONS=768   # Default: 768. Change only if your embedding model uses a different size.
 ```
 
 ### Getting Started
@@ -55,14 +55,14 @@ XAVIER2_EMBEDDING_DIMENSIONS=768   # Default: 768. Change only if your embedding
 
 2. **Update `.env`**
    ```env
-   XAVIER2_MEMORY_BACKEND=vec
-   XAVIER2_MEMORY_VEC_PATH=./data/workspaces/default/vec-store.sqlite3
-   XAVIER2_EMBEDDING_DIMENSIONS=768
+   XAVIER_MEMORY_BACKEND=vec
+   XAVIER_MEMORY_VEC_PATH=./data/workspaces/default/vec-store.sqlite3
+   XAVIER_EMBEDDING_DIMENSIONS=768
    ```
 
-3. **Start Xavier2**
+3. **Start Xavier**
    ```bash
-   docker compose up -d xavier2 pplx-embed
+   docker compose up -d xavier pplx-embed
    ```
 
 4. **Verify**
@@ -97,15 +97,15 @@ Use for production with multi-workspace or high-volume distributed writes.
 
 4. **Update `.env`**
    ```env
-   XAVIER2_MEMORY_BACKEND=surreal
-   XAVIER2_SURREALDB_URL=ws://localhost:8000
-   XAVIER2_SURREALDB_USER=your-user
-   XAVIER2_SURREALDB_PASS=your-password
+   XAVIER_MEMORY_BACKEND=surreal
+   XAVIER_SURREALDB_URL=ws://localhost:8000
+   XAVIER_SURREALDB_USER=your-user
+   XAVIER_SURREALDB_PASS=your-password
    ```
 
-5. **Restart Xavier2**
+5. **Restart Xavier**
    ```bash
-   docker compose up -d xavier2
+   docker compose up -d xavier
    ```
 
 6. **Verify**
@@ -122,24 +122,24 @@ Use when SurrealDB is unavailable or for a lightweight fallback.
 
 ### Steps
 
-1. **Stop Xavier2**
+1. **Stop Xavier**
    ```bash
-   docker compose stop xavier2
+   docker compose stop xavier
    ```
 
 2. **Dump SurrealDB data** (optional, recommended)
    ```bash
    # Using the surreal-cli if available, or REST API
    curl -X POST http://localhost:8000/sql \
-     -H "NS: xavier2" -H "DB: memory" \
+     -H "NS: xavier" -H "DB: memory" \
      -d '{"sql":"SELECT * FROM memory_records"}' \
      --user root:your-password > surreal_dump.json
    ```
 
 3. **Update `.env`**
    ```env
-   XAVIER2_MEMORY_BACKEND=sqlite
-   XAVIER2_MEMORY_SQLITE_PATH=./data/workspaces/default/memory-store.sqlite3
+   XAVIER_MEMORY_BACKEND=sqlite
+   XAVIER_MEMORY_SQLITE_PATH=./data/workspaces/default/memory-store.sqlite3
    ```
 
 4. **Migrate from JSON dump if needed**
@@ -147,9 +147,9 @@ Use when SurrealDB is unavailable or for a lightweight fallback.
    python scripts/migrate_file_to_sqlite.py --workspace default --reinstall
    ```
 
-5. **Start Xavier2**
+5. **Start Xavier**
    ```bash
-   docker compose up -d xavier2
+   docker compose up -d xavier
    ```
 
 6. **Verify**
@@ -166,9 +166,9 @@ A lightweight alternative without the SurrealDB overhead.
 
 ### Steps
 
-1. **Stop Xavier2**
+1. **Stop Xavier**
    ```bash
-   docker compose stop xavier2
+   docker compose stop xavier
    ```
 
 2. **Migrate data**
@@ -178,13 +178,13 @@ A lightweight alternative without the SurrealDB overhead.
 
 3. **Update `.env`**
    ```env
-   XAVIER2_MEMORY_BACKEND=sqlite
-   XAVIER2_MEMORY_SQLITE_PATH=./data/workspaces/default/memory-store.sqlite3
+   XAVIER_MEMORY_BACKEND=sqlite
+   XAVIER_MEMORY_SQLITE_PATH=./data/workspaces/default/memory-store.sqlite3
    ```
 
-4. **Start Xavier2**
+4. **Start Xavier**
    ```bash
-   docker compose up -d xavier2
+   docker compose up -d xavier
    ```
 
 5. **Verify**
@@ -198,20 +198,20 @@ A lightweight alternative without the SurrealDB overhead.
 
 ### Steps
 
-1. **Stop Xavier2**
+1. **Stop Xavier**
    ```bash
-   docker compose stop xavier2
+   docker compose stop xavier
    ```
 
 2. **Update `.env`**
    ```env
-   XAVIER2_MEMORY_BACKEND=file
-   XAVIER2_WORKSPACE_DIR=./data/workspaces
+   XAVIER_MEMORY_BACKEND=file
+   XAVIER_WORKSPACE_DIR=./data/workspaces
    ```
 
-3. **Restart Xavier2** (data stays in SurrealDB; new writes go to file)
+3. **Restart Xavier** (data stays in SurrealDB; new writes go to file)
    ```bash
-   docker compose up -d xavier2
+   docker compose up -d xavier
    ```
 
 > **Note:** Switching back to file will not automatically sync SurrealDB data into the file. To preserve SurrealDB data, run the migration first.
@@ -222,9 +222,9 @@ A lightweight alternative without the SurrealDB overhead.
 
 ### Steps
 
-1. **Stop Xavier2**
+1. **Stop Xavier**
    ```bash
-   docker compose stop xavier2
+   docker compose stop xavier
    ```
 
 2. **Start SurrealDB**
@@ -239,15 +239,15 @@ A lightweight alternative without the SurrealDB overhead.
 
 4. **Update `.env`**
    ```env
-   XAVIER2_MEMORY_BACKEND=surreal
-   XAVIER2_SURREALDB_URL=ws://localhost:8000
-   XAVIER2_SURREALDB_USER=your-user
-   XAVIER2_SURREALDB_PASS=your-password
+   XAVIER_MEMORY_BACKEND=surreal
+   XAVIER_SURREALDB_URL=ws://localhost:8000
+   XAVIER_SURREALDB_USER=your-user
+   XAVIER_SURREALDB_PASS=your-password
    ```
 
-5. **Restart Xavier2**
+5. **Restart Xavier**
    ```bash
-   docker compose up -d xavier2
+   docker compose up -d xavier
    ```
 
 ---
@@ -256,19 +256,19 @@ A lightweight alternative without the SurrealDB overhead.
 
 ### Rolling back to File from SurrealDB
 
-1. Stop Xavier2: `docker compose stop xavier2`
+1. Stop Xavier: `docker compose stop xavier`
 2. Backup SurrealDB data: `curl -X POST http://localhost:8000/sql ...`
-3. Set `XAVIER2_MEMORY_BACKEND=file`
+3. Set `XAVIER_MEMORY_BACKEND=file`
 4. Migrate if needed: use file as-is
-5. Restart: `docker compose up -d xavier2 pplx-embed`
+5. Restart: `docker compose up -d xavier pplx-embed`
 
 ### Emergency rollback to SQLite
 
 If SurrealDB crashes and won't restart:
 
-1. Stop Xavier2 immediately
-2. Set `XAVIER2_MEMORY_BACKEND=sqlite` and `XAVIER2_MEMORY_SQLITE_PATH` to an existing SQLite file
-3. Start Xavier2: `docker compose up -d xavier2`
+1. Stop Xavier immediately
+2. Set `XAVIER_MEMORY_BACKEND=sqlite` and `XAVIER_MEMORY_SQLITE_PATH` to an existing SQLite file
+3. Start Xavier: `docker compose up -d xavier`
 4. Verify: `curl http://localhost:8003/build | jq .memory_store.selected_backend`
 5. Investigate SurrealDB failure without pressure
 
@@ -316,7 +316,7 @@ If SurrealDB crashes and won't restart:
 | SQLite → SurrealDB | `scripts/migrate_file_to_surreal.py --workspace <ID> --reinstall` |
 | SQLite → Vec | `scripts/migrate_sqlite_to_vec.py --workspace <ID> --reinstall` |
 
-Use `--all-workspaces` to process every workspace in `XAVIER2_WORKSPACE_DIR` at once.
+Use `--all-workspaces` to process every workspace in `XAVIER_WORKSPACE_DIR` at once.
 
 ---
 
@@ -324,22 +324,22 @@ Use `--all-workspaces` to process every workspace in `XAVIER2_WORKSPACE_DIR` at 
 
 ```env
 # Backend selection
-XAVIER2_MEMORY_BACKEND=vec          # Options: vec (recommended), surreal, sqlite, file
+XAVIER_MEMORY_BACKEND=vec          # Options: vec (recommended), surreal, sqlite, file
 
 # Vec backend (recommended)
-XAVIER2_MEMORY_VEC_PATH=./data/workspaces/default/vec-store.sqlite3
-XAVIER2_EMBEDDING_DIMENSIONS=768    # Must match your embedding model output size
+XAVIER_MEMORY_VEC_PATH=./data/workspaces/default/vec-store.sqlite3
+XAVIER_EMBEDDING_DIMENSIONS=768    # Must match your embedding model output size
 
 # File backend
-XAVIER2_WORKSPACE_DIR=./data/workspaces
+XAVIER_WORKSPACE_DIR=./data/workspaces
 
 # SurrealDB backend (optional)
-XAVIER2_SURREALDB_URL=ws://surrealdb:8000
-XAVIER2_SURREALDB_USER=root
-XAVIER2_SURREALDB_PASS=your-password
+XAVIER_SURREALDB_URL=ws://surrealdb:8000
+XAVIER_SURREALDB_USER=root
+XAVIER_SURREALDB_PASS=your-password
 
 # SQLite backend (legacy)
-XAVIER2_MEMORY_SQLITE_PATH=./data/workspaces/default/memory-store.sqlite3
+XAVIER_MEMORY_SQLITE_PATH=./data/workspaces/default/memory-store.sqlite3
 ```
 
 See `.env.example` for the complete set of configuration options.

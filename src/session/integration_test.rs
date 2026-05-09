@@ -7,9 +7,9 @@
 
 use chrono::Utc;
 use reqwest::Client;
-use xavier2::session::event_mapper::{PanelThreadEntry, PanelThreadEntryMetadata};
-use xavier2::session::types::{SessionEvent, SessionEventType};
-use xavier2::verification::auto_verifier::{AutoVerifier, VerificationResult};
+use xavier::session::event_mapper::{PanelThreadEntry, PanelThreadEntryMetadata};
+use xavier::session::types::{SessionEvent, SessionEventType};
+use xavier::verification::auto_verifier::{AutoVerifier, VerificationResult};
 
 #[cfg(test)]
 mod session_event_tests {
@@ -33,7 +33,7 @@ mod session_event_tests {
         };
 
         let response = client
-            .post("http://localhost:8006/xavier2/events/session")
+            .post("http://localhost:8006/xavier/events/session")
             .json(&payload)
             .send()
             .await;
@@ -68,7 +68,7 @@ mod session_event_tests {
         };
 
         let response = client
-            .post("http://localhost:8006/xavier2/events/session")
+            .post("http://localhost:8006/xavier/events/session")
             .json(&payload)
             .send()
             .await;
@@ -225,7 +225,7 @@ const TEST_AUTH_TOKEN: &str = "test-only-token-do-not-use-in-production";
     #[tokio::test]
     async fn test_auto_verifier_save_retrieve_cycle() {
         let client = Client::new();
-        let xavier2_url = "http://localhost:8006";
+        let xavier_url = "http://localhost:8006";
         let auth_token = TEST_AUTH_TOKEN;
         let path = format!("test/verification/{}", ulid::Ulid::new());
         let test_content = format!(
@@ -235,7 +235,7 @@ const TEST_AUTH_TOKEN: &str = "test-only-token-do-not-use-in-production";
 
         let result = AutoVerifier::verify_save(
             &client,
-            xavier2_url,
+            xavier_url,
             auth_token,
             &path,
             &test_content,
@@ -311,7 +311,7 @@ const TEST_AUTH_TOKEN: &str = "test-only-token-do-not-use-in-production";
 
 #[cfg(test)]
 mod agent_registry_tests {
-    use xavier2::agents::registry::AgentRegistry;
+    use xavier::agents::registry::AgentRegistry;
 
     #[tokio::test]
     async fn test_bidirectional_agent_registry() {

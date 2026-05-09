@@ -1,10 +1,10 @@
-# Xavier2 Architecture Overview
+# Xavier Architecture Overview
 
 ## Memory Stores
 
 ### Available Stores
 
-Xavier2 supports multiple memory store backends via the `MemoryBackend` enum:
+Xavier supports multiple memory store backends via the `MemoryBackend` enum:
 
 | Backend | Description | Key Features |
 |---------|-------------|--------------|
@@ -57,7 +57,7 @@ MCP support exists in `src/server/mcp_server.rs` and `mcp_stdio.rs`:
 **Implemented:**
 - JSON-RPC request/response handling
 - MCP tool definitions (`MCPTool` struct)
-- Xavier2-specific tools: `create_memory`, `search_memory`, `get_memory`, `list_projects`, `get_project_context`
+- Xavier-specific tools: `create_memory`, `search_memory`, `get_memory`, `list_projects`, `get_project_context`
 - Input schemas for each tool
 
 **Gap (Issue #139):**
@@ -68,7 +68,7 @@ MCP support exists in `src/server/mcp_server.rs` and `mcp_stdio.rs`:
 ### Gestalt Integration Context
 
 Gestalt requires these operations (from issue #149):
-| Gestalt Operation | Xavier2 Equivalent | Status |
+| Gestalt Operation | Xavier Equivalent | Status |
 |-------------------|-------------------|--------|
 | `save()` MemoryFragment | `POST /memory/add` | Needs field mapping |
 | `search()` | `POST /memory/search` | Exists, superior (hybrid) |
@@ -82,7 +82,7 @@ Gestalt requires these operations (from issue #149):
 
 | # | Title | Priority | Labels |
 |---|-------|----------|--------|
-| **#149** | [MIGRATION] Gestalt Rust → Xavier2: Unificar memoria como backend único | P1 | migration |
+| **#149** | [MIGRATION] Gestalt Rust → Xavier: Unificar memoria como backend único | P1 | migration |
 | **#139** | [FEATURE] Add MCP protocol handler for Gestalt MemoryFragment schema | P2 | jules, enhancement |
 | **#137** | [PERF] qmd_memory.rs is 105KB - needs modularization/split | P2 | performance, jules |
 | **#127** | [refactor] Extract magic constants to config in gating.rs | P2 | refactor, jules |
@@ -106,9 +106,9 @@ Gestalt requires these operations (from issue #149):
 - `POST /memory/add` — add memory
 - `POST /memory/query` — flexible query
 - `GET /memory/stats` — statistics
-- `POST /xavier2/agents/{id}/push` — push context to agent
+- `POST /xavier/agents/{id}/push` — push context to agent
 
-✅ **MCP Server:** Basic MCP protocol handler with Xavier2 tools
+✅ **MCP Server:** Basic MCP protocol handler with Xavier tools
 
 ✅ **Schema:** Rich `MemoryRecord` schema with embeddings, metadata, revisions
 
@@ -116,7 +116,7 @@ Gestalt requires these operations (from issue #149):
 
 1. **No timeline events streaming/polling endpoint**
    - Gestalt uses 500ms polling to `timeline_events` table
-   - Xavier2 has no equivalent `GET /timeline/events?since=` endpoint
+   - Xavier has no equivalent `GET /timeline/events?since=` endpoint
    - Options: REST polling endpoint, WebSocket/SSE streaming
 
 2. **Missing `recent()` endpoint**
@@ -129,7 +129,7 @@ Gestalt requires these operations (from issue #149):
 
 ### Minimum Viable Product for Migration
 
-To enable Gestalt as a Xavier2 memory client:
+To enable Gestalt as a Xavier memory client:
 
 1. **Add timeline polling endpoint:**
    ```
@@ -149,7 +149,7 @@ To enable Gestalt as a Xavier2 memory client:
    - `get_recent_fragments(agent_id, limit)`
 
 4. **Schema mapping:**
-   - Map Gestalt `MemoryFragment` → Xavier2 `MemoryRecord`
+   - Map Gestalt `MemoryFragment` → Xavier `MemoryRecord`
    - Fields: `content` → `content`, `tags` → `metadata.tags`, `provenance` → metadata
 
 ### Dependencies / Blockers

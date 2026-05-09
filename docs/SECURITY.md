@@ -1,4 +1,4 @@
-# XAVIER2 SECURITY ARCHITECTURE
+# XAVIER SECURITY ARCHITECTURE
 
 ## Overview
 
@@ -20,7 +20,7 @@ Two-layer security system:
 ```
 ┌─────────────┐     TLS (WSS)      ┌─────────────┐
 │   Node A    │ ────────────────► │   Node B    │
-│  (Agent)    │                   │  (Xavier2)   │
+│  (Agent)    │                   │  (Xavier)   │
 │             │ ◄── E2E Encrypted │             │
 └─────────────┘                   └─────────────┘
 ```
@@ -147,7 +147,7 @@ Runtime security for multi-agent AI systems. Detects prompt injection, credentia
 | Threat Categories | Multi-class classifier | Authority escalation, social engineering |
 | Config Drift | Config snapshot diffing | Runtime tampering |
 
-### Integration with Xavier2
+### Integration with Xavier
 
 ```
 User Input
@@ -157,11 +157,11 @@ User Input
 │  Anticipator     │ ◄── Scan every inter-agent message
 │  (10 layers)     │
 └────────┬─────────┘
-         │ Clean → Forward to Xavier2
+         │ Clean → Forward to Xavier
          │ Threat → Log + Alert + (optional block)
          ▼
 ┌──────────────────┐
-│   Xavier2 API     │
+│   Xavier API     │
 │   /memory/*     │
 └──────────────────┘
 ```
@@ -228,7 +228,7 @@ pub fn scan_message(message: &str) -> ScanResult {
 }
 ```
 
-### Xavier2 API Changes
+### Xavier API Changes
 
 ```rust
 // Before processing any /memory/* request
@@ -289,7 +289,7 @@ We can be the first to implement this natively.
 ### Phase 3: Anticipator Integration (Week 3)
 - [ ] Port core detection layers to Rust
 - [ ] WASM compilation for cross-platform
-- [ ] Integration with Xavier2 API
+- [ ] Integration with Xavier API
 
 ### Phase 4: Hardening (Week 4)
 - [ ] Penetration testing

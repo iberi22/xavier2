@@ -1,4 +1,4 @@
-//! Time Metrics storage for Xavier2.
+//! Time Metrics storage for Xavier.
 //!
 //! Stores TimeMetric records to SQLite at path: metrics/time/{YYYY-MM-DD}/{metric_type}/{agent_id}
 

@@ -1,6 +1,6 @@
 ---
 title: Architecture Overview
-description: Current runtime architecture for Xavier2
+description: Current runtime architecture for Xavier
 ---
 
 # Architecture Overview
@@ -52,7 +52,7 @@ Public docs should prioritize the first view unless a section is explicitly labe
 
 ## Current Constraints
 
-- Auth is currently token-based through `X-Xavier2-Token`.
+- Auth is currently token-based through `X-Xavier-Token`.
 - JWT/RBAC code exists in `src/security/`, but it is not the active server auth path.
 - Latest benchmark quality is strong, but latency still exceeds the older `< 500ms` target.
 - Monitoring exists as a Compose profile and should not be over-described as a fully closed operational system yet.

@@ -1,8 +1,8 @@
 ## 🎯 Objetivo
-Fix all compilation errors in Xavier2 so `cargo check` passes and the binary can be built.
+Fix all compilation errors in Xavier so `cargo check` passes and the binary can be built.
 
 ## 📋 Problema
-Xavier2 has 5 pre-existing compilation errors that prevent the binary from building:
+Xavier has 5 pre-existing compilation errors that prevent the binary from building:
 
 1. **Line 147** - `E0308`: `match reason` expects `Option<()>` but pattern uses `Ok(()) | Err(_)`
 2. **E0432** (3 instances) - Import errors for:
@@ -24,7 +24,7 @@ Xavier2 has 5 pre-existing compilation errors that prevent the binary from build
 
 ### 1. Diagnóstico
 ```bash
-cd E:\scripts-python\xavier2
+cd E:\scripts-python\xavier
 cargo check 2>&1 | Select-String "error"
 ```
 
@@ -60,12 +60,12 @@ cargo build --release
 ## 📊 Criterios de Éxito
 - [ ] `cargo check` pasa sin errores
 - [ ] `cargo build --release` compila
-- [ ] Binary exists at `target/release/xavier2.exe`
-- [ ] `xavier2 http` inicia servidor HTTP
-- [ ] `xavier2 mcp` inicia modo MCP-stdio
+- [ ] Binary exists at `target/release/xavier.exe`
+- [ ] `xavier http` inicia servidor HTTP
+- [ ] `xavier mcp` inicia modo MCP-stdio
 
 ## 🔧 Entorno
-- **Repo:** `iberi22/xavier2`
+- **Repo:** `iberi22/xavier`
 - **Rama:** main
 - **Stack:** Rust, tokio, axum
 - **Puerto default:** 8006

@@ -25,7 +25,7 @@ on:
           - both
 
 env:
-  XAVIER2_VERSION: 0.6.0-beta
+  XAVIER_VERSION: 0.6.0-beta
   RUST_BACKTRACE: "1"
 
 jobs:
@@ -44,7 +44,7 @@ jobs:
           toolchain: "1.85.0"
 
       - name: Build plugin system
-        run: cargo build --package xavier2 2>&1 | tail -20
+        run: cargo build --package xavier 2>&1 | tail -20
 
       - name: Run plugin tests
         run: cargo test --lib -- plugins:: 2>&1 | tail -20
@@ -55,7 +55,7 @@ jobs:
           CORTEX_ENTERPRISE_URL: ${{ secrets.CORTEX_ENTERPRISE_URL }}
           CORTEX_TOKEN: ${{ secrets.CORTEX_TOKEN }}
         run: |
-          cargo run --package xavier2 --bin xavier2 -- plugin sync cortex ${{ inputs.direction || 'both' }} 2>&1
+          cargo run --package xavier --bin xavier -- plugin sync cortex ${{ inputs.direction || 'both' }} 2>&1
 
       - name: Sync to PgHeart
         if: inputs.plugin == 'pgheart' || inputs.plugin == 'all' || github.event_name == 'schedule'
@@ -64,4 +64,4 @@ jobs:
           PGHEART_TOKEN: ${{ secrets.PGHEART_TOKEN }}
           PGHEART_INSTANCE_ID: ${{ secrets.PGHEART_INSTANCE_ID }}
         run: |
-          cargo run --package xavier2 --bin xavier2 -- plugin sync pgheart ${{ inputs.direction || 'both' }} 2>&1
+          cargo run --package xavier --bin xavier -- plugin sync pgheart ${{ inputs.direction || 'both' }} 2>&1

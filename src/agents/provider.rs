@@ -64,7 +64,7 @@ pub struct ModelProviderConfig {
 
 impl ModelProviderConfig {
     pub fn from_env() -> Self {
-        match std::env::var("XAVIER2_MODEL_PROVIDER")
+        match std::env::var("XAVIER_MODEL_PROVIDER")
             .ok()
             .map(|value| value.trim().to_ascii_lowercase())
             .as_deref()
@@ -82,7 +82,7 @@ impl ModelProviderConfig {
     }
 
     fn local_from_env() -> Self {
-        let api_flavor = std::env::var("XAVIER2_API_FLAVOR")
+        let api_flavor = std::env::var("XAVIER_API_FLAVOR")
             .ok()
             .and_then(|value| ApiFlavor::from_env(&value))
             .unwrap_or(ApiFlavor::OpenAICompatible);
@@ -92,14 +92,14 @@ impl ModelProviderConfig {
                 provider_mode: ProviderMode::Local,
                 api_flavor,
                 provider_label: "local".to_string(),
-                model: std::env::var("XAVIER2_LOCAL_LLM_MODEL")
-                    .or_else(|_| std::env::var("XAVIER2_LLM_MODEL"))
+                model: std::env::var("XAVIER_LOCAL_LLM_MODEL")
+                    .or_else(|_| std::env::var("XAVIER_LLM_MODEL"))
                     .unwrap_or_else(|_| DEFAULT_LOCAL_MODEL.to_string()),
-                api_key: std::env::var("XAVIER2_LOCAL_LLM_API_KEY")
+                api_key: std::env::var("XAVIER_LOCAL_LLM_API_KEY")
                     .ok()
                     .or_else(|| Some("ollama".to_string())),
                 base_url: Some(
-                    std::env::var("XAVIER2_LOCAL_LLM_URL")
+                    std::env::var("XAVIER_LOCAL_LLM_URL")
                         .unwrap_or_else(|_| DEFAULT_LOCAL_BASE_URL.to_string()),
                 ),
                 target: ProviderTarget::GenericOpenAICompatible,
@@ -108,15 +108,15 @@ impl ModelProviderConfig {
                 provider_mode: ProviderMode::Local,
                 api_flavor,
                 provider_label: "local".to_string(),
-                model: std::env::var("XAVIER2_LOCAL_LLM_MODEL")
-                    .or_else(|_| std::env::var("XAVIER2_LLM_MODEL"))
+                model: std::env::var("XAVIER_LOCAL_LLM_MODEL")
+                    .or_else(|_| std::env::var("XAVIER_LLM_MODEL"))
                     .unwrap_or_else(|_| DEFAULT_LOCAL_MODEL.to_string()),
-                api_key: std::env::var("XAVIER2_LOCAL_LLM_API_KEY")
+                api_key: std::env::var("XAVIER_LOCAL_LLM_API_KEY")
                     .ok()
                     .or_else(|| Some("ollama".to_string())),
                 base_url: Some(
-                    std::env::var("XAVIER2_LOCAL_ANTHROPIC_URL")
-                        .or_else(|_| std::env::var("XAVIER2_LOCAL_LLM_URL"))
+                    std::env::var("XAVIER_LOCAL_ANTHROPIC_URL")
+                        .or_else(|_| std::env::var("XAVIER_LOCAL_LLM_URL"))
                         .unwrap_or_else(|_| DEFAULT_LOCAL_ANTHROPIC_BASE_URL.to_string()),
                 ),
                 target: ProviderTarget::AnthropicMessages,
@@ -125,7 +125,7 @@ impl ModelProviderConfig {
     }
 
     fn cloud_from_env() -> Self {
-        let api_flavor = std::env::var("XAVIER2_API_FLAVOR")
+        let api_flavor = std::env::var("XAVIER_API_FLAVOR")
             .ok()
             .and_then(|value| ApiFlavor::from_env(&value))
             .unwrap_or(ApiFlavor::OpenAICompatible);
@@ -135,14 +135,14 @@ impl ModelProviderConfig {
                 provider_mode: ProviderMode::Cloud,
                 api_flavor,
                 provider_label: "cloud".to_string(),
-                model: std::env::var("XAVIER2_CLOUD_LLM_MODEL")
-                    .or_else(|_| std::env::var("XAVIER2_LLM_MODEL"))
+                model: std::env::var("XAVIER_CLOUD_LLM_MODEL")
+                    .or_else(|_| std::env::var("XAVIER_LLM_MODEL"))
                     .unwrap_or_else(|_| "gpt-4o-mini".to_string()),
-                api_key: std::env::var("XAVIER2_LLM_API_KEY")
+                api_key: std::env::var("XAVIER_LLM_API_KEY")
                     .ok()
                     .or_else(|| std::env::var("OPENAI_API_KEY").ok()),
                 base_url: Some(
-                    std::env::var("XAVIER2_CLOUD_LLM_URL")
+                    std::env::var("XAVIER_CLOUD_LLM_URL")
                         .or_else(|_| std::env::var("OPENAI_BASE_URL"))
                         .unwrap_or_else(|_| DEFAULT_OPENAI_BASE_URL.to_string()),
                 ),
@@ -157,7 +157,7 @@ impl ModelProviderConfig {
             provider_mode: ProviderMode::Cloud,
             api_flavor: ApiFlavor::OpenAICompatible,
             provider_label: "openai".to_string(),
-            model: std::env::var("XAVIER2_LLM_MODEL")
+            model: std::env::var("XAVIER_LLM_MODEL")
                 .or_else(|_| std::env::var("OPENAI_MODEL"))
                 .unwrap_or_else(|_| "gpt-4o-mini".to_string()),
             api_key: std::env::var("OPENAI_API_KEY").ok(),
@@ -174,7 +174,7 @@ impl ModelProviderConfig {
             provider_mode: ProviderMode::Cloud,
             api_flavor: ApiFlavor::OpenAICompatible,
             provider_label: "deepseek".to_string(),
-            model: std::env::var("XAVIER2_LLM_MODEL")
+            model: std::env::var("XAVIER_LLM_MODEL")
                 .or_else(|_| std::env::var("DEEPSEEK_MODEL"))
                 .unwrap_or_else(|_| "deepseek-chat".to_string()),
             api_key: std::env::var("DEEPSEEK_API_KEY").ok(),
@@ -191,15 +191,15 @@ impl ModelProviderConfig {
             provider_mode: ProviderMode::Cloud,
             api_flavor: ApiFlavor::AnthropicCompatible,
             provider_label: "anthropic".to_string(),
-            model: std::env::var("XAVIER2_LLM_MODEL")
+            model: std::env::var("XAVIER_LLM_MODEL")
                 .or_else(|_| std::env::var("ANTHROPIC_MODEL"))
                 .unwrap_or_else(|_| "claude-3-5-sonnet-latest".to_string()),
             api_key: std::env::var("ANTHROPIC_API_KEY")
                 .ok()
-                .or_else(|| std::env::var("XAVIER2_LLM_API_KEY").ok()),
+                .or_else(|| std::env::var("XAVIER_LLM_API_KEY").ok()),
             base_url: Some(
                 std::env::var("ANTHROPIC_BASE_URL")
-                    .or_else(|_| std::env::var("XAVIER2_CLOUD_LLM_URL"))
+                    .or_else(|_| std::env::var("XAVIER_CLOUD_LLM_URL"))
                     .unwrap_or_else(|_| DEFAULT_ANTHROPIC_BASE_URL.to_string()),
             ),
             target: ProviderTarget::AnthropicMessages,
@@ -211,7 +211,7 @@ impl ModelProviderConfig {
             provider_mode: ProviderMode::Cloud,
             api_flavor: ApiFlavor::OpenAICompatible,
             provider_label: "minimax".to_string(),
-            model: std::env::var("XAVIER2_LLM_MODEL")
+            model: std::env::var("XAVIER_LLM_MODEL")
                 .or_else(|_| std::env::var("MINIMAX_MODEL"))
                 .unwrap_or_else(|_| "MiniMax-Text-01".to_string()),
             api_key: std::env::var("MINIMAX_API_KEY").ok(),
@@ -228,7 +228,7 @@ impl ModelProviderConfig {
             provider_mode: ProviderMode::Cloud,
             api_flavor: ApiFlavor::OpenAICompatible,
             provider_label: "gemini".to_string(),
-            model: std::env::var("XAVIER2_LLM_MODEL")
+            model: std::env::var("XAVIER_LLM_MODEL")
                 .or_else(|_| std::env::var("GEMINI_MODEL"))
                 .unwrap_or_else(|_| "gemini-2.0-flash".to_string()),
             api_key: std::env::var("GEMINI_API_KEY").ok(),
@@ -346,7 +346,7 @@ impl ModelProviderClient {
         query: &str,
         context: &[RetrievedDocument],
     ) -> Result<String> {
-        let system_prompt = "You are a helpful AI assistant part of the Xavier2 memory system. Use the provided memory context accurately. If the context is insufficient, say so clearly. Be concise but informative.";
+        let system_prompt = "You are a helpful AI assistant part of the Xavier memory system. Use the provided memory context accurately. If the context is insufficient, say so clearly. Be concise but informative.";
         let context_text = context
             .iter()
             .map(|doc| format!("- {}\n  Source: {}", doc.content, doc.path))
@@ -652,10 +652,10 @@ mod tests {
     #[test]
     fn test_local_provider_config() {
         let _guard = env_lock().lock().unwrap();
-        std::env::set_var("XAVIER2_LOCAL_LLM_MODEL", "test-model");
-        std::env::remove_var("XAVIER2_LLM_MODEL");
-        std::env::set_var("XAVIER2_LOCAL_LLM_URL", "http://test-url/v1");
-        std::env::remove_var("XAVIER2_API_FLAVOR");
+        std::env::set_var("XAVIER_LOCAL_LLM_MODEL", "test-model");
+        std::env::remove_var("XAVIER_LLM_MODEL");
+        std::env::set_var("XAVIER_LOCAL_LLM_URL", "http://test-url/v1");
+        std::env::remove_var("XAVIER_API_FLAVOR");
 
         let config = ModelProviderConfig::local_from_env();
 
@@ -668,10 +668,10 @@ mod tests {
     #[test]
     fn test_local_provider_defaults() {
         let _guard = env_lock().lock().unwrap();
-        std::env::remove_var("XAVIER2_LOCAL_LLM_MODEL");
-        std::env::remove_var("XAVIER2_LLM_MODEL");
-        std::env::remove_var("XAVIER2_LOCAL_LLM_URL");
-        std::env::remove_var("XAVIER2_API_FLAVOR");
+        std::env::remove_var("XAVIER_LOCAL_LLM_MODEL");
+        std::env::remove_var("XAVIER_LLM_MODEL");
+        std::env::remove_var("XAVIER_LOCAL_LLM_URL");
+        std::env::remove_var("XAVIER_API_FLAVOR");
 
         let config = ModelProviderConfig::local_from_env();
 
@@ -683,9 +683,9 @@ mod tests {
     #[test]
     fn test_local_anthropic_flavor_uses_ollama_base() {
         let _guard = env_lock().lock().unwrap();
-        std::env::set_var("XAVIER2_API_FLAVOR", "anthropic-compatible");
-        std::env::remove_var("XAVIER2_LOCAL_ANTHROPIC_URL");
-        std::env::remove_var("XAVIER2_LOCAL_LLM_URL");
+        std::env::set_var("XAVIER_API_FLAVOR", "anthropic-compatible");
+        std::env::remove_var("XAVIER_LOCAL_ANTHROPIC_URL");
+        std::env::remove_var("XAVIER_LOCAL_LLM_URL");
 
         let config = ModelProviderConfig::local_from_env();
 
@@ -695,6 +695,6 @@ mod tests {
             Some(DEFAULT_LOCAL_ANTHROPIC_BASE_URL.to_string())
         );
 
-        std::env::remove_var("XAVIER2_API_FLAVOR");
+        std::env::remove_var("XAVIER_API_FLAVOR");
     }
 }

@@ -1,14 +1,14 @@
 #!/bin/bash
-# launch_xavier2.sh - Lanza Xavier2 y espera a que esté listo
+# launch_xavier.sh - Lanza Xavier y espera a que esté listo
 
-echo "🚀 Launching Xavier2..."
+echo "🚀 Launching Xavier..."
 
-# Cambiar al directorio de Xavier2
-cd E:/scripts-python/xavier2
+# Cambiar al directorio de Xavier
+cd E:/scripts-python/xavier
 
 # Verificar si ya está corriendo
 if curl -s http://localhost:8003/health > /dev/null 2>&1; then
-    echo "✅ Xavier2 already running"
+    echo "✅ Xavier already running"
     exit 0
 fi
 
@@ -24,27 +24,27 @@ if [ -f "docker-compose.yml" ]; then
     docker-compose up -d
 
     # Esperar a que esté listo
-    echo "⏳ Waiting for Xavier2..."
+    echo "⏳ Waiting for Xavier..."
     for i in {1..30}; do
         if curl -s http://localhost:8003/health > /dev/null 2>&1; then
-            echo "✅ Xavier2 is ready!"
+            echo "✅ Xavier is ready!"
             exit 0
         fi
         sleep 2
     done
 
-    echo "❌ Xavier2 failed to start"
+    echo "❌ Xavier failed to start"
     exit 1
 else
     # Intentar con docker run
     echo "📦 Starting with docker run..."
-    docker run -d --name xavier2 -p 8003:8003 iberi22/xavier2:latest
+    docker run -d --name xavier -p 8003:8003 iberi22/xavier:latest
 
     echo "⏳ Waiting..."
     sleep 10
 
     if curl -s http://localhost:8003/health > /dev/null 2>&1; then
-        echo "✅ Xavier2 is ready!"
+        echo "✅ Xavier is ready!"
     else
         echo "❌ Failed"
     fi

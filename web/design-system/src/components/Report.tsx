@@ -14,7 +14,7 @@ export interface ReportProps {
 export function Report({ title = 'Quarterly Report', date = 'Q1 2026', sections }: ReportProps) {
   const defaultSections: ReportSection[] = [
     { title: 'Summary', content: 'Major improvements across all metrics.' },
-    { title: 'Key Achievements', content: 'Launched Xavier2 with 99.1% recall.' },
+    { title: 'Key Achievements', content: 'Launched Xavier with 99.1% recall.' },
     { title: 'Next Steps', content: 'Focus on enterprise features.' },
   ];
 

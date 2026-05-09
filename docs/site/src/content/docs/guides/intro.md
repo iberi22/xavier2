@@ -1,15 +1,15 @@
 ---
 title: Introduction
-description: Current overview of Xavier2
+description: Current overview of Xavier
 ---
 
-# Xavier2 Documentation
+# Xavier Documentation
 
-> **Xavier2** is a Rust memory runtime for AI agent workflows.
+> **Xavier** is a Rust memory runtime for AI agent workflows.
 
 For local operation, the recommended interface is authenticated HTTP with `curl`. MCP remains available as an optional transport for IDE-native tooling.
 
-## What Xavier2 Currently Provides
+## What Xavier Currently Provides
 
 - **Shared memory storage** for agent workflows
 - **Semantic retrieval** through embeddings and indexed memory
@@ -45,7 +45,7 @@ Avoid stronger claims until latency, auth hardening, and monitoring are closed o
 
 ## Public Data Export
 
-The planned public export pipeline splits Xavier2 datasets between lightweight GitHub raw manifests and heavier Hugging Face artifacts. See [Public Export](/reference/export/) for the `xavier2 export --public` protocol.
+The planned public export pipeline splits Xavier datasets between lightweight GitHub raw manifests and heavier Hugging Face artifacts. See [Public Export](/reference/export/) for the `xavier export --public` protocol.
 
 ## Quick Links
 

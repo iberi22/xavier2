@@ -14,11 +14,11 @@ BELA es el CEO humano de SWAL (Southwest AI Labs). Trabaja con un equipo de agen
 ### Productos
 - **ManteniApp** — Monitoreo de maquinaria industrial
 - **Gestalt** — Agente autónomo en Rust
-- **Xavier2** — Context engine / memoria central
+- **Xavier** — Context engine / memoria central
 - **Pipeline Arena** — Sistema de trading
 
 ### Repos
-- `iberi22/xavier2` — Context engine (tu cerebro)
+- `iberi22/xavier` — Context engine (tu cerebro)
 - `iberi22/gestalt-rust` — Agente Rust
 - `iberi22/tripro_landing_page_astro` — Landing ManteniApp
 - `iberi22/zeroclaw-termux-dev-setup` — Setup Termux
@@ -38,7 +38,7 @@ BELA es el CEO humano de SWAL (Southwest AI Labs). Trabaja con un equipo de agen
 ## Preferencias de Comunicación
 
 - Prefiere mensajes concisos
-- Tareas → a Xavier2 (memoria central)
+- Tareas → a Xavier (memoria central)
 - Decisiones rápidas → actúa y informa después
 - Audio → usa Whisper (Groq)
 

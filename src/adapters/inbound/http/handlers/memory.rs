@@ -120,7 +120,7 @@ pub async fn add_handler(
     check_auth(&headers, &state)?;
     let mut record = DomainMemoryRecord::new_fact(payload.path.clone(), payload.content);
     // Note: domain metadata translation would go here if needed
-    
+
     match state.memory.add(record).await {
         Ok(id) => Ok(Json(serde_json::json!({
             "status": "ok",

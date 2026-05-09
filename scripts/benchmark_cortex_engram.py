@@ -25,7 +25,7 @@ SYSTEMS = {
 }
 
 PROJECTS = [
-    "xavier2", "cortex", "synapse-agentic", "gestalt-rust", "manteniapp",
+    "xavier", "cortex", "synapse-agentic", "gestalt-rust", "manteniapp",
     "agents-flows-recipes", "edge-hive", "worldexams", "tripro_landing_page_astro",
     "domus-otec",
 ]
@@ -34,16 +34,16 @@ def index_projects(base_path="E:\\scripts-python"):
     """Index project codebases."""
     print("\n=== INDEXING PROJECTS ===\n")
     results = {}
-    
+
     for project in PROJECTS:
         path = Path(base_path) / project
         if not path.exists():
             continue
-        
+
         file_count = 0
         total_lines = 0
         types = {}
-        
+
         for ext in ['*.rs', '*.py', '*.ts', '*.js', '*.md', '*.toml', '*.json']:
             for f in path.rglob(ext):
                 if '.git' in str(f) or 'node_modules' in str(f):
@@ -56,11 +56,11 @@ def index_projects(base_path="E:\\scripts-python"):
                     types[e] = types.get(e, 0) + 1
                 except:
                     pass
-        
+
         if file_count > 0:
             results[project] = {"files": file_count, "lines": total_lines, "types": types}
             print(f"  {project}: {file_count} files, {total_lines} lines")
-    
+
     return results
 
 async def store(system, config, data):
@@ -99,10 +99,10 @@ async def main():
     print("SWAL MEMORY BENCHMARK - CORTEX vs ENGRAM")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
-    
+
     # Index projects
     projects = index_projects()
-    
+
     # Create sync payload
     sync_data = {
         "type": "project_index",
@@ -114,26 +114,26 @@ async def main():
             "lines": sum(p["lines"] for p in projects.values())
         }
     }
-    
+
     print("\n=== SYNCING TO SYSTEMS ===\n")
     for name, config in SYSTEMS.items():
         ok = await store(name, config, sync_data)
         print(f"  {name}: {'✅' if ok else '❌'}")
-    
+
     await asyncio.sleep(1)
-    
+
     # Benchmark queries
     queries = [
         "How many projects are indexed?",
-        "What is xavier2 status?",
+        "What is xavier status?",
         "Total lines of code across projects",
         "Tell me about ManteniApp",
         "Memory systems architecture",
     ]
-    
+
     print("\n=== BENCHMARK QUERIES ===\n")
     results = {}
-    
+
     for i, q in enumerate(queries):
         print(f"  Q{i+1}: {q[:50]}...")
         results[q] = {}
@@ -142,12 +142,12 @@ async def main():
             results[q][name] = r
             status = "✅" if r["success"] else "❌"
             print(f"    {name}: {status} ({r['latency_ms']:.0f}ms)")
-    
+
     # Summary
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    
+
     for name in SYSTEMS:
         latencies = [results[q][name]["latency_ms"] for q in queries if results[q][name]["success"]]
         avg = sum(latencies) / len(latencies) if latencies else 0
@@ -155,11 +155,11 @@ async def main():
         print(f"\n  {name.upper()}")
         print(f"    Avg latency: {avg:.0f}ms")
         print(f"    Success: {success:.0f}%")
-    
+
     print("\n" + "=" * 60)
-    
+
     # Save results
-    output = Path("E:\\scripts-python\\xavier2\\benchmark_results")
+    output = Path("E:\\scripts-python\\xavier\\benchmark_results")
     output.mkdir(parents=True, exist_ok=True)
     fname = output / f"benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     fname.write_text(json.dumps({

@@ -1,4 +1,4 @@
-# Xavier2 Changelog
+# Xavier Changelog
 
 ## [0.4.0] - 2026-03-24
 
@@ -24,7 +24,7 @@
 ### Changed
 - **Architecture Realignment**: Migrated repository structure to comply with Git-Core v3.2 Protocol.
 - **Documentation Consolidation**: Centralized system specifications, research, and agent prompts under the `docs/` hierarchy.
-- **Auth Middleware**: Standardized `X-Xavier2-Token` enforcement across all public endpoints.
+- **Auth Middleware**: Standardized `X-Xavier-Token` enforcement across all public endpoints.
 
 ### Fixed
 - **Docker Integration**: Resolved health check failures and port binding conflicts in the development stack.

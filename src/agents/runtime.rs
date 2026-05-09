@@ -123,10 +123,10 @@ impl RuntimeConfig {
         let mut config = Self::default();
 
         if let Some(provider) =
-            lookup("XAVIER2_MODEL_PROVIDER").map(|value| value.trim().to_ascii_lowercase())
+            lookup("XAVIER_MODEL_PROVIDER").map(|value| value.trim().to_ascii_lowercase())
         {
             if provider == "local" {
-                if let Some(url) = lookup("XAVIER2_LOCAL_LLM_URL").filter(|v| !v.trim().is_empty())
+                if let Some(url) = lookup("XAVIER_LOCAL_LLM_URL").filter(|v| !v.trim().is_empty())
                 {
                     config.model_provider = Some(provider);
                     config.model_url = Some(url);
@@ -150,7 +150,7 @@ impl RuntimeConfig {
             }
         }
 
-        if let Some(url) = lookup("XAVIER2_LOCAL_LLM_URL").filter(|v| !v.trim().is_empty()) {
+        if let Some(url) = lookup("XAVIER_LOCAL_LLM_URL").filter(|v| !v.trim().is_empty()) {
             config.model_provider = Some("local".to_string());
             config.model_url = Some(url);
             return config;

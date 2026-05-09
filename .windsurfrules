@@ -1,4 +1,4 @@
-# Xavier2 Windsurf Rules
+﻿# Xavier Windsurf Rules
 
 Treat `AGENTS.md` as the single source of truth for workflow rules.
 
@@ -13,13 +13,13 @@ Treat `AGENTS.md` as the single source of truth for workflow rules.
 ## Memory Contract
 
 - GitHub Issues hold task state via `<agent-state>` blocks.
-- Xavier2 holds reusable knowledge and long-term agent memory.
+- Xavier holds reusable knowledge and long-term agent memory.
 - Follow the protocol at `docs/agent-docs/specs/SPEC_MEMORY_INTEGRATION.md`.
 - Never create task, planning, progress, or changelog markdown for workflow tracking.
 
 ## Execution Rules
 
-- Use Xavier2 MCP at `http://localhost:8003/mcp` for durable context (search first, store results).
+- Use Xavier MCP at `http://localhost:8003/mcp` for durable context (search first, store results).
 - Keep credentials in environment variables, not in tracked files.
 - Defer architecture decisions to `.gitcore/ARCHITECTURE.md`.
 - Keep changes atomic and aligned with Git-Core protocol.

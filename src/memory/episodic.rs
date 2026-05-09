@@ -137,7 +137,7 @@ impl Default for EpisodicMemoryConfig {
 ///
 /// # Example
 /// ```rust
-/// use xavier2::memory::episodic::{EpisodicMemory, SessionSummary, KeyEvent};
+/// use xavier::memory::episodic::{EpisodicMemory, SessionSummary, KeyEvent};
 /// use chrono::Utc;
 ///
 /// let mut em = EpisodicMemory::new();

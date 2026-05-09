@@ -1,10 +1,10 @@
-﻿# Xavier2 Code Audit Report
+﻿# Xavier Code Audit Report
 Generated: 2026-04-20 15:04
 Purpose: Pre-release audit for client OpenClaw deployment
 
 ## Executive Summary
 
-Xavier2 is the CLI-focused open-source edition of SWAL's cognitive memory system.
+Xavier is the CLI-focused open-source edition of SWAL's cognitive memory system.
 This audit identifies orphaned code, refactoring opportunities, and security gaps
 before client deployment.
 
@@ -53,7 +53,7 @@ All 11 routes have corresponding handlers. No orphaned routes.
 The following DTOs are defined inline in cli.rs and should be moved to a separate module:
 
 - SearchPayload (line 205)
-- AddPayload (line 216)  
+- AddPayload (line 216)
 - CodeScanPayload (line 214)
 - CodeFindPayload (line 220)
 - CodeContextPayload (line 232)
@@ -105,7 +105,7 @@ This suggests an issue with the code_query engine or index format mismatch.
 2. Investigate code_find_handler returning 0 results
 3. Add path validation/allowlist for code_scan_handler
 
-### MEDIUM PRIORITY  
+### MEDIUM PRIORITY
 4. Move DTOs to separate module (maintainability)
 5. Add authentication middleware to HTTP server
 6. Add rate limiting
@@ -119,10 +119,10 @@ This suggests an issue with the code_query engine or index format mismatch.
 
 ## 7. Deployment Notes
 
-- Binary location: C:\Users\belal\.cargo\target_global\release\xavier2.exe
-- Config: E:\scripts-python\xavier2\.env
-- Data: E:\scripts-python\xavier2\data\
-- DB: E:\scripts-python\xavier2\xavier2_memory_vec.db
+- Binary location: C:\Users\belal\.cargo\target_global\release\xavier.exe
+- Config: E:\scripts-python\xavier\.env
+- Data: E:\scripts-python\xavier\data\
+- DB: E:\scripts-python\xavier\xavier_memory_vec.db
 - Embedder: Ollama (nomic-embed-text) at localhost:11434
 
 ---

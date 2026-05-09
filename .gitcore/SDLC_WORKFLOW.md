@@ -1,14 +1,14 @@
-# SDLC Workflow - Xavier2
+# SDLC Workflow - Xavier
 
-**Versión:** 1.0  
-**Fecha:** 2026-04-14  
-**Proyecto:** Xavier2 Cognitive Memory System
+**Versión:** 1.0
+**Fecha:** 2026-04-14
+**Proyecto:** Xavier Cognitive Memory System
 
 ---
 
 ## 1. Visión General
 
-Este documento define el flujo de trabajo SDLC (Software Development Life Cycle) para Xavier2, un motor de memoria cognitiva para agentes IA construido en Rust.
+Este documento define el flujo de trabajo SDLC (Software Development Life Cycle) para Xavier, un motor de memoria cognitiva para agentes IA construido en Rust.
 
 ---
 
@@ -30,7 +30,7 @@ Este documento define el flujo de trabajo SDLC (Software Development Life Cycle)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           SDLC XAVIER2                                  │
+│                           SDLC XAVIER                                  │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  ISSUE ──> SRC ──> IMPLEMENT ──> TEST ──> REVIEW ──> DEPLOY            │
@@ -58,7 +58,7 @@ Este documento define el flujo de trabajo SDLC (Software Development Life Cycle)
 |------|--------|---------|
 | 2.1 | Crear branch | `git checkout -b feat/description-#issue` |
 | 2.2 | Implementar | Rust code en `src/` |
-| 2.3 | Tests | `cargo test -p xavier2` |
+| 2.3 | Tests | `cargo test -p xavier` |
 | 2.4 | Lint | `cargo clippy -- -D warnings` |
 
 ### Fase 3: Testing
@@ -66,7 +66,7 @@ Este documento define el flujo de trabajo SDLC (Software Development Life Cycle)
 | Step | Acción | Command |
 |------|--------|---------|
 | 3.1 | Unit tests | `cargo test --lib` |
-| 3.2 | Integration tests | `cargo test -p xavier2` |
+| 3.2 | Integration tests | `cargo test -p xavier` |
 | 3.3 | E2E | `cargo test --test e2e` |
 | 3.4 | Benchmarks | `cargo bench` |
 
@@ -154,7 +154,7 @@ Ver `.gitcore/features.json` para tracking oficial de features.
 cargo test --lib
 
 # All tests
-cargo test -p xavier2
+cargo test -p xavier
 
 # E2E
 cargo test --test e2e -- --nocapture
@@ -163,7 +163,7 @@ cargo test --test e2e -- --nocapture
 cargo bench --bench api_v1
 
 # Lint
-cargo clippy -p xavier2 --all-targets -- -D warnings
+cargo clippy -p xavier --all-targets -- -D warnings
 
 # Format
 cargo fmt --check
@@ -171,4 +171,4 @@ cargo fmt --check
 
 ---
 
-*Xavier2 v0.4.1 - SDLC Workflow*
+*Xavier v0.4.1 - SDLC Workflow*

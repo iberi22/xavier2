@@ -1,7 +1,7 @@
 # ANTICIPATOR INTEGRATION ANALYSIS
 
 **Date:** 2026-04-06
-**Question:** Should Anticipator be a separate Rust crate or integrated directly into Xavier2?
+**Question:** Should Anticipator be a separate Rust crate or integrated directly into Xavier?
 
 ---
 
@@ -12,7 +12,7 @@
 | **Separate Crate** | ⚠️ Consider | Better reusability, isolated testing |
 | **Direct Integration** | ✅ **Recommended** | Simpler, faster, less overhead |
 
-**Verdict:** Direct integration into Xavier2 is the better approach for this use case.
+**Verdict:** Direct integration into Xavier is the better approach for this use case.
 
 ---
 
@@ -20,7 +20,7 @@
 
 ### Architecture
 ```
-xavier2/
+xavier/
 ├── src/
 │   └── memory/
 └── anticipator/           ← Separate crate
@@ -50,13 +50,13 @@ xavier2/
 |----------|--------|
 | **Complexity** | 2 crates to maintain |
 | **Overhead** | Extra dependency management |
-| **Coupling** | Still tightly coupled to Xavier2 |
-| **Build time** | Additional compile for Xavier2 |
+| **Coupling** | Still tightly coupled to Xavier |
+| **Build time** | Additional compile for Xavier |
 
 ### If Separate Crate
 
 ```toml
-# In xavier2/Cargo.toml
+# In xavier/Cargo.toml
 anticipator = { path = "../anticipator", version = "0.1" }
 
 # As external crate (future)
@@ -64,7 +64,7 @@ anticipator = "0.1"
 ```
 
 ```rust
-// In xavier2
+// In xavier
 use anticipator::{Scanner, ThreatLevel};
 
 pub struct SecurityScanner {
@@ -84,7 +84,7 @@ impl SecurityScanner {
 
 ### Architecture
 ```
-xavier2/src/
+xavier/src/
 ├── lib.rs
 ├── main.rs
 └── security/
@@ -105,7 +105,7 @@ xavier2/src/
 | **Simple** | One codebase |
 | **Fast** | No inter-crate overhead |
 | **Atomic** | Single release |
-| **Optimized** | Direct access to Xavier2 internals |
+| **Optimized** | Direct access to Xavier internals |
 | **No semver** | Break what needs breaking |
 | **Type sharing** | Share types without serialization |
 
@@ -114,8 +114,8 @@ xavier2/src/
 | Drawback | Impact |
 |----------|--------|
 | **Less reusable** | Harder to extract later |
-| **Larger xavier2** | Bigger binary |
-| **Tighter coupling** | Security changes affect Xavier2 |
+| **Larger xavier** | Bigger binary |
+| **Tighter coupling** | Security changes affect Xavier |
 
 ---
 
@@ -135,7 +135,7 @@ xavier2/src/
 
 ---
 
-## Anticipator Layers vs Xavier2 Integration
+## Anticipator Layers vs Xavier Integration
 
 ### What to Port (Python → Rust)
 
@@ -150,7 +150,7 @@ xavier2/src/
 
 **Total porting effort: ~1-2 days**
 
-### What NOT to Port (Not needed for Xavier2)
+### What NOT to Port (Not needed for Xavier)
 
 | Layer | Reason to Skip |
 |-------|---------------|
@@ -248,7 +248,7 @@ async fn security_scan(req: Request) -> Result<Response> {
 ## Code Structure (Direct Integration)
 
 ```
-xavier2/src/security/
+xavier/src/security/
 ├── mod.rs              # Module entry + Scanner
 ├── phrase.rs           # Aho-Corasick phrase matching
 │
@@ -337,7 +337,7 @@ standalone = ["dep:anticipator-external"]
 
 ## Next Steps
 
-1. Create `src/security/` in Xavier2
+1. Create `src/security/` in Xavier
 2. Port phrase detection (Aho-Corasick)
 3. Integrate into memory endpoints
 4. Add `/security/scan` public API

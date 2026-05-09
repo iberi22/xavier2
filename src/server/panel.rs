@@ -264,7 +264,7 @@ mod tests {
     use tower::util::ServiceExt;
 
     async fn test_state() -> (AppState, WorkspaceContext) {
-        let db_path = std::env::temp_dir().join(format!("xavier2-panel-{}.db", Ulid::new()));
+        let db_path = std::env::temp_dir().join(format!("xavier-panel-{}.db", Ulid::new()));
         let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).unwrap());
         let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
         let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
@@ -283,7 +283,7 @@ mod tests {
                 sync_policy: SyncPolicy::CloudMirror,
             },
             RuntimeConfig::default(),
-            std::env::temp_dir().join(format!("xavier2-panel-store-{}", Ulid::new())),
+            std::env::temp_dir().join(format!("xavier-panel-store-{}", Ulid::new())),
         )
         .await
         .unwrap();
@@ -359,7 +359,7 @@ mod tests {
             .method("POST")
             .uri("/panel/api/chat")
             .header("content-type", "application/json")
-            .body(Body::from(r#"{"message":"Explain xavier2 memory"}"#))
+            .body(Body::from(r#"{"message":"Explain xavier memory"}"#))
             .unwrap();
 
         let response = app.oneshot(request).await.unwrap();

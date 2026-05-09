@@ -1,5 +1,5 @@
 ---
-title: "TASK: Stabilize MCP contract for Xavier2 1.0"
+title: "TASK: Stabilize MCP contract for Xavier 1.0"
 labels:
   - ai-plan
   - release

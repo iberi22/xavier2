@@ -1,5 +1,13 @@
 const http = require('http');
 
+function getRequiredXavierToken() {
+  const token = process.env.XAVIER_TOKEN || process.env.XAVIER_API_KEY || process.env.XAVIER_TOKEN;
+  if (!token) {
+    throw new Error('Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.');
+  }
+  return token;
+}
+
 function api(BASE, TOKEN, path, payload, method) {
   return new Promise((resolve, reject) => {
     const url = new URL(path, BASE);
@@ -7,7 +15,7 @@ function api(BASE, TOKEN, path, payload, method) {
     const options = {
       hostname: url.hostname, port: url.port, path: url.pathname,
       method: method || (payload ? 'POST' : 'GET'),
-      headers: {'Content-Type': 'application/json', 'X-Xavier2-Token': TOKEN}
+      headers: {'Content-Type': 'application/json', 'X-Xavier-Token': TOKEN}
     };
     if (data) options.headers['Content-Length'] = Buffer.byteLength(data);
     const req = http.request(options, res => {
@@ -22,12 +30,13 @@ function api(BASE, TOKEN, path, payload, method) {
 }
 
 async function main() {
-  console.log('=== Verifying Xavier2 memories ===\n');
+  console.log('=== Verifying Xavier memories ===\n');
+  const token = getRequiredXavierToken();
 
-  const queries = ['*', 'task', 'repo', 'decision', 'session', 'xavier2', 'memory', 'openclaw'];
+  const queries = ['*', 'task', 'repo', 'decision', 'session', 'xavier', 'memory', 'openclaw'];
 
   for (const q of queries) {
-    const r = await api('http://localhost:8006', 'dev-token', '/memory/search', {query: q, limit: 20});
+    const r = await api('http://localhost:8006', token, '/memory/search', {query: q, limit: 20});
     const count = r.results ? r.results.length : 0;
     console.log('Query "' + q + '": ' + count + ' results');
     if (r.results && r.results.length > 0) {
@@ -39,7 +48,7 @@ async function main() {
 
   console.log('\n--- /memory/manage ---');
   try {
-    const m = await api('http://localhost:8006', 'dev-token', '/memory/manage', {action: 'stats'});
+    const m = await api('http://localhost:8006', token, '/memory/manage', {action: 'stats'});
     console.log(JSON.stringify(m, null, 2));
   } catch(e) { console.log('Error: ' + e.message); }
 }

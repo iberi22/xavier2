@@ -1,7 +1,7 @@
-//! Xavier2 Web - WASM entry point for web-based UI
+//! Xavier Web - WASM entry point for web-based UI
 
 #[cfg(target_arch = "wasm32")]
-use xavier2::ui::{KanbanState};
+use xavier::ui::{KanbanState};
 #[cfg(target_arch = "wasm32")]
 use eframe::wasm_bindgen::prelude::*;
 
@@ -13,30 +13,30 @@ pub fn main() -> Result<(), JsValue> {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
     // Log startup
-    web_sys::console::log_1(&"Xavier2 UI starting...".into());
+    web_sys::console::log_1(&"Xavier UI starting...".into());
 
     // Run the application
     eframe::WebRunner::new()
         .start(
             "canvas", // canvas element ID
             eframe::WebOptions::default(),
-            Box::new(|_cc| Ok(Box::new(Xavier2WebApp::new()))),
+            Box::new(|_cc| Ok(Box::new(XavierWebApp::new()))),
         )
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-    web_sys::console::log_1(&"Xavier2 UI initialized!".into());
+    web_sys::console::log_1(&"Xavier UI initialized!".into());
 
     Ok(())
 }
 
 /// Main web application struct
 #[cfg(target_arch = "wasm32")]
-struct Xavier2WebApp {
+struct XavierWebApp {
     state: KanbanState,
 }
 
 #[cfg(target_arch = "wasm32")]
-impl Xavier2WebApp {
+impl XavierWebApp {
     fn new() -> Self {
         Self {
             state: KanbanState::new(),
@@ -45,7 +45,7 @@ impl Xavier2WebApp {
 }
 
 #[cfg(target_arch = "wasm32")]
-impl eframe::App for Xavier2WebApp {
+impl eframe::App for XavierWebApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.state.render(ctx);
         ctx.request_repaint();

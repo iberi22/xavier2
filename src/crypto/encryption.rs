@@ -1,4 +1,4 @@
-//! AES-256-GCM Encryption for Xavier2 E2E
+//! AES-256-GCM Encryption for Xavier E2E
 //!
 //! Provides symmetric encryption using AES-256 in GCM mode (authenticated encryption).
 //! Each encryption operation generates a fresh nonce (IV).
@@ -205,7 +205,7 @@ mod tests {
             k
         };
         let nonce = NonceBytes::generate();
-        let plaintext = b"Hello, Xavier2 E2E Encryption!";
+        let plaintext = b"Hello, Xavier E2E Encryption!";
 
         let blob = encrypt_data(plaintext, &key, &nonce).unwrap();
         let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).unwrap();

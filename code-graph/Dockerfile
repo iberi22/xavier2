@@ -2,7 +2,7 @@
 # code-graph Docker Image
 # =============================================================================
 # Codebase Understanding without RAG - Tree-sitter + Agentic Search
-# 
+#
 # SECURITY FEATURES:
 # - HTTP Token authentication required
 # - Runs as non-root user

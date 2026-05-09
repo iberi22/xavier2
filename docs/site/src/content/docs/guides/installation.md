@@ -1,6 +1,6 @@
----
+﻿---
 title: Installation
-description: How to install and configure Xavier2
+description: How to install and configure Xavier
 ---
 
 # Installation Guide
@@ -17,8 +17,8 @@ description: How to install and configure Xavier2
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/southwest-ai-labs/xavier2.git
-cd xavier2
+git clone https://github.com/southwest-ai-labs/xavier.git
+cd xavier
 ```
 
 ### 2. Build the project
@@ -28,13 +28,13 @@ cd xavier2
 cargo build
 
 # Main runtime binary
-cargo build --bin xavier2
+cargo build --bin xavier
 ```
 
 ### 3. Run validation
 
 ```bash
-cargo test --workspace --features ci-safe --exclude xavier2-web
+cargo test --workspace --features ci-safe --exclude xavier-web
 npm run build --workspace panel-ui
 npm run build --workspace docs/site
 ```
@@ -43,41 +43,41 @@ npm run build --workspace docs/site
 
 ### Runtime configuration
 
-Xavier2 now treats `config/xavier2.config.json` as the canonical location for non-secret runtime settings. Secrets and credentials belong in `.env`.
+Xavier now treats `config/xavier.config.json` as the canonical location for non-secret runtime settings. Secrets and credentials belong in `.env`.
 
 ### Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XAVIER2_TOKEN` | no safe default | API authentication token |
-| `XAVIER2_CONFIG_PATH` | `config/xavier2.config.json` | Optional override for the canonical runtime config file |
+| `XAVIER_TOKEN` | no safe default | API authentication token |
+| `XAVIER_CONFIG_PATH` | `config/xavier.config.json` | Optional override for the canonical runtime config file |
 | provider API keys | unset | External API credentials |
 
 The current server still contains environment-based code paths internally, but the repository standard is now:
 
-- `config/xavier2.config.json` for non-secret operational settings
+- `config/xavier.config.json` for non-secret operational settings
 - `.env` for credentials and secrets
 
-## Running Xavier2
+## Running Xavier
 
 ### Development mode
 
 ```bash
-cargo run --bin xavier2
+cargo run --bin xavier
 ```
 
 ### Release binary
 
 ```bash
-cargo build --release --bin xavier2
-./target/release/xavier2
+cargo build --release --bin xavier
+./target/release/xavier
 ```
 
 ### Docker
 
 ```bash
 cp .env.example .env
-docker compose build xavier2
+docker compose build xavier
 docker compose up -d
 ```
 

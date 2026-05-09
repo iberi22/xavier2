@@ -1,13 +1,23 @@
-# Xavier2 Production Data Indexer
+# Xavier Production Data Indexer
 # Pobla las capas de memoria con datos reales de la operación
 
 param(
     [int]$BatchSize = 10
 )
 
-$XAVIER2_URL = "http://127.0.0.1:8003"
-$TOKEN = "dev-token"
-$HEADER = @{"X-Xavier2-Token" = $TOKEN; "Content-Type" = "application/json"}
+$XAVIER_URL = "http://127.0.0.1:8003"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
+$TOKEN = Get-XavierToken
+$HEADER = @{"X-Xavier-Token" = $TOKEN; "Content-Type" = "application/json"}
 
 function Add-Memory {
     param(
@@ -15,7 +25,7 @@ function Add-Memory {
         [string]$Path,
         [string]$Category = "general"
     )
-    
+
     $body = @{
         content = $Content
         path = $Path
@@ -25,9 +35,9 @@ function Add-Memory {
             source = "production-indexer"
         }
     } | ConvertTo-Json -Compress
-    
+
     try {
-        $null = Invoke-RestMethod -Uri "$XAVIER2_URL/memory/add" -Method Post -Headers $HEADER -Body $body -TimeoutSec 30
+        $null = Invoke-RestMethod -Uri "$XAVIER_URL/memory/add" -Method Post -Headers $HEADER -Body $body -TimeoutSec 30
         return $true
     }
     catch {
@@ -37,13 +47,13 @@ function Add-Memory {
 }
 
 Write-Host "============================================================"
-Write-Host "XAVIER2 PRODUCTION DATA INDEXER"
+Write-Host "XAVIER PRODUCTION DATA INDEXER"
 Write-Host "============================================================"
 
 # SWAL Business Context
 Write-Host "`n[1/8] SWAL Business Context..."
 Add-Memory -Content "SouthWest AI Labs (SWAL) - AI development company. Builds autonomous agents, SaaS products, and custom software. Founder: BELA (BeRi0n3)." -Path "swal/business/overview" -Category "business"
-Add-Memory -Content "SWAL Products: ManteniApp (machinery monitoring SaaS), Xavier2 (memory system), Gestalt-Rust (runtime), ZeroClaw (runtime), Cortex (enterprise memory)." -Path "swal/products" -Category "product"
+Add-Memory -Content "SWAL Products: ManteniApp (machinery monitoring SaaS), Xavier (memory system), Gestalt-Rust (runtime), ZeroClaw (runtime), Cortex (enterprise memory)." -Path "swal/products" -Category "product"
 Add-Memory -Content "BELA - Developer and founder of SWAL. Manages multiple ventures: AI Labs, Laboratory Engineering, Content Creator Career, Influencer Manager." -Path "swal/team/bela" -Category "person"
 
 # ManteniApp
@@ -64,11 +74,11 @@ Add-Memory -Content "OpenClaw - Agent orchestration platform. Runs SWAL agents (
 Add-Memory -Content "OpenClaw Agent 'ventas' - Sales agent. Manages prospects, RFI generation, proposals for SWAL products. Connected via Telegram." -Path "system/openclaw/agents/ventas" -Category "agent"
 Add-Memory -Content "OpenClaw Agent 'main' - Primary agent for BELA. Handles overall operations, coding, research, management tasks." -Path "system/openclaw/agents/main" -Category "agent"
 
-# Xavier2 Memory System
-Write-Host "[5/8] Xavier2 Memory System..."
-Add-Memory -Content "Xavier2 - Multi-layer memory system for AI agents. Layers: Working Memory (recent), Episodic (sessions), Semantic (entities). Uses RRF fusion." -Path "system/xavier2" -Category "system"
-Add-Memory -Content "Xavier2 API: POST /memory/add (content, path), POST /memory/search (query, limit), POST /memory/query (query). Auth: X-Xavier2-Token header." -Path "system/xavier2/api" -Category "system"
-Add-Memory -Content "Xavier2 vs Cortex: Xavier2 is OSS MIT, Cortex is Enterprise. Both use same core memory architecture." -Path "system/xavier2/comparison" -Category "system"
+# Xavier Memory System
+Write-Host "[5/8] Xavier Memory System..."
+Add-Memory -Content "Xavier - Multi-layer memory system for AI agents. Layers: Working Memory (recent), Episodic (sessions), Semantic (entities). Uses RRF fusion." -Path "system/xavier" -Category "system"
+Add-Memory -Content "Xavier API: POST /memory/add (content, path), POST /memory/search (query, limit), POST /memory/query (query). Auth: X-Xavier-Token header." -Path "system/xavier/api" -Category "system"
+Add-Memory -Content "Xavier vs Cortex: Xavier is OSS MIT, Cortex is Enterprise. Both use same core memory architecture." -Path "system/xavier/comparison" -Category "system"
 
 # Sales Operations
 Write-Host "[6/8] Sales Operations..."
@@ -78,7 +88,7 @@ Add-Memory -Content "Proposal Template: Includes executive summary, solution des
 
 # Benchmark Results
 Write-Host "[7/8] Benchmark History..."
-Add-Memory -Content "Benchmark 2026-04-15: Xavier2 avg=516ms p95=1145ms with Ollama local. Cortex avg=962ms. Xavier2 is faster but retrieval needs tuning." -Path "benchmark/results/20260415" -Category "benchmark"
+Add-Memory -Content "Benchmark 2026-04-15: Xavier avg=516ms p95=1145ms with Ollama local. Cortex avg=962ms. Xavier is faster but retrieval needs tuning." -Path "benchmark/results/20260415" -Category "benchmark"
 
 # Skills and Tools
 Write-Host "[8/8] Skills and Tools..."
@@ -91,9 +101,9 @@ Write-Host "============================================================"
 
 # Verify
 Write-Host "`n[VERIFY] Testing retrieval..."
-$test = Invoke-RestMethod -Uri "$XAVIER2_URL/memory/query" -Method Post -Headers $HEADER -Body (@{query="ManteniApp"; limit=3} | ConvertTo-Json -Compress) -TimeoutSec 30
+$test = Invoke-RestMethod -Uri "$XAVIER_URL/memory/query" -Method Post -Headers $HEADER -Body (@{query="ManteniApp"; limit=3} | ConvertTo-Json -Compress) -TimeoutSec 30
 if ($test.status -eq "ok") {
     Write-Host "Test query 'ManteniApp': $($test.response.Substring(0, [math]::Min(80, $test.response.Length)))..."
 }
 
-Write-Host "`nIndexing complete! Xavier2 is now populated with production data."
+Write-Host "`nIndexing complete! Xavier is now populated with production data."

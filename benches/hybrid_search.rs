@@ -1,10 +1,10 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+﻿use criterion::{criterion_group, criterion_main, Criterion};
 use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 use tokio::runtime::Runtime;
-use xavier2::memory::belief_graph::BeliefRelation;
-use xavier2::memory::sqlite_vec_store::{VecSqliteMemoryStore, VecSqliteStoreConfig};
-use xavier2::memory::{HybridSearchMode, MemoryRecord, MemoryStore};
+use xavier::memory::belief_graph::BeliefRelation;
+use xavier::memory::sqlite_vec_store::{VecSqliteMemoryStore, VecSqliteStoreConfig};
+use xavier::memory::{HybridSearchMode, MemoryRecord, MemoryStore};
 
 fn stable_key(kind: &str, parts: &[&str]) -> String {
     let mut digest = Sha256::new();
@@ -54,7 +54,7 @@ fn bench_hybrid_search(c: &mut Criterion) {
             ),
             (
                 "memory/repo-release",
-                "Repository openclaw/xavier2 tagged release v0.4.1 for customer rollout.",
+                "Repository openclaw/xavier tagged release v0.4.1 for customer rollout.",
                 vec![0.0, 1.0, 1.0],
             ),
             (
@@ -136,7 +136,7 @@ fn bench_hybrid_search(c: &mut Criterion) {
         ),
         ("INC-4821 OpenClaw", [1.0, 0.0, 0.0], "memory/incident"),
         (
-            "openclaw/xavier2 v0.4.1",
+            "openclaw/xavier v0.4.1",
             [1.0, 1.0, 0.0],
             "memory/repo-release",
         ),

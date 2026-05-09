@@ -10,7 +10,7 @@ assignees: []
 
 ## 🧬 Overview
 
-Xavier2 needs an **Evolve Module** — a self-contained, autonomous agentic subsystem that continuously improves the entire Xavier2 memory architecture by running automated research experiments, synthesizing SOTA findings, and applying verified improvements. This issue tracks the full design, implementation, and integration plan.
+Xavier needs an **Evolve Module** — a self-contained, autonomous agentic subsystem that continuously improves the entire Xavier memory architecture by running automated research experiments, synthesizing SOTA findings, and applying verified improvements. This issue tracks the full design, implementation, and integration plan.
 
 The Evolve Module draws inspiration from three convergent paradigms:
 1. **Karpathy's autoresearch** — An autonomous experiment loop where an AI agent modifies code, runs experiments with fixed budgets, measures against a single metric, and keeps/discards changes indefinitely.
@@ -25,8 +25,8 @@ The Evolve Module draws inspiration from three convergent paradigms:
 
 - [ ] **Top-1 on LoCoMo benchmark** — Beat all existing baselines on multi-hop QA (Single/Multi/Temporal/OpenDomain/Adversarial categories)
 - [ ] **Top-1 on Evo-Memory benchmark** — Outperform ReMem and all 10+ memory modules
-- [ ] **Autonomous self-improvement** — The Evolve agent runs independently, testing hypotheses against Xavier2's own memory subsystem
-- [ ] **Xavier2-as-MCP integration** — Use Xavier2's own memory (running in Docker) as the MCP backend for recording evolution state, experiment logs, and knowledge synthesis
+- [ ] **Autonomous self-improvement** — The Evolve agent runs independently, testing hypotheses against Xavier's own memory subsystem
+- [ ] **Xavier-as-MCP integration** — Use Xavier's own memory (running in Docker) as the MCP backend for recording evolution state, experiment logs, and knowledge synthesis
 
 ---
 
@@ -36,7 +36,7 @@ The Evolve Module draws inspiration from three convergent paradigms:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                    XAVIER2 EVOLVE MODULE (Autonomous Loop)                    │
+│                    XAVIER EVOLVE MODULE (Autonomous Loop)                    │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  🔬 RESEARCHER  ──▶  🧪 EXPERIMENTER  ──▶  📊 EVALUATOR  ──▶  🧠 REFLECTOR │
@@ -45,7 +45,7 @@ The Evolve Module draws inspiration from three convergent paradigms:
 │       └──────────────────  📦 INTEGRATOR  ◀──────────────────────┘          │
 │                            (Apply / Discard)                                 │
 │                                                                              │
-│  State persisted in: SurrealDB via Xavier2 MCP (localhost:8003)              │
+│  State persisted in: SurrealDB via Xavier MCP (localhost:8003)              │
 │  Metrics tracked:    LoCoMo scores, Evo-Memory scores, latency, tokens      │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -55,7 +55,7 @@ The Evolve Module draws inspiration from three convergent paradigms:
 | Agent | Role | Inspired By |
 |-------|------|-------------|
 | **🔬 Researcher** | Scans arXiv, papers, codebases for new memory techniques | autoresearch `program.md` read phase |
-| **🧪 Experimenter** | Modifies Xavier2 code (memory module) to implement hypotheses | autoresearch `train.py` modification |
+| **🧪 Experimenter** | Modifies Xavier code (memory module) to implement hypotheses | autoresearch `train.py` modification |
 | **📊 Evaluator** | Runs benchmarks (LoCoMo, Evo-Memory) with fixed time/token budgets | autoresearch `val_bpb` measurement |
 | **🧠 Reflector** | Analyzes results, generates hypotheses for next cycle | SEPGA reflection loop, A-Mem evolution |
 | **📦 Integrator** | Applies winning changes to main branch, discards losers | autoresearch keep/discard pattern |
@@ -97,7 +97,7 @@ The Evolve Module draws inspiration from three convergent paradigms:
 
 ### From A-Mem (NeurIPS 2025)
 
-**Xavier2 implementation targets:**
+**Xavier implementation targets:**
 1. **Atomic memory notes** — Each memory is a structured note with context, keywords, tags, embeddings
 2. **Bidirectional linking** — New memories automatically link to related historical memories
 3. **Memory evolution triggers** — When new memory contradicts or enriches existing memory, trigger autonomous update of historical memory's context/attributes
@@ -113,19 +113,19 @@ The Evolve Module draws inspiration from three convergent paradigms:
 
 ## 🛠️ Implementation Plan
 
-### Phase 1: Xavier2 MCP Integration (Skill + Configuration)
+### Phase 1: Xavier MCP Integration (Skill + Configuration)
 
-- [ ] Create `.agents/skills/xavier2-memory/SKILL.md` — Skill document for using Xavier2 memory as MCP
-- [ ] Configure Xavier2 Docker MCP endpoint (`localhost:8003`) for agent state persistence
+- [ ] Create `.agents/skills/xavier-memory/SKILL.md` — Skill document for using Xavier memory as MCP
+- [ ] Configure Xavier Docker MCP endpoint (`localhost:8003`) for agent state persistence
 - [ ] Define MCP tools: `evolve_store_experiment`, `evolve_get_history`, `evolve_store_hypothesis`, `evolve_get_metrics`
-- [ ] Verify Xavier2 health endpoint responds at `http://localhost:8003/health`
+- [ ] Verify Xavier health endpoint responds at `http://localhost:8003/health`
 
 ### Phase 2: Evolve Module Core (`src/agents/evolve/`)
 
 - [ ] `mod.rs` — Module coordinator, manages the 5 sub-agent loop
 - [ ] `researcher.rs` — Scans sources (arXiv API, GitHub trending, configured paper lists) for new memory techniques
 - [ ] `experimenter.rs` — Generates code modifications to `src/memory/` based on researcher findings
-- [ ] `evaluator.rs` — Runs LoCoMo and Evo-Memory benchmarks against current Xavier2 instance
+- [ ] `evaluator.rs` — Runs LoCoMo and Evo-Memory benchmarks against current Xavier instance
 - [ ] `reflector.rs` — Analyzes experiment results, generates improvement hypotheses using A-Mem evolution patterns
 - [ ] `integrator.rs` — Applies or discards changes based on metric improvements (autoresearch keep/discard)
 - [ ] `config.rs` — Evolve module configuration (intervals, thresholds, benchmark targets)
@@ -135,7 +135,7 @@ The Evolve Module draws inspiration from three convergent paradigms:
 The current `self_improve.rs` is a basic metrics tracker (success rate, latency). It needs to be elevated to support:
 - [ ] Integration with the Evolve loop as the metrics collection backend
 - [ ] A-Mem style structured improvement notes with bidirectional linking
-- [ ] Historical experiment tracking in SurrealDB via Xavier2 MCP
+- [ ] Historical experiment tracking in SurrealDB via Xavier MCP
 - [ ] Confidence-weighted improvement application (SEPGA pattern)
 
 ### Phase 4: Benchmark Integration
@@ -143,7 +143,7 @@ The current `self_improve.rs` is a basic metrics tracker (success rate, latency)
 - [ ] Implement LoCoMo benchmark runner (download dataset, run QA/summarization/dialogue tasks)
 - [ ] Implement Evo-Memory benchmark runner (streaming task evaluation)
 - [ ] Create `benches/evolve_benchmarks.rs` with standardized metric collection
-- [ ] Establish baseline scores on both benchmarks with current Xavier2 implementation
+- [ ] Establish baseline scores on both benchmarks with current Xavier implementation
 
 ### Phase 5: Memory Architecture Enhancements (Driven by Evolve)
 
@@ -156,7 +156,7 @@ The Evolve module should autonomously discover and implement improvements to:
 
 ### Phase 6: Autonomous Execution
 
-- [ ] Deploy Evolve agent as background Tokio task within Xavier2 runtime
+- [ ] Deploy Evolve agent as background Tokio task within Xavier runtime
 - [ ] Configure experiment budget (e.g., 10 minutes per hypothesis evaluation)
 - [ ] Set up results logging to SurrealDB with structured schema
 - [ ] Implement Guardian-style governance: high-stakes changes require human approval

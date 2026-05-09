@@ -1,12 +1,12 @@
-//! SEVIER2 Integration Tests — Xavier2 HTTP API
+//! SEVIER Integration Tests — Xavier HTTP API
 //!
-//! Tests for the SEVIER2 endpoint group: time metrics, session events,
+//! Tests for the SEVIER endpoint group: time metrics, session events,
 //! and sync-check.
 //!
 //! All tests use `tower::ServiceExt::oneshot` to hit a real router without
 //! spinning up a TCP listener.
 //!
-//! Run with: cargo test --test sevier2_stress_test
+//! Run with: cargo test --test sevier_stress_test
 
 use axum::{body::Body, http::Request, http::StatusCode};
 use http_body_util::BodyExt;
@@ -15,12 +15,12 @@ use rusqlite::Connection;
 use std::sync::Arc;
 use tower::ServiceExt;
 
-use xavier2::adapters::inbound::http::dto::TimeMetricDto;
-use xavier2::adapters::inbound::http::routes::create_router;
-use xavier2::adapters::inbound::http::routes::create_router_with_agent_registry;
-use xavier2::coordination::SimpleAgentRegistry;
-use xavier2::domain::agent::AgentMetadata;
-use xavier2::time::TimeMetricsStore;
+use xavier::adapters::inbound::http::dto::TimeMetricDto;
+use xavier::adapters::inbound::http::routes::create_router;
+use xavier::adapters::inbound::http::routes::create_router_with_agent_registry;
+use xavier::coordination::SimpleAgentRegistry;
+use xavier::domain::agent::AgentMetadata;
+use xavier::time::TimeMetricsStore;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -72,7 +72,7 @@ fn assert_ok(status: StatusCode) {
 // ─── Test 1: Health GET ──────────────────────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "requires running xavier2 server on port 8006"]
+#[ignore = "requires running xavier server on port 8006"]
 async fn test_health_get() {
     let router = build_router();
     let response = router
@@ -94,7 +94,7 @@ async fn test_health_get() {
 // ─── Test 2: Time Metric — save and retrieve via SQLite ──────────────────────
 
 #[tokio::test]
-#[ignore = "requires running xavier2 server on port 8006"]
+#[ignore = "requires running xavier server on port 8006"]
 async fn test_time_metric_save_and_retrieve() {
     let db = in_memory_db();
     let store = Arc::new(TimeMetricsStore::new(db.clone()));
@@ -137,7 +137,7 @@ async fn test_time_metric_save_and_retrieve() {
 // ─── Test 3: Time Metric endpoint returns expected shape ─────────────────────
 
 #[tokio::test]
-#[ignore = "requires running xavier2 server on port 8006"]
+#[ignore = "requires running xavier server on port 8006"]
 async fn test_time_metric_endpoint_returns_correct_shape() {
     let router = build_router();
 
@@ -159,7 +159,7 @@ async fn test_time_metric_endpoint_returns_correct_shape() {
 
     let response = router
         .clone()
-        .oneshot(json_post("/xavier2/time/metric", metric))
+        .oneshot(json_post("/xavier/time/metric", metric))
         .await
         .expect("request should complete");
 
@@ -191,7 +191,7 @@ async fn test_time_metric_endpoint_returns_correct_shape() {
 // ─── Test 4: Session Event — POST and verify mapped response ─────────────────
 
 #[tokio::test]
-#[ignore = "requires running xavier2 server on port 8006"]
+#[ignore = "requires running xavier server on port 8006"]
 async fn test_session_event_returns_mapped_status() {
     let router = build_router();
 
@@ -205,7 +205,7 @@ async fn test_session_event_returns_mapped_status() {
 
     let response = router
         .clone()
-        .oneshot(json_post("/xavier2/events/session", event))
+        .oneshot(json_post("/xavier/events/session", event))
         .await
         .expect("request should complete");
 
@@ -236,7 +236,7 @@ async fn test_session_event_returns_mapped_status() {
 // ─── Test 5: Session Event unknown event type falls back gracefully ──────────
 
 #[tokio::test]
-#[ignore = "requires running xavier2 server on port 8006"]
+#[ignore = "requires running xavier server on port 8006"]
 async fn test_session_event_unknown_type_graceful_fallback() {
     let router = build_router();
 
@@ -250,7 +250,7 @@ async fn test_session_event_unknown_type_graceful_fallback() {
 
     let response = router
         .clone()
-        .oneshot(json_post("/xavier2/events/session", event))
+        .oneshot(json_post("/xavier/events/session", event))
         .await
         .expect("request should complete");
 
@@ -265,13 +265,13 @@ async fn test_session_event_unknown_type_graceful_fallback() {
 // ─── Test 6: Sync Check — response shape validation ───────────────────────────
 
 #[tokio::test]
-#[ignore = "requires running xavier2 server on port 8006"]
+#[ignore = "requires running xavier server on port 8006"]
 async fn test_sync_check_returns_metrics() {
     let router = build_router();
 
     let response = router
         .clone()
-        .oneshot(json_post("/xavier2/sync/check", serde_json::json!({})))
+        .oneshot(json_post("/xavier/sync/check", serde_json::json!({})))
         .await
         .expect("request should complete");
 
@@ -313,13 +313,13 @@ async fn test_sync_check_returns_metrics() {
 // ─── Test 7: Sync Check GET variant ──────────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "requires running xavier2 server on port 8006"]
+#[ignore = "requires running xavier server on port 8006"]
 async fn test_sync_check_get_variant() {
     let router = build_router();
 
     let response = router
         .clone()
-        .oneshot(get("/xavier2/sync/check"))
+        .oneshot(get("/xavier/sync/check"))
         .await
         .expect("request should complete");
 
@@ -343,13 +343,13 @@ async fn test_sync_check_get_variant() {
 // ─── Test 8: Malformed JSON returns 400/422 ──────────────────────────────────
 
 #[tokio::test]
-#[ignore = "requires running xavier2 server on port 8006"]
+#[ignore = "requires running xavier server on port 8006"]
 async fn test_invalid_json_returns_error() {
     let router = build_router();
 
     let bad_body = Body::from(r#"not valid json"#);
     let request = Request::builder()
-        .uri("/xavier2/time/metric")
+        .uri("/xavier/time/metric")
         .method(axum::http::Method::POST)
         .header(axum::http::header::CONTENT_TYPE, "application/json")
         .body(bad_body)
@@ -368,12 +368,12 @@ async fn test_invalid_json_returns_error() {
 // ─── Test 9: Unknown route returns 404 ─────────────────────────────────────
 
 #[tokio::test]
-#[ignore = "requires running xavier2 server on port 8006"]
+#[ignore = "requires running xavier server on port 8006"]
 async fn test_unknown_route_returns_404() {
     let router = build_router();
 
     let response = router
-        .oneshot(get("/xavier2/does/not/exist"))
+        .oneshot(get("/xavier/does/not/exist"))
         .await
         .expect("request should complete");
 
@@ -397,7 +397,7 @@ async fn test_unregister_endpoint_removes_existing_agent() {
 
     let router = create_router_with_agent_registry(registry.clone());
     let response = router
-        .oneshot(post_empty("/xavier2/agents/agent-delete-1/unregister"))
+        .oneshot(post_empty("/xavier/agents/agent-delete-1/unregister"))
         .await
         .expect("request should complete");
 
@@ -422,7 +422,7 @@ async fn test_unregister_endpoint_removes_existing_agent() {
 async fn test_unregister_endpoint_returns_error_for_missing_agent() {
     let router = create_router_with_agent_registry(SimpleAgentRegistry::new());
     let response = router
-        .oneshot(post_empty("/xavier2/agents/missing-agent/unregister"))
+        .oneshot(post_empty("/xavier/agents/missing-agent/unregister"))
         .await
         .expect("request should complete");
 

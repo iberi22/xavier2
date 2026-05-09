@@ -1,22 +1,31 @@
 #!/usr/bin/env node
 /**
- * SWAL Operations Dashboard - Xavier2 Sync
- * Sincroniza Questions, Decisions y Projects con Xavier2
+ * SWAL Operations Dashboard - Xavier Sync
+ * Sincroniza Questions, Decisions y Projects con Xavier
  */
 
-const XAVIER2_URL = process.env.XAVIER2_URL || 'http://localhost:8003';
-const XAVIER2_TOKEN = process.env.XAVIER2_API_KEY || 'dev-token';
+const XAVIER_URL = process.env.XAVIER_URL || 'http://localhost:8003';
 const fs = require('fs');
 const path = require('path');
 
+function getRequiredXavierToken() {
+  const token = process.env.XAVIER_TOKEN || process.env.XAVIER_API_KEY || process.env.XAVIER_TOKEN;
+  if (!token) {
+    throw new Error('Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.');
+  }
+  return token;
+}
+
+const XAVIER_TOKEN = getRequiredXavierToken();
+
 const DASHBOARD_BASE = 'E:\\scripts-python\\SWAL-Operations-Dashboard';
 
-async function syncToXavier2(type, data) {
-  const endpoint = `${XAVIER2_URL}/memory/add`;
+async function syncToXavier(type, data) {
+  const endpoint = `${XAVIER_URL}/memory/add`;
   try {
     await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Xavier2-Token': XAVIER2_TOKEN },
+      headers: { 'Content-Type': 'application/json', 'X-Xavier-Token': XAVIER_TOKEN },
       body: JSON.stringify({
         path: `sweat-operations/${type}/${data.id}`,
         content: JSON.stringify(data, null, 2),
@@ -78,14 +87,14 @@ async function loadDecisions() {
 }
 
 async function main() {
-  console.log('🔄 SWAL Operations - Xavier2 Sync\n');
+  console.log('🔄 SWAL Operations - Xavier Sync\n');
 
   const questions = await loadQuestions();
-  for (const q of questions) { await syncToXavier2('questions', q); console.log(`  ✅ ${q.id}`); }
+  for (const q of questions) { await syncToXavier('questions', q); console.log(`  ✅ ${q.id}`); }
   console.log(`Questions: ${questions.length}\n`);
 
   const decisions = await loadDecisions();
-  for (const d of decisions) { await syncToXavier2('decisions', d); console.log(`  ✅ ${d.id}`); }
+  for (const d of decisions) { await syncToXavier('decisions', d); console.log(`  ✅ ${d.id}`); }
   console.log(`Decisions: ${decisions.length}\n`);
 
   console.log('✅ Sync complete!');

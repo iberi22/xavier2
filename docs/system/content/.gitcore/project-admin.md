@@ -99,7 +99,7 @@ team:
   description: string     # Team purpose
   members: Member[]       # Team members
   projects: string[]      # Associated projects
-  
+
 member:
   user_id: string
   role: enum              # admin, lead, developer, tester
@@ -142,7 +142,7 @@ release:
   changelog: string       # Release notes
   artifacts: Artifact[]   # Build artifacts
   deployed_at: timestamp
-  
+
 artifact:
   name: string
   url: string
@@ -218,7 +218,7 @@ cost_metrics:
   license_cost: number   # Software licenses
   total_cost: number
   currency: string        # USD, CLP, etc.
-  
+
 resource_usage:
   cpu_hours: number
   storage_gb: number
@@ -262,7 +262,7 @@ agent_workflow:
     - analyze_code
     - run_tests
     - update_task_status
-  
+
   on_task_done:
     - generate_changelog
     - check_deps

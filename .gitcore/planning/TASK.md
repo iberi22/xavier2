@@ -1,13 +1,13 @@
 # TASK.md
 
-Gestión de Tareas: Xavier2
+Gestión de Tareas: Xavier
 Última actualización: 2026-04-14
 
 ## 🎯 Resumen Ejecutivo y Estado Actual
 
 Estado General: 85% - Proyecto en fase de producción, mantenimiento activo.
 
-Resumen: Xavier2 v0.4.1 con features core implementadas. Foco en documentación, tests adicionales, y preparación para release 1.0.
+Resumen: Xavier v0.4.1 con features core implementadas. Foco en documentación, tests adicionales, y preparación para release 1.0.
 
 ## Progreso por Componente
 
@@ -27,7 +27,7 @@ Resumen: Xavier2 v0.4.1 con features core implementadas. Foco en documentación,
 
 ## 🚀 Fase Actual: Producción + Documentación
 
-Objetivo: llevar Xavier2 a release 1.0 con documentación completa y tests robustos.
+Objetivo: llevar Xavier a release 1.0 con documentación completa y tests robustos.
 
 | ID | Tarea | Prioridad | Estado | Issue | Commit |
 |----|-------|-----------|--------|-------|--------|
@@ -66,4 +66,4 @@ Ver directorio `.github/issues/` para issues individuales.
 
 ---
 
-*Xavier2 v0.4.1*
+*Xavier v0.4.1*

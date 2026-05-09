@@ -1,5 +1,5 @@
 import sys
-with open(r'E:\scripts-python\xavier2\src\memory\sqlite_vec_store.rs', 'r', encoding='utf-8') as f:
+with open(r'E:\scripts-python\xavier\src\memory\sqlite_vec_store.rs', 'r', encoding='utf-8') as f:
     content = f.read()
 lines = content.split('\n')
 fixed = 0
@@ -16,6 +16,6 @@ for i, line in enumerate(lines):
         lines[i] = '        "#)?;'
         fixed += 1
 print(f'Fixed {fixed} occurrences')
-with open(r'E:\scripts-python\xavier2\src\memory\sqlite_vec_store.rs', 'w', encoding='utf-8') as f:
+with open(r'E:\scripts-python\xavier\src\memory\sqlite_vec_store.rs', 'w', encoding='utf-8') as f:
     f.write('\n'.join(lines))
 print('Done')

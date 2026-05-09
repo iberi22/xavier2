@@ -1,11 +1,20 @@
-# SEVIER2 Endpoint Validation Script for Xavier2
-# Tests all required endpoints with proper X-Xavier2-Token header
-# Usage: .\test-sevier2-endpoints.ps1 [-BaseUrl http://localhost:8006] [-Token dev-token]
+# SEVIER Endpoint Validation Script for Xavier
+# Tests all required endpoints with proper X-Xavier-Token header
+# Usage: .\test-sevier-endpoints.ps1 [-BaseUrl http://localhost:8006] [-Token $env:XAVIER_TOKEN]
 
 param(
     [string]$BaseUrl = "http://localhost:8006",
-    [string]$Token = "dev-token"
+    [string]$Token = ""
 )
+
+if (-not $Token) {
+    $Token = $env:XAVIER_TOKEN
+    if (-not $Token) { $Token = $env:XAVIER_API_KEY }
+    if (-not $Token) { $Token = $env:XAVIER_TOKEN }
+    if (-not $Token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+}
 
 $ErrorActionPreference = "Continue"
 $startTime = Get-Date
@@ -22,9 +31,9 @@ function Log-Test {
 }
 
 # Headers
-$headers = @{ "X-Xavier2-Token" = $Token }
+$headers = @{ "X-Xavier-Token" = $Token }
 $jsonHeaders = @{
-    "X-Xavier2-Token" = $Token
+    "X-Xavier-Token" = $Token
     "Content-Type" = "application/json"
 }
 
@@ -74,7 +83,7 @@ function Test-Post {
 # ═══════════════════════════════════════════════════════════════════════════════
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  SEVIER2 Endpoint Validation" -ForegroundColor Cyan
+Write-Host "  SEVIER Endpoint Validation" -ForegroundColor Cyan
 Write-Host "  Base: $BaseUrl" -ForegroundColor Cyan
 Write-Host "  Token: $Token" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
@@ -90,12 +99,12 @@ $r = Test-Get -Endpoint "/health" -Description "GET /health" -Verify {
 }
 $results += $r
 
-# Test 2: POST /xavier2/time/metric
-Write-Host "[TEST 2] POST /xavier2/time/metric" -ForegroundColor Yellow
+# Test 2: POST /xavier/time/metric
+Write-Host "[TEST 2] POST /xavier/time/metric" -ForegroundColor Yellow
 $metricBody = @{
     metric_type = "powershell-validation"
     agent_id = "powershell-validator"
-    task_id = "task-sevier2-001"
+    task_id = "task-sevier-001"
     started_at = (Get-Date).ToUniversalTime().ToString("o")
     completed_at = (Get-Date).ToUniversalTime().ToString("o")
     duration_ms = 42
@@ -104,18 +113,18 @@ $metricBody = @{
     model = "validator-v1"
     tokens_used = 50
     task_category = "validation"
-    metadata = @{ source = "test-sevier2-endpoints.ps1" }
+    metadata = @{ source = "test-sevier-endpoints.ps1" }
 }
-$r = Test-Post -Endpoint "/xavier2/time/metric" -Body $metricBody -Description "POST /xavier2/time/metric"
+$r = Test-Post -Endpoint "/xavier/time/metric" -Body $metricBody -Description "POST /xavier/time/metric"
 $results += $r
 
-# Test 3: POST /xavier2/verify/save
-Write-Host "[TEST 3] POST /xavier2/verify/save" -ForegroundColor Yellow
+# Test 3: POST /xavier/verify/save
+Write-Host "[TEST 3] POST /xavier/verify/save" -ForegroundColor Yellow
 $saveBody = @{
-    path = "tests/sevier2/endpoint-validation-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    path = "tests/sevier/endpoint-validation-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
     content = "PowerShell endpoint validation test at $(Get-Date -Format 'o')"
 }
-$r = Test-Post -Endpoint "/xavier2/verify/save" -Body $saveBody -Description "POST /xavier2/verify/save" -Verify {
+$r = Test-Post -Endpoint "/xavier/verify/save" -Body $saveBody -Description "POST /xavier/verify/save" -Verify {
     param($resp)
     try {
         $j = $resp.Content | ConvertFrom-Json
@@ -124,42 +133,42 @@ $r = Test-Post -Endpoint "/xavier2/verify/save" -Body $saveBody -Description "PO
 }
 $results += $r
 
-# Test 4: POST /xavier2/events/session
-Write-Host "[TEST 4] POST /xavier2/events/session" -ForegroundColor Yellow
+# Test 4: POST /xavier/events/session
+Write-Host "[TEST 4] POST /xavier/events/session" -ForegroundColor Yellow
 $eventBody = @{
-    session_id = "sevier2-ps-validation-$(Get-Random)"
+    session_id = "sevier-ps-validation-$(Get-Random)"
     event_type = "validation_test"
     content = "PowerShell endpoint validation event"
     timestamp = (Get-Date).ToUniversalTime().ToString("o")
-    metadata = @{ source = "test-sevier2-endpoints.ps1" }
+    metadata = @{ source = "test-sevier-endpoints.ps1" }
 }
-$r = Test-Post -Endpoint "/xavier2/events/session" -Body $eventBody -Description "POST /xavier2/events/session"
+$r = Test-Post -Endpoint "/xavier/events/session" -Body $eventBody -Description "POST /xavier/events/session"
 $results += $r
 
-# Test 5: POST /xavier2/agents/register
-Write-Host "[TEST 5] POST /xavier2/agents/register" -ForegroundColor Yellow
+# Test 5: POST /xavier/agents/register
+Write-Host "[TEST 5] POST /xavier/agents/register" -ForegroundColor Yellow
 $agentBody = @{
     agent_id = "powershell-validator-$(Get-Random)"
     name = "PowerShell Validator"
     capabilities = @("validation", "testing")
-    endpoint = "$BaseUrl/xavier2/agents/powershell-validator"
+    endpoint = "$BaseUrl/xavier/agents/powershell-validator"
 }
-$r = Test-Post -Endpoint "/xavier2/agents/register" -Body $agentBody -Description "POST /xavier2/agents/register"
+$r = Test-Post -Endpoint "/xavier/agents/register" -Body $agentBody -Description "POST /xavier/agents/register"
 $results += $r
 
-# Test 6: GET /xavier2/agents/active
-Write-Host "[TEST 6] GET /xavier2/agents/active" -ForegroundColor Yellow
-$r = Test-Get -Endpoint "/xavier2/agents/active" -Description "GET /xavier2/agents/active"
+# Test 6: GET /xavier/agents/active
+Write-Host "[TEST 6] GET /xavier/agents/active" -ForegroundColor Yellow
+$r = Test-Get -Endpoint "/xavier/agents/active" -Description "GET /xavier/agents/active"
 $results += $r
 
-# Test 7: POST /xavier2/sync/check
-Write-Host "[TEST 7] POST /xavier2/sync/check" -ForegroundColor Yellow
+# Test 7: POST /xavier/sync/check
+Write-Host "[TEST 7] POST /xavier/sync/check" -ForegroundColor Yellow
 $syncBody = @{
     source = "powershell-validator"
     timestamp = (Get-Date).ToUniversalTime().ToString("o")
-    metadata = @{ source = "test-sevier2-endpoints.ps1" }
+    metadata = @{ source = "test-sevier-endpoints.ps1" }
 }
-$r = Test-Post -Endpoint "/xavier2/sync/check" -Body $syncBody -Description "POST /xavier2/sync/check"
+$r = Test-Post -Endpoint "/xavier/sync/check" -Body $syncBody -Description "POST /xavier/sync/check"
 $results += $r
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -146,7 +146,7 @@ impl QmdMemory {
                 .documents);
         }
 
-        if std::env::var("XAVIER2_EMBEDDING_URL").is_ok() {
+        if std::env::var("XAVIER_EMBEDDING_URL").is_ok() {
             if let Ok(results) =
                 query_with_embedding_filtered(self, query_text, limit, filters).await
             {
@@ -911,7 +911,7 @@ mod tests {
         memory
             .add_document(
                 "docs/original".to_string(),
-                "performance tuning for xavier2".to_string(),
+                "performance tuning for xavier".to_string(),
                 serde_json::json!({}),
             )
             .await
@@ -935,8 +935,8 @@ mod tests {
     #[tokio::test]
     async fn add_document_skips_embedding_when_service_not_configured() {
         unsafe {
-            env::remove_var("XAVIER2_EMBEDDING_URL");
-            env::set_var("XAVIER2_EMBEDDER", "disabled");
+            env::remove_var("XAVIER_EMBEDDING_URL");
+            env::set_var("XAVIER_EMBEDDER", "disabled");
         }
 
         let memory = QmdMemory::new(Arc::new(AsyncRwLock::new(Vec::new())));

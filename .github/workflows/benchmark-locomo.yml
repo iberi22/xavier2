@@ -1,4 +1,4 @@
-name: LoCoMo Benchmark
+﻿name: LoCoMo Benchmark
 
 on:
   workflow_dispatch:
@@ -32,8 +32,8 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Build Xavier2
-        run: cargo build --release --bin xavier2
+      - name: Build Xavier
+        run: cargo build --release --bin xavier
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -43,7 +43,7 @@ jobs:
       - name: Run LoCoMo benchmark
         run: |
           python scripts/benchmarks/run_locomo_benchmark.py \
-            --xavier2-binary target/release/xavier2 \
+            --xavier-binary target/release/xavier \
             --output-dir benchmark-results/locomo \
             --sample-limit "${{ github.event.inputs.sample_limit || '10' }}" \
             --question-limit "${{ github.event.inputs.question_limit || '0' }}"

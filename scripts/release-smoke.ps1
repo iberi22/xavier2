@@ -1,6 +1,6 @@
 param(
-    [string]$BaseUrl = $(if ($env:XAVIER2_URL) { $env:XAVIER2_URL } else { "http://127.0.0.1:8006" }),
-    [string]$Token = $(if ($env:XAVIER2_TOKEN) { $env:XAVIER2_TOKEN } else { "" }),
+    [string]$BaseUrl = $(if ($env:XAVIER_URL) { $env:XAVIER_URL } else { "http://127.0.0.1:8006" }),
+    [string]$Token = $(if ($env:XAVIER_TOKEN) { $env:XAVIER_TOKEN } else { "" }),
     [int]$TimeoutSec = 30,
     [switch]$RequireBuildRoute
 )
@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($Token)) {
-    throw "XAVIER2_TOKEN is required for release smoke checks"
+    throw "XAVIER_TOKEN is required for release smoke checks"
 }
 
 function Invoke-JsonRequest {
@@ -35,7 +35,7 @@ function Invoke-JsonRequest {
     Invoke-WebRequest @params
 }
 
-Write-Host "Running Xavier2 release smoke checks against $BaseUrl" -ForegroundColor Cyan
+Write-Host "Running Xavier release smoke checks against $BaseUrl" -ForegroundColor Cyan
 
 $health = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/health"
 if ($health.StatusCode -ne 200 -or $health.Content -notmatch '"status":"ok"') {
@@ -48,19 +48,19 @@ if ($readiness.StatusCode -ne 200) {
     throw "Readiness check failed"
 }
 $readinessJson = $readiness.Content | ConvertFrom-Json
-if ($readinessJson.service -ne "xavier2") {
-    throw "Readiness payload missing xavier2 service marker"
+if ($readinessJson.service -ne "xavier") {
+    throw "Readiness payload missing xavier service marker"
 }
 Write-Host "PASS /readiness ($($readinessJson.status))" -ForegroundColor Green
 
 try {
-    $build = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/build" -Headers @{ "X-Xavier2-Token" = $Token }
+    $build = Invoke-JsonRequest -Method "GET" -Url "$BaseUrl/build" -Headers @{ "X-Xavier-Token" = $Token }
     if ($build.StatusCode -ne 200) {
         throw "Build info check failed"
     }
     $buildJson = $build.Content | ConvertFrom-Json
-    if ($buildJson.service -ne "xavier2") {
-        throw "Build info payload missing xavier2 service marker"
+    if ($buildJson.service -ne "xavier") {
+        throw "Build info payload missing xavier service marker"
     }
     Write-Host "PASS /build" -ForegroundColor Green
 } catch {
@@ -86,9 +86,9 @@ try {
 }
 Write-Host "PASS auth gate" -ForegroundColor Green
 
-$headers = @{ "X-Xavier2-Token" = $Token }
+$headers = @{ "X-Xavier-Token" = $Token }
 $docPath = "smoke/$(Get-Date -Format 'yyyyMMddHHmmss')"
-$content = "Xavier2 public release smoke test document"
+$content = "Xavier public release smoke test document"
 
 $add = Invoke-JsonRequest -Method "POST" -Url "$BaseUrl/memory/add" -Headers $headers -Body @{
     path = $docPath
@@ -120,4 +120,4 @@ if ($usage.StatusCode -ne 200) {
 }
 Write-Host "PASS /v1/account/usage" -ForegroundColor Green
 
-Write-Host "Xavier2 release smoke checks passed." -ForegroundColor Cyan
+Write-Host "Xavier release smoke checks passed." -ForegroundColor Cyan

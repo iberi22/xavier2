@@ -1,4 +1,4 @@
-//! Server modules for AgentRAG/Xavier2
+//! Server modules for AgentRAG/Xavier
 
 pub mod events;
 pub mod http;

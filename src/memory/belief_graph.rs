@@ -1,4 +1,4 @@
-//! Belief Graph - conceptual graph used by the Xavier2 reasoning layers.
+//! Belief Graph - conceptual graph used by the Xavier reasoning layers.
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};

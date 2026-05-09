@@ -1,11 +1,11 @@
-// GitCore SRC Tools for Xavier2
-// MCP tools for querying GitCore documentation from Xavier2
+// GitCore SRC Tools for Xavier
+// MCP tools for querying GitCore documentation from Xavier
 
 use serde::{Deserialize, Serialize};
 use crate::memory::store::MemoryStore;
 
 /// Get SRC context for a query
-/// Queries Xavier2 memory for documentation related to the query
+/// Queries Xavier memory for documentation related to the query
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetSrcContextRequest {
     pub project_id: String,
@@ -50,7 +50,7 @@ pub struct ListProjectSrcRequest {
 pub mod gitcore_tools {
     use super::*;
 
-    /// Query Xavier2 for SRC context
+    /// Query Xavier for SRC context
     pub async fn get_src_context(
         store: &MemoryStore,
         project_id: &str,

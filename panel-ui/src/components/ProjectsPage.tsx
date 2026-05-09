@@ -8,7 +8,7 @@ import { ProjectsGrid, type ProjectStatus } from "./ProjectsGrid";
 async function fetchProjectStatus(token: string): Promise<ProjectStatus[]> {
   try {
     const response = await fetch("/panel/api/projects/status", {
-      headers: { "X-Xavier2-Token": token },
+      headers: { "X-Xavier-Token": token },
     });
     if (!response.ok) {
       throw new Error("Failed to fetch project status");
@@ -45,8 +45,8 @@ function getMockProjects(): ProjectStatus[] {
       next_milestone: "Close first enterprise client"
     },
     {
-      name: "Xavier2",
-      repo: "iberi22/xavier2-1",
+      name: "Xavier",
+      repo: "iberi22/xavier",
       tier: 2,
       status: "development",
       ci_status: "failing",

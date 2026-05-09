@@ -1,6 +1,6 @@
 //! Security Module - Integración de servicios de seguridad
 //!
-//! Este módulo proporciona una capa de seguridad unificada para el sistema Xavier2,
+//! Este módulo proporciona una capa de seguridad unificada para el sistema Xavier,
 //! incluyendo detección de prompt injection, sanitización de inputs y filtrado de outputs.
 
 pub mod anticipator;
@@ -130,8 +130,8 @@ impl SecurityManager {
     }
 
     pub fn generate_token(&self, user_id: &str) -> Result<String> {
-        let secret = std::env::var("XAVIER2_TOKEN_SECRET")
-            .map_err(|_| anyhow!("XAVIER2_TOKEN_SECRET environment variable is not set"))?;
+        let secret = std::env::var("XAVIER_TOKEN_SECRET")
+            .map_err(|_| anyhow!("XAVIER_TOKEN_SECRET environment variable is not set"))?;
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| anyhow!("hmac error: {}", e))?;
 
@@ -147,14 +147,14 @@ impl SecurityManager {
 
         let signature = hex_encode(&mac.finalize().into_bytes());
         Ok(format!(
-            "xavier2.hmac.v1:{}:{}:{}:{}",
+            "xavier.hmac.v1:{}:{}:{}:{}",
             user_id, timestamp, token_id, signature
         ))
     }
 
     pub fn validate_token(&self, token: &str) -> Result<()> {
         let parts: Vec<&str> = token.split(':').collect();
-        if parts.len() != 5 || parts[0] != "xavier2.hmac.v1" {
+        if parts.len() != 5 || parts[0] != "xavier.hmac.v1" {
             return Err(anyhow!("invalid token format"));
         }
 
@@ -167,8 +167,8 @@ impl SecurityManager {
             .parse()
             .map_err(|_| anyhow!("invalid timestamp in token"))?;
 
-        let secret = std::env::var("XAVIER2_TOKEN_SECRET")
-            .map_err(|_| anyhow!("XAVIER2_TOKEN_SECRET environment variable is not set"))?;
+        let secret = std::env::var("XAVIER_TOKEN_SECRET")
+            .map_err(|_| anyhow!("XAVIER_TOKEN_SECRET environment variable is not set"))?;
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| anyhow!("hmac error: {}", e))?;
 

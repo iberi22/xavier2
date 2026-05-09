@@ -1,4 +1,4 @@
-//! Xavier2 integration test suite.
+//! Xavier integration test suite.
 //!
 //! Run with: cargo test --test integration
 
@@ -30,8 +30,8 @@ mod security_hardening_test;
 mod security_test;
 #[path = "integration/server_test.rs"]
 mod server_test;
-#[path = "sevier2_stress_test.rs"]
-mod sevier2_stress_test;
+#[path = "sevier_stress_test.rs"]
+mod sevier_stress_test;
 #[path = "integration/tasks_test.rs"]
 mod tasks_test;
 
@@ -39,7 +39,7 @@ mod integration {
     use reqwest::Client;
     use serde_json::{json, Value};
     use tokio::{net::TcpListener, task::JoinHandle, time::Duration};
-    use xavier2::{
+    use xavier::{
         adapters::inbound::http::routes::create_router_with_agent_registry,
         coordination::{agent_registry::AgentMetadata, SimpleAgentRegistry},
     };
@@ -128,7 +128,7 @@ mod integration {
             "metadata": {}
         });
 
-        let response = post_json(&server, "/xavier2/time/metric", metric).await;
+        let response = post_json(&server, "/xavier/time/metric", metric).await;
 
         assert!(response.status().is_success());
         let body: Value = response.json().await.expect("parse time metric response");
@@ -140,15 +140,15 @@ mod integration {
     #[tokio::test]
     async fn test_verify_save_endpoint() {
         let server = spawn_test_server().await;
-        std::env::set_var("XAVIER2_URL", &server.base_url);
+        std::env::set_var("XAVIER_URL", &server.base_url);
         std::env::set_var("X-CORTEX-TOKEN", "dev-token");
 
         let response = post_json(
             &server,
-            "/xavier2/verify/save",
+            "/xavier/verify/save",
             json!({
                 "path": "verification/integration-test",
-                "content": "Xavier2 verification test content"
+                "content": "Xavier verification test content"
             }),
         )
         .await;
@@ -166,7 +166,7 @@ mod integration {
 
         let response = post_json(
             &server,
-            "/xavier2/events/session",
+            "/xavier/events/session",
             json!({
                 "session_id": "session-test-001",
                 "event_type": "message",
@@ -192,7 +192,7 @@ mod integration {
 
         let response = server
             .client
-            .post(format!("{}/xavier2/sync/check", server.base_url))
+            .post(format!("{}/xavier/sync/check", server.base_url))
             .send()
             .await
             .expect("sync check request should reach test server");
@@ -228,7 +228,7 @@ mod integration {
 
         let session_response = post_json(
             &server,
-            "/xavier2/events/session",
+            "/xavier/events/session",
             json!({
                 "session_id": "workflow-session",
                 "event_type": "message",
@@ -247,7 +247,7 @@ mod integration {
 
         let metric_response = post_json(
             &server,
-            "/xavier2/time/metric",
+            "/xavier/time/metric",
             json!({
                 "metric_type": "workflow_step",
                 "agent_id": "workflow-agent",
@@ -274,7 +274,7 @@ mod integration {
 
         let sync_response = server
             .client
-            .post(format!("{}/xavier2/sync/check", server.base_url))
+            .post(format!("{}/xavier/sync/check", server.base_url))
             .send()
             .await
             .expect("workflow sync check should reach test server");
@@ -311,7 +311,7 @@ mod integration {
         let response = server
             .client
             .post(format!(
-                "{}/xavier2/agents/agent-memory-1/unregister",
+                "{}/xavier/agents/agent-memory-1/unregister",
                 server.base_url
             ))
             .send()
@@ -358,7 +358,7 @@ mod integration {
         let response = server
             .client
             .post(format!(
-                "{}/xavier2/agents/worker-1/unregister",
+                "{}/xavier/agents/worker-1/unregister",
                 server.base_url
             ))
             .send()

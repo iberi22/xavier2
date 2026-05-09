@@ -1,13 +1,13 @@
-//! Common test infrastructure for Xavier2 integration tests.
+//! Common test infrastructure for Xavier integration tests.
 //!
-//! Provides shared test helpers for SEVIER2 endpoint tests.
+//! Provides shared test helpers for SEVIER endpoint tests.
 
 use std::sync::Arc;
 use parking_lot::Mutex;
 use rusqlite::Connection;
 
-use xavier2::adapters::inbound::http::dto::TimeMetricDto;
-use xavier2::time::TimeMetricsStore;
+use xavier::adapters::inbound::http::dto::TimeMetricDto;
+use xavier::time::TimeMetricsStore;
 
 // ─── In-Memory SQLite for Tests ──────────────────────────────────────────────
 

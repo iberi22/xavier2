@@ -1,9 +1,9 @@
-# syntax=docker/dockerfile:1
-# Xavier2 - Cognitive Memory Runtime
+﻿# syntax=docker/dockerfile:1
+# Xavier - Cognitive Memory Runtime
 # Simple, robust, easy to adopt
 #
-# Usage: docker build -t xavier2 .
-#        docker run -p 8003:8003 xavier2
+# Usage: docker build -t xavier .
+#        docker run -p 8003:8003 xavier
 
 # Stage 1: Build (using multi-platform rust base)
 FROM rust:1.89-bookworm AS builder
@@ -19,12 +19,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY . .
 
 # Build only the binaries we need (skip bench validation)
-RUN cargo build --release --bin xavier2 --bin xavier2-tui
+RUN cargo build --release --bin xavier --bin xavier-tui
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim
 
-ARG XAVIER2_VERSION=0.4.1
+ARG XAVIER_VERSION=0.4.1
 
 # Runtime deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -35,19 +35,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p /data /logs /app/panel-ui/build
 
 # Copy binaries
-COPY --from=builder /app/target/release/xavier2-bin /usr/local/bin/xavier2-bin
-COPY --from=builder /app/target/release/xavier2-tui /usr/local/bin/xavier2-tui
+COPY --from=builder /app/target/release/xavier /usr/local/bin/xavier-bin
+COPY --from=builder /app/target/release/xavier-tui /usr/local/bin/xavier-tui
 
 # Copy launcher
-COPY xavier2.sh /usr/local/bin/xavier2-launcher
-RUN chmod 0755 /usr/local/bin/xavier2-bin /usr/local/bin/xavier2-tui /usr/local/bin/xavier2-launcher
+COPY xavier.sh /usr/local/bin/xavier-launcher
+RUN chmod 0755 /usr/local/bin/xavier-bin /usr/local/bin/xavier-tui /usr/local/bin/xavier-launcher
 
 WORKDIR /app
 
-ENV XAVIER2_PORT=8003 \
-    XAVIER2_HOST=0.0.0.0 \
-    XAVIER2_BACKEND=vec \
-    XAVIER2_VERSION=${XAVIER2_VERSION} \
+ENV XAVIER_PORT=8003 \
+    XAVIER_HOST=0.0.0.0 \
+    XAVIER_BACKEND=vec \
+    XAVIER_VERSION=${XAVIER_VERSION} \
     RUST_LOG=info
 
 EXPOSE 8003
@@ -55,4 +55,4 @@ EXPOSE 8003
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -fsS http://localhost:8003/health > /dev/null || exit 1
 
-ENTRYPOINT ["/usr/local/bin/xavier2-launcher"]
+ENTRYPOINT ["/usr/local/bin/xavier-launcher"]

@@ -1,10 +1,10 @@
-# Architecture: Xavier2
+# Architecture: Xavier
 
 ## Core Philosophy
-Xavier2 is a single Rust binary acting as a multi-agent cognitive memory swarm, inspired by the **"System 3" paradigm** (Rational Thought, Meta-Cognition, and Error Correction). This system transcends simple vector retrieval by implementing strict reasoning and self-reflection layers before serving responses.
+Xavier is a single Rust binary acting as a multi-agent cognitive memory swarm, inspired by the **"System 3" paradigm** (Rational Thought, Meta-Cognition, and Error Correction). This system transcends simple vector retrieval by implementing strict reasoning and self-reflection layers before serving responses.
 
 ## Product Direction
-Xavier2 is not a standalone RAG silo. It is the memory and reasoning substrate for **agentic workflows**, and it must also be able to host RAG retrieval inside those workflows. The intended direction is bidirectional:
+Xavier is not a standalone RAG silo. It is the memory and reasoning substrate for **agentic workflows**, and it must also be able to host RAG retrieval inside those workflows. The intended direction is bidirectional:
 - **RAG inside agentic flows**: retrieval, episodic memory, and belief validation are invoked as capabilities inside orchestrated agents.
 - **Agentic logic inside RAG**: retrieval can escalate into multi-step reasoning, oversight, tool use, and memory consolidation when the query requires it.
 
@@ -29,5 +29,5 @@ This means the project should be evaluated not only on retrieval quality, but on
 | 2026-03-05 | Monolithic Rust binary via `adk-rust`      | Maximizes Tokio parallelism & performance while remaining LLM-agnostic. |
 | 2026-03-05 | Multi-Layer System 3 RAG Architecture      | Emulates human rational thought checking to eliminate standard LLM hallucinations.  |
 | 2026-03-05 | SurrealDB as unified Graph/Vector memory   | Simplifies deployment & powers Belief Graph construction dynamically. |
-| 2026-03-10 | Rebranded to Xavier2                        | Transitioning to a production-ready cognitive memory system for OpenClaw. |
-| 2026-03-11 | Agentic-first memory substrate             | Xavier2 must support agent workflows with embedded RAG and RAG flows with escalated agentic reasoning. |
+| 2026-03-10 | Rebranded to Xavier                        | Transitioning to a production-ready cognitive memory system for OpenClaw. |
+| 2026-03-11 | Agentic-first memory substrate             | Xavier must support agent workflows with embedded RAG and RAG flows with escalated agentic reasoning. |

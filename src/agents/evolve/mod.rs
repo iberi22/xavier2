@@ -7,7 +7,7 @@
 //! - Crash recovery
 //! - Never stop until human interrupts
 //!
-//! The Evolve Module autonomously improves Xavier2's memory architecture by:
+//! The Evolve Module autonomously improves Xavier's memory architecture by:
 //! 1. Researcher: scans for new memory techniques
 //! 2. Experimenter: modifies memory code with hypotheses
 //! 3. Evaluator: runs benchmarks (LoCoMo, Evo-Memory)

@@ -2,14 +2,14 @@
 
 ## Overview
 
-This document provides a comprehensive reference to the Xavier2 source code structure. It serves as the **Source Recipe** for all engineering and development tasks.
+This document provides a comprehensive reference to the Xavier source code structure. It serves as the **Source Recipe** for all engineering and development tasks.
 
 ---
 
 ## Directory Structure
 
 ```
-xavier2/src/
+xavier/src/
 ├── a2a/              # Agent-to-Agent protocol implementation
 ├── agents/           # Agent definitions and behaviors
 ├── checkpoint/       # State checkpointing and recovery
@@ -45,7 +45,7 @@ xavier2/src/
 
 **Usage:**
 ```rust
-use xavier2::a2a::{A2AServer, A2AClient};
+use xavier::a2a::{A2AServer, A2AClient};
 ```
 
 ---
@@ -62,7 +62,7 @@ use xavier2::a2a::{A2AServer, A2AClient};
 
 **Usage:**
 ```rust
-use xavier2::agents::{Agent, Swarm};
+use xavier::agents::{Agent, Swarm};
 ```
 
 ---
@@ -81,14 +81,14 @@ use xavier2::agents::{Agent, Swarm};
 
 **Usage:**
 ```rust
-use xavier2::memory::{Memory, VectorStore, BeliefGraph};
+use xavier::memory::{Memory, VectorStore, BeliefGraph};
 ```
 
 ---
 
 ### server/ - HTTP Server
 
-**Purpose:** REST and gRPC server for Xavier2.
+**Purpose:** REST and gRPC server for Xavier.
 
 **Key Files:**
 - `mod.rs` - Server setup
@@ -98,7 +98,7 @@ use xavier2::memory::{Memory, VectorStore, BeliefGraph};
 
 **Usage:**
 ```rust
-use xavier2::server::Server;
+use xavier::server::Server;
 ```
 
 ---
@@ -180,10 +180,10 @@ cargo build --all-features
 
 ```bash
 # Default server
-cargo run --bin xavier2
+cargo run --bin xavier
 
 # With custom config
-cargo run --bin xavier2 -- --config config.yaml
+cargo run --bin xavier -- --config config.yaml
 ```
 
 ---
@@ -222,18 +222,18 @@ cargo tarpaulin --out html
 
 ```bash
 # Start server
-xavier2 server start
+xavier server start
 
 # Run agent
-xavier2 agent run <agent_id>
+xavier agent run <agent_id>
 
 # Memory operations
-xavier2 memory search <query>
-xavier2 memory store <content>
+xavier memory search <query>
+xavier memory store <content>
 
 # Task operations
-xavier2 task list
-xavier2 task execute <task_id>
+xavier task list
+xavier task execute <task_id>
 ```
 
 ---

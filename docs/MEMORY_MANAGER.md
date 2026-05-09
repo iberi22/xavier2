@@ -1,8 +1,8 @@
-# Xavier2 Memory Manager - Intelligent Memory Lifecycle Management
+# Xavier Memory Manager - Intelligent Memory Lifecycle Management
 
 ## Overview
 
-The Xavier2 Memory Manager provides autonomous memory management capabilities that optimize storage, maintain relevance, and prevent memory overflow. It implements a biologically-inspired memory model with prioritization, decay, consolidation, and intelligent forgetting.
+The Xavier Memory Manager provides autonomous memory management capabilities that optimize storage, maintain relevance, and prevent memory overflow. It implements a biologically-inspired memory model with prioritization, decay, consolidation, and intelligent forgetting.
 
 ## Architecture
 

@@ -1,4 +1,4 @@
-# SWAL Memory Architecture — Xavier2
+# SWAL Memory Architecture — Xavier
 
 *Versión: 0.1 | Última actualización: 2026-04-25*
 
@@ -8,11 +8,11 @@
 
 > **Dominio primero. Abstracciones solo cuando hay swappeo real.**
 
-El dominio de Xavier2 es `QmdMemory` — toda la lógica de memoria está ahí. No se wrappea por wrapear. Los ports existen SOLO cuando hay intención real de tener múltiples implementaciones.
+El dominio de Xavier es `QmdMemory` — toda la lógica de memoria está ahí. No se wrappea por wrapear. Los ports existen SOLO cuando hay intención real de tener múltiples implementaciones.
 
 ---
 
-## 2. Capas reales (Xavier2)
+## 2. Capas reales (Xavier)
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -97,7 +97,7 @@ docs/
 
 ---
 
-## 6. Stack tecnológico (Xavier2)
+## 6. Stack tecnológico (Xavier)
 
 | Componente | Tecnología |
 |-----------|-------------|
@@ -118,7 +118,7 @@ docs/
 - **Módulo metrics:** `src/time/mod.rs` — métricas operativas
 - **Ports:** `src/ports/inbound/` y `src/ports/outbound/`
 - **Adapters:** `src/adapters/inbound/` y `src/adapters/outbound/`
-- **Handlers:** `src/cli.rs` (routing) + `src/routes.rs` (handlers SEVIER2)
+- **Handlers:** `src/cli.rs` (routing) + `src/routes.rs` (handlers SEVIER)
 
 ---
 

@@ -1,18 +1,18 @@
 version: '3.8'
 
 services:
-  xavier2:
-    image: iberi22/xavier2:latest
-    container_name: xavier2-memory
+  xavier:
+    image: iberi22/xavier:latest
+    container_name: xavier-memory
     #network_mode: host  # DISABLED - causes crash loop on Windows Docker Desktop
     ports:
       - "8006:8006"
     environment:
-      - XAVIER2_PORT=8006
+      - XAVIER_PORT=8006
       - RUST_LOG=info
-      - XAVIER2_STORAGE=/data/memory
+      - XAVIER_STORAGE=/data/memory
     volumes:
-      - xavier2-data:/data/memory
+      - xavier-data:/data/memory
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
@@ -24,7 +24,7 @@ services:
   # Optional: Redis for vector storage (if needed)
   redis:
     image: redis:7-alpine
-    container_name: xavier2-redis
+    container_name: xavier-redis
     ports:
       - "6379:6379"
     volumes:
@@ -32,5 +32,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  xavier2-data:
+  xavier-data:
   redis-data:

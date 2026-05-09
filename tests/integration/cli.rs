@@ -1,6 +1,6 @@
 //! CLI Integration Tests
 //!
-//! Tests the xavier2 binary CLI commands by spawning the binary
+//! Tests the xavier binary CLI commands by spawning the binary
 //! and checking stdout/stderr output.
 
 use std::process::{Command, Output};
@@ -8,35 +8,35 @@ use std::time::Duration;
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
-fn xavier2_binary() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_xavier2"))
+fn xavier_binary() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_xavier"))
 }
 
 fn run(args: &[&str]) -> Output {
-    let output = xavier2_binary()
+    let output = xavier_binary()
         .args(args)
         .output()
-        .expect("failed to execute xavier2 binary");
+        .expect("failed to execute xavier binary");
     output
 }
 
 fn run_with_timeout(args: &[&str], timeout_secs: u64) -> Output {
-    let mut child = xavier2_binary()
+    let mut child = xavier_binary()
         .args(args)
-        .env_remove("XAVIER2_TOKEN")
-        .env_remove("XAVIER2_URL")
-        .env_remove("XAVIER2_PORT")
+        .env_remove("XAVIER_TOKEN")
+        .env_remove("XAVIER_URL")
+        .env_remove("XAVIER_PORT")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .expect("failed to spawn xavier2");
+        .expect("failed to spawn xavier");
 
     // Wait with timeout
     let start = std::time::Instant::now();
     loop {
         if start.elapsed().as_secs() > timeout_secs {
             let _ = child.kill();
-            panic!("xavier2 {} timed out after {timeout_secs}s", args.join(" "));
+            panic!("xavier {} timed out after {timeout_secs}s", args.join(" "));
         }
         match child.try_wait() {
             Ok(Some(_status)) => {
@@ -44,7 +44,7 @@ fn run_with_timeout(args: &[&str], timeout_secs: u64) -> Output {
                 return output;
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(50)),
-            Err(e) => panic!("error waiting for xavier2: {e}"),
+            Err(e) => panic!("error waiting for xavier: {e}"),
         }
     }
 }
@@ -54,11 +54,11 @@ fn run_with_timeout(args: &[&str], timeout_secs: u64) -> Output {
 #[test]
 fn test_cli_help_output() {
     let output = run(&["--help"]);
-    assert!(output.status.success(), "xavier2 --help should succeed");
+    assert!(output.status.success(), "xavier --help should succeed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("Xavier2"),
+        stdout.contains("Xavier"),
         "help should contain project name"
     );
     assert!(
@@ -107,10 +107,7 @@ fn test_cli_no_args_shows_help() {
 #[test]
 fn test_cli_subcommand_help_http() {
     let output = run(&["http", "--help"]);
-    assert!(
-        output.status.success(),
-        "xavier2 http --help should succeed"
-    );
+    assert!(output.status.success(), "xavier http --help should succeed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -122,10 +119,7 @@ fn test_cli_subcommand_help_http() {
 #[test]
 fn test_cli_subcommand_help_add() {
     let output = run(&["add", "--help"]);
-    assert!(
-        output.status.success(),
-        "xavier2 add --help should succeed"
-    );
+    assert!(output.status.success(), "xavier add --help should succeed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
@@ -147,7 +141,7 @@ fn test_cli_subcommand_help_search() {
     let output = run(&["search", "--help"]);
     assert!(
         output.status.success(),
-        "xavier2 search --help should succeed"
+        "xavier search --help should succeed"
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -166,7 +160,7 @@ fn test_cli_subcommand_help_recall() {
     let output = run(&["recall", "--help"]);
     assert!(
         output.status.success(),
-        "xavier2 recall --help should succeed"
+        "xavier recall --help should succeed"
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -185,7 +179,7 @@ fn test_cli_subcommand_help_stats() {
     let output = run(&["stats", "--help"]);
     assert!(
         output.status.success(),
-        "xavier2 stats --help should succeed"
+        "xavier stats --help should succeed"
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -200,7 +194,7 @@ fn test_cli_subcommand_help_session_save() {
     let output = run(&["session-save", "--help"]);
     assert!(
         output.status.success(),
-        "xavier2 session-save --help should succeed"
+        "xavier session-save --help should succeed"
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -215,10 +209,7 @@ fn test_cli_subcommand_help_session_save() {
 #[test]
 fn test_cli_version_output() {
     let output = run(&["--version"]);
-    assert!(
-        output.status.success(),
-        "xavier2 --version should succeed"
-    );
+    assert!(output.status.success(), "xavier --version should succeed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.is_empty(), "version output should not be empty");
@@ -229,10 +220,7 @@ fn test_cli_version_output() {
 #[test]
 fn test_cli_invalid_subcommand() {
     let output = run(&["nonexistent-command"]);
-    assert!(
-        !output.status.success(),
-        "invalid subcommand should fail"
-    );
+    assert!(!output.status.success(), "invalid subcommand should fail");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -244,10 +232,7 @@ fn test_cli_invalid_subcommand() {
 #[test]
 fn test_cli_subcommand_invalid_flag() {
     let output = run(&["stats", "--invalid-flag"]);
-    assert!(
-        !output.status.success(),
-        "invalid flag should fail"
-    );
+    assert!(!output.status.success(), "invalid flag should fail");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -268,7 +253,8 @@ fn test_cli_subcommand_add_without_server() {
     // Should fail with either a connection error, security block, or panic
     // (panic is acceptable here — no server is running)
     assert!(
-        combined.contains("Error") || combined.contains("error")
+        combined.contains("Error")
+            || combined.contains("error")
             || combined.contains("blocked")
             || combined.contains("must be set"),
         "add without server should produce error output, got stdout: {stdout}, stderr: {stderr}"
@@ -285,7 +271,8 @@ fn test_cli_subcommand_search_without_server() {
     let combined = format!("{stdout} {stderr}");
 
     assert!(
-        combined.contains("Error") || combined.contains("error")
+        combined.contains("Error")
+            || combined.contains("error")
             || combined.contains("must be set"),
         "search without server should produce error output, got: {combined}"
     );
@@ -301,7 +288,8 @@ fn test_cli_subcommand_recall_without_server() {
     let combined = format!("{stdout} {stderr}");
 
     assert!(
-        combined.contains("Error") || combined.contains("error")
+        combined.contains("Error")
+            || combined.contains("error")
             || combined.contains("must be set"),
         "recall without server should produce error output, got: {combined}"
     );
@@ -321,7 +309,8 @@ fn test_add_and_search_without_server() {
         String::from_utf8_lossy(&add_output.stderr)
     );
     assert!(
-        add_combined.contains("Error") || add_combined.contains("error")
+        add_combined.contains("Error")
+            || add_combined.contains("error")
             || add_combined.contains("must be set"),
         "add without server should produce error, got: {add_combined}"
     );
@@ -333,7 +322,8 @@ fn test_add_and_search_without_server() {
         String::from_utf8_lossy(&search_output.stderr)
     );
     assert!(
-        search_combined.contains("Error") || search_combined.contains("error")
+        search_combined.contains("Error")
+            || search_combined.contains("error")
             || search_combined.contains("must be set"),
         "search without server should produce error, got: {search_combined}"
     );
@@ -351,7 +341,8 @@ fn test_cli_subcommand_stats_without_server() {
     let combined = format!("{stdout} {stderr}");
 
     assert!(
-        combined.contains("Error") || combined.contains("error")
+        combined.contains("Error")
+            || combined.contains("error")
             || combined.contains("must be set"),
         "stats without server should produce error output, got: {combined}"
     );
@@ -369,7 +360,8 @@ fn test_cli_subcommand_session_save_without_server() {
     let combined = format!("{stdout} {stderr}");
 
     assert!(
-        combined.contains("Error") || combined.contains("error")
+        combined.contains("Error")
+            || combined.contains("error")
             || combined.contains("must be set"),
         "session-save without server should produce error output, got: {combined}"
     );

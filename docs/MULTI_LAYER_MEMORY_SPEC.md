@@ -1,8 +1,8 @@
-# Multi-Layer Memory Architecture - xavier2 v0.5
+# Multi-Layer Memory Architecture - xavier v0.5
 
-**Version:** 1.0  
-**Date:** 2026-04-15  
-**Target:** LOCOMO >98% (match Jia et al. consistency model)  
+**Version:** 1.0
+**Date:** 2026-04-15
+**Target:** LOCOMO >98% (match Jia et al. consistency model)
 **Status:** READY FOR IMPLEMENTATION
 
 ---
@@ -208,7 +208,7 @@ impl RetentionRegularizer {
         // 3. Verify temporal ordering
         // 4. Score overall coherence
     }
-    
+
     pub fn detect_drift(&self, old: &Entity, new: &Entity) -> bool {
         // Compare properties for semantic drift
     }
@@ -237,7 +237,7 @@ impl ConsistencyChecker {
         // 2. Facts align with entities
         // 3. Temporal order correct
     }
-    
+
     pub async fn generate_summary(&self, events: &[Event]) -> Result<String> {
         // LLM-powered session summary
     }
@@ -284,7 +284,7 @@ GET /memory/layer/{layer}/stats
 ```
 POST /memory/add (enhanced)
   → Auto-classify into appropriate layer
-  
+
 POST /memory/search (enhanced)
   → Multi-layer weighted retrieval
 ```

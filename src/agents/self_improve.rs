@@ -1,4 +1,4 @@
-//! Self-Improving Agent for Xavier2
+//! Self-Improving Agent for Xavier
 //! Analyzes performance and generates improvements
 
 use serde::{Deserialize, Serialize};

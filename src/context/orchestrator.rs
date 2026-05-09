@@ -165,12 +165,12 @@ pub const DEFAULT_PC_MAX_TOKENS: usize = 3_200;
 /// In-memory configuration for context regeneration budgets.
 ///
 /// # Environment variables
-/// - `XAVIER2_CTX_SS_MIN_DOCS` / `XAVIER2_CTX_SS_MIN_TOKENS` (SessionStart Minimal)
-/// - `XAVIER2_CTX_SS_MED_DOCS` / `XAVIER2_CTX_SS_MED_TOKENS` (SessionStart Medium)
-/// - `XAVIER2_CTX_SS_MAX_DOCS` / `XAVIER2_CTX_SS_MAX_TOKENS` (SessionStart Maximum)
-/// - `XAVIER2_CTX_PC_MIN_DOCS` / `XAVIER2_CTX_PC_MIN_TOKENS` (Precompact Minimal)
-/// - `XAVIER2_CTX_PC_MED_DOCS` / `XAVIER2_CTX_PC_MED_TOKENS` (Precompact Medium)
-/// - `XAVIER2_CTX_PC_MAX_DOCS` / `XAVIER2_CTX_PC_MAX_TOKENS` (Precompact Maximum)
+/// - `XAVIER_CTX_SS_MIN_DOCS` / `XAVIER_CTX_SS_MIN_TOKENS` (SessionStart Minimal)
+/// - `XAVIER_CTX_SS_MED_DOCS` / `XAVIER_CTX_SS_MED_TOKENS` (SessionStart Medium)
+/// - `XAVIER_CTX_SS_MAX_DOCS` / `XAVIER_CTX_SS_MAX_TOKENS` (SessionStart Maximum)
+/// - `XAVIER_CTX_PC_MIN_DOCS` / `XAVIER_CTX_PC_MIN_TOKENS` (Precompact Minimal)
+/// - `XAVIER_CTX_PC_MED_DOCS` / `XAVIER_CTX_PC_MED_TOKENS` (Precompact Medium)
+/// - `XAVIER_CTX_PC_MAX_DOCS` / `XAVIER_CTX_PC_MAX_TOKENS` (Precompact Maximum)
 #[derive(Debug, Clone, Copy)]
 pub struct ContextBudgetConfig {
     pub session_start_min_docs: usize,
@@ -211,27 +211,27 @@ impl ContextBudgetConfig {
     pub fn from_env() -> Self {
         let def = Self::default();
         Self {
-            session_start_min_docs: env_or("XAVIER2_CTX_SS_MIN_DOCS", def.session_start_min_docs),
+            session_start_min_docs: env_or("XAVIER_CTX_SS_MIN_DOCS", def.session_start_min_docs),
             session_start_min_tokens: env_or(
-                "XAVIER2_CTX_SS_MIN_TOKENS",
+                "XAVIER_CTX_SS_MIN_TOKENS",
                 def.session_start_min_tokens,
             ),
-            session_start_med_docs: env_or("XAVIER2_CTX_SS_MED_DOCS", def.session_start_med_docs),
+            session_start_med_docs: env_or("XAVIER_CTX_SS_MED_DOCS", def.session_start_med_docs),
             session_start_med_tokens: env_or(
-                "XAVIER2_CTX_SS_MED_TOKENS",
+                "XAVIER_CTX_SS_MED_TOKENS",
                 def.session_start_med_tokens,
             ),
-            session_start_max_docs: env_or("XAVIER2_CTX_SS_MAX_DOCS", def.session_start_max_docs),
+            session_start_max_docs: env_or("XAVIER_CTX_SS_MAX_DOCS", def.session_start_max_docs),
             session_start_max_tokens: env_or(
-                "XAVIER2_CTX_SS_MAX_TOKENS",
+                "XAVIER_CTX_SS_MAX_TOKENS",
                 def.session_start_max_tokens,
             ),
-            precompact_min_docs: env_or("XAVIER2_CTX_PC_MIN_DOCS", def.precompact_min_docs),
-            precompact_min_tokens: env_or("XAVIER2_CTX_PC_MIN_TOKENS", def.precompact_min_tokens),
-            precompact_med_docs: env_or("XAVIER2_CTX_PC_MED_DOCS", def.precompact_med_docs),
-            precompact_med_tokens: env_or("XAVIER2_CTX_PC_MED_TOKENS", def.precompact_med_tokens),
-            precompact_max_docs: env_or("XAVIER2_CTX_PC_MAX_DOCS", def.precompact_max_docs),
-            precompact_max_tokens: env_or("XAVIER2_CTX_PC_MAX_TOKENS", def.precompact_max_tokens),
+            precompact_min_docs: env_or("XAVIER_CTX_PC_MIN_DOCS", def.precompact_min_docs),
+            precompact_min_tokens: env_or("XAVIER_CTX_PC_MIN_TOKENS", def.precompact_min_tokens),
+            precompact_med_docs: env_or("XAVIER_CTX_PC_MED_DOCS", def.precompact_med_docs),
+            precompact_med_tokens: env_or("XAVIER_CTX_PC_MED_TOKENS", def.precompact_med_tokens),
+            precompact_max_docs: env_or("XAVIER_CTX_PC_MAX_DOCS", def.precompact_max_docs),
+            precompact_max_tokens: env_or("XAVIER_CTX_PC_MAX_TOKENS", def.precompact_max_tokens),
         }
     }
 

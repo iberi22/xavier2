@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Xavier2 Changelog — 2026-04-13</title>
+  <title>Xavier Changelog — 2026-04-13</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -205,7 +205,7 @@
 </head>
 <body>
 
-<h1>Xavier2 Changelog</h1>
+<h1>Xavier Changelog</h1>
 <p class="subtitle">2026-04-13 — SQLite-pro upgrade day</p>
 
 <div class="summary-box">
@@ -217,7 +217,7 @@
     </div>
     <div class="summary-item">
       <span class="label">Docker Image</span>
-      <span class="value green">xavier2:0.4.4</span>
+      <span class="value green">xavier:0.4.4</span>
     </div>
     <div class="summary-item">
       <span class="label">Files Changed</span>
@@ -241,7 +241,7 @@
 <div class="section-header">Storage Backend Upgrade — The Big Picture</div>
 
 <p class="entry-desc" style="margin-bottom:30px;">
-  The core Xavier2 memory system was completely overhauled from a basic SQLite/text-search setup
+  The core Xavier memory system was completely overhauled from a basic SQLite/text-search setup
   to a full-featured <strong>sqlite-pro</strong> backend matching the best patterns from production
   AI memory systems (Aingram, Engram, sqlite-memory, sqlite-vector).
 </p>
@@ -254,15 +254,15 @@
   </div>
   <div class="entry-meta">
     <span class="commit-hash">b1f6009</span>
-    &nbsp;·&nbsp; First implementation of sqlite-vec integration in Xavier2
+    &nbsp;·&nbsp; First implementation of sqlite-vec integration in Xavier
   </div>
   <div class="entry-desc">
     <ul>
       <li>New <code>VecSqliteMemoryStore</code> wrapping existing <code>SqliteMemoryStore</code></li>
       <li>Virtual table <code>memory_embeddings</code> with 768-dim float vectors</li>
       <li>KNN search via <code>knn_search</code> with Euclidean distance</li>
-      <li><code>XAVIER2_MEMORY_BACKEND=vec</code> env var with <code>MemoryBackend::Vec</code> variant</li>
-      <li><code>XAVIER2_EMBEDDING_DIMENSIONS</code> for configurable embedding size (default 768)</li>
+      <li><code>XAVIER_MEMORY_BACKEND=vec</code> env var with <code>MemoryBackend::Vec</code> variant</li>
+      <li><code>XAVIER_EMBEDDING_DIMENSIONS</code> for configurable embedding size (default 768)</li>
       <li>sqlite-vec loaded via <code>sqlite3_auto_extension</code> on DB open</li>
     </ul>
   </div>
@@ -298,7 +298,7 @@
 <!-- 3. Docker image built -->
 <div class="entry docker">
   <div class="entry-header">
-    <span class="entry-title">Docker image built: <span class="image-tag">xavier2:0.4.4</span></span>
+    <span class="entry-title">Docker image built: <span class="image-tag">xavier:0.4.4</span></span>
     <span class="entry-type docker">docker</span>
   </div>
   <div class="entry-meta">
@@ -309,7 +309,7 @@
       <li>Rust 1.89 / Debian bookworm-slim runtime</li>
       <li>sqlite-vec compiled statically into the binary</li>
       <li>Node 22 frontend builder (panel-ui)</li>
-      <li>Default <code>XAVIER2_MEMORY_BACKEND=vec</code> in docker-compose.yml</li>
+      <li>Default <code>XAVIER_MEMORY_BACKEND=vec</code> in docker-compose.yml</li>
       <li>No external SurrealDB required for basic operation</li>
     </ul>
   </div>
@@ -338,21 +338,21 @@
   </div>
 </div>
 
-<!-- 5. Xavier2 usage docs -->
+<!-- 5. Xavier usage docs -->
 <div class="entry docs">
   <div class="entry-header">
-    <span class="entry-title">docs: update Xavier2 docs for vec backend (sqlite-pro patterns)</span>
+    <span class="entry-title">docs: update Xavier docs for vec backend (sqlite-pro patterns)</span>
     <span class="entry-type docs">commit</span>
   </div>
   <div class="entry-meta">
     <span class="commit-hash">4eb98e9</span>
-    &nbsp;·&nbsp; XAVIER2_USAGE_GUIDE.md, XAVIER2_QUICK_REFERENCE.md, MEMORY_MANAGER.md &nbsp;·&nbsp; +147 lines
+    &nbsp;·&nbsp; XAVIER_USAGE_GUIDE.md, XAVIER_QUICK_REFERENCE.md, MEMORY_MANAGER.md &nbsp;·&nbsp; +147 lines
   </div>
   <div class="entry-desc">
     <ul>
       <li>Updated default backend from <code>surreal</code> → <code>vec</code></li>
       <li>Added "Backend Comparison" table (vec vs surreal vs sqlite vs file)</li>
-      <li>Documented <code>XAVIER2_EMBEDDING_DIMENSIONS</code>, new FTS5 features, RRF fusion</li>
+      <li>Documented <code>XAVIER_EMBEDDING_DIMENSIONS</code>, new FTS5 features, RRF fusion</li>
       <li>Added "Knowledge Graph Usage" section with <code>add_entity()</code>, <code>add_relation()</code>, <code>kg_traverse()</code></li>
     </ul>
   </div>
@@ -373,7 +373,7 @@
       <li>Added <code>vec</code> to backend table with description: "General purpose — fastest, no external deps"</li>
       <li>4-backend table (vec ⭐, surreal, sqlite, file) replaces 3-backend table</li>
       <li>New section "vec backend features" listing FTS5, RRF, KG, Hash Chain, WAL optimizations</li>
-      <li><code>XAVIER2_MEMORY_BACKEND=vec</code> is now the docker-compose default</li>
+      <li><code>XAVIER_MEMORY_BACKEND=vec</code> is now the docker-compose default</li>
     </ul>
   </div>
 </div>
@@ -424,7 +424,7 @@
   </tr>
   <tr style="border-bottom: 1px solid var(--border);">
     <td style="padding: 10px 0; color: var(--text-muted);">Embedding dimension</td>
-    <td style="padding: 10px 0;"><code>XAVIER2_EMBEDDING_DIMENSIONS=768</code> (pplx-embed, nomic-embed-text)</td>
+    <td style="padding: 10px 0;"><code>XAVIER_EMBEDDING_DIMENSIONS=768</code> (pplx-embed, nomic-embed-text)</td>
   </tr>
   <tr style="border-bottom: 1px solid var(--border);">
     <td style="padding: 10px 0; color: var(--text-muted);">Search fusion</td>
@@ -444,14 +444,14 @@
   </tr>
   <tr>
     <td style="padding: 10px 0; color: var(--text-muted);">SurrealDB status</td>
-    <td style="padding: 10px 0;">Still supported via <code>XAVIER2_MEMORY_BACKEND=surreal</code> for distributed setups — no longer default</td>
+    <td style="padding: 10px 0;">Still supported via <code>XAVIER_MEMORY_BACKEND=surreal</code> for distributed setups — no longer default</td>
   </tr>
 </table>
 
 <br><br>
 <small style="color: var(--text-muted);">
   Generated: 2026-04-13 11:52 GMT-5 &nbsp;·&nbsp;
-  <span style="color: var(--accent);">xavier2:0.4.4</span> &nbsp;·&nbsp;
+  <span style="color: var(--accent);">xavier:0.4.4</span> &nbsp;·&nbsp;
   <span style="color: var(--purple);">6 commits</span> &nbsp;·&nbsp;
   <span style="color: var(--orange);">sqlite-pro skill</span>
 </small>

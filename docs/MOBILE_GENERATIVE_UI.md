@@ -1,4 +1,4 @@
-# XAVIER2 MOBILE + GENERATIVE UI — SPEC
+# XAVIER MOBILE + GENERATIVE UI — SPEC
 
 ## Overview
 
@@ -17,7 +17,7 @@ User: "Show me all my client projects with their status"
         │
         ▼
 ┌─────────────────────────────────────┐
-│  Xavier2 Chat (Agent)                │
+│  Xavier Chat (Agent)                │
 │                                     │
 │  [Understands intent]               │
 │  [Retrieves memories]              │
@@ -27,7 +27,7 @@ User: "Show me all my client projects with their status"
 │  │ 📊 Projects Dashboard       │   │
 │  │ ─────────────────────────── │   │
 │  │ 🟢 ManteniApp    | Active  │   │
-│  │ 🟡 Xavier2        | Testing │   │
+│  │ 🟡 Xavier        | Testing │   │
 │  │ 🔴 Tripro Landing| Done    │   │
 │  └─────────────────────────────┘   │
 └─────────────────────────────────────┘
@@ -37,7 +37,7 @@ User: "Show me all my client projects with their status"
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Client   │────▶│  Xavier2     │────▶│  LLM API    │
+│   Client   │────▶│  Xavier     │────▶│  LLM API    │
 │  (Browser) │     │  Chat API   │     │  (pplx)     │
 └─────────────┘     └──────┬──────┘     └─────────────┘
                            │
@@ -98,7 +98,7 @@ Response:
 |-------|------------|
 | API | Rust (existing) |
 | Intent | Rule-based + LLM |
-| Memory | Xavier2 existing |
+| Memory | Xavier existing |
 | LLM | pplx-embed (already running) |
 | Frontend | React/Vue/Svelte |
 | Mobile | Flutter (see Part 2) |
@@ -129,7 +129,7 @@ Cross-platform Flutter app for iOS/Android.
 ┌─────────────────┐
 │   Flutter App   │
 ├─────────────────┤
-│  chat_screen    │──▶ Xavier2 Cloud API
+│  chat_screen    │──▶ Xavier Cloud API
 │  search_screen │──▶ (encrypted)
 │  profile_screen│
 └─────────────────┘
@@ -150,7 +150,7 @@ dependencies:
 ### Project Location
 
 ```
-E:\scripts-python\xavier2-mobile\  (NEW)
+E:\scripts-python\xavier-mobile\  (NEW)
 ├── lib/
 │   ├── main.dart
 │   ├── screens/
@@ -161,7 +161,7 @@ E:\scripts-python\xavier2-mobile\  (NEW)
 │   │   ├── memory_card.dart
 │   │   └── chat_bubble.dart
 │   └── services/
-│       └── xavier2_api.dart
+│       └── xavier_api.dart
 ├── pubspec.yaml
 └── android/ios/
 ```
@@ -171,7 +171,7 @@ E:\scripts-python\xavier2-mobile\  (NEW)
 ## Part 3: Google Cloud Deployment
 
 ### Current State
-- Xavier2 running locally on port 8003
+- Xavier running locally on port 8003
 - Need cloud deployment for mobile app + API access
 
 ### Cloud Architecture
@@ -179,7 +179,7 @@ E:\scripts-python\xavier2-mobile\  (NEW)
 ```
                     ┌─────────────────┐
                     │   Cloud Run     │
-┌─────────┐         │   Xavier2 API    │
+┌─────────┐         │   Xavier API    │
 │ Mobile  │────────▶│   (Docker)      │
 │   App   │  HTTPS  │                 │
 └─────────┘         └────────┬────────┘
@@ -213,14 +213,14 @@ E:\scripts-python\xavier2-mobile\  (NEW)
 
 ### Why Pay When We Can Self-Host?
 
-1. **Support development** — Money funds Xavier2 R&D
+1. **Support development** — Money funds Xavier R&D
 2. **Production usage** — Real traffic, real bugs
 3. **Feature testing** — Cloud tier features before release
 4. ** SLA** — If something breaks, we get priority
 
 ### Plan
 
-1. Sign up at xavier2.swal.ai (when live)
+1. Sign up at xavier.swal.ai (when live)
 2. Choose Cloud tier: $8/mo
 3. Use internally for all agents
 4. Provide feedback for improvements
@@ -262,7 +262,7 @@ E:\scripts-python\xavier2-mobile\  (NEW)
 ## Files to Create
 
 ```
-E:\scripts-python\xavier2\
+E:\scripts-python\xavier\
 ├── src\chat\              (NEW)
 │   ├── mod.rs
 │   ├── generate.rs
@@ -277,7 +277,7 @@ E:\scripts-python\xavier2\
 │   └── MOBILE_APP.md
 └── docker-compose.prod.yml (UPDATE)
 
-E:\scripts-python\xavier2-mobile\  (NEW)
+E:\scripts-python\xavier-mobile\  (NEW)
 ├── lib\
 ├── pubspec.yaml
 └── ...

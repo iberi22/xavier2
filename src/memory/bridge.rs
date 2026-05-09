@@ -496,7 +496,7 @@ mod tests {
 title: "Auth decision"
 date: "2026-03-20"
 memory_type: "decision"
-projects: ["xavier2"]
+projects: ["xavier"]
 ---
 Use token auth for local workflows.
 "#,
@@ -521,8 +521,8 @@ Use token auth for local workflows.
         let export = json!({
             "sessions": [{
                 "id": "session-1",
-                "project": "xavier2",
-                "directory": "E:/scripts-python/xavier2",
+                "project": "xavier",
+                "directory": "E:/scripts-python/xavier",
                 "started_at": "2026-03-20T10:00:00Z",
                 "summary": "Implemented typed memory"
             }],

@@ -1,8 +1,8 @@
-# XAVIER2 ENCRYPTED PROTOCOL — SPEC v1.0
+# XAVIER ENCRYPTED PROTOCOL — SPEC v1.0
 
 ## Summary
 
-All inter-node communication in Xavier2 is encrypted using AES-256-GCM over TLS 1.3. Even if traffic is intercepted, data is unreadable without the session key.
+All inter-node communication in Xavier is encrypted using AES-256-GCM over TLS 1.3. Even if traffic is intercepted, data is unreadable without the session key.
 
 ---
 
@@ -18,7 +18,7 @@ Unauthorized node tries access → Blocked by node authentication
 ### Protocol Flow
 
 ```
-Node A                    Xavier2 Server              Node B
+Node A                    Xavier Server              Node B
    │                          │                        │
    │──── /auth/register ─────►│                        │
    │◄─── node_token + master_key (secure channel) ───│
@@ -64,7 +64,7 @@ Response:
 
 ```http
 POST /auth/handshake
-X-Xavier2-Token: ntk_xxxxx
+X-Xavier-Token: ntk_xxxxx
 Content-Type: application/json
 
 {

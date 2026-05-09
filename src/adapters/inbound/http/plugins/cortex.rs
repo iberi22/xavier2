@@ -1,7 +1,7 @@
 //! Cortex Enterprise Cloud Plugin
 //!
-//! Integrates Xavier2 with Cortex Enterprise Cloud for enterprise storage and sync.
-//! This plugin provides bidirectional synchronization between local Xavier2 memory
+//! Integrates Xavier with Cortex Enterprise Cloud for enterprise storage and sync.
+//! This plugin provides bidirectional synchronization between local Xavier memory
 //! and Cortex Enterprise cloud storage.
 
 use async_trait::async_trait;
@@ -40,17 +40,17 @@ impl CortexConfig {
     pub fn from_env() -> Option<Self> {
         let url = std::env::var("CORTEX_ENTERPRISE_URL").ok()?;
         let token = std::env::var("CORTEX_TOKEN").ok()?;
-        
+
         let sync_interval_ms = std::env::var("CORTEX_SYNC_INTERVAL_MS")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(300000);
-        
+
         let auto_sync = std::env::var("CORTEX_AUTO_SYNC")
             .ok()
             .map(|s| s.to_lowercase() == "true" || s == "1")
             .unwrap_or(true);
-        
+
         Some(Self {
             url,
             token,
@@ -61,8 +61,7 @@ impl CortexConfig {
 
     /// Check if Cortex is configured (env vars are set)
     pub fn is_configured() -> bool {
-        std::env::var("CORTEX_ENTERPRISE_URL").is_ok() && 
-        std::env::var("CORTEX_TOKEN").is_ok()
+        std::env::var("CORTEX_ENTERPRISE_URL").is_ok() && std::env::var("CORTEX_TOKEN").is_ok()
     }
 }
 
@@ -110,19 +109,19 @@ impl CortexPlugin {
             .timeout(Duration::from_secs(30))
             .build()
             .expect("Failed to build HTTP client");
-        
+
         let plugin = Self {
             config,
             client,
             sync_handle: Arc::new(RwLock::new(None)),
             last_sync_result: Arc::new(RwLock::new(None)),
         };
-        
+
         // Start auto-sync loop if enabled
         if plugin.config.auto_sync {
             plugin.start_auto_sync();
         }
-        
+
         plugin
     }
 
@@ -136,19 +135,19 @@ impl CortexPlugin {
         let config = self.config.clone();
         let client = self.client.clone();
         let last_sync = self.last_sync_result.clone();
-        
+
         let handle = tokio::spawn(async move {
             let interval = Duration::from_millis(config.sync_interval_ms);
             let mut ticker = tokio::time::interval(interval);
-            
+
             loop {
                 ticker.tick().await;
-                
+
                 tracing::info!("Running auto-sync to Cortex Enterprise");
-                
+
                 // Perform bidirectional sync
                 let result = perform_sync(&client, &config, SyncDirection::Both).await;
-                
+
                 match &result {
                     Ok(sync_result) => {
                         if sync_result.success {
@@ -164,11 +163,11 @@ impl CortexPlugin {
                         tracing::error!("Auto-sync error: {}", e);
                     }
                 }
-                
+
                 *last_sync.write().await = result.ok();
             }
         });
-        
+
         // Store the handle (this runs synchronously in constructor context)
         // We'll need to handle this differently since we can't await in new()
         tokio::spawn(async move {
@@ -180,7 +179,7 @@ impl CortexPlugin {
     /// Push local memory entries to Cortex
     pub async fn push(&self, entries: Vec<MemoryEntry>) -> Result<SyncResult, String> {
         let payload = PushPayload {
-            source: "xavier2".to_string(),
+            source: "xavier".to_string(),
             entries,
             timestamp_ms: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -189,8 +188,9 @@ impl CortexPlugin {
         };
 
         let url = format!("{}/api/v1/sync/push", self.config.url);
-        
-        let response = self.client
+
+        let response = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.config.token))
             .header("Content-Type", "application/json")
@@ -214,7 +214,9 @@ impl CortexPlugin {
             Ok(SyncResult::success(sync_response.items_processed))
         } else {
             Ok(SyncResult::failure(
-                sync_response.message.unwrap_or_else(|| "Unknown error".to_string())
+                sync_response
+                    .message
+                    .unwrap_or_else(|| "Unknown error".to_string()),
             ))
         }
     }
@@ -222,12 +224,13 @@ impl CortexPlugin {
     /// Pull memory entries from Cortex
     pub async fn pull(&self, since: Option<u64>) -> Result<Vec<MemoryEntry>, String> {
         let mut url = format!("{}/api/v1/sync/pull", self.config.url);
-        
+
         if let Some(timestamp) = since {
             url.push_str(&format!("?since={}", timestamp));
         }
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Authorization", format!("Bearer {}", self.config.token))
             .send()
@@ -271,8 +274,9 @@ impl Plugin for CortexPlugin {
 
     async fn health_check(&self) -> Result<(), String> {
         let url = format!("{}/health", self.config.url);
-        
-        let response = self.client
+
+        let response = self
+            .client
             .get(&url)
             .header("Authorization", format!("Bearer {}", self.config.token))
             .send()
@@ -318,7 +322,7 @@ fn perform_sync<'a>(
             SyncDirection::Pull => {
                 // Pull entries from Cortex
                 let url = format!("{}/api/v1/sync/pull", config.url);
-                
+
                 let response = client
                     .get(&url)
                     .header("Authorization", format!("Bearer {}", config.token))
@@ -339,16 +343,16 @@ fn perform_sync<'a>(
 
                 let count = entries.len();
                 tracing::info!("Pulled {} entries from Cortex", count);
-                
+
                 Ok(SyncResult::success(count))
             }
             SyncDirection::Both => {
                 // First pull, then push
                 let pull_result = perform_sync(client, config, SyncDirection::Pull).await?;
                 let push_result = perform_sync(client, config, SyncDirection::Push).await?;
-                
+
                 Ok(SyncResult::success(
-                    pull_result.items_synced + push_result.items_synced
+                    pull_result.items_synced + push_result.items_synced,
                 ))
             }
         }
@@ -376,7 +380,7 @@ mod tests {
         // Clear env vars first
         std::env::remove_var("CORTEX_ENTERPRISE_URL");
         std::env::remove_var("CORTEX_TOKEN");
-        
+
         assert!(CortexConfig::from_env().is_none());
         assert!(!CortexConfig::is_configured());
     }
@@ -387,16 +391,16 @@ mod tests {
         std::env::set_var("CORTEX_TOKEN", "test-token");
         std::env::set_var("CORTEX_SYNC_INTERVAL_MS", "60000");
         std::env::set_var("CORTEX_AUTO_SYNC", "false");
-        
+
         let config = CortexConfig::from_env().expect("Should parse config");
-        
+
         assert_eq!(config.url, "https://cortex.example.com");
         assert_eq!(config.token, "test-token");
         assert_eq!(config.sync_interval_ms, 60000);
         assert!(!config.auto_sync);
-        
+
         assert!(CortexConfig::is_configured());
-        
+
         // Cleanup
         std::env::remove_var("CORTEX_ENTERPRISE_URL");
         std::env::remove_var("CORTEX_TOKEN");
@@ -408,12 +412,12 @@ mod tests {
     fn cortex_config_defaults() {
         std::env::set_var("CORTEX_ENTERPRISE_URL", "https://cortex.example.com");
         std::env::set_var("CORTEX_TOKEN", "test-token");
-        
+
         let config = CortexConfig::from_env().expect("Should parse config");
-        
+
         assert_eq!(config.sync_interval_ms, 300000); // Default: 5 minutes
         assert!(config.auto_sync); // Default: true
-        
+
         // Cleanup
         std::env::remove_var("CORTEX_ENTERPRISE_URL");
         std::env::remove_var("CORTEX_TOKEN");
@@ -424,7 +428,7 @@ mod tests {
         let success = SyncResult::success(42);
         assert!(success.success);
         assert_eq!(success.items_synced, 42);
-        
+
         let failure = SyncResult::failure("test error");
         assert!(!failure.success);
         assert_eq!(failure.error, Some("test error".to_string()));
@@ -439,7 +443,7 @@ mod tests {
             workspace_id: "ws-1".to_string(),
             metadata: None,
         };
-        
+
         let json = serde_json::to_string(&entry).expect("Should serialize");
         assert!(json.contains("test-123"));
         assert!(json.contains("Test content"));
@@ -450,13 +454,13 @@ mod tests {
         std::env::set_var("CORTEX_ENTERPRISE_URL", "https://cortex.example.com");
         std::env::set_var("CORTEX_TOKEN", "test-token");
         std::env::set_var("CORTEX_AUTO_SYNC", "false");
-        
+
         let plugin = CortexPlugin::from_env().expect("Should create plugin");
-        
+
         assert_eq!(plugin.name(), "cortex-enterprise");
         assert_eq!(plugin.version(), env!("CARGO_PKG_VERSION"));
         assert!(plugin.is_configured());
-        
+
         // Cleanup
         std::env::remove_var("CORTEX_ENTERPRISE_URL");
         std::env::remove_var("CORTEX_TOKEN");

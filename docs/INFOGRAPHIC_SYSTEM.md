@@ -1,4 +1,4 @@
-# XAVIER2 INFOGRAPHIC DESIGN SYSTEM
+# XAVIER INFOGRAPHIC DESIGN SYSTEM
 
 **AI generates UI instantly using pre-built components — no LLM generation cost.**
 
@@ -11,7 +11,7 @@ USER: "Show me Q1 sales summary"
         ↓
 AI selects: ReportTemplate + StatsRow + ChartBar
         ↓
-AI fills with data from Xavier2
+AI fills with data from Xavier
         ↓
 INSTANT beautiful infographic
 ```
@@ -71,7 +71,7 @@ INSTANT beautiful infographic
 | User Says | Template | Example |
 |-----------|----------|---------|
 | "show me the metrics" | StatsRow + MetricBig | Dashboard overview |
-| "compare X and Y" | Comparison | Xavier2 vs Mem0 |
+| "compare X and Y" | Comparison | Xavier vs Mem0 |
 | "timeline of events" | Timeline | Activity log |
 | "progress on goals" | Progress | Sprint status |
 | "who's winning" | Leaderboard | Rankings |
@@ -106,7 +106,7 @@ User: "Show me a summary of our Q1 performance"
 → ChartBar (monthly data)
 ```
 
-### Step 3: Fetch Data from Xavier2
+### Step 3: Fetch Data from Xavier
 ```
 → Query: "Q1 2026 performance metrics"
 → Get: {revenue, users, growth, events}
@@ -135,7 +135,7 @@ ChartBar: [{l:"Jan",v:300}, {l:"Feb",v:500}, {l:"Mar",v:400}]
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  XAVIER2 DASHBOARD BUILDER                          │
+│  XAVIER DASHBOARD BUILDER                          │
 ├─────────────────────────────────────────────────────┤
 │                                                      │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────┐│
@@ -160,7 +160,7 @@ ChartBar: [{l:"Jan",v:300}, {l:"Feb",v:500}, {l:"Mar",v:400}]
 - **Delete** — Remove from canvas
 - **Duplicate** — Copy widget
 
-### Save to Xavier2
+### Save to Xavier
 ```json
 {
   "type": "dashboard",
@@ -181,7 +181,7 @@ ChartBar: [{l:"Jan",v:300}, {l:"Feb",v:500}, {l:"Mar",v:400}]
 | User Query | Components Generated |
 |-----------|-------------------|
 | "Q1 performance dashboard" | HeroBanner + StatsRow + ChartBar + Timeline |
-| "compare Xavier2 vs Mem0" | Comparison + BadgeRow |
+| "compare Xavier vs Mem0" | Comparison + BadgeRow |
 | "sales pipeline status" | Pipeline + Leaderboard |
 | "project checklist" | Checklist + Progress |
 | "alerts and warnings" | Alert (multiple) |
@@ -216,7 +216,7 @@ function classifyIntent(query: string): Component[] {
 ### Data Binder
 ```typescript
 function bindData(component: string, data: any): Props {
-  // Fetch from Xavier2
+  // Fetch from Xavier
   // Transform to component shape
   // Return bound component
 }
@@ -227,7 +227,7 @@ function bindData(component: string, data: any): Props {
 ## File Structure
 
 ```
-xavier2/
+xavier/
 ├── web/
 │   ├── design-system/
 │   │   └── index.html     ← 20 pre-built templates
@@ -259,7 +259,7 @@ xavier2/
 | Design System | ✅ 20 templates done |
 | Dashboard Builder | 🔜 TODO |
 | Canvas drag/drop | 🔜 TODO |
-| Save to Xavier2 | 🔜 TODO |
+| Save to Xavier | 🔜 TODO |
 | Puck integration | 🔜 TODO |
 
 ---

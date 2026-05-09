@@ -1,4 +1,4 @@
----
+﻿---
 name: "🐛 Bug Report"
 about: "Report a bug or unexpected behavior"
 title: "[BUG]: "
@@ -30,7 +30,7 @@ Paste relevant logs, stack traces, or terminal output here.
 ## 🌍 Environment
 
 - **OS**: [e.g. Windows 11, macOS 14, Ubuntu 24.04]
-- **Xavier2 Version**: [e.g. 0.1.0, output of `xavier2 --version`]
+- **Xavier Version**: [e.g. 0.1.0, output of `xavier --version`]
 - **Rust Version**: [e.g. 1.77.0, from `rustc --version`]
 - **Installation Method**: [e.g. cargo install, Docker, built from source]
 

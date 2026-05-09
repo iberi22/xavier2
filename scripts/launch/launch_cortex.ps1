@@ -1,19 +1,19 @@
-# launch_xavier2.ps1 - Lanza Xavier2 y espera a que esté listo
+# launch_xavier.ps1 - Lanza Xavier y espera a que esté listo
 
 param(
     [switch]$Force
 )
 
-Write-Host "🚀 Launching Xavier2..." -ForegroundColor Cyan
+Write-Host "🚀 Launching Xavier..." -ForegroundColor Cyan
 
-# Cambiar al directorio de Xavier2
-Set-Location "E:\scripts-python\xavier2"
+# Cambiar al directorio de Xavier
+Set-Location "E:\scripts-python\xavier"
 
 # Verificar si ya está corriendo
 try {
     $response = Invoke-WebRequest -Uri "http://localhost:8003/health" -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
     if ($response.StatusCode -eq 200) {
-        Write-Host "✅ Xavier2 already running" -ForegroundColor Green
+        Write-Host "✅ Xavier already running" -ForegroundColor Green
         exit 0
     }
 } catch {
@@ -34,23 +34,23 @@ if (Test-Path "docker-compose.yml") {
     docker-compose up -d
 
     # Esperar a que esté listo
-    Write-Host "⏳ Waiting for Xavier2..." -ForegroundColor Yellow
+    Write-Host "⏳ Waiting for Xavier..." -ForegroundColor Yellow
 
     for ($i = 0; $i -lt 30; $i++) {
         try {
             $response = Invoke-WebRequest -Uri "http://localhost:8003/health" -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
             if ($response.StatusCode -eq 200) {
-                Write-Host "✅ Xavier2 is ready!" -ForegroundColor Green
+                Write-Host "✅ Xavier is ready!" -ForegroundColor Green
 
                 # Guardar en memoria
                 $memoryData = @{
-                    content = "Xavier2 launched automatically at $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
-                    path = "system/xavier2"
+                    content = "Xavier launched automatically at $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+                    path = "system/xavier"
                     metadata = @{type = "health_check"; status = "online"}
                 } | ConvertTo-Json -Depth 3
 
                 try {
-                    Invoke-WebRequest -Uri "http://localhost:8003/memory/add" -Method POST -Headers @{"X-Xavier2-Token"="dev"; "Content-Type"="application/json"} -Body $memoryData -UseBasicParsing -ErrorAction SilentlyContinue
+                    Invoke-WebRequest -Uri "http://localhost:8003/memory/add" -Method POST -Headers @{"X-Xavier-Token"="dev"; "Content-Type"="application/json"} -Body $memoryData -UseBasicParsing -ErrorAction SilentlyContinue
                 } catch {}
 
                 exit 0
@@ -60,7 +60,7 @@ if (Test-Path "docker-compose.yml") {
         Start-Sleep -Seconds 2
     }
 
-    Write-Host "❌ Xavier2 failed to start" -ForegroundColor Red
+    Write-Host "❌ Xavier failed to start" -ForegroundColor Red
     exit 1
 }
 

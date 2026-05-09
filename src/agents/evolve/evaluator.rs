@@ -77,7 +77,7 @@ impl Evaluator {
 
 fn unique_benchmark_dir(prefix: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
-        "xavier2-evaluator-{prefix}-{}",
+        "xavier-evaluator-{prefix}-{}",
         uuid::Uuid::new_v4()
     ))
 }

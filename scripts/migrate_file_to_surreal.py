@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Migrate Xavier2 memory-store.json data to SurrealDB.
+Migrate Xavier memory-store.json data to SurrealDB.
 
 Usage:
     python migrate_file_to_surreal.py [--workspace WORKSPACE_ID] [--batch-size 100]
     python migrate_file_to_surreal.py --reinstall   # Drop and recreate tables first
 
 Environment variables:
-    XAVIER2_SURREALDB_URL   - SurrealDB WebSocket URL (default: ws://localhost:8000)
-    XAVIER2_SURREALDB_USER  - Database user (default: root)
-    XAVIER2_SURREALDB_PASS  - Database password (default: root)
-    XAVIER2_SURREALDB_NS    - Namespace (default: xavier2)
-    XAVIER2_SURREALDB_DB    - Database name (default: memory)
-    XAVIER2_WORKSPACE_DIR   - Path to workspaces directory (default: ./data/workspaces)
+    XAVIER_SURREALDB_URL   - SurrealDB WebSocket URL (default: ws://localhost:8000)
+    XAVIER_SURREALDB_USER  - Database user (default: root)
+    XAVIER_SURREALDB_PASS  - Database password (default: root)
+    XAVIER_SURREALDB_NS    - Namespace (default: xavier)
+    XAVIER_SURREALDB_DB    - Database name (default: memory)
+    XAVIER_WORKSPACE_DIR   - Path to workspaces directory (default: ./data/workspaces)
 
 The script reads the memory-store.json file for each workspace and inserts
 the records into SurrealDB using the REST API at http://localhost:8000/sql.
@@ -32,12 +32,12 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SURREALDB_URL = os.environ.get("XAVIER2_SURREALDB_URL", "http://localhost:8000/sql")
-SURREALDB_USER = os.environ.get("XAVIER2_SURREALDB_USER", "root")
-SURREALDB_PASS = os.environ.get("XAVIER2_SURREALDB_PASS", "root")
-SURREALDB_NS = os.environ.get("XAVIER2_SURREALDB_NS", "xavier2")
-SURREALDB_DB = os.environ.get("XAVIER2_SURREALDB_DB", "memory")
-WORKSPACE_DIR = os.environ.get("XAVIER2_WORKSPACE_DIR", "./data/workspaces")
+SURREALDB_URL = os.environ.get("XAVIER_SURREALDB_URL", "http://localhost:8000/sql")
+SURREALDB_USER = os.environ.get("XAVIER_SURREALDB_USER", "root")
+SURREALDB_PASS = os.environ.get("XAVIER_SURREALDB_PASS", "root")
+SURREALDB_NS = os.environ.get("XAVIER_SURREALDB_NS", "xavier")
+SURREALDB_DB = os.environ.get("XAVIER_SURREALDB_DB", "memory")
+WORKSPACE_DIR = os.environ.get("XAVIER_WORKSPACE_DIR", "./data/workspaces")
 
 MEMORY_TABLE = "memory_records"
 BELIEF_TABLE = "belief_states"
@@ -456,7 +456,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("Xavier2 → SurrealDB Migration Tool")
+    print("Xavier → SurrealDB Migration Tool")
     print("=" * 60)
     print(f"SurrealDB URL : {SURREALDB_URL}")
     print(f"Namespace     : {SURREALDB_NS}")

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Xavier2 Chat</title>
+  <title>Xavier Chat</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -17,7 +17,7 @@
     .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
     .message { max-width: 80%; padding: 12px 16px; border-radius: 16px; line-height: 1.5; }
     .message.user { align-self: flex-end; background: #6366f1; border-bottom-right-radius: 4px; }
-    .message.xavier2 { align-self: flex-start; background: #1e1e2e; border-bottom-left-radius: 4px; }
+    .message.xavier { align-self: flex-start; background: #1e1e2e; border-bottom-left-radius: 4px; }
     .message .component { margin-top: 12px; }
     .stats-card { background: #252540; border-radius: 12px; padding: 16px; min-width: 200px; }
     .stats-card h3 { font-size: 14px; color: #a0a0c0; margin-bottom: 8px; }
@@ -49,9 +49,9 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // Xavier2 API configuration
-    const XAVIER2_URL = 'http://localhost:8003';
-    const XAVIER2_TOKEN = 'dev-token';
+    // Xavier API configuration
+    const XAVIER_URL = 'http://localhost:8003';
+    const XAVIER_TOKEN = 'dev-token';
 
     // Intent patterns
     const INTENT_PATTERNS = {
@@ -132,7 +132,7 @@
     // Chat message component
     function Message({ message, isUser }) {
       return (
-        <div className={`message ${isUser ? 'user' : 'xavier2'}`}>
+        <div className={`message ${isUser ? 'user' : 'xavier'}`}>
           {message.text}
           {message.component && (
             <div className="component">
@@ -162,14 +162,14 @@
       useEffect(() => {
         async function fetchStats() {
           try {
-            const res = await fetch(`${XAVIER2_URL}/memory/stats`, {
-              headers: { 'X-Xavier2-Token': XAVIER2_TOKEN }
+            const res = await fetch(`${XAVIER_URL}/memory/stats`, {
+              headers: { 'X-Xavier-Token': XAVIER_TOKEN }
             });
             const stats = await res.json();
             setMessages([{
               id: Date.now(),
               isUser: false,
-              text: `🧠 Xavier2 ready! I have ${stats.total_documents || 0} memories indexed. Ask me anything!`,
+              text: `🧠 Xavier ready! I have ${stats.total_documents || 0} memories indexed. Ask me anything!`,
               component: {
                 type: 'stats',
                 data: {
@@ -183,7 +183,7 @@
             setMessages([{
               id: Date.now(),
               isUser: false,
-              text: '🧠 Xavier2 ready! Connect to start chatting with your memories.'
+              text: '🧠 Xavier ready! Connect to start chatting with your memories.'
             }]);
           }
         }
@@ -202,11 +202,11 @@
 
         try {
           // Search memories
-          const searchRes = await fetch(`${XAVIER2_URL}/memory/search`, {
+          const searchRes = await fetch(`${XAVIER_URL}/memory/search`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-Xavier2-Token': XAVIER2_TOKEN
+              'X-Xavier-Token': XAVIER_TOKEN
             },
             body: JSON.stringify({ query: input, limit: 5 })
           });
@@ -268,7 +268,7 @@
           setMessages(prev => [...prev, {
             id: Date.now() + 1,
             isUser: false,
-            text: 'Sorry, I encountered an error connecting to Xavier2. Is the service running?'
+            text: 'Sorry, I encountered an error connecting to Xavier. Is the service running?'
           }]);
         }
 
@@ -286,14 +286,14 @@
         <>
           <div className="chat-header">
             <div className="status"></div>
-            <h1>Xavier2 Chat</h1>
+            <h1>Xavier Chat</h1>
           </div>
           <div className="messages">
             {messages.map(msg => (
               <Message key={msg.id} message={msg} isUser={msg.isUser} />
             ))}
             {loading && (
-              <div className="message xavier2">
+              <div className="message xavier">
                 <div className="loading">Thinking...</div>
               </div>
             )}

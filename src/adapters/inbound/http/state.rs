@@ -28,15 +28,9 @@ pub struct AppState {
     pub code_query: Arc<code_graph::query::QueryEngine>,
 }
 
-/// Check that the `X-Xavier2-Token` header matches the configured auth token.
-pub fn check_auth(
-    headers: &HeaderMap,
-    state: &AppState,
-) -> Result<(), (StatusCode, Json<Value>)> {
-    match headers
-        .get("X-Xavier2-Token")
-        .and_then(|v| v.to_str().ok())
-    {
+/// Check that the `X-Xavier-Token` header matches the configured auth token.
+pub fn check_auth(headers: &HeaderMap, state: &AppState) -> Result<(), (StatusCode, Json<Value>)> {
+    match headers.get("X-Xavier-Token").and_then(|v| v.to_str().ok()) {
         Some(token) if token == state.auth_token => Ok(()),
         _ => Err((
             StatusCode::UNAUTHORIZED,

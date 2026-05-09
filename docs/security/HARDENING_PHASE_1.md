@@ -1,6 +1,6 @@
 # Phase 1 Security Hardening - Root Cause Analysis and Fixes
 
-This document details the critical security fixes applied in Phase 1 to address vulnerabilities and harden the Xavier2 system.
+This document details the critical security fixes applied in Phase 1 to address vulnerabilities and harden the Xavier system.
 
 ## 1. Hardcoded Credentials Removal
 **File:** `src/tools/kanban.rs`
@@ -10,7 +10,7 @@ This document details the critical security fixes applied in Phase 1 to address 
 
 ## 2. Token Enforcement in CLI and Workspace
 **Files:** `src/cli.rs`, `src/main_tui.rs`, `src/workspace.rs`
-**Issue:** Several modules used a default `dev-token` when the required security tokens (`XAVIER2_TOKEN` or `X-CORTEX-TOKEN`) were missing from the environment.
+**Issue:** Several modules used a default `dev-token` when the required security tokens (`XAVIER_TOKEN` or `X-CORTEX-TOKEN`) were missing from the environment.
 **Fix:** Removed `unwrap_or_else(|_| "dev-token".to_string())` and replaced it with `.expect()` or proper error handling to enforce token presence.
 **Regression Prevention:** Integration tests verify that requests without valid tokens are rejected and that the CLI fails gracefully with clear error messages when tokens are missing.
 

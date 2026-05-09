@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
       - name: Run cargo check
-        run: cargo check --workspace --all-targets --features ci-safe --exclude xavier2-web
+        run: cargo check --workspace --all-targets --features ci-safe --exclude xavier-web
 
   clippy:
     name: Clippy
@@ -49,7 +49,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets --features ci-safe --exclude xavier2-web -- -D warnings
+        run: cargo clippy --workspace --all-targets --features ci-safe --exclude xavier-web -- -D warnings
 
   test:
     name: Test
@@ -61,7 +61,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
       - name: Run tests
-        run: cargo test --workspace --features ci-safe --exclude xavier2-web
+        run: cargo test --workspace --features ci-safe --exclude xavier-web
 
   build:
     name: Build
@@ -73,18 +73,18 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
       - name: Build release
-        run: cargo build --release --bin xavier2
+        run: cargo build --release --bin xavier
 
   panel-e2e:
     name: Panel E2E
     runs-on: ubuntu-latest
     needs: [panel-check]
     env:
-      XAVIER2_TOKEN: dev-token
-      XAVIER2_URL: http://127.0.0.1:8003
-      XAVIER2_HOST: 127.0.0.1
-      XAVIER2_PORT: 8003
-      XAVIER2_CODE_GRAPH_DB_PATH: data/ci-panel-e2e.db
+      XAVIER_TOKEN: dev-token
+      XAVIER_URL: http://127.0.0.1:8003
+      XAVIER_HOST: 127.0.0.1
+      XAVIER_PORT: 8003
+      XAVIER_CODE_GRAPH_DB_PATH: data/ci-panel-e2e.db
       PANEL_UI_BASE_URL: http://127.0.0.1:8003
       PANEL_UI_APP_PATH: /panel
     steps:
@@ -104,11 +104,11 @@ jobs:
         run: npm exec --workspace panel-ui playwright install --with-deps chromium
       - name: Build panel-ui
         run: npm run build --workspace panel-ui
-      - name: Build Xavier2 debug binary
-        run: cargo build --bin xavier2
-      - name: Start Xavier2
+      - name: Build Xavier debug binary
+        run: cargo build --bin xavier
+      - name: Start Xavier
         run: |
-          nohup target/debug/xavier2 > panel-e2e.log 2>&1 &
+          nohup target/debug/xavier > panel-e2e.log 2>&1 &
       - name: Wait for startup
         run: sleep 3
       - name: Verify server health
@@ -119,7 +119,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7.0.0
         with:
-          name: xavier2-panel-e2e-log
+          name: xavier-panel-e2e-log
           path: panel-e2e.log
 
   release-smoke:
@@ -127,11 +127,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [panel-check, check, clippy, test, build, panel-e2e]
     env:
-      XAVIER2_TOKEN: dev-token
-      XAVIER2_URL: http://127.0.0.1:8003
-      XAVIER2_HOST: 127.0.0.1
-      XAVIER2_PORT: 8003
-      XAVIER2_CODE_GRAPH_DB_PATH: data/ci-release-smoke.db
+      XAVIER_TOKEN: dev-token
+      XAVIER_URL: http://127.0.0.1:8003
+      XAVIER_HOST: 127.0.0.1
+      XAVIER_PORT: 8003
+      XAVIER_CODE_GRAPH_DB_PATH: data/ci-release-smoke.db
     steps:
       - uses: actions/checkout@v6.0.2
       - name: Setup Node
@@ -148,10 +148,10 @@ jobs:
       - name: Build panel-ui
         run: npm run build --workspace panel-ui
       - name: Build debug binary
-        run: cargo build --bin xavier2
-      - name: Start Xavier2
+        run: cargo build --bin xavier
+      - name: Start Xavier
         run: |
-          nohup target/debug/xavier2 > smoke.log 2>&1 &
+          nohup target/debug/xavier > smoke.log 2>&1 &
       - name: Wait for startup
         run: sleep 3
       - name: Run release smoke checks
@@ -160,5 +160,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7.0.0
         with:
-          name: xavier2-release-smoke-log
+          name: xavier-release-smoke-log
           path: smoke.log

@@ -1,15 +1,15 @@
-# Xavier2 Code Audit Report
+# Xavier Code Audit Report
 
-**Date:** 2026-04-14  
-**Auditor:** SWAL Agent (ventas)  
-**Version:** 0.4.1  
+**Date:** 2026-04-14
+**Auditor:** SWAL Agent (ventas)
+**Version:** 0.4.1
 **Scope:** Hexagonal architecture, error handling, async patterns, API design, tests
 
 ---
 
 ## Executive Summary
 
-Xavier2 is a cognitive memory system with significant architectural investment in hexagonal/ports-and-adapters design, but the implementation is **inconsistent**. The `src/adapters/` directory contains **non-functional stubs** while the actual business logic lives directly in `src/memory/` and `src/workspace.rs`. This creates confusion about which layer is authoritative. The codebase would benefit from a systematic cleanup prioritizing "thin adapters, rich domain" alignment.
+Xavier is a cognitive memory system with significant architectural investment in hexagonal/ports-and-adapters design, but the implementation is **inconsistent**. The `src/adapters/` directory contains **non-functional stubs** while the actual business logic lives directly in `src/memory/` and `src/workspace.rs`. This creates confusion about which layer is authoritative. The codebase would benefit from a systematic cleanup prioritizing "thin adapters, rich domain" alignment.
 
 ---
 
@@ -79,7 +79,7 @@ pub enum MemoryNamespace { org_id, workspace_id, user_id, agent_id, session_id, 
 #[test]
 fn code_graph_db_path_prefers_explicit_env() {
     unsafe {
-        std::env::set_var("XAVIER2_CODE_GRAPH_DB_PATH", &db_path);
+        std::env::set_var("XAVIER_CODE_GRAPH_DB_PATH", &db_path);
         // ... no guaranteed cleanup
     }
 }
@@ -87,11 +87,11 @@ fn code_graph_db_path_prefers_explicit_env() {
 #[test]
 fn server_addr_uses_env_configuration() {
     unsafe {
-        std::env::set_var("XAVIER2_HOST", "127.0.0.1");
-        std::env::set_var("XAVIER2_PORT", "8123");
+        std::env::set_var("XAVIER_HOST", "127.0.0.1");
+        std::env::set_var("XAVIER_PORT", "8123");
         // ...
-        std::env::remove_var("XAVIER2_HOST");  // cleanup in defer
-        std::env::remove_var("XAVIER2_PORT");
+        std::env::remove_var("XAVIER_HOST");  // cleanup in defer
+        std::env::remove_var("XAVIER_PORT");
     }
 }
 ```
@@ -121,7 +121,7 @@ fn server_addr_uses_env_configuration() {
 
 **Impact:** No unified error domain. `thiserror` types are appropriate for library code with typed errors; `anyhow` is appropriate for application/CLI code. The codebase mixes both at the same level.
 
-**Recommendation:** 
+**Recommendation:**
 - Domain layer (`src/domain/`): Use `thiserror` for typed errors
 - Application layer (`src/app/`): Use `anyhow::Result`
 - Port traits: Use `anyhow::Result` (dynamic, no concrete error types at trait boundary)
@@ -327,7 +327,7 @@ The ~800-line file should be split:
 src/server/http/
   mod.rs       # re-exports
   handlers.rs  # all handler functions
-  dto.rs        # request/response types  
+  dto.rs        # request/response types
   config.rs     # HttpConfig
   middleware.rs # auth middleware (moved from main.rs)
 ```
@@ -338,10 +338,10 @@ Move env-based configuration to `src/config.rs`:
 
 ```rust
 pub struct Config {
-    pub xavier2_host: String,
-    pub xavier2_port: u16,
-    pub xavier2_token: String,
-    pub xavier2_dev_mode: bool,
+    pub xavier_host: String,
+    pub xavier_port: u16,
+    pub xavier_token: String,
+    pub xavier_dev_mode: bool,
     // ...
 }
 

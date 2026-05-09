@@ -45,7 +45,7 @@ The active duplicate is:
 - `src/adapters/inbound/http/routes.rs::session_event_handler`
 - `src/cli.rs::session_event_handler`
 
-Both map session events with `map_to_panel_thread`, but only the `cli.rs` version persists. Keeping both makes `/xavier2/events/session` ambiguous: in one router it means "mapped only", while in the production router it means "mapped and persisted".
+Both map session events with `map_to_panel_thread`, but only the `cli.rs` version persists. Keeping both makes `/xavier/events/session` ambiguous: in one router it means "mapped only", while in the production router it means "mapped and persisted".
 
 ### Best Extraction Strategy
 
@@ -80,7 +80,7 @@ Current problems:
 - HTTP is split between `src/cli.rs` and `src/adapters/inbound/http/routes.rs`.
 - `routes.rs::create_router()` is not the same production route table built in `cli.rs`.
 - Memory HTTP handlers mostly use `MemoryQueryPort`, but MCP stdio in `cli.rs` still constructs and calls `QmdMemory` directly.
-- Security handlers call `xavier2::security::SecurityService` directly even though `SecurityScanPort` and `src/app/security_service.rs` exist.
+- Security handlers call `xavier::security::SecurityService` directly even though `SecurityScanPort` and `src/app/security_service.rs` exist.
 - Time metrics has a port but reaches it through a global `OnceLock`.
 - Agent lifecycle has a port but app state exposes `SimpleAgentRegistry`.
 - Session sync and auto verification still use raw HTTP-style behavior and global cached state.
@@ -166,7 +166,7 @@ Remaining problem:
 - `init_time_store(...)` is called from `cli.rs` startup.
 - `time_metric_handler(...)` has no `State`; it reads the global.
 - `CliState.time_store: Option<Arc<TimeMetricsStore>>` remains concrete and is not the handler dependency.
-- `workspace_id` is read from `XAVIER2_WORKSPACE_ID` inside the handler instead of state.
+- `workspace_id` is read from `XAVIER_WORKSPACE_ID` inside the handler instead of state.
 
 ### Refactoring Plan
 
@@ -397,7 +397,7 @@ Sequenced plan:
 
 ### #84
 
-- Only one `/xavier2/events/session` handler remains.
+- Only one `/xavier/events/session` handler remains.
 - The remaining handler has `State<AppState>` and persists through `MemoryQueryPort`.
 - `create_router()` and production server use the same handler.
 

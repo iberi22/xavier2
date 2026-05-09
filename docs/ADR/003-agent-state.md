@@ -19,7 +19,7 @@ static LAST_CHECK_ACTIVE_AGENTS: AtomicUsize = AtomicUsize::new(0);
 
 El code review identificó un **data race potencial**: `get_last_sync_result()` lee los valores atómicos sin coordinar con el writer (cron task), lo que puede producir snapshots inconsistentes (nuevo `lag_ms` con viejo `save_ok_rate`).
 
-La pregunta era: ¿cómo manejamos estado compartido en Xavier2?
+La pregunta era: ¿cómo manejamos estado compartido en Xavier?
 
 ---
 

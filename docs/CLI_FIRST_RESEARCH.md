@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-16
 **Analyst:** Subagent (ventas)
-**Projects Analyzed:** Xavier2 (Rust), Cortex (Python), Engram (Go)
+**Projects Analyzed:** Xavier (Rust), Cortex (Python), Engram (Go)
 
 ---
 
@@ -80,10 +80,10 @@ Agent ← stdout (JSON-RPC) ←
 - No remote access (can't share memory across machines)
 - Process spawning overhead (~50-100ms at startup, one-time)
 
-### HTTP/REST (Xavier2 & Cortex Current)
+### HTTP/REST (Xavier & Cortex Current)
 
 ```
-Agent → HTTP POST → Xavier2:7437 → SQLite
+Agent → HTTP POST → Xavier:7437 → SQLite
 Agent ← HTTP Response ←
 ```
 
@@ -158,9 +158,9 @@ HTTP call (localhost):
 
 ---
 
-## 4. Current State of Xavier2 and Cortex
+## 4. Current State of Xavier and Cortex
 
-### Xavier2 (Rust + Axum)
+### Xavier (Rust + Axum)
 
 **Current transport:** HTTP-first (Axum web framework)
 
@@ -219,27 +219,27 @@ Ask: **"Who/what is the primary consumer of memory?"**
 | Web dashboard | **HTTP** | Browser-based |
 | Claude Code / OpenCode / Codex | **STDIO (MCP)** | Native MCP support |
 
-### Recommendation 1: Xavier2 — Make stdio MCP Primary
+### Recommendation 1: Xavier — Make stdio MCP Primary
 
-**Current state:** Xavier2 already has `xavier2 mcp-stdio` but it's not promoted as the primary interface. The CLI defaults to `xavier2 server` (HTTP).
+**Current state:** Xavier already has `xavier mcp-stdio` but it's not promoted as the primary interface. The CLI defaults to `xavier server` (HTTP).
 
 **Proposed change:**
-1. Rename `xavier2 mcp-stdio` → `xavier2 mcp` (simpler, matches Engram)
-2. Make `xavier2 mcp` the **default** when no subcommand is given (or when called from an agent context)
-3. Keep `xavier2 serve` explicit for HTTP-only use cases
-4. Document `xavier2 mcp` as the recommended interface for OpenClaw agents
+1. Rename `xavier mcp-stdio` → `xavier mcp` (simpler, matches Engram)
+2. Make `xavier mcp` the **default** when no subcommand is given (or when called from an agent context)
+3. Keep `xavier serve` explicit for HTTP-only use cases
+4. Document `xavier mcp` as the recommended interface for OpenClaw agents
 
 **Why:** OpenClaw agents run as local processes that can spawn subprocesses. STDIO MCP gives ~10x lower latency and ~5x better throughput for in-process memory calls.
 
 **Implementation priority:** **HIGH** — Low effort (already implemented), high impact (faster memory for all agents).
 
-### Recommendation 2: Xavier2 — Dual-Mode Server
+### Recommendation 2: Xavier — Dual-Mode Server
 
-Allow `xavier2 serve` to optionally run BOTH HTTP and MCP stdio:
+Allow `xavier serve` to optionally run BOTH HTTP and MCP stdio:
 
 ```bash
-xavier2 serve          # HTTP only (current)
-xavier2 serve --mcp    # HTTP + spawn stdio MCP child for agent use
+xavier serve          # HTTP only (current)
+xavier serve --mcp    # HTTP + spawn stdio MCP child for agent use
 ```
 
 This matches Engram's architecture where `engram serve` (session tracking via HTTP) + `engram mcp` (tool calls via stdio) run together.
@@ -264,7 +264,7 @@ Cortex's Python runtime (~60-80MB) is less ideal for CLI-first than Go (~18MB), 
 
 OpenClaw agents should connect to memory via MCP stdio, not HTTP. This means:
 
-1. Memory system exposes MCP tools via `xavier2 mcp` or `cx mcp`
+1. Memory system exposes MCP tools via `xavier mcp` or `cx mcp`
 2. OpenClaw configures the memory system as an MCP server in stdio mode
 3. Agent calls `mem_save`, `mem_search`, `mem_context` etc. as MCP tools
 
@@ -272,8 +272,8 @@ OpenClaw agents should connect to memory via MCP stdio, not HTTP. This means:
 ```json
 {
   "mcpServers": {
-    "xavier2": {
-      "command": "xavier2",
+    "xavier": {
+      "command": "xavier",
       "args": ["mcp"]
     }
   }
@@ -302,7 +302,7 @@ Engram's memory protocol (the structured way agents save memories) is worth adop
 | `mem_timeline` | Chronological context |
 | `mem_session_start/end` | Session lifecycle |
 
-Xavier2's existing tools (`memory/add`, `memory/search`, etc.) could be wrapped in an MCP tool layer that follows this pattern.
+Xavier's existing tools (`memory/add`, `memory/search`, etc.) could be wrapped in an MCP tool layer that follows this pattern.
 
 ---
 
@@ -310,11 +310,11 @@ Xavier2's existing tools (`memory/add`, `memory/search`, etc.) could be wrapped 
 
 | Priority | Action | Project | Effort | Impact |
 |----------|--------|---------|--------|--------|
-| **P0** | Promote `xavier2 mcp` as primary interface | Xavier2 | Low | High |
-| **P0** | Document MCP stdio for OpenClaw agent config | Xavier2 | Low | High |
-| **P1** | Add dual-mode: `xavier2 serve --mcp` | Xavier2 | Medium | Medium |
+| **P0** | Promote `xavier mcp` as primary interface | Xavier | Low | High |
+| **P0** | Document MCP stdio for OpenClaw agent config | Xavier | Low | High |
+| **P1** | Add dual-mode: `xavier serve --mcp` | Xavier | Medium | Medium |
 | **P1** | Audit & complete Cortex `mcp_stdio.rs` | Cortex | Medium | Medium |
-| **P2** | Align Xavier2 MCP tools with Engram protocol | Xavier2 | Medium | Medium |
+| **P2** | Align Xavier MCP tools with Engram protocol | Xavier | Medium | Medium |
 | **P2** | Add `cx mcp` CLI command | Cortex | Low | Medium |
 
 ---
@@ -323,16 +323,16 @@ Xavier2's existing tools (`memory/add`, `memory/search`, etc.) could be wrapped 
 
 **CLI-first is the right approach for local agent memory integration.** Engram proves this with a clean Go binary that achieves 18MB memory footprint and 1,600+ req/s throughput.
 
-**Xavier2 is already halfway there** — it has the `mcp-stdio` subcommand but doesn't promote it. The biggest win is simply making `xavier2 mcp` the default/primary interface for agent use.
+**Xavier is already halfway there** — it has the `mcp-stdio` subcommand but doesn't promote it. The biggest win is simply making `xavier mcp` the default/primary interface for agent use.
 
 **Cortex** has the architecture but needs the Python-specific stdio wrapper completed and documented.
 
 **The right architecture for SWAL:**
 
 ```
-Local Agent (OpenClaw) 
-  └── xavier2 mcp (stdio) → SQLite+vec (fastest, lowest latency)
-  └── xavier2 serve (HTTP) → web dashboard, multi-agent, remote access
+Local Agent (OpenClaw)
+  └── xavier mcp (stdio) → SQLite+vec (fastest, lowest latency)
+  └── xavier serve (HTTP) → web dashboard, multi-agent, remote access
 ```
 
 HTTP remains essential for non-agent consumers (web UI, external tools, team scenarios), but stdio MCP should be the primary path for agent-to-memory communication.

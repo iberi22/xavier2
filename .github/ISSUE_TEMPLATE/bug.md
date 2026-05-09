@@ -26,9 +26,9 @@ Paste relevant logs here
 ```
 
 ## 🌍 Environment
-- OS: 
-- Version: 
-- Browser (if applicable): 
+- OS:
+- Version:
+- Browser (if applicable):
 
 ## 📝 Notes for AI Agent
 Any special instructions for fixing this bug.

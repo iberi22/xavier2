@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Migrate Xavier2 memory-store.json data to SQLite.
+Migrate Xavier memory-store.json data to SQLite.
 
 Usage:
-    python migrate_file_to_sqlite.py [--workspace WORKSPACE_ID] [--db-path /path/to/xavier2.sqlite3]
+    python migrate_file_to_sqlite.py [--workspace WORKSPACE_ID] [--db-path /path/to/xavier.sqlite3]
     python migrate_file_to_sqlite.py --reinstall   # Recreate schema
 
 Environment variables:
-    XAVIER2_MEMORY_SQLITE_PATH  - Path to SQLite database (default: ./data/workspaces/WORKSPACE/memory-store.sqlite3)
-    XAVIER2_WORKSPACE_DIR       - Path to workspaces directory (default: ./data/workspaces)
+    XAVIER_MEMORY_SQLITE_PATH  - Path to SQLite database (default: ./data/workspaces/WORKSPACE/memory-store.sqlite3)
+    XAVIER_WORKSPACE_DIR       - Path to workspaces directory (default: ./data/workspaces)
 
 This script creates a SQLite database with the same schema as the file-based
 memory store but with proper indexes for fast retrieval.
@@ -29,7 +29,7 @@ import sqlite3
 # Configuration
 # ---------------------------------------------------------------------------
 
-WORKSPACE_DIR = os.environ.get("XAVIER2_WORKSPACE_DIR", "./data/workspaces")
+WORKSPACE_DIR = os.environ.get("XAVIER_WORKSPACE_DIR", "./data/workspaces")
 
 MEMORY_TABLE = "memory_records"
 BELIEF_TABLE = "belief_states"
@@ -37,7 +37,7 @@ SESSION_TABLE = "session_tokens"
 CHECKPOINT_TABLE = "checkpoint_records"
 
 SCHEMA_SQL = f"""
--- Xavier2 Memory SQLite Schema
+-- Xavier Memory SQLite Schema
 CREATE TABLE IF NOT EXISTS {MEMORY_TABLE} (
     id              TEXT PRIMARY KEY,
     workspace_id    TEXT NOT NULL,
@@ -328,7 +328,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("Xavier2 → SQLite Migration Tool")
+    print("Xavier → SQLite Migration Tool")
     print("=" * 60)
 
     start = time.time()

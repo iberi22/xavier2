@@ -1,11 +1,11 @@
----
-name: xavier2-memory
-description: Use Xavier2 cognitive memory as an MCP-backed durable knowledge layer for persistent research, architecture context, and reusable agent memory. Use when the host requires MCP transport and the task needs Xavier2 tools such as `create_memory`, `search_memory`, `get_memory`, `list_projects`, or `get_project_context`.
+﻿---
+name: xavier-memory
+description: Use Xavier cognitive memory as an MCP-backed durable knowledge layer for persistent research, architecture context, and reusable agent memory. Use when the host requires MCP transport and the task needs Xavier tools such as `create_memory`, `search_memory`, `get_memory`, `list_projects`, or `get_project_context`.
 ---
 
-# Xavier2 Memory MCP Skill
+# Xavier Memory MCP Skill
 
-Use Xavier2 through MCP when the host tool expects MCP transport. For local scripts and operational automation, prefer the HTTP skill under `skills/xavier2-http-curl`.
+Use Xavier through MCP when the host tool expects MCP transport. For local scripts and operational automation, prefer the HTTP skill under `skills/xavier-http-curl`.
 
 ## Endpoint
 
@@ -13,9 +13,9 @@ Use `http://localhost:8003/mcp` with `streamable-http` transport.
 
 ## Preconditions
 
-- Xavier2 should be running locally.
+- Xavier should be running locally.
 - `GET /health` should respond before blaming the MCP host.
-- Use GitHub Issues for task state and Xavier2 for durable knowledge.
+- Use GitHub Issues for task state and Xavier for durable knowledge.
 
 ## Current MCP tools
 

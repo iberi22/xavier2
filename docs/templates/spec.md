@@ -6,7 +6,7 @@ created: 2025-12-02
 updated: 2025-12-02
 source: "Extracted from CDE Orchestrator MCP (archived)"
 summary: |
-  Template for feature specifications with user stories, requirements, 
+  Template for feature specifications with user stories, requirements,
   and acceptance criteria. Defines WHAT and WHY.
 ---
 

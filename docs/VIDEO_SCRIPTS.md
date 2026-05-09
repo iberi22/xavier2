@@ -1,17 +1,17 @@
 # Video Scripts
 
-## Video 1: Xavier2 Introduction
+## Video 1: Xavier Introduction
 
 ### Intro
 
-- Visual: Xavier2 logo and tagline
-- Line: "Welcome to Xavier2, the cognitive memory layer for AI agent workflows."
+- Visual: Xavier logo and tagline
+- Line: "Welcome to Xavier, the cognitive memory layer for AI agent workflows."
 
-### What Xavier2 Is
+### What Xavier Is
 
 - Explain memory, belief graph, and MCP access
 - Show the difference between task tracking and durable memory
-- Position Xavier2 as infrastructure for long-running agents
+- Position Xavier as infrastructure for long-running agents
 
 ### Main Features
 
@@ -36,8 +36,8 @@
 ### Install and Run
 
 ```bash
-git clone https://github.com/southwest-ai-labs/xavier2.git
-cd xavier2
+git clone https://github.com/southwest-ai-labs/xavier.git
+cd xavier
 docker compose up -d
 cargo test
 ```
@@ -63,7 +63,7 @@ curl -X POST http://localhost:8003/memory/search ...
 
 ### Focus
 
-- Xavier2 as shared memory backend
+- Xavier as shared memory backend
 - GitHub Issues as task state
 - MCP configuration in IDEs
 - Antigravity, Copilot, Cursor, and Windsurf alignment

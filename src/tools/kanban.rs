@@ -584,7 +584,7 @@ impl PlankaClient {
     }
 }
 
-/// Tool definitions for Xavier2 agents
+/// Tool definitions for Xavier agents
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct KanbanTool {
     pub name: String,
@@ -609,7 +609,7 @@ pub fn get_kanban_tools() -> Vec<KanbanTool> {
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
-                    "project": {"type": "string", "description": "Project name (e.g., Xavier2, ZeroClaw)"},
+                    "project": {"type": "string", "description": "Project name (e.g., Xavier, ZeroClaw)"},
                     "list": {"type": "string", "description": "List/column name (e.g., Backlog, In Progress)"},
                     "task": {"type": "string", "description": "Task title"},
                     "description": {"type": "string", "description": "Task description"}

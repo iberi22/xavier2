@@ -1,13 +1,13 @@
 ---
 title: API Reference
-description: Complete API endpoints for Xavier2
+description: Complete API endpoints for Xavier
 ---
 
 # API Reference
 
-Complete reference for the Xavier2 HTTP endpoints implemented by the Rust server.
+Complete reference for the Xavier HTTP endpoints implemented by the Rust server.
 
-This page describes the broader HTTP surface implemented in the repository. The current `xavier2 http` entry point is still converging toward this full contract, so some routes should be treated as beta or conditional until the `1.0` stabilization pass is complete.
+This page describes the broader HTTP surface implemented in the repository. The current `xavier http` entry point is still converging toward this full contract, so some routes should be treated as beta or conditional until the `1.0` stabilization pass is complete.
 
 ## Base URL
 
@@ -17,10 +17,10 @@ http://localhost:8003
 
 ## Authentication
 
-All endpoints except `GET /health` and `GET /readiness` require the `X-Xavier2-Token` header. This is the current minimal auth path implemented by the server.
+All endpoints except `GET /health` and `GET /readiness` require the `X-Xavier-Token` header. This is the current minimal auth path implemented by the server.
 
 ```bash
-curl -H "X-Xavier2-Token: <your-token>" ...
+curl -H "X-Xavier-Token: <your-token>" ...
 ```
 
 All responses include an `X-Request-Id` header for operational tracing.
@@ -96,7 +96,7 @@ Returns build metadata plus memory-store and provider details when the active se
 
 ```json
 {
-  "query": "What is Xavier2?",
+  "query": "What is Xavier?",
   "limit": 10
 }
 ```
@@ -143,7 +143,7 @@ Public dataset endpoints are:
 - read-only
 - rate-limited
 - safe for unauthenticated access when explicitly enabled by deployment policy
-- backed by the same files produced by `xavier2 export --public`
+- backed by the same files produced by `xavier export --public`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -164,7 +164,7 @@ curl http://localhost:8003/v1/public/manifest
 curl http://localhost:8003/v1/public/memories | head -n 20
 ```
 
-Deployments may serve these files directly from GitHub raw, object storage, a CDN, or the Xavier2 HTTP server. The API contract is the same: immutable export files, stable schema versions, and no mutation through `/v1/public/*`.
+Deployments may serve these files directly from GitHub raw, object storage, a CDN, or the Xavier HTTP server. The API contract is the same: immutable export files, stable schema versions, and no mutation through `/v1/public/*`.
 
 ## Code Index
 
@@ -184,17 +184,17 @@ Returns indexed file and symbol counts.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XAVIER2_URL` | from `config/xavier2.config.json` | Canonical client base URL for HTTP API calls |
-| `XAVIER2_TOKEN` | required | Auth token for protected routes |
-| `XAVIER2_PORT` | `8006` | HTTP bind port |
-| `XAVIER2_HOST` | `0.0.0.0` | Bind address |
-| `XAVIER2_CONFIG_PATH` | `config/xavier2.config.json` | Path to runtime JSON config |
-| `XAVIER2_LOG_LEVEL` | `info` | Log verbosity |
+| `XAVIER_URL` | from `config/xavier.config.json` | Canonical client base URL for HTTP API calls |
+| `XAVIER_TOKEN` | required | Auth token for protected routes |
+| `XAVIER_PORT` | `8006` | HTTP bind port |
+| `XAVIER_HOST` | `0.0.0.0` | Bind address |
+| `XAVIER_CONFIG_PATH` | `config/xavier.config.json` | Path to runtime JSON config |
+| `XAVIER_LOG_LEVEL` | `info` | Log verbosity |
 
 ## Errors
 
 Auth failures return status `401` with:
 
 ```text
-Unauthorized: Invalid or missing X-Xavier2-Token
+Unauthorized: Invalid or missing X-Xavier-Token
 ```

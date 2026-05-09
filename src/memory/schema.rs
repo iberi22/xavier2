@@ -664,7 +664,7 @@ mod tests {
     #[test]
     fn normalizes_legacy_metadata_into_canonical_fields() {
         let metadata = normalize_metadata(
-            "repo/xavier2/src/lib.rs",
+            "repo/xavier/src/lib.rs",
             json!({
                 "memory_kind": "fact_atom",
                 "session_id": "s-1",

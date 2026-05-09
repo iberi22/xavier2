@@ -1,5 +1,5 @@
 // ============================================
-// Tests for Xavier2 Memory System
+// Tests for Xavier Memory System
 // ============================================
 
 #[cfg(test)]

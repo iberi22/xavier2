@@ -1,14 +1,14 @@
-//! Kanban UI - Native egui-based kanban board for Xavier2
+//! Kanban UI - Native egui-based kanban board for Xavier
 //!
 //! This provides a native kanban UI that can run:
 //! - As a desktop app (via eframe)
 //! - In the browser (via WASM + web_sys)
-//! - Embedded in the Xavier2 HTTP server
+//! - Embedded in the Xavier HTTP server
 //!
 //! ## Usage
 //!
 //! ```rust,ignore
-//! use xavier2::ui::KanbanState;
+//! use xavier::ui::KanbanState;
 //!
 //! let app = KanbanState::new();
 //! ```

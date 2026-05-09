@@ -1,16 +1,16 @@
 [package]
-name = "xavier2"
+name = "xavier"
 version = "0.6.0-beta"
 edition = "2021"
 autobins = false
-description = "Xavier2 - Cognitive Memory Runtime for AI Agents (open source)"
+description = "Xavier - Cognitive Memory Runtime for AI Agents (open source)"
 license = "MIT"
-repository = "https://github.com/iberi22/xavier2-1"
-homepage = "https://github.com/iberi22/xavier2-1"
+repository = "https://github.com/iberi22/xavier"
+homepage = "https://github.com/iberi22/xavier"
 
 [package.metadata.enterprise]
-brand = "Xavier2"
-compatibility_alias = "xavier2"
+brand = "Xavier"
+compatibility_alias = "xavier"
 open_source_license = "MIT"
 enterprise_license_file = "LICENSE.enterprise"
 enterprise_contact = "enterprise@southwest-ai-labs.com"
@@ -23,7 +23,7 @@ enterprise_reserved_features = [
 ]
 
 [lib]
-name = "xavier2"
+name = "xavier"
 path = "src/lib.rs"
 
 [workspace]
@@ -135,17 +135,17 @@ tokio-tungstenite = "0.26"
 futures-util = "0.3"
 
 [[bin]]
-name = "xavier2"
+name = "xavier"
 path = "src/main.rs"
 test = false
 
 [[bin]]
-name = "xavier2-gui"
+name = "xavier-gui"
 path = "src/main_egui.rs"
 required-features = ["egui-standalone"]
 
 [[bin]]
-name = "xavier2-tui"
+name = "xavier-tui"
 path = "src/main_tui.rs"
 required-features = ["cli-interactive"]
 

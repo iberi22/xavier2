@@ -10,7 +10,7 @@ requested_by: system
 summary: |
   Configuration rules, forbidden actions, and workflows for AI agents.
   Now powered by Rust-native agents (10-30x speedup) with simplified architecture
-  and Xavier2 as the shared memory backend for reusable agent context.
+  and Xavier as the shared memory backend for reusable agent context.
 keywords: [agents, rules, workflow, configuration, autonomy, rust, performance]
 tags: ["#configuration", "#agents", "#rules", "#v3.2"]
 project: Git-Core-Protocol
@@ -240,10 +240,10 @@ When you need to export context for a new chat session:
 Your state is GitHub Issues. Not memory. Not files. GitHub Issues.
 ```
 
-### 🧠 Xavier2 Memory Contract
+### 🧠 Xavier Memory Contract
 
 - **GitHub Issues** are the only source of truth for task state, progress, and planning.
-- **Xavier2** is the reusable memory substrate for research, architectural context, session recall, and durable agent knowledge.
+- **Xavier** is the reusable memory substrate for research, architectural context, session recall, and durable agent knowledge.
 - **README.md** is the human entrypoint; `.gitcore/ARCHITECTURE.md` is the implementation authority.
 - **Secrets** belong in machine environment variables, never in tracked config files or copied tokens inside IDE configs.
 

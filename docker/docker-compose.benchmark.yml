@@ -1,18 +1,18 @@
 version: '3.8'
 
 services:
-  # Xavier2 Docker - New instance for benchmark
-  xavier2:
-    image: iberi22/xavier2:latest
-    container_name: xavier2-memory
+  # Xavier Docker - New instance for benchmark
+  xavier:
+    image: iberi22/xavier:latest
+    container_name: xavier-memory
     ports:
       - "8006:8006"
     environment:
-      - XAVIER2_PORT=8006
+      - XAVIER_PORT=8006
       - RUST_LOG=info
-      - XAVIER2_STORAGE=/data
+      - XAVIER_STORAGE=/data
     volumes:
-      - xavier2-data:/data
+      - xavier-data:/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
@@ -39,7 +39,7 @@ services:
     image: python:3.11-slim
     container_name: swal-benchmark
     depends_on:
-      xavier2:
+      xavier:
         condition: service_healthy
     volumes:
       - ./scripts:/scripts
@@ -49,4 +49,4 @@ services:
     working_dir: /scripts
 
 volumes:
-  xavier2-data:
+  xavier-data:

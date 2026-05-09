@@ -1,10 +1,20 @@
 # Super Memory Benchmark - Target: Beat 98%
-# Comprehensive test of Xavier2 memory capabilities
+# Comprehensive test of Xavier memory capabilities
 
-$XAVIER2 = "http://localhost:8006"
-$TOKEN = "dev-token"
+$XAVIER = "http://localhost:8006"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
+$TOKEN = Get-XavierToken
 $headers = @{
-    "X-Xavier2-Token" = $TOKEN
+    "X-Xavier-Token" = $TOKEN
     "Content-Type" = "application/json"
 }
 
@@ -20,7 +30,7 @@ function Add-Memory {
     param([string]$Path, [string]$Content)
     try {
         $body = @{path=$Path; content=$Content; metadata=@{}} | ConvertTo-Json -Compress
-        $null = Invoke-RestMethod -Uri "$XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing
+        $null = Invoke-RestMethod -Uri "$XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing
         return $true
     } catch { return $false }
 }
@@ -29,7 +39,7 @@ function Query-Memory {
     param([string]$Query)
     try {
         $body = @{query=$Query; limit=5} | ConvertTo-Json -Compress
-        $resp = Invoke-RestMethod -Uri "$XAVIER2/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing
+        $resp = Invoke-RestMethod -Uri "$XAVIER/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body $body -UseBasicParsing
         return $resp
     } catch { return $null }
 }
@@ -71,7 +81,7 @@ function Test-Query {
 
     # Also check with agent
     $agentBody = @{query=$Query; limit=3; system3_mode="disabled"} | ConvertTo-Json -Compress
-    $agent = Invoke-RestMethod -Uri "$XAVIER2/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $agentBody -UseBasicParsing
+    $agent = Invoke-RestMethod -Uri "$XAVIER/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $agentBody -UseBasicParsing
     $agentText = $agent.response
 
     # Check expected keywords in either search results or agent response
@@ -114,7 +124,7 @@ Write-Host "========================================" -ForegroundColor Magenta
 
 Write-Host "`n[Setup] Resetting memories..." -ForegroundColor Yellow
 try {
-    $null = Invoke-RestMethod -Uri "$XAVIER2/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}' -UseBasicParsing
+    $null = Invoke-RestMethod -Uri "$XAVIER/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}' -UseBasicParsing
     Write-Host "  ✅ Reset complete" -ForegroundColor Green
 } catch {
     Write-Host "  ⚠️  Reset skipped (may already be empty)" -ForegroundColor Yellow
@@ -137,7 +147,7 @@ Test-Query -Name "project_status" -MemoryPath "test/project" -Content "The proje
 
 Test-Query -Name "repo_info" -MemoryPath "test/repo" -Content "Repository gestalt-rust uses Rust with 95% test coverage and runs on port 8080" -Query "What language is gestalt-rust written in?" -ExpectedKeywords @("rust", "95") -Weight 2
 
-Test-Query -Name "docker_config" -MemoryPath "test/docker" -Content "Docker container xavier2 exposes port 8006 and uses 2GB RAM" -Query "What port does xavier2 expose?" -ExpectedKeywords @("8006", "xavier2") -Weight 2
+Test-Query -Name "docker_config" -MemoryPath "test/docker" -Content "Docker container xavier exposes port 8006 and uses 2GB RAM" -Query "What port does xavier expose?" -ExpectedKeywords @("8006", "xavier") -Weight 2
 
 # === RELATIONSHIPS (Multi-hop) ===
 Write-Host "`n=== RELATIONSHIPS ===" -ForegroundColor Yellow
@@ -201,7 +211,7 @@ Write-Host ""
 
 if ($percentage -ge 98) {
     Write-Host "🏆🏆🏆 LEGENDARY! 98%+ ACHIEVED! 🏆🏆🏆" -ForegroundColor Magenta
-    Write-Host "Xavier2 is a STATE OF THE ART memory system!" -ForegroundColor Green
+    Write-Host "Xavier is a STATE OF THE ART memory system!" -ForegroundColor Green
 } elseif ($percentage -ge 95) {
     Write-Host "🌟🌟🌟 EXCELLENT! 95%+ Score! 🌟🌟🌟" -ForegroundColor Cyan
     Write-Host "Very close to state of the art performance!" -ForegroundColor Green

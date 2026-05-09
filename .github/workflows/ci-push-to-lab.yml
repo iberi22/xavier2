@@ -1,4 +1,4 @@
-name: CI + Push to Lab
+﻿name: CI + Push to Lab
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  LAB_REPO: southwest-ai-labs/xavier2
+  LAB_REPO: southwest-ai-labs/xavier
   GH_TOKEN_LAB: ${{ secrets.GH_TOKEN_LAB }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -27,16 +27,16 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Check (lint)
-        run: cargo check --workspace --all-targets --features ci-safe --exclude xavier2-web
+        run: cargo check --workspace --all-targets --features ci-safe --exclude xavier-web
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --features ci-safe --exclude xavier2-web -- -D warnings
+        run: cargo clippy --workspace --all-targets --features ci-safe --exclude xavier-web -- -D warnings
 
       - name: Test
-        run: cargo test --workspace --features ci-safe --exclude xavier2-web
+        run: cargo test --workspace --features ci-safe --exclude xavier-web
 
       - name: Build
-        run: cargo build --release --bin xavier2 --bin xavier2-tui
+        run: cargo build --release --bin xavier --bin xavier-tui
 
   push-to-lab:
     name: Push to Lab

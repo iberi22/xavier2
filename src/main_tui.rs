@@ -13,33 +13,33 @@ use std::{
     time::{Duration, Instant},
 };
 
-use xavier2::settings::Xavier2Settings;
-use xavier2::ui::dashboard::{DashboardMetrics, MemoryItem, TuiAppState};
-use xavier2::ui::memory_view::MemoryView;
+use xavier::settings::XavierSettings;
+use xavier::ui::dashboard::{DashboardMetrics, MemoryItem, TuiAppState};
+use xavier::ui::memory_view::MemoryView;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryListResponse {
     pub memories: Vec<MemoryItem>,
 }
 
-pub struct Xavier2Client {
+pub struct XavierClient {
     client: Client,
     base_url: String,
     token: String,
 }
 
-impl Default for Xavier2Client {
+impl Default for XavierClient {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Xavier2Client {
+impl XavierClient {
     pub fn new() -> Self {
-        let base_url = std::env::var("XAVIER2_URL")
-            .unwrap_or_else(|_| Xavier2Settings::current().client_base_url());
+        let base_url = std::env::var("XAVIER_URL")
+            .unwrap_or_else(|_| XavierSettings::current().client_base_url());
         let token =
-            std::env::var("XAVIER2_TOKEN").expect("XAVIER2_TOKEN environment variable must be set");
+            std::env::var("XAVIER_TOKEN").expect("XAVIER_TOKEN environment variable must be set");
         Self {
             client: Client::new(),
             base_url,
@@ -52,7 +52,7 @@ impl Xavier2Client {
         let resp = self
             .client
             .get(&url)
-            .header("X-Xavier2-Token", &self.token)
+            .header("X-Xavier-Token", &self.token)
             .send()
             .await?
             .json::<serde_json::Value>()
@@ -76,7 +76,7 @@ impl Xavier2Client {
         let resp = self
             .client
             .get(&url)
-            .header("X-Xavier2-Token", &self.token)
+            .header("X-Xavier-Token", &self.token)
             .send()
             .await?
             .json::<MemoryListResponse>()
@@ -89,7 +89,7 @@ impl Xavier2Client {
         let resp = self
             .client
             .post(&url)
-            .header("X-Xavier2-Token", &self.token)
+            .header("X-Xavier-Token", &self.token)
             .json(&serde_json::json!({ "query": query, "limit": 50 }))
             .send()
             .await?
@@ -109,7 +109,7 @@ impl Xavier2Client {
         let resp = self
             .client
             .get(&url)
-            .header("X-Xavier2-Token", &self.token)
+            .header("X-Xavier-Token", &self.token)
             .send()
             .await?
             .json::<serde_json::Value>()
@@ -126,7 +126,7 @@ impl Xavier2Client {
 
         if logs.is_empty() {
             logs = vec![
-                "S1: [Retrieval] Searching memory for 'xavier2 architecture'...".to_string(),
+                "S1: [Retrieval] Searching memory for 'xavier architecture'...".to_string(),
                 "S1: Found 3 relevant documents.".to_string(),
                 "S2: [Reasoning] Analyzing system context and retrieved docs...".to_string(),
                 "S2: Confidence 0.85. Reasoning chain: memory-indexing -> agent-access."
@@ -146,7 +146,7 @@ pub struct TuiApp {
     pub logs: Vec<String>,
     pub current_tab: usize,
     pub should_quit: bool,
-    pub client: Arc<Xavier2Client>,
+    pub client: Arc<XavierClient>,
     pub last_tick: Instant,
     pub memory_view: MemoryView,
     pub input: String,
@@ -174,7 +174,7 @@ impl TuiApp {
             logs: Vec::new(),
             current_tab: 0,
             should_quit: false,
-            client: Arc::new(Xavier2Client::new()),
+            client: Arc::new(XavierClient::new()),
             last_tick: Instant::now(),
             memory_view: MemoryView::new(),
             input: String::new(),
@@ -242,7 +242,7 @@ async fn main() -> Result<()> {
 
     loop {
         terminal.draw(|f| {
-            xavier2::ui::dashboard::render_tui(f, &app);
+            xavier::ui::dashboard::render_tui(f, &app);
 
             if matches!(app.input_mode, InputMode::Editing) {
                 let area = f.area();

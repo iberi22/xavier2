@@ -4,11 +4,11 @@ SWAL memory triad benchmark.
 
 Compares the three memory systems with their most reliable local interface:
 - Cortex: HTTP API on 127.0.0.1:8003
-- Xavier2: HTTP API on 127.0.0.1:8006
+- Xavier: HTTP API on 127.0.0.1:8006
 - Engram: local CLI binary
 
-The script can optionally start Xavier2 from the release binary and writes a JSON
-report under E:/scripts-python/xavier2/benchmark_results.
+The script can optionally start Xavier from the release binary and writes a JSON
+report under E:/scripts-python/xavier/benchmark_results.
 """
 
 from __future__ import annotations
@@ -31,14 +31,22 @@ ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = ROOT / "benchmark_results"
 
 DEFAULT_CORTEX_URL = "http://127.0.0.1:8003"
-DEFAULT_XAVIER2_URL = "http://127.0.0.1:8006"
+DEFAULT_XAVIER_URL = "http://127.0.0.1:8006"
 DEFAULT_ENGRAM_BIN = r"C:\Users\belal\AppData\Local\Temp\engram\engram.exe"
-GLOBAL_XAVIER2_BIN = Path(r"C:\Users\belal\.cargo\target_global\release\xavier2.exe")
-DEFAULT_XAVIER2_BIN = str(
-    GLOBAL_XAVIER2_BIN if GLOBAL_XAVIER2_BIN.is_file() else ROOT / "target" / "release" / "xavier2.exe"
+GLOBAL_XAVIER_BIN = Path(r"C:\Users\belal\.cargo\target_global\release\xavier.exe")
+DEFAULT_XAVIER_BIN = str(
+    GLOBAL_XAVIER_BIN if GLOBAL_XAVIER_BIN.is_file() else ROOT / "target" / "release" / "xavier.exe"
 )
 
-TOKEN = "dev-token"
+def get_required_xavier_token() -> str:
+    for env_var in ("XAVIER_TOKEN", "XAVIER_API_KEY", "XAVIER_TOKEN"):
+        token = os.environ.get(env_var, "").strip()
+        if token:
+            return token
+    raise RuntimeError("Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.")
+
+
+TOKEN = get_required_xavier_token()
 
 
 @dataclass
@@ -66,22 +74,22 @@ TEST_MEMORIES = [
     },
     {
         "id": "memory-architecture",
-        "content": "OpenClaw memory architecture: Xavier2 is the fast local/vector memory, Cortex is the institutional memory, and Engram is the external baseline.",
+        "content": "OpenClaw memory architecture: Xavier is the fast local/vector memory, Cortex is the institutional memory, and Engram is the external baseline.",
         "query": "Which three memory systems are being compared?",
-        "expected": "Xavier2",
+        "expected": "Xavier",
     },
     {
         "id": "xavier-port",
-        "content": "Operational ports: Cortex listens on 8003, Xavier2 should listen on 8006, and Engram is used through its local CLI binary.",
-        "query": "Which port should Xavier2 use?",
+        "content": "Operational ports: Cortex listens on 8003, Xavier should listen on 8006, and Engram is used through its local CLI binary.",
+        "query": "Which port should Xavier use?",
         "expected": "8006",
     },
 ]
 
-DEFAULT_XAVIER2_CODE_CONTEXT_PATH = ROOT
+DEFAULT_XAVIER_CODE_CONTEXT_PATH = ROOT
 DEFAULT_CORTEX_CODE_CONTEXT_PATH = os.environ.get(
     "CORTEX_CODE_CONTEXT_PATH",
-    "/mnt/workspaces/xavier2",
+    "/mnt/workspaces/xavier",
 )
 CODE_CONTEXT_QUERIES = [
     {
@@ -153,7 +161,7 @@ def http_json(
         headers={
             "Content-Type": "application/json",
             "X-Cortex-Token": TOKEN,
-            "X-Xavier2-Token": TOKEN,
+            "X-Xavier-Token": TOKEN,
         },
     )
     try:
@@ -190,18 +198,18 @@ def wait_for_http(base_url: str, timeout_seconds: int = 20) -> bool:
     return False
 
 
-def start_xavier2_if_needed(xavier2_url: str, xavier2_bin: str) -> dict[str, Any]:
-    if http_json(xavier2_url, "/health", timeout=2.0).ok:
+def start_xavier_if_needed(xavier_url: str, xavier_bin: str) -> dict[str, Any]:
+    if http_json(xavier_url, "/health", timeout=2.0).ok:
         return {"started": False, "reason": "already_running"}
 
-    binary = Path(xavier2_bin)
+    binary = Path(xavier_bin)
     if not binary.is_file():
         return {"started": False, "error": f"missing binary: {binary}"}
 
     logs = ROOT / "benchmark_results"
     logs.mkdir(parents=True, exist_ok=True)
-    stdout_path = logs / "xavier2-triad-8006.out.log"
-    stderr_path = logs / "xavier2-triad-8006.err.log"
+    stdout_path = logs / "xavier-triad-8006.out.log"
+    stderr_path = logs / "xavier-triad-8006.err.log"
 
     stdout = stdout_path.open("ab")
     stderr = stderr_path.open("ab")
@@ -213,7 +221,7 @@ def start_xavier2_if_needed(xavier2_url: str, xavier2_bin: str) -> dict[str, Any
         creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
     )
 
-    ready = wait_for_http(xavier2_url, timeout_seconds=25)
+    ready = wait_for_http(xavier_url, timeout_seconds=25)
     return {
         "started": ready,
         "reason": "launched",
@@ -546,46 +554,46 @@ def summarize_code_context(system_result: dict[str, Any]) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cortex-url", default=DEFAULT_CORTEX_URL)
-    parser.add_argument("--xavier2-url", default=DEFAULT_XAVIER2_URL)
+    parser.add_argument("--xavier-url", default=DEFAULT_XAVIER_URL)
     parser.add_argument("--engram-bin", default=os.environ.get("ENGRAM_BIN", DEFAULT_ENGRAM_BIN))
-    parser.add_argument("--xavier2-bin", default=os.environ.get("XAVIER2_BIN", DEFAULT_XAVIER2_BIN))
+    parser.add_argument("--xavier-bin", default=os.environ.get("XAVIER_BIN", DEFAULT_XAVIER_BIN))
     parser.add_argument(
         "--cortex-code-path",
         default=DEFAULT_CORTEX_CODE_CONTEXT_PATH,
         help="Path visible from the Cortex process/container for code scan",
     )
     parser.add_argument(
-        "--xavier2-code-path",
-        default=str(DEFAULT_XAVIER2_CODE_CONTEXT_PATH),
-        help="Path visible from the Xavier2 process for code scan",
+        "--xavier-code-path",
+        default=str(DEFAULT_XAVIER_CODE_CONTEXT_PATH),
+        help="Path visible from the Xavier process for code scan",
     )
-    parser.add_argument("--start-xavier2", action="store_true")
+    parser.add_argument("--start-xavier", action="store_true")
     parser.add_argument("--no-write", action="store_true")
     args = parser.parse_args()
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     startup = None
-    if args.start_xavier2:
-        startup = start_xavier2_if_needed(args.xavier2_url, args.xavier2_bin)
+    if args.start_xavier:
+        startup = start_xavier_if_needed(args.xavier_url, args.xavier_bin)
 
     run_id = f"swal-triad-{now_stamp()}"
     memories = [] if args.no_write else build_run_memories(run_id)
     report = {
         "timestamp": datetime.now().isoformat(),
         "run_id": run_id,
-        "goal": "Compare Xavier2, Cortex, and Engram using stable local interfaces",
-        "startup": {"xavier2": startup},
+        "goal": "Compare Xavier, Cortex, and Engram using stable local interfaces",
+        "startup": {"xavier": startup},
         "systems": {
             "cortex": run_http_system("cortex", args.cortex_url, memories, run_id),
-            "xavier2": run_http_system("xavier2", args.xavier2_url, memories, run_id),
+            "xavier": run_http_system("xavier", args.xavier_url, memories, run_id),
             "engram": run_engram(args.engram_bin, memories, run_id),
         },
         "code_context": {
             "target_paths": {
                 "cortex": args.cortex_code_path,
-                "xavier2": args.xavier2_code_path,
-                "engram": args.xavier2_code_path,
+                "xavier": args.xavier_code_path,
+                "engram": args.xavier_code_path,
             },
             "systems": {
                 "cortex": run_code_context_http_system(
@@ -593,12 +601,12 @@ def main() -> int:
                     args.cortex_url,
                     args.cortex_code_path,
                 ),
-                "xavier2": run_code_context_http_system(
-                    "xavier2",
-                    args.xavier2_url,
-                    args.xavier2_code_path,
+                "xavier": run_code_context_http_system(
+                    "xavier",
+                    args.xavier_url,
+                    args.xavier_code_path,
                 ),
-                "engram": run_code_context_engram(args.engram_bin, args.xavier2_code_path),
+                "engram": run_code_context_engram(args.engram_bin, args.xavier_code_path),
             },
         },
     }
@@ -627,7 +635,7 @@ def main() -> int:
     # A low recall score is benchmark data, not a runner failure. Non-zero is
     # reserved for infrastructure being unavailable.
     all_available = all(item["available"] for item in report["summary"].values())
-    xavier_code = report["code_context"]["summary"].get("xavier2", {})
+    xavier_code = report["code_context"]["summary"].get("xavier", {})
     xavier_code_ok = xavier_code.get("scan_ok") and xavier_code.get("matched_expected", 0) >= 1
     return 0 if all_available and xavier_code_ok else 2
 

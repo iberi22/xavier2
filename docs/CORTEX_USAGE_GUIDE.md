@@ -1,7 +1,7 @@
-# XAVIER2 Usage Guide for SWAL Agents
+# XAVIER Usage Guide for SWAL Agents
 
 **Purpose:** Standardized, token-efficient memory operations for all SWAL agents.
-**Principle:** Xavier2 is the shared brain — use it wisely, don't waste tokens.
+**Principle:** Xavier is the shared brain — use it wisely, don't waste tokens.
 
 ---
 
@@ -9,7 +9,7 @@
 
 ### Default Backend: `vec` (SQLite-pro)
 
-The default memory backend is **`XAVIER2_MEMORY_BACKEND=vec`**, which combines:
+The default memory backend is **`XAVIER_MEMORY_BACKEND=vec`**, which combines:
 
 - **SQLite** — persistent storage with WAL mode (mmap 256MB, cache 32MB)
 - **sqlite-vec** — vector search via KNN for semantic similarity
@@ -33,8 +33,8 @@ Query → FTS5 (keyword) → RRF Fusion ← Vector Search (sqlite-vec KNN)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XAVIER2_MEMORY_BACKEND` | `vec` | Backend: `vec`, `surreal`, `sqlite`, `file` |
-| `XAVIER2_EMBEDDING_DIMENSIONS` | `768` | Embedding vector size (adjust to match your embedder) |
+| `XAVIER_MEMORY_BACKEND` | `vec` | Backend: `vec`, `surreal`, `sqlite`, `file` |
+| `XAVIER_EMBEDDING_DIMENSIONS` | `768` | Embedding vector size (adjust to match your embedder) |
 
 ---
 
@@ -52,7 +52,7 @@ Query → FTS5 (keyword) → RRF Fusion ← Vector Search (sqlite-vec KNN)
 ## Core Rules
 
 ### 1. READ Before WRITE
-Always check if the information already exists in Xavier2 before adding it.
+Always check if the information already exists in Xavier before adding it.
 
 ### 2. WRITE Summaries, Not Transcripts
 Don't dump full conversations. Write concise, factual summaries.
@@ -70,7 +70,7 @@ If you need 3 things about the same topic, one query is better than 3.
 ### Base URL
 ```
 http://localhost:8003
-Header: X-Xavier2-Token: dev-token
+Header: X-Xavier-Token: dev-token
 ```
 
 ### READ Operations
@@ -143,7 +143,7 @@ DELETE /memory/evict?threshold=0.2  # Remove low-quality
 
 ```powershell
 # GOOD: One specific query
-$r = POST /memory/search -Body @{ query = "Xavier2 version status" }
+$r = POST /memory/search -Body @{ query = "Xavier version status" }
 # Returns: 5 most relevant memories, ~500 tokens
 
 # BAD: Vague query
@@ -155,7 +155,7 @@ $r = POST /memory/search -Body @{ query = "everything about projects" }
 
 ```powershell
 # GOOD: 200 byte summary
-Add: "Xavier2 v0.4.1 running. pplx-embed healthy. Benchmark 99.1% recall."
+Add: "Xavier v0.4.1 running. pplx-embed healthy. Benchmark 99.1% recall."
 
 # BAD: 5KB transcript dump
 Add: Full conversation transcript with all filler words
@@ -185,7 +185,7 @@ if ($existing.results[0].content.Contains("your fact")) {
 
 ---
 
-## When to Write to Xavier2
+## When to Write to Xavier
 
 ### ALWAYS Write:
 - Decisions made (with reasoning)
@@ -199,7 +199,7 @@ if ($existing.results[0].content.Contains("your fact")) {
 - Intermediate thinking (keep in local context)
 - Full conversation dumps
 - Information that will be stale in hours
-- Duplicate information already in Xavier2
+- Duplicate information already in Xavier
 
 ---
 
@@ -233,7 +233,7 @@ if ($existing.results[0].content.Contains("your fact")) {
 
 ## Sync Strategy
 
-**OpenClaw Agent Sessions → Xavier2:**
+**OpenClaw Agent Sessions → Xavier:**
 - Session summaries (not full transcripts)
 - Decisions and outcomes
 - Client-facing information
@@ -249,11 +249,11 @@ if ($existing.results[0].content.Contains("your fact")) {
 
 ```
 1. START SESSION
-   → Read Xavier2: "BELA profile, active projects, recent decisions"
+   → Read Xavier: "BELA profile, active projects, recent decisions"
    → KG traverse: "What did Alice decide recently?"
 
 2. DURING SESSION
-   → Read Xavier2 for specific facts as needed
+   → Read Xavier for specific facts as needed
    → Write decisions and outcomes immediately
    → Add KG entities/relations for structural decisions
 
@@ -261,7 +261,7 @@ if ($existing.results[0].content.Contains("your fact")) {
    → Write summary: "Completed X, decided Y, next steps Z"
    → Update project status if changed
 
-4. XAVIER2 SYNC (automatic via cron)
+4. XAVIER SYNC (automatic via cron)
    → Sessions sync'd hourly
    → Memories auto-curated daily
 ```

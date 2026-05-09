@@ -1,12 +1,12 @@
-# Xavier2 Roadmap - State of the Art Memory for AI Agents
+﻿# Xavier Roadmap - State of the Art Memory for AI Agents
 Generated: 2026-04-20
-Purpose: Features analysis and implementation roadmap for Xavier2 v1.0
+Purpose: Features analysis and implementation roadmap for Xavier v1.0
 
 ---
 
 ## Executive Summary
 
-Xavier2 currently has a solid foundation (vector storage, FTS5, security) but lacks
+Xavier currently has a solid foundation (vector storage, FTS5, security) but lacks
 several key features that define state-of-the-art memory systems for LLM agents.
 
 **Key Gap Analysis:**
@@ -75,7 +75,7 @@ mem_save {
 
 ---
 
-## Part 2: Xavier2 Gap Analysis
+## Part 2: Xavier Gap Analysis
 
 ### Current Implementation:
 
@@ -106,11 +106,11 @@ mem_save {
    - Keep key facts, discard redundant details
 
 4. **Enhanced mem_save CLI**
-   - Structured input: `xavier2 save --type learning --what "..." --why "..."`
+   - Structured input: `xavier save --type learning --what "..." --why "..."`
    - Auto-classify content type
 
 5. **Memory Search by Type**
-   - `xavier2 search "query" --type episodic --limit 10`
+   - `xavier search "query" --type episodic --limit 10`
    - Filter by date range, importance score
 
 #### P1 - Important for differentiation
@@ -132,7 +132,7 @@ mem_save {
    - Audit trail for decisions
 
 10. **Memory Analytics**
-    - `xavier2 stats --insights`
+    - `xavier stats --insights`
     - Show memory usage patterns, gaps
 
 #### P2 - Nice to have
@@ -142,7 +142,7 @@ mem_save {
     - Import from Engram, Mem0
 
 12. **Multi-workspace**
-    - `xavier2 switch-workspace <name>`
+    - `xavier switch-workspace <name>`
     - Isolated memory per project
 
 13. **Memory Sharing (Enterprise)**
@@ -190,11 +190,11 @@ pub struct MemoryScore {
 
 #### 3.1.3 Enhanced CLI Commands
 ```
-xavier2 save <content> [--type episodic|semantic|procedural|declarative]
-xavier2 search <query> [--type X] [--limit N] [--min-score 0.5]
-xavier2 recall [--recent 10] [--important] [--type X]
-xavier2 forget <memory-id>  # Soft delete
-xavier2 archive <memory-id> # Move to archival
+xavier save <content> [--type episodic|semantic|procedural|declarative]
+xavier search <query> [--type X] [--limit N] [--min-score 0.5]
+xavier recall [--recent 10] [--important] [--type X]
+xavier forget <memory-id>  # Soft delete
+xavier archive <memory-id> # Move to archival
 ```
 
 **File:** `src/cli.rs` + `src/commands/` (new dir)
@@ -340,7 +340,7 @@ pub async fn auto_summarize(&self, available_tokens: usize) -> ContextSummary
 
 ## Part 6: Competitive Advantage
 
-### Xavier2's Strengths:
+### Xavier's Strengths:
 1. **Security-first**: Only solution with PromptInjectionDetector integrated
 2. **Code intelligence**: Unique code-graph indexing and search
 3. **Performance**: Local Ollama embeddings, fast FTS5
@@ -369,7 +369,7 @@ pub async fn auto_summarize(&self, available_tokens: usize) -> ContextSummary
 ### Day 1-2: Quick Wins
 1. Add `memory_type` field to all new memories (auto-detect from content)
 2. Add importance score (simple: recency + access_count)
-3. Enhance CLI: `xavier2 save`, `xavier2 recall`
+3. Enhance CLI: `xavier save`, `xavier recall`
 
 ### Day 3-4: Fix Critical Bugs
 1. Debug code_find_handler returning 0

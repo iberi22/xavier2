@@ -1,10 +1,10 @@
-# Xavier2 Documentation
+# Xavier Documentation
 
-Welcome to the Xavier2 documentation!
+Welcome to the Xavier documentation!
 
 ## Getting Started
 
-- [Quick Start Guide](./guides/QUICKSTART.md) - Install and run Xavier2 in 5 minutes
+- [Quick Start Guide](./guides/QUICKSTART.md) - Install and run Xavier in 5 minutes
 - [CLI Reference](./guides/CLI_REFERENCE.md) - Complete CLI command reference
 
 ## Integration

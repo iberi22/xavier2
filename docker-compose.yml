@@ -1,61 +1,61 @@
 services:
-  # Xavier2 Memory Server (standalone - no pplx-embed dependency)
-  xavier2:
+  # Xavier Memory Server (standalone - no pplx-embed dependency)
+  xavier:
     build:
       context: .
       dockerfile: Dockerfile
-    image: xavier2:${XAVIER2_IMAGE_TAG:-0.4.1}
-    container_name: xavier2
+    image: xavier:${XAVIER_IMAGE_TAG:-0.4.1}
+    container_name: xavier
     restart: unless-stopped
     ports:
       - "8006:8006"
     environment:
-      - XAVIER2_PORT=8006
-      - XAVIER2_HOST=0.0.0.0
-      - XAVIER2_CODE_GRAPH_DB_PATH=/data/code_graph.db
-      - XAVIER2_TOKEN=${XAVIER2_TOKEN:?Set XAVIER2_TOKEN in .env before starting Docker}
-      - XAVIER2_MEMORY_BACKEND=${XAVIER2_MEMORY_BACKEND:-vec}
-      - XAVIER2_WORKSPACE_DIR=/data/workspaces
+      - XAVIER_PORT=8006
+      - XAVIER_HOST=0.0.0.0
+      - XAVIER_CODE_GRAPH_DB_PATH=/data/code_graph.db
+      - XAVIER_TOKEN=${XAVIER_TOKEN:?Set XAVIER_TOKEN in .env before starting Docker}
+      - XAVIER_MEMORY_BACKEND=${XAVIER_MEMORY_BACKEND:-vec}
+      - XAVIER_WORKSPACE_DIR=/data/workspaces
       - RUST_LOG=${RUST_LOG:-info}
-      - XAVIER2_LOG_LEVEL=${XAVIER2_LOG_LEVEL:-info}
-      # SQLite-vec paths (used when XAVIER2_MEMORY_BACKEND=vec)
-      - XAVIER2_MEMORY_SQLITE_PATH=/data/memory-store.sqlite3
-      - XAVIER2_MEMORY_VEC_PATH=/data/vec-store.sqlite3
-      # SurrealDB (only used when XAVIER2_MEMORY_BACKEND=surreal)
-      - XAVIER2_SURREALDB_URL=${XAVIER2_SURREALDB_URL:-ws://surrealdb:8000}
-      - XAVIER2_SURREALDB_NS=${XAVIER2_SURREALDB_NS:-xavier2}
-      - XAVIER2_SURREALDB_DB=${XAVIER2_SURREALDB_DB:-memory}
-      - XAVIER2_SURREALDB_USER=${XAVIER2_SURREALDB_USER:-}
-      - XAVIER2_SURREALDB_PASS=${XAVIER2_SURREALDB_PASS:-}
+      - XAVIER_LOG_LEVEL=${XAVIER_LOG_LEVEL:-info}
+      # SQLite-vec paths (used when XAVIER_MEMORY_BACKEND=vec)
+      - XAVIER_MEMORY_SQLITE_PATH=/data/memory-store.sqlite3
+      - XAVIER_MEMORY_VEC_PATH=/data/vec-store.sqlite3
+      # SurrealDB (only used when XAVIER_MEMORY_BACKEND=surreal)
+      - XAVIER_SURREALDB_URL=${XAVIER_SURREALDB_URL:-ws://surrealdb:8000}
+      - XAVIER_SURREALDB_NS=${XAVIER_SURREALDB_NS:-xavier}
+      - XAVIER_SURREALDB_DB=${XAVIER_SURREALDB_DB:-memory}
+      - XAVIER_SURREALDB_USER=${XAVIER_SURREALDB_USER:-}
+      - XAVIER_SURREALDB_PASS=${XAVIER_SURREALDB_PASS:-}
       # Embeddings: Use local Ollama (no Docker network dependency)
       # For Mac/Windows: host.docker.internal. For Linux: set OLLAMA_HOST to host IP
-      - XAVIER2_EMBEDDING_URL=${XAVIER2_EMBEDDING_URL:-http://host.docker.internal:11434/v1}
-      - XAVIER2_EMBEDDING_MODEL=${XAVIER2_EMBEDDING_MODEL:-nomic-embed-text}
+      - XAVIER_EMBEDDING_URL=${XAVIER_EMBEDDING_URL:-http://host.docker.internal:11434/v1}
+      - XAVIER_EMBEDDING_MODEL=${XAVIER_EMBEDDING_MODEL:-nomic-embed-text}
       # LLM: Use local Ollama fallback
-      - XAVIER2_LOCAL_LLM_URL=${XAVIER2_LOCAL_LLM_URL:-http://host.docker.internal:11434/v1}
-      - XAVIER2_LOCAL_LLM_MODEL=${XAVIER2_LOCAL_LLM_MODEL:-qwen:0.5b}
+      - XAVIER_LOCAL_LLM_URL=${XAVIER_LOCAL_LLM_URL:-http://host.docker.internal:11434/v1}
+      - XAVIER_LOCAL_LLM_MODEL=${XAVIER_LOCAL_LLM_MODEL:-qwen:0.5b}
       # Model Provider (local, gemini, openai, minimax, anthropic)
-      - XAVIER2_MODEL_PROVIDER=${XAVIER2_MODEL_PROVIDER:-local}
+      - XAVIER_MODEL_PROVIDER=${XAVIER_MODEL_PROVIDER:-local}
       # Model routing (optional overrides)
-      - XAVIER2_ROUTER_RETRIEVED_MODEL=${XAVIER2_ROUTER_RETRIEVED_MODEL:-}
-      - XAVIER2_ROUTER_COMPLEX_MODEL=${XAVIER2_ROUTER_COMPLEX_MODEL:-}
+      - XAVIER_ROUTER_RETRIEVED_MODEL=${XAVIER_ROUTER_RETRIEVED_MODEL:-}
+      - XAVIER_ROUTER_COMPLEX_MODEL=${XAVIER_ROUTER_COMPLEX_MODEL:-}
       # CRITICAL: Disable HyDE (avoids extra embedding calls)
-      - XAVIER2_DISABLE_HYDE=${XAVIER2_DISABLE_HYDE:-1}
+      - XAVIER_DISABLE_HYDE=${XAVIER_DISABLE_HYDE:-1}
       - X-CORTEX-TOKEN=${X_CORTEX_TOKEN}
-      # Xavier2 sync check settings
-      - XAVIER2_SYNC_INTERVAL_MS=${XAVIER2_SYNC_INTERVAL_MS:-300000}
-      - XAVIER2_SYNC_LAG_THRESHOLD_MS=${XAVIER2_SYNC_LAG_THRESHOLD_MS:-30000}
-      - XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD=${XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD:-0.95}
-      - XAVIER2_SYNC_MAX_RETRIES=${XAVIER2_SYNC_MAX_RETRIES:-3}
-      - XAVIER2_SYNC_RETRY_DELAY_MS=${XAVIER2_SYNC_RETRY_DELAY_MS:-1000}
-      - XAVIER2_WORKSPACE_ID=default
+      # Xavier sync check settings
+      - XAVIER_SYNC_INTERVAL_MS=${XAVIER_SYNC_INTERVAL_MS:-300000}
+      - XAVIER_SYNC_LAG_THRESHOLD_MS=${XAVIER_SYNC_LAG_THRESHOLD_MS:-30000}
+      - XAVIER_SYNC_SAVE_OK_RATE_THRESHOLD=${XAVIER_SYNC_SAVE_OK_RATE_THRESHOLD:-0.95}
+      - XAVIER_SYNC_MAX_RETRIES=${XAVIER_SYNC_MAX_RETRIES:-3}
+      - XAVIER_SYNC_RETRY_DELAY_MS=${XAVIER_SYNC_RETRY_DELAY_MS:-1000}
+      - XAVIER_WORKSPACE_ID=default
     volumes:
-      - xavier2_data:/data
-      - xavier2_logs:/logs
+      - xavier_data:/data
+      - xavier_logs:/logs
       # Portable workspace mount for smoke tests
-      - ./:/mnt/workspaces/xavier2:ro
+      - ./:/mnt/workspaces/xavier:ro
     networks:
-      - xavier2_network
+      - xavier_network
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8006/health"]
       interval: 30s
@@ -63,8 +63,8 @@ services:
       retries: 3
       start_period: 15s
     labels:
-      - "xavier2.version=${XAVIER2_IMAGE_TAG:-0.4.1}"
-      - "xavier2.service=memory"
+      - "xavier.version=${XAVIER_IMAGE_TAG:-0.4.1}"
+      - "xavier.service=memory"
     logging:
       driver: json-file
       options:
@@ -77,21 +77,21 @@ services:
     restart: unless-stopped
     command: >
       start rocksdb:///data/surreal
-      --user ${XAVIER2_SURREALDB_USER:?XAVIER2_SURREALDB_USER required}
-      --pass ${XAVIER2_SURREALDB_PASS:?XAVIER2_SURREALDB_PASS required}
+      --user ${XAVIER_SURREALDB_USER:?XAVIER_SURREALDB_USER required}
+      --pass ${XAVIER_SURREALDB_PASS:?XAVIER_SURREALDB_PASS required}
       --bind 0.0.0.0:8000
     user: "0:0"
     ports:
       - "8000:8000"
       - "8001:8001"
     environment:
-      - SURREALDB_USER=${XAVIER2_SURREALDB_USER}
-      - SURREALDB_PASS=${XAVIER2_SURREALDB_PASS}
+      - SURREALDB_USER=${XAVIER_SURREALDB_USER}
+      - SURREALDB_PASS=${XAVIER_SURREALDB_PASS}
       - SURREALDB_PATH=/data/surreal
     volumes:
       - surreal_data:/data
     networks:
-      - xavier2_network
+      - xavier_network
     profiles:
       - surreal
     healthcheck:
@@ -108,14 +108,14 @@ services:
         max-file: "3"
 
 networks:
-  xavier2_network:
-    name: xavier2_network
+  xavier_network:
+    name: xavier_network
     driver: bridge
 
 volumes:
-  xavier2_data:
-    name: xavier2_data
-  xavier2_logs:
-    name: xavier2_logs
+  xavier_data:
+    name: xavier_data
+  xavier_logs:
+    name: xavier_logs
   surreal_data:
     name: surreal_data

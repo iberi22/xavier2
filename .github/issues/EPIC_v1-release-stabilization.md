@@ -1,5 +1,5 @@
 ---
-title: "EPIC: Xavier2 v1.0 release stabilization backlog"
+title: "EPIC: Xavier v1.0 release stabilization backlog"
 labels:
   - ai-plan
   - release
@@ -9,7 +9,7 @@ assignees: []
 
 ## Description
 
-Track the concrete work required to move Xavier2 from `0.6 beta usable` to a defensible `1.0` release.
+Track the concrete work required to move Xavier from `0.6 beta usable` to a defensible `1.0` release.
 
 This epic is grounded in repository review plus direct usage testing of the current memory system through CLI, HTTP, MCP, and release smoke scripts.
 

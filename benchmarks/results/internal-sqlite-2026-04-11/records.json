@@ -3,15 +3,15 @@
     "id": "repo-file-recall",
     "endpoint": "search",
     "success": true,
-    "expected_path": "repo/xavier2",
-    "actual_path": "repo/xavier2"
+    "expected_path": "repo/xavier",
+    "actual_path": "repo/xavier"
   },
   {
     "id": "repo-provenance-filter",
     "endpoint": "search",
     "success": true,
-    "expected_path": "repo/xavier2",
-    "actual_path": "repo/xavier2"
+    "expected_path": "repo/xavier",
+    "actual_path": "repo/xavier"
   },
   {
     "id": "decision-query",
@@ -25,7 +25,7 @@
     "endpoint": "agents_run",
     "success": true,
     "expected_substring": "openclaw-content",
-    "actual_response": "Session handoff: Agent openclaw-content imported the YouTube publishing backlog and saved the result in Xavier2 for the ops team"
+    "actual_response": "Session handoff: Agent openclaw-content imported the YouTube publishing backlog and saved the result in xavier for the ops team"
   },
   {
     "id": "multilingual-recall",

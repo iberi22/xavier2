@@ -32,7 +32,7 @@ use crate::{
             SessionTokenRecord,
         },
     },
-    settings::Xavier2Settings,
+    settings::XavierSettings,
 };
 use chrono::{DateTime, Duration, Utc};
 
@@ -147,51 +147,51 @@ pub struct WorkspaceConfig {
 
 impl WorkspaceConfig {
     pub fn from_env() -> Self {
-        let settings = Xavier2Settings::current();
-        let plan = std::env::var("XAVIER2_DEFAULT_PLAN")
+        let settings = XavierSettings::current();
+        let plan = std::env::var("XAVIER_DEFAULT_PLAN")
             .ok()
             .unwrap_or_else(|| settings.workspace.default_plan.clone());
         let plan = PlanTier::from_env(&plan);
 
-        let storage_limit_bytes = std::env::var("XAVIER2_STORAGE_LIMIT_BYTES")
+        let storage_limit_bytes = std::env::var("XAVIER_STORAGE_LIMIT_BYTES")
             .ok()
             .and_then(|value| value.parse::<u64>().ok())
             .or(settings.workspace.storage_limit_bytes)
             .or_else(|| plan.default_storage_limit_bytes());
 
-        let request_limit = std::env::var("XAVIER2_REQUEST_LIMIT")
+        let request_limit = std::env::var("XAVIER_REQUEST_LIMIT")
             .ok()
             .and_then(|value| value.parse::<usize>().ok())
             .or(settings.workspace.request_limit)
             .or_else(|| plan.default_request_limit());
-        let request_unit_limit = std::env::var("XAVIER2_REQUEST_UNIT_LIMIT")
+        let request_unit_limit = std::env::var("XAVIER_REQUEST_UNIT_LIMIT")
             .ok()
             .and_then(|value| value.parse::<u64>().ok())
             .or(settings.workspace.request_unit_limit)
             .or_else(|| request_limit.map(|value| value as u64 * 2));
 
         Self {
-            id: std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID")
+            id: std::env::var("XAVIER_DEFAULT_WORKSPACE_ID")
                 .unwrap_or_else(|_| settings.workspace.default_workspace_id.clone()),
-            token: std::env::var("XAVIER2_TOKEN")
-                .expect("XAVIER2_TOKEN environment variable must be set"),
+            token: std::env::var("XAVIER_TOKEN")
+                .expect("XAVIER_TOKEN environment variable must be set"),
             plan,
-            memory_backend: std::env::var("XAVIER2_MEMORY_BACKEND")
+            memory_backend: std::env::var("XAVIER_MEMORY_BACKEND")
                 .map(|value| MemoryBackend::from_env(&value))
                 .unwrap_or_else(|_| MemoryBackend::from_env(&settings.memory.backend)),
             storage_limit_bytes,
             request_limit,
             request_unit_limit,
-            embedding_provider_mode: std::env::var("XAVIER2_EMBEDDING_PROVIDER_MODE")
+            embedding_provider_mode: std::env::var("XAVIER_EMBEDDING_PROVIDER_MODE")
                 .map(|value| EmbeddingProviderMode::from_env(&value))
                 .unwrap_or_else(|_| {
                     EmbeddingProviderMode::from_env(&settings.workspace.embedding_provider_mode)
                 }),
-            managed_google_embeddings: std::env::var("XAVIER2_MANAGED_GOOGLE_EMBEDDINGS")
+            managed_google_embeddings: std::env::var("XAVIER_MANAGED_GOOGLE_EMBEDDINGS")
                 .ok()
                 .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE"))
                 .unwrap_or(settings.workspace.managed_google_embeddings),
-            sync_policy: std::env::var("XAVIER2_SYNC_POLICY")
+            sync_policy: std::env::var("XAVIER_SYNC_POLICY")
                 .map(|value| SyncPolicy::from_env(&value))
                 .unwrap_or_else(|_| SyncPolicy::from_env(&settings.workspace.sync_policy)),
         }
@@ -823,10 +823,10 @@ impl WorkspaceState {
     }
 
     pub async fn embedding_provider_snapshot(&self) -> EmbeddingProviderSnapshot {
-        let configured_url = std::env::var("XAVIER2_EMBEDDING_ENDPOINT")
+        let configured_url = std::env::var("XAVIER_EMBEDDING_ENDPOINT")
             .ok()
-            .or_else(|| std::env::var("XAVIER2_EMBEDDING_URL").ok());
-        let configured_model = std::env::var("XAVIER2_EMBEDDING_MODEL").ok();
+            .or_else(|| std::env::var("XAVIER_EMBEDDING_URL").ok());
+        let configured_model = std::env::var("XAVIER_EMBEDDING_MODEL").ok();
         let configured = crate::memory::embedder::EmbeddingClient::is_configured_from_env();
         let (available, last_error) = if configured {
             match EmbeddingClient::from_env() {
@@ -1119,7 +1119,7 @@ struct FileMigrationResult {
 }
 
 fn resolve_file_store_path(workspace_root: &std::path::Path) -> PathBuf {
-    std::env::var("XAVIER2_MEMORY_FILE_PATH")
+    std::env::var("XAVIER_MEMORY_FILE_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| workspace_root.join("memory-store.json"))
 }
@@ -1339,7 +1339,7 @@ impl WorkspaceRegistry {
 
     pub async fn default_context(&self) -> Option<WorkspaceContext> {
         let preferred_id =
-            std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+            std::env::var("XAVIER_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
         let workspaces = self.workspaces.read().await;
 
         if let Some(workspace) = workspaces.get(&preferred_id).cloned() {
@@ -1360,7 +1360,7 @@ impl WorkspaceRegistry {
 
     pub fn default_context_sync(&self) -> Option<WorkspaceContext> {
         let preferred_id =
-            std::env::var("XAVIER2_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+            std::env::var("XAVIER_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
         let workspaces = self.workspaces.blocking_read();
 
         if let Some(workspace) = workspaces.get(&preferred_id).cloned() {
@@ -1393,18 +1393,18 @@ impl WorkspaceRegistry {
 async fn seed_workspace(workspace: &WorkspaceState) -> Result<()> {
     let seed_docs = [
         (
-            "system/xavier2",
-            "Xavier2 is the central memory system for SWAL agents. Use /memory/add to store, /memory/search to find, /memory/query for AI responses.",
-            serde_json::json!({"type": "system", "tags": ["xavier2", "memory"]}),
+            "system/xavier",
+            "Xavier is the central memory system for SWAL agents. Use /memory/add to store, /memory/search to find, /memory/query for AI responses.",
+            serde_json::json!({"type": "system", "tags": ["xavier", "memory"]}),
         ),
         (
             "system/swal",
-            "SouthWest AI Labs (SWAL) builds AI agents. BELA is the developer. Projects: Xavier2 (memory), ZeroClaw (runtime), ManteniApp (SaaS), Trading Bot.",
+            "SouthWest AI Labs (SWAL) builds AI agents. BELA is the developer. Projects: Xavier (memory), ZeroClaw (runtime), ManteniApp (SaaS), Trading Bot.",
             serde_json::json!({"type": "company", "tags": ["swal", "company"]}),
         ),
         (
             "docs/api",
-            "Xavier2 API: POST /memory/add (content, path, metadata), POST /memory/search (query, limit), POST /memory/query (query). Auth: X-Xavier2-Token header.",
+            "Xavier API: POST /memory/add (content, path, metadata), POST /memory/search (query, limit), POST /memory/query (query). Auth: X-Xavier-Token header.",
             serde_json::json!({"type": "docs", "tags": ["api"]}),
         ),
     ];
@@ -1453,7 +1453,7 @@ mod tests {
         let workspace = WorkspaceState::new(
             config,
             RuntimeConfig::default(),
-            std::env::temp_dir().join(format!("xavier2-ws-{}", ulid::Ulid::new())),
+            std::env::temp_dir().join(format!("xavier-ws-{}", ulid::Ulid::new())),
         )
         .await
         .unwrap();
@@ -1478,7 +1478,7 @@ mod tests {
 
     #[tokio::test]
     async fn usage_state_persists_between_workspace_reloads() {
-        let root = std::env::temp_dir().join(format!("xavier2-usage-{}", ulid::Ulid::new()));
+        let root = std::env::temp_dir().join(format!("xavier-usage-{}", ulid::Ulid::new()));
         let workspace = WorkspaceState::new(
             WorkspaceConfig {
                 id: "persist".to_string(),
@@ -1533,7 +1533,7 @@ mod tests {
 
     #[tokio::test]
     async fn durable_memory_rehydrates_between_workspace_reloads() {
-        let root = std::env::temp_dir().join(format!("xavier2-memory-{}", ulid::Ulid::new()));
+        let root = std::env::temp_dir().join(format!("xavier-memory-{}", ulid::Ulid::new()));
         let config = WorkspaceConfig {
             id: "persist-memory".to_string(),
             token: "token".to_string(),
@@ -1553,14 +1553,14 @@ mod tests {
         let doc_id = workspace
             .memory
             .add_document_typed(
-                "projects/xavier2/core".to_string(),
+                "projects/xavier/core".to_string(),
                 "Durable memory survives restarts.".to_string(),
-                serde_json::json!({"project":"xavier2"}),
+                serde_json::json!({"project":"xavier"}),
                 Some(crate::memory::schema::TypedMemoryPayload {
                     kind: Some(crate::memory::schema::MemoryKind::Semantic),
                     evidence_kind: Some(crate::memory::schema::EvidenceKind::Observation),
                     namespace: Some(crate::memory::schema::MemoryNamespace {
-                        project: Some("xavier2".to_string()),
+                        project: Some("xavier".to_string()),
                         ..crate::memory::schema::MemoryNamespace::default()
                     }),
                     provenance: None,
@@ -1579,7 +1579,7 @@ mod tests {
 
     #[tokio::test]
     async fn session_tokens_beliefs_and_checkpoints_persist_between_reloads() {
-        let root = std::env::temp_dir().join(format!("xavier2-state-{}", ulid::Ulid::new()));
+        let root = std::env::temp_dir().join(format!("xavier-state-{}", ulid::Ulid::new()));
         let config = WorkspaceConfig {
             id: "persist-state".to_string(),
             token: "token".to_string(),
@@ -1602,7 +1602,7 @@ mod tests {
             .read()
             .await
             .add_edge(
-                "xavier2".to_string(),
+                "xavier".to_string(),
                 "memory".to_string(),
                 "is_a".to_string(),
             )

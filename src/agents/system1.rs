@@ -58,7 +58,7 @@ impl Default for RetrieverConfig {
 }
 
 fn hyde_enabled_from_env() -> bool {
-    std::env::var("XAVIER2_DISABLE_HYDE")
+    std::env::var("XAVIER_DISABLE_HYDE")
         .ok()
         .map(|value| {
             !matches!(

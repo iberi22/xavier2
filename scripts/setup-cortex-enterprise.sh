@@ -1,11 +1,11 @@
 #!/bin/bash
-# Xavier2 Enterprise Setup Script
-# Creates Cloudflare Tunnel and starts Xavier2
+# Xavier Enterprise Setup Script
+# Creates Cloudflare Tunnel and starts Xavier
 
 set -e
 
 echo "====================================="
-echo "Xavier2 Enterprise Setup"
+echo "Xavier Enterprise Setup"
 echo "====================================="
 
 # Check if we have a tunnel token
@@ -13,7 +13,7 @@ if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
     echo "[INFO] No tunnel token found. Creating new tunnel..."
 
     # Create new tunnel
-    TUNNEL_NAME="xavier2-enterprise-$(date +%s)"
+    TUNNEL_NAME="xavier-enterprise-$(date +%s)"
     cloudflared tunnel create "$TUNNEL_NAME" 2>/dev/null || true
 
     # Get tunnel credentials
@@ -31,27 +31,27 @@ fi
 
 # Copy config to cloudflared folder
 mkdir -p cloudflared
-cp docker/cloudflared/Xavier2file cloudflared/
+cp docker/cloudflared/Xavierfile cloudflared/
 
 # Set environment
-export XAVIER2_API_KEY=${XAVIER2_API_KEY:-xavier2-enterprise-$(date +%s)}
+export XAVIER_API_KEY=${XAVIER_API_KEY:-xavier-enterprise-$(date +%s)}
 
 # Start services
-echo "[INFO] Starting Xavier2 Enterprise..."
-docker compose -f docker/docker-compose.xavier2-enterprise.yml up -d
+echo "[INFO] Starting Xavier Enterprise..."
+docker compose -f docker/docker-compose.xavier-enterprise.yml up -d
 
 echo ""
 echo "====================================="
 echo "Setup Complete!"
 echo "====================================="
 echo ""
-echo "Xavier2 is running at:"
+echo "Xavier is running at:"
 echo "  - Local: http://localhost:8003"
-echo "  - Cloudflare: https://xavier2.swallowai.com (when DNS propagates)"
+echo "  - Cloudflare: https://xavier.swallowai.com (when DNS propagates)"
 echo ""
-echo "API Key: $XAVIER2_API_KEY"
+echo "API Key: $XAVIER_API_KEY"
 echo ""
 echo "To check status:"
 echo "  docker ps"
-echo "  docker logs xavier2-enterprise"
-echo "  docker logs cloudflared-xavier2"
+echo "  docker logs xavier-enterprise"
+echo "  docker logs cloudflared-xavier"

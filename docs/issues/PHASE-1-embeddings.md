@@ -2,7 +2,7 @@
 
 ## Context
 
-xavier2 currently uses keyword search (sqlite FTS5) and vector search (sqlite-vec), but without semantic embeddings. The search only matches exact words or near-exact phrases, not meaning.
+xavier currently uses keyword search (sqlite FTS5) and vector search (sqlite-vec), but without semantic embeddings. The search only matches exact words or near-exact phrases, not meaning.
 
 **Why this matters:** Without embeddings, searching for "vehicle transportation" won't find memories about "cars", "automobiles", or "driving" even if they contain the same information.
 
@@ -27,7 +27,7 @@ use async_trait::async_trait;
 pub trait Embedder: Send + Sync {
     /// Generate embedding vector for text
     async fn encode(&self, text: &str) -> Result<Vec<f32>, EmbeddingError>;
-    
+
     /// Get embedding dimension
     fn dimension(&self) -> usize;
 }
@@ -51,12 +51,12 @@ pub enum EmbedderConfig {
 
 impl EmbedderConfig {
     pub fn from_env() -> Self {
-        let provider = std::env::var("XAVIER2_EMBEDDER").unwrap_or_default();
-        
+        let provider = std::env::var("XAVIER_EMBEDDER").unwrap_or_default();
+
         match provider.as_str() {
             "openai" => Self::OpenAI {
                 api_key: std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY required"),
-                model: std::env::var("XAVIER2_EMBEDDING_MODEL")
+                model: std::env::var("XAVIER_EMBEDDING_MODEL")
                     .unwrap_or("text-embedding-3-small".into()),
                 endpoint: "https://api.openai.com/v1/embeddings".into(),
             },
@@ -65,8 +65,8 @@ impl EmbedderConfig {
                 model: "embo-01".into(),
             },
             "local" => Self::Local {
-                model_path: std::env::var("XAVIER2_LOCAL_EMBEDDING_MODEL")
-                    .expect("XAVIER2_LOCAL_EMBEDDING_MODEL required"),
+                model_path: std::env::var("XAVIER_LOCAL_EMBEDDING_MODEL")
+                    .expect("XAVIER_LOCAL_EMBEDDING_MODEL required"),
             },
             _ => Self::OpenAI {
                 api_key: std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY required"),
@@ -116,7 +116,7 @@ impl super::Embedder for OpenAIEmbedder {
             input: text.to_string(),
             model: self.model.clone(),
         };
-        
+
         let response = self.client
             .post(&self.endpoint)
             .header("Authorization", format!("Bearer {}", self.api_key))
@@ -124,17 +124,17 @@ impl super::Embedder for OpenAIEmbedder {
             .send()
             .await
             .map_err(|e| super::EmbeddingError::NetworkError(e.to_string()))?;
-        
+
         let body: EmbeddingResponse = response
             .json()
             .await
             .map_err(|e| super::EmbeddingError::ParseError(e.to_string()))?;
-        
+
         Ok(body.data.first()
             .map(|d| d.embedding.clone())
             .unwrap_or_default())
     }
-    
+
     fn dimension(&self) -> usize {
         match self.model.as_str() {
             "text-embedding-3-small" => 1536,
@@ -177,7 +177,7 @@ pub async fn add_memory(
     // Generate embedding
     let content_vector = state.embedder.encode(&payload.content).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     let doc = MemoryDoc {
         id: ulid::Ulid::new().to_string(),
         content: payload.content,
@@ -188,19 +188,19 @@ pub async fn add_memory(
         updated_at: Utc::now(),
         importance: 0.5,
     };
-    
+
     // Store in sqlite-vec
     if let Some(vector) = &doc.content_vector {
         state.vec_store.insert(&doc.content, vector, &doc.id)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
-    
+
     // Store in DB
     state.db.insert_memory(&doc)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     Ok(Json(AddMemoryResponse {
         id: doc.id,
         status: "ok".into(),
@@ -236,7 +236,7 @@ reqwest = { version = "0.12", features = ["json"] }
 
 1. **Embedding generation:** When `/memory/add` is called, an embedding is generated and stored
 2. **Vector storage:** Vectors are stored in sqlite-vec with the memory ID as key
-3. **Config from env:** Provider selected via `XAVIER2_EMBEDDER=openAI|minimax|local`
+3. **Config from env:** Provider selected via `XAVIER_EMBEDDER=openAI|minimax|local`
 4. **Error handling:** Graceful fallback if API fails (store without vector)
 5. **Tests:** `cargo test --lib test_embedding*` passes
 

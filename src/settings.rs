@@ -3,10 +3,10 @@ use std::{fs, path::PathBuf};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
-const DEFAULT_CONFIG_PATH: &str = "config/xavier2.config.json";
+const DEFAULT_CONFIG_PATH: &str = "config/xavier.config.json";
 
 #[derive(Debug, Clone, Deserialize, Default)]
-pub struct Xavier2Settings {
+pub struct XavierSettings {
     #[serde(default)]
     pub server: ServerSettings,
     #[serde(default)]
@@ -151,9 +151,9 @@ impl Default for SyncSettings {
     }
 }
 
-impl Xavier2Settings {
+impl XavierSettings {
     pub fn load() -> Result<Option<Self>> {
-        let path = std::env::var("XAVIER2_CONFIG_PATH")
+        let path = std::env::var("XAVIER_CONFIG_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from(DEFAULT_CONFIG_PATH));
 
@@ -169,73 +169,73 @@ impl Xavier2Settings {
     }
 
     pub fn apply_to_env(&self) {
-        set_if_absent("XAVIER2_HOST", &self.server.host);
-        set_if_absent("XAVIER2_PORT", &self.server.port.to_string());
-        set_if_absent("XAVIER2_LOG_LEVEL", &self.server.log_level);
+        set_if_absent("XAVIER_HOST", &self.server.host);
+        set_if_absent("XAVIER_PORT", &self.server.port.to_string());
+        set_if_absent("XAVIER_LOG_LEVEL", &self.server.log_level);
         set_if_absent(
-            "XAVIER2_CODE_GRAPH_DB_PATH",
+            "XAVIER_CODE_GRAPH_DB_PATH",
             &self.server.code_graph_db_path,
         );
 
         set_if_absent(
-            "XAVIER2_DEFAULT_WORKSPACE_ID",
+            "XAVIER_DEFAULT_WORKSPACE_ID",
             &self.workspace.default_workspace_id,
         );
-        set_if_absent("XAVIER2_DEFAULT_PLAN", &self.workspace.default_plan);
+        set_if_absent("XAVIER_DEFAULT_PLAN", &self.workspace.default_plan);
         set_optional_if_absent(
-            "XAVIER2_STORAGE_LIMIT_BYTES",
+            "XAVIER_STORAGE_LIMIT_BYTES",
             self.workspace.storage_limit_bytes.map(|v| v.to_string()),
         );
         set_optional_if_absent(
-            "XAVIER2_REQUEST_LIMIT",
+            "XAVIER_REQUEST_LIMIT",
             self.workspace.request_limit.map(|v| v.to_string()),
         );
         set_optional_if_absent(
-            "XAVIER2_REQUEST_UNIT_LIMIT",
+            "XAVIER_REQUEST_UNIT_LIMIT",
             self.workspace.request_unit_limit.map(|v| v.to_string()),
         );
         set_if_absent(
-            "XAVIER2_EMBEDDING_PROVIDER_MODE",
+            "XAVIER_EMBEDDING_PROVIDER_MODE",
             &self.workspace.embedding_provider_mode,
         );
         set_if_absent(
-            "XAVIER2_MANAGED_GOOGLE_EMBEDDINGS",
+            "XAVIER_MANAGED_GOOGLE_EMBEDDINGS",
             if self.workspace.managed_google_embeddings {
                 "1"
             } else {
                 "0"
             },
         );
-        set_if_absent("XAVIER2_SYNC_POLICY", &self.workspace.sync_policy);
+        set_if_absent("XAVIER_SYNC_POLICY", &self.workspace.sync_policy);
 
-        set_if_absent("XAVIER2_MEMORY_BACKEND", &self.memory.backend);
-        set_if_absent("XAVIER2_DATA_DIR", &self.memory.data_dir);
+        set_if_absent("XAVIER_MEMORY_BACKEND", &self.memory.backend);
+        set_if_absent("XAVIER_DATA_DIR", &self.memory.data_dir);
         set_if_absent(
-            "XAVIER2_EMBEDDING_DIMENSIONS",
+            "XAVIER_EMBEDDING_DIMENSIONS",
             &self.memory.embedding_dimensions.to_string(),
         );
-        set_if_absent("XAVIER2_WORKSPACE_DIR", &self.memory.workspace_dir);
-        set_if_absent("XAVIER2_MEMORY_FILE_PATH", &self.memory.file_path);
-        set_if_absent("XAVIER2_MEMORY_SQLITE_PATH", &self.memory.sqlite_path);
-        set_if_absent("XAVIER2_MEMORY_VEC_PATH", &self.memory.vec_path);
+        set_if_absent("XAVIER_WORKSPACE_DIR", &self.memory.workspace_dir);
+        set_if_absent("XAVIER_MEMORY_FILE_PATH", &self.memory.file_path);
+        set_if_absent("XAVIER_MEMORY_SQLITE_PATH", &self.memory.sqlite_path);
+        set_if_absent("XAVIER_MEMORY_VEC_PATH", &self.memory.vec_path);
 
-        set_if_absent("XAVIER2_MODEL_PROVIDER", &self.models.provider);
-        set_if_absent("XAVIER2_API_FLAVOR", &self.models.api_flavor);
-        set_if_absent("XAVIER2_LOCAL_LLM_URL", &self.models.local_llm_url);
-        set_if_absent("XAVIER2_LOCAL_LLM_MODEL", &self.models.local_llm_model);
-        set_if_absent("XAVIER2_EMBEDDING_URL", &self.models.embedding_url);
-        set_if_absent("XAVIER2_EMBEDDING_MODEL", &self.models.embedding_model);
+        set_if_absent("XAVIER_MODEL_PROVIDER", &self.models.provider);
+        set_if_absent("XAVIER_API_FLAVOR", &self.models.api_flavor);
+        set_if_absent("XAVIER_LOCAL_LLM_URL", &self.models.local_llm_url);
+        set_if_absent("XAVIER_LOCAL_LLM_MODEL", &self.models.local_llm_model);
+        set_if_absent("XAVIER_EMBEDDING_URL", &self.models.embedding_url);
+        set_if_absent("XAVIER_EMBEDDING_MODEL", &self.models.embedding_model);
         set_optional_if_absent(
-            "XAVIER2_ROUTER_RETRIEVED_MODEL",
+            "XAVIER_ROUTER_RETRIEVED_MODEL",
             non_empty(&self.models.router_retrieved_model),
         );
         set_optional_if_absent(
-            "XAVIER2_ROUTER_COMPLEX_MODEL",
+            "XAVIER_ROUTER_COMPLEX_MODEL",
             non_empty(&self.models.router_complex_model),
         );
 
         set_if_absent(
-            "XAVIER2_DISABLE_HYDE",
+            "XAVIER_DISABLE_HYDE",
             if self.retrieval.disable_hyde {
                 "1"
             } else {
@@ -244,23 +244,23 @@ impl Xavier2Settings {
         );
 
         set_if_absent(
-            "XAVIER2_SYNC_INTERVAL_MS",
+            "XAVIER_SYNC_INTERVAL_MS",
             &self.sync.interval_ms.to_string(),
         );
         set_if_absent(
-            "XAVIER2_SYNC_LAG_THRESHOLD_MS",
+            "XAVIER_SYNC_LAG_THRESHOLD_MS",
             &self.sync.lag_threshold_ms.to_string(),
         );
         set_if_absent(
-            "XAVIER2_SYNC_SAVE_OK_RATE_THRESHOLD",
+            "XAVIER_SYNC_SAVE_OK_RATE_THRESHOLD",
             &self.sync.save_ok_rate_threshold.to_string(),
         );
         set_if_absent(
-            "XAVIER2_SYNC_MAX_RETRIES",
+            "XAVIER_SYNC_MAX_RETRIES",
             &self.sync.max_retries.to_string(),
         );
         set_if_absent(
-            "XAVIER2_SYNC_RETRY_DELAY_MS",
+            "XAVIER_SYNC_RETRY_DELAY_MS",
             &self.sync.retry_delay_ms.to_string(),
         );
     }

@@ -22,7 +22,7 @@ impl AutoVerifier {
     /// Verify that a save+retrieve cycle produces matching content
     pub async fn verify_save(
         client: &reqwest::Client,
-        xavier2_url: &str,
+        xavier_url: &str,
         auth_token: &str,
         path: &str,
         test_content: &str,
@@ -37,7 +37,7 @@ impl AutoVerifier {
         });
 
         let save_resp = client
-            .post(format!("{}/memory/add", xavier2_url))
+            .post(format!("{}/memory/add", xavier_url))
             .header("Authorization", format!("Bearer {}", auth_token))
             .json(&save_payload)
             .send()
@@ -54,7 +54,7 @@ impl AutoVerifier {
         });
 
         let retrieve_resp = client
-            .post(format!("{}/memory/search", xavier2_url))
+            .post(format!("{}/memory/search", xavier_url))
             .header("Authorization", format!("Bearer {}", auth_token))
             .json(&retrieve_payload)
             .send()

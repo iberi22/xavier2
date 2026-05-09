@@ -1,4 +1,4 @@
-//! Plugin system for Xavier2 Enterprise
+//! Plugin system for Xavier Enterprise
 //!
 //! Provides a trait-based plugin architecture for integrating external systems
 //! like Cortex Enterprise Cloud.
@@ -65,7 +65,7 @@ impl SyncResult {
     }
 }
 
-/// Core trait for Xavier2 plugins
+/// Core trait for Xavier plugins
 ///
 /// Plugins can integrate external systems for sync, storage, or other capabilities.
 /// This trait is implemented for Cortex Enterprise and can be extended for other integrations.
@@ -123,7 +123,10 @@ impl PluginRegistry {
 
     /// Get a plugin by name
     pub fn get(&self, name: &str) -> Option<&dyn Plugin> {
-        self.plugins.iter().find(|p| p.name() == name).map(|p| p.as_ref())
+        self.plugins
+            .iter()
+            .find(|p| p.name() == name)
+            .map(|p| p.as_ref())
     }
 
     /// Check health of all plugins
@@ -136,7 +139,7 @@ impl PluginRegistry {
         }
         results
     }
-    
+
     /// Get plugin names
     pub fn plugin_names(&self) -> Vec<String> {
         self.plugins.iter().map(|p| p.name().to_string()).collect()
@@ -217,18 +220,18 @@ mod tests {
             healthy: true,
         };
         registry.register(Box::new(plugin));
-        
+
         let retrieved = registry.get("test-plugin");
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().name(), "test-plugin");
-        
+
         assert!(registry.get("nonexistent").is_none());
     }
 
     #[tokio::test]
     async fn plugin_registry_health_check_all() {
         let mut registry = PluginRegistry::new();
-        
+
         let healthy_plugin = TestPlugin {
             name: "healthy".to_string(),
             healthy: true,
@@ -237,16 +240,16 @@ mod tests {
             name: "unhealthy".to_string(),
             healthy: false,
         };
-        
+
         registry.register(Box::new(healthy_plugin));
         registry.register(Box::new(unhealthy_plugin));
-        
+
         let results = registry.health_check_all().await;
         assert_eq!(results.len(), 2);
-        
+
         let healthy_result = results.iter().find(|(n, _)| n == "healthy").unwrap();
         assert!(healthy_result.1.is_ok());
-        
+
         let unhealthy_result = results.iter().find(|(n, _)| n == "unhealthy").unwrap();
         assert!(unhealthy_result.1.is_err());
     }

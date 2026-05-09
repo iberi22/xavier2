@@ -1,6 +1,6 @@
-# Contributing to Xavier2
+﻿# Contributing to Xavier
 
-Thank you for your interest in contributing to Xavier2!
+Thank you for your interest in contributing to Xavier!
 
 ## Quick Links
 
@@ -13,17 +13,17 @@ Thank you for your interest in contributing to Xavier2!
 ### Reporting Bugs
 
 Before creating a bug report:
-1. Check the [existing issues](https://github.com/iberi22/xavier2/issues)
+1. Check the [existing issues](https://github.com/iberi22/xavier/issues)
 2. Use the bug report template in `.github/ISSUE_TEMPLATE/bug.md`
 3. Include:
    - Your operating system and version
-   - Xavier2 version (`xavier2 --version` or `xavier2 stats`)
+   - Xavier version (`xavier --version` or `xavier stats`)
    - Clear steps to reproduce
    - Actual vs expected behavior
 
 ### Suggesting Features
 
-1. Search [existing feature requests](https://github.com/iberi22/xavier2/labels/enhancement)
+1. Search [existing feature requests](https://github.com/iberi22/xavier/labels/enhancement)
 2. Use the feature request template in `.github/ISSUE_TEMPLATE/feature.md`
 3. Explain:
    - The problem you're solving
@@ -99,7 +99,7 @@ docs(readme): update installation instructions
 ## Project Structure
 
 ```
-xavier2/
+xavier/
 ├── src/              # Source code
 ├── tests/            # Integration tests
 ├── docs/              # Documentation

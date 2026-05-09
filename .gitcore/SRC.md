@@ -1,14 +1,14 @@
 # SRC.md - Source Code Reference
 
-**Project:** Xavier2
+**Project:** Xavier
 **Generated:** 2026-03-30
-**Repository:** https://github.com/iberi22/xavier2-1
+**Repository:** https://github.com/iberi22/xavier
 **Location:** `.gitcore/` (per GitCore Protocol)
 
 ## Directory Structure
 
 ```
-Xavier2/
+Xavier/
 ├── .gitcore/        # Agent documentation (per GitCore Protocol)
 ├── benches
 ├── benchmark-results

@@ -1,15 +1,15 @@
 services:
-  xavier2-benchmark:
+  xavier-benchmark:
     build:
       context: .
       dockerfile: Dockerfile
-    image: xavier2-benchmark:latest
-    container_name: xavier2-benchmark
+    image: xavier-benchmark:latest
+    container_name: xavier-benchmark
     environment:
-      - XAVIER2_DEV_MODE=1
+      - XAVIER_DEV_MODE=1
       - RUST_LOG=info
     ports:
-      - "${XAVIER2_BENCHMARK_PORT:-8003}:8003"
+      - "${XAVIER_BENCHMARK_PORT:-8003}:8003"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 10s
@@ -21,10 +21,10 @@ services:
     build:
       context: .
       dockerfile: docker/benchmark-runner.Dockerfile
-    image: xavier2-benchmark-runner:latest
+    image: xavier-benchmark-runner:latest
     container_name: locomo-benchmark
     depends_on:
-      xavier2-benchmark:
+      xavier-benchmark:
         condition: service_healthy
     working_dir: /workspace
     volumes:
@@ -35,7 +35,7 @@ services:
       - python
       - scripts/benchmarks/run_locomo_benchmark.py
       - --base-url
-      - http://xavier2-benchmark:8003
+      - http://xavier-benchmark:8003
       - --output-dir
       - /workspace/benchmark-results/locomo-docker
       - --sample-limit
@@ -48,7 +48,7 @@ services:
     build:
       context: .
       dockerfile: docker/benchmark-runner.Dockerfile
-    image: xavier2-benchmark-runner:latest
+    image: xavier-benchmark-runner:latest
     container_name: swebench-benchmark
     profiles: ["swebench"]
     working_dir: /workspace

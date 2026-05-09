@@ -24,13 +24,13 @@ impl Default for VerificationService {
 impl VerificationPort for VerificationService {
     async fn verify_save(
         &self,
-        xavier2_url: &str,
+        xavier_url: &str,
         auth_token: &str,
         path: &str,
         test_content: &str,
     ) -> Result<VerificationResult, String> {
         let result =
-            AutoVerifier::verify_save(&self.client, xavier2_url, auth_token, path, test_content)
+            AutoVerifier::verify_save(&self.client, xavier_url, auth_token, path, test_content)
                 .await?;
 
         Ok(VerificationResult {

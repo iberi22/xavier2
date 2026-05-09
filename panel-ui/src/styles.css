@@ -61,7 +61,7 @@ a:focus-visible {
   box-shadow: var(--cx-shadow-focus);
 }
 
-.xavier2-app {
+.xavier-app {
   color: var(--cx-ink);
   font-family: var(--cx-font-ui);
 }

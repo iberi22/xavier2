@@ -1,17 +1,17 @@
-# XAVIER2 NOTES — Obsidian Replacement
+# XAVIER NOTES — Obsidian Replacement
 
-**Open source knowledge base with Xavier2 memory backend.**
+**Open source knowledge base with Xavier memory backend.**
 
 ---
 
 ## Concept
 
-Xavier2 Notes is a **local-first, privacy-focused** note-taking app that replaces Obsidian. Instead of local Markdown files, all notes are stored in Xavier2 — giving you:
+Xavier Notes is a **local-first, privacy-focused** note-taking app that replaces Obsidian. Instead of local Markdown files, all notes are stored in Xavier — giving you:
 
 - **Semantic search** (find anything by meaning, not just keywords)
 - **Cross-note linking** (backlinks, graph view)
 - **AI-powered organization** (auto-tags, suggestions)
-- **Sync across devices** (via Xavier2 Cloud)
+- **Sync across devices** (via Xavier Cloud)
 - **End-to-end encryption** (enterprise tier)
 
 **All for free, open source, with no vendor lock-in.**
@@ -30,11 +30,11 @@ Xavier2 Notes is a **local-first, privacy-focused** note-taking app that replace
 | Backlinks | ✅ | See what links to what |
 | Tags | ✅ | #tag system |
 | Search | ✅ | Full-text + semantic |
-| Local-first | ✅ | Data stored in Xavier2 |
+| Local-first | ✅ | Data stored in Xavier |
 | Dark mode | ✅ | Full dark theme |
 | Vault concept | ✅ | Workspace/namespace |
 
-### AI-Powered (Xavier2 Differentiators)
+### AI-Powered (Xavier Differentiators)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -51,7 +51,7 @@ Xavier2 Notes is a **local-first, privacy-focused** note-taking app that replace
 |---------|--------|-------|
 | E2E encryption | 🔜 | AES-256-GCM |
 | Anticipator security | 🔜 | Prompt injection detection |
-| Sync across devices | 🔜 | Xavier2 Cloud |
+| Sync across devices | 🔜 | Xavier Cloud |
 | Custom domain | 🔜 | Your own endpoint |
 | SSO/SAML | 🔜 | Enterprise auth |
 
@@ -61,7 +61,7 @@ Xavier2 Notes is a **local-first, privacy-focused** note-taking app that replace
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  ◉ Xavier2 Notes          🔍 Search...          [⚙️] [📱] [👤]   │
+│  ◉ Xavier Notes          🔍 Search...          [⚙️] [📱] [👤]   │
 ├──────────────┬──────────────────────────────────────────────────┤
 │              │                                                   │
 │  📁 All      │  # Current Note Title                           │
@@ -88,7 +88,7 @@ Xavier2 Notes is a **local-first, privacy-focused** note-taking app that replace
 ## Graph View
 
 ```
-        ┌─── Xavier2 ───┐
+        ┌─── Xavier ───┐
        /     │    │     \
       /      │    │      \
    Memory  Search  Notes   Agents
@@ -142,7 +142,7 @@ Interactive 3D graph showing:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   Xavier2 Notes UI                    │
+│                   Xavier Notes UI                    │
 │              (React + TypeScript)                   │
 ├─────────────────────────────────────────────────────┤
 │                                                     │
@@ -156,19 +156,19 @@ Interactive 3D graph showing:
 │       └────────────┼──────────────────────────────│
 │                    │                              │
 │              ┌─────▼─────┐                        │
-│              │ Xavier2    │                        │
+│              │ Xavier    │                        │
 │              │ Client    │                        │
 │              └─────┬─────┘                        │
 │                    │                              │
 └────────────────────┼──────────────────────────────┘
                      │
               ┌──────▼──────┐
-              │  Xavier2 API  │
+              │  Xavier API  │
               │  (Rust)      │
               └──────┬──────┘
                      │
               ┌──────▼──────┐
-              │  Xavier2     │
+              │  Xavier     │
               │  Memory     │
               └─────────────┘
 ```
@@ -178,7 +178,7 @@ Interactive 3D graph showing:
 ## File Structure
 
 ```
-xavier2-notes/
+xavier-notes/
 ├── src/
 │   ├── components/
 │   │   ├── Sidebar/
@@ -199,9 +199,9 @@ xavier2-notes/
 │   │   ├── useNotes.ts
 │   │   ├── useSearch.ts
 │   │   ├── useGraph.ts
-│   │   └── useXavier2.ts
+│   │   └── useXavier.ts
 │   ├── services/
-│   │   └── xavier2Client.ts
+│   │   └── xavierClient.ts
 │   ├── stores/
 │   │   ├── noteStore.ts
 │   │   └── uiStore.ts
@@ -217,7 +217,7 @@ xavier2-notes/
 
 ## API Integration
 
-### Xavier2 Endpoints Used
+### Xavier Endpoints Used
 
 | Endpoint | Usage |
 |----------|-------|
@@ -251,9 +251,9 @@ POST /search
 
 ## Comparison vs Obsidian
 
-| Feature | Obsidian | Xavier2 Notes |
+| Feature | Obsidian | Xavier Notes |
 |---------|----------|--------------|
-| **Storage** | Local Markdown | Xavier2 (local or cloud) |
+| **Storage** | Local Markdown | Xavier (local or cloud) |
 | **Search** | Keyword only | Semantic + keyword |
 | **Graph** | Local compute | Cloud compute |
 | **Sync** | Paid ($8/mo) | Free (local) / $8 (cloud) |
@@ -317,7 +317,7 @@ POST /search
 | Full Notes UI | 🔜 TODO |
 | Graph View | 🔜 TODO |
 | Markdown Editor | 🔜 TODO |
-| Semantic Search | ✅ Working via Xavier2 |
+| Semantic Search | ✅ Working via Xavier |
 | Mobile App | 🔜 TODO (Flutter) |
 
 ---
@@ -326,10 +326,10 @@ POST /search
 
 ```bash
 # Open the chat UI (basic)
-file://E:\scripts-python\xavier2\web\chat\index.html
+file://E:\scripts-python\xavier\web\chat\index.html
 
 # Or serve the full app (when ready)
-cd xavier2-notes
+cd xavier-notes
 npm install
 npm run dev
 ```

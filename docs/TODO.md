@@ -1,4 +1,4 @@
-# docs/TODO.md — Pendientes arquitectónicos Xavier2
+# docs/TODO.md — Pendientes arquitectónicos Xavier
 
 *Updated: 2026-04-25*
 
@@ -32,7 +32,7 @@
 ## v1.0 Release Criteria
 
 - [ ] `cargo check --lib` → 0 errors
-- [ ] Todos los endpoints SEVIER2 verificados con curl
+- [ ] Todos los endpoints SEVIER verificados con curl
 - [ ] Data race fix commiteado
 - [ ] Dead code ports eliminados
 - [ ] docs/ADR/ creado y commiteado

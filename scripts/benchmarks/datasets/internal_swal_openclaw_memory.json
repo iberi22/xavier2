@@ -2,17 +2,17 @@
   "dataset": "internal_swal_openclaw_memory_v1",
   "documents": [
     {
-      "path": "repo/xavier2",
-      "content": "The Xavier2 repository keeps the typed memory schema in src/memory/schema.rs and the bridge import path in src/memory/bridge.rs.",
+      "path": "repo/xavier",
+      "content": "The Xavier repository keeps the typed memory schema in src/memory/schema.rs and the bridge import path in src/memory/bridge.rs.",
       "kind": "repo",
       "provenance": {
         "source_app": "openclaw",
         "source_type": "repo_memory",
-        "repo_url": "https://github.com/iberi22/xavier2-1",
+        "repo_url": "https://github.com/iberi22/xavier",
         "file_path": "src/memory/schema.rs"
       },
       "namespace": {
-        "project": "xavier2",
+        "project": "xavier",
         "agent_id": "openclaw-ceo"
       }
     },
@@ -28,13 +28,13 @@
         "recorded_at": "2026-03-28T18:00:00Z"
       },
       "namespace": {
-        "project": "xavier2",
+        "project": "xavier",
         "session_id": "session-wave-92"
       }
     },
     {
       "path": "session/openclaw-handoff",
-      "content": "Session handoff: Agent openclaw-content imported the YouTube publishing backlog and saved the result in Xavier2 for the ops team.",
+      "content": "Session handoff: Agent openclaw-content imported the YouTube publishing backlog and saved the result in Xavier for the ops team.",
       "kind": "session",
       "evidence_kind": "session_summary",
       "provenance": {
@@ -59,7 +59,7 @@
         "recorded_at": "2026-03-28T19:05:00Z"
       },
       "namespace": {
-        "project": "xavier2",
+        "project": "xavier",
         "user_id": "belal",
         "session_id": "session-wave-92"
       }
@@ -72,20 +72,20 @@
       "query": "Where is the typed memory schema stored?",
       "filters": {
         "kinds": ["repo"],
-        "project": "xavier2"
+        "project": "xavier"
       },
-      "expected_path": "repo/xavier2"
+      "expected_path": "repo/xavier"
     },
     {
       "id": "repo-provenance-filter",
       "endpoint": "search",
       "query": "Where is the typed memory schema stored?",
       "filters": {
-        "project": "xavier2",
+        "project": "xavier",
         "source_app": "openclaw",
         "source_type": "repo_memory"
       },
-      "expected_path": "repo/xavier2"
+      "expected_path": "repo/xavier"
     },
     {
       "id": "decision-query",
@@ -93,7 +93,7 @@
       "query": "What was the decision about System3?",
       "system3_mode": "disabled",
       "filters": {
-        "project": "xavier2",
+        "project": "xavier",
         "session_id": "session-wave-92"
       },
       "expected_substring": "System3 optional"
@@ -115,7 +115,7 @@
       "query": "¿Qué tarea menciona OpenClaw y Engram?",
       "filters": {
         "user_id": "belal",
-        "project": "xavier2"
+        "project": "xavier"
       },
       "expected_path": "task/multilingual-recall"
     }

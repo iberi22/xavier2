@@ -155,20 +155,20 @@ migrations:
     source: TODO.md
     destination: github_issues
     items_detected: 12
-    
+
   - action: move_file
     source: docs/roadmap.md
     destination: github_project_board
-    
+
   - action: integrate
     source: PLANNING.md
     into: .gitcore/ARCHITECTURE.md
     section: "Planning Context"
-    
+
   - action: create
     file: AGENTS.md
     content: protocol_default
-    
+
   - action: configure
     file: .github/copilot-instructions.md
     changes: add_protocol_rules
@@ -247,7 +247,7 @@ gh pr create --title "🔧 Install Git-Core Protocol (Hybrid Mode)" \
 
 This PR adds the Git-Core Protocol structure while preserving:
 - ✅ TASK.md
-- ✅ PLANNING.md  
+- ✅ PLANNING.md
 - ✅ RULES.md
 
 ### Changes:

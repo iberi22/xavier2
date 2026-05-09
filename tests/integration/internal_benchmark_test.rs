@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
-use xavier2::agents::{runtime::System3Mode, AgentRuntime, RuntimeConfig};
-use xavier2::memory::{
+use xavier::agents::{runtime::System3Mode, AgentRuntime, RuntimeConfig};
+use xavier::memory::{
     qmd_memory::QmdMemory,
     schema::{
         EvidenceKind, MemoryNamespace, MemoryProvenance, MemoryQueryFilters, TypedMemoryPayload,
@@ -23,10 +23,10 @@ async fn internal_benchmark_smoke_covers_filters_and_optional_system3() {
                 .to_string(),
             serde_json::json!({}),
             Some(TypedMemoryPayload {
-                kind: Some(xavier2::memory::schema::MemoryKind::Decision),
+                kind: Some(xavier::memory::schema::MemoryKind::Decision),
                 evidence_kind: Some(EvidenceKind::Observation),
                 namespace: Some(MemoryNamespace {
-                    project: Some("xavier2".to_string()),
+                    project: Some("xavier".to_string()),
                     session_id: Some("session-wave-92".to_string()),
                     ..MemoryNamespace::default()
                 }),
@@ -46,7 +46,7 @@ async fn internal_benchmark_smoke_covers_filters_and_optional_system3() {
             5,
             Some(&MemoryQueryFilters {
                 session_id: Some("session-wave-92".to_string()),
-                project: Some("xavier2".to_string()),
+                project: Some("xavier".to_string()),
                 ..MemoryQueryFilters::default()
             }),
         )
@@ -61,7 +61,7 @@ async fn internal_benchmark_smoke_covers_filters_and_optional_system3() {
             None,
             Some("1".to_string()),
             Some(MemoryQueryFilters {
-                project: Some("xavier2".to_string()),
+                project: Some("xavier".to_string()),
                 session_id: Some("session-wave-92".to_string()),
                 ..MemoryQueryFilters::default()
             }),

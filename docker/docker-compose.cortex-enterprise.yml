@@ -1,23 +1,23 @@
 version: '3.8'
 
 services:
-  xavier2:
-    image: xavier2:${XAVIER2_IMAGE_TAG:-0.4.1}
-    container_name: xavier2-enterprise
+  xavier:
+    image: xavier:${XAVIER_IMAGE_TAG:-0.4.1}
+    container_name: xavier-enterprise
     ports:
       - "8003:8003"
     environment:
-      - XAVIER2_MODE=enterprise
-      - XAVIER2_AUTH_ENABLED=true
-      - XAVIER2_API_KEY=${XAVIER2_API_KEY:-}
-      - XAVIER2_MCP_ENABLED=true
-      - XAVIER2_MEMORY_STORE=surreal
-      - XAVIER2_DB_ENDPOINT=mem://
-      - XAVIER2_LOG_LEVEL=${XAVIER2_LOG_LEVEL:-info}
-      - XAVIER2_ROUTER_RETRIEVED_MODEL=${XAVIER2_ROUTER_RETRIEVED_MODEL:-}
-      - XAVIER2_ROUTER_COMPLEX_MODEL=${XAVIER2_ROUTER_COMPLEX_MODEL:-}
+      - XAVIER_MODE=enterprise
+      - XAVIER_AUTH_ENABLED=true
+      - XAVIER_API_KEY=${XAVIER_API_KEY:-}
+      - XAVIER_MCP_ENABLED=true
+      - XAVIER_MEMORY_STORE=surreal
+      - XAVIER_DB_ENDPOINT=mem://
+      - XAVIER_LOG_LEVEL=${XAVIER_LOG_LEVEL:-info}
+      - XAVIER_ROUTER_RETRIEVED_MODEL=${XAVIER_ROUTER_RETRIEVED_MODEL:-}
+      - XAVIER_ROUTER_COMPLEX_MODEL=${XAVIER_ROUTER_COMPLEX_MODEL:-}
     networks:
-      - xavier2-network
+      - xavier-network
     restart: unless-stopped
     logging:
       driver: json-file
@@ -33,16 +33,16 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: cloudflared-xavier2
-    command: tunnel --config /etc/cloudflared/Xavier2file run
+    container_name: cloudflared-xavier
+    command: tunnel --config /etc/cloudflared/Xavierfile run
     volumes:
       - ./cloudflared:/etc/cloudflared
     environment:
       - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
-      - xavier2-network
+      - xavier-network
     depends_on:
-      - xavier2
+      - xavier
     restart: unless-stopped
     logging:
       driver: json-file
@@ -51,5 +51,5 @@ services:
         max-file: "3"
 
 networks:
-  xavier2-network:
+  xavier-network:
     driver: bridge

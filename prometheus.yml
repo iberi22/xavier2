@@ -2,7 +2,7 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: "xavier2-health"
+  - job_name: "xavier-health"
     metrics_path: /health
     static_configs:
-      - targets: ["xavier2:8003"]
+      - targets: ["xavier:8003"]

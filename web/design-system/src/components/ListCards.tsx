@@ -14,7 +14,7 @@ export interface ListCardsProps {
 
 export function ListCards({ items }: ListCardsProps) {
   const defaultItems: ListCardItem[] = [
-    { icon: '📊', title: 'Xavier2 Memory', subtitle: 'AI-powered search' },
+    { icon: '📊', title: 'Xavier Memory', subtitle: 'AI-powered search' },
     { icon: '🔒', title: 'E2E Encryption', subtitle: 'AES-256-GCM' },
     { icon: '🛡️', title: 'Anticipator', subtitle: 'Prompt injection protection' },
   ];

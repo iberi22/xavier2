@@ -1,10 +1,10 @@
-# Architecture: Xavier2
+# Architecture: Xavier
 
 ## Core Philosophy
-Xavier2 is a single Rust binary acting as a multi-agent cognitive memory swarm, inspired by the **"System 3" paradigm** (Rational Thought, Meta-Cognition, and Error Correction). This system transcends simple vector retrieval by implementing strict reasoning and self-reflection layers before serving responses.
+Xavier is a single Rust binary acting as a multi-agent cognitive memory swarm, inspired by the **"System 3" paradigm** (Rational Thought, Meta-Cognition, and Error Correction). This system transcends simple vector retrieval by implementing strict reasoning and self-reflection layers before serving responses.
 
 ## Product Direction
-Xavier2 is not a standalone RAG silo. It is the memory and reasoning substrate for **agentic workflows**, and it must also be able to host RAG retrieval inside those workflows. The intended direction is bidirectional:
+Xavier is not a standalone RAG silo. It is the memory and reasoning substrate for **agentic workflows**, and it must also be able to host RAG retrieval inside those workflows. The intended direction is bidirectional:
 - **RAG inside agentic flows**: retrieval, episodic memory, and belief validation are invoked as capabilities inside orchestrated agents.
 - **Agentic logic inside RAG**: retrieval can escalate into multi-step reasoning, oversight, tool use, and memory consolidation when the query requires it.
 
@@ -32,10 +32,10 @@ This means the project should be evaluated not only on retrieval quality, but on
 | 2026-03-05 | Monolithic Rust binary via `adk-rust`      | Maximizes Tokio parallelism & performance while remaining LLM-agnostic. |
 | 2026-03-05 | Multi-Layer System 3 RAG Architecture      | Emulates human rational thought checking to eliminate standard LLM hallucinations.  |
 | 2026-03-05 | SurrealDB-backed shared memory direction   | Durable memory and graph state remain a core product direction, even where some subsystems still use in-process stores. |
-| 2026-03-10 | Rebranded to Xavier2                        | Transitioning to a production-ready cognitive memory system for OpenClaw. |
-| 2026-03-11 | Agentic-first memory substrate             | Xavier2 must support agent workflows with embedded RAG and RAG flows with escalated agentic reasoning. |
+| 2026-03-10 | Rebranded to Xavier                        | Transitioning to a production-ready cognitive memory system for OpenClaw. |
+| 2026-03-11 | Agentic-first memory substrate             | Xavier must support agent workflows with embedded RAG and RAG flows with escalated agentic reasoning. |
 | 2026-03-17 | `code-graph` retained as SQLite sidecar    | Source indexing is a real runtime dependency today and is configured independently from shared memory storage. |
-| 2026-03-17 | Runtime configuration externalized         | `XAVIER2_HOST`, `XAVIER2_PORT`, and `XAVIER2_CODE_GRAPH_DB_PATH` are canonical runtime controls across local runs, tests, and Docker. |
+| 2026-03-17 | Runtime configuration externalized         | `XAVIER_HOST`, `XAVIER_PORT`, and `XAVIER_CODE_GRAPH_DB_PATH` are canonical runtime controls across local runs, tests, and Docker. |
 | 2026-03-19 | Mixed Rust + Node monorepo formalized      | Rust runtime stays in the Cargo workspace; `panel-ui` and `docs/site` are first-class Node packages managed from the repo root. |
 | 2026-03-19 | HTTP API documented as agent-safe default  | External agents should prefer authenticated HTTP/curl integration; MCP remains optional for IDE-native tool transport. |
 | 2026-03-19 | Workspace-aware hosted surface added       | Auth tokens now resolve to workspace-scoped memory/runtime/session state, enabling quotas, usage reporting, and sync policy controls without changing the core binary deployment model. |

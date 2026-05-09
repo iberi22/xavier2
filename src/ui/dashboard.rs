@@ -1,6 +1,6 @@
-//! Xavier2 Dashboard - Modern Web UI for Production
+//! Xavier Dashboard - Modern Web UI for Production
 //!
-//! This module provides a production-ready web interface for Xavier2.
+//! This module provides a production-ready web interface for Xavier.
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -82,7 +82,7 @@ pub fn render_tui<S: TuiAppState>(f: &mut Frame, app: &S) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Xavier2 Monitor"),
+                .title("Xavier Monitor"),
         )
         .select(app.current_tab())
         .style(Style::default().fg(Color::Cyan))
@@ -356,7 +356,7 @@ impl Default for WebUIConfig {
         features.insert("api_docs".to_string(), true);
 
         Self {
-            title: "Xavier2".to_string(),
+            title: "Xavier".to_string(),
             logo_url: None,
             primary_color: "#6366f1".to_string(),
             accent_color: "#818cf8".to_string(),

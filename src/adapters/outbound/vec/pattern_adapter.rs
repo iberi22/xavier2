@@ -152,7 +152,7 @@ mod tests {
             id: String::new(),
             category: PatternCategory::Naming,
             pattern: "snake_case".to_string(),
-            project: "xavier2".to_string(),
+            project: "xavier".to_string(),
             discovered_by: "agent-1".to_string(),
             confidence: 0.8,
             source_file: "src/utils.rs".to_string(),
@@ -183,7 +183,7 @@ mod tests {
         let adapter = PatternAdapter::new();
 
         let mut p1 = test_pattern();
-        p1.project = "xavier2".to_string();
+        p1.project = "xavier".to_string();
         p1.confidence = 0.9;
         adapter.discover(p1).await.unwrap();
 
@@ -192,9 +192,9 @@ mod tests {
         p2.confidence = 0.5;
         adapter.discover(p2).await.unwrap();
 
-        let results = adapter.query("xavier2", None, 0.5).await.unwrap();
+        let results = adapter.query("xavier", None, 0.5).await.unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].project, "xavier2");
+        assert_eq!(results[0].project, "xavier");
     }
 
     #[tokio::test]
@@ -210,7 +210,7 @@ mod tests {
         adapter.discover(structure).await.unwrap();
 
         let results = adapter
-            .query("xavier2", Some(PatternCategory::Naming), 0.0)
+            .query("xavier", Some(PatternCategory::Naming), 0.0)
             .await
             .unwrap();
         assert_eq!(results.len(), 1);

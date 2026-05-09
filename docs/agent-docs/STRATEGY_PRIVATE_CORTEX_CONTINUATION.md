@@ -1,19 +1,19 @@
 ---
-title: "Private Xavier2 Continuation Strategy"
+title: "Private Xavier Continuation Strategy"
 type: STRATEGY
-id: "strategy-private-xavier2-continuation"
+id: "strategy-private-xavier-continuation"
 created: 2026-03-19
 updated: 2026-03-19
 agent: codex
 model: gpt-5
 requested_by: user
 summary: |
-  Private-continuation plan for Xavier2 covering repository visibility,
+  Private-continuation plan for Xavier covering repository visibility,
   private mirror strategy, SaaS/private feature isolation, and the next
   implementation steps for hosted sync, quotas, and billing.
-keywords: [xavier2, private, strategy, github, saas, enterprise, sync]
-tags: ["#strategy", "#private", "#xavier2", "#saas"]
-project: xavier2
+keywords: [xavier, private, strategy, github, saas, enterprise, sync]
+tags: ["#strategy", "#private", "#xavier", "#saas"]
+project: xavier
 module: platform
 language: markdown
 priority: high
@@ -21,16 +21,16 @@ status: approved
 confidence: 0.94
 ---
 
-# Xavier2 Private Continuation Strategy
+# Xavier Private Continuation Strategy
 
 ## Objective
 
-Move active Xavier2 product work into a private continuation path while keeping the current codebase usable as the implementation base. The private path should support hosted sync, billing, private roadmap work, and SaaS-specific integrations without expanding the number of public-facing projects.
+Move active Xavier product work into a private continuation path while keeping the current codebase usable as the implementation base. The private path should support hosted sync, billing, private roadmap work, and SaaS-specific integrations without expanding the number of public-facing projects.
 
 ## Current GitHub State
 
-- Public repo: `iberi22/xavier2`
-- Public upstream repo: `southwest-ai-labs/xavier2`
+- Public repo: `iberi22/xavier`
+- Public upstream repo: `southwest-ai-labs/xavier`
 - Desired operating mode:
   - private continuation
   - reduced public exposure

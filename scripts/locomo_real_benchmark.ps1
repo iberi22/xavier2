@@ -1,9 +1,19 @@
 # LoCoMo Real Benchmark - Using Actual OpenClaw Memories
-# Tests recall of REAL data from Xavier2
+# Tests recall of REAL data from Xavier
 
-$XAVIER2 = "http://localhost:8006"
-$TOKEN = "dev-token"
-$headers = @{"X-Xavier2-Token" = $TOKEN; "Content-Type" = "application/json"}
+$XAVIER = "http://localhost:8006"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
+$TOKEN = Get-XavierToken
+$headers = @{"X-Xavier-Token" = $TOKEN; "Content-Type" = "application/json"}
 
 $results = @{
     total = 0
@@ -16,7 +26,7 @@ function Add-Memory {
     param([string]$Path, [string]$Content)
     try {
         $body = @{path=$Path; content=$Content; metadata=@{benchmark="locomo_real"; source="openclaw"}} | ConvertTo-Json -Compress
-        $null = Invoke-RestMethod -Uri "$XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body
+        $null = Invoke-RestMethod -Uri "$XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body
         return $true
     } catch {
         Write-Host "  [ERROR adding $Path]: $_" -ForegroundColor Red
@@ -27,7 +37,7 @@ function Add-Memory {
 function Query-Agent {
     param([string]$Query)
     try {
-        $resp = Invoke-RestMethod -Uri "$XAVIER2/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
+        $resp = Invoke-RestMethod -Uri "$XAVIER/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
             query = $Query
             limit = 3
             system3_mode = "disabled"
@@ -82,8 +92,8 @@ Write-Host "   Using Actual OpenClaw Memories" -ForegroundColor Magenta
 Write-Host "========================================" -ForegroundColor Magenta
 
 # Reset
-Write-Host "`n[Setup] Resetting Xavier2..." -ForegroundColor Yellow
-$null = Invoke-RestMethod -Uri "$XAVIER2/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}'
+Write-Host "`n[Setup] Resetting Xavier..." -ForegroundColor Yellow
+$null = Invoke-RestMethod -Uri "$XAVIER/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}'
 Start-Sleep 1
 
 # === PEOPLE ===
@@ -119,15 +129,15 @@ Test-Real -Name "swal_overview" `
 # === PROJECTS ===
 Write-Host "`n=== PROJECT RECALL ===" -ForegroundColor Yellow
 
-Test-Real -Name "xavier2_repo" `
-    -MemoryPath "repo/xavier2" `
-    -MemoryContent "Xavier2 repository keeps the typed memory schema in src/memory/schema.rs. Bridge import path in src/memory/bridge.rs. Version: 0.4.1." `
-    -Question "Where is the Xavier2 memory schema stored?" `
+Test-Real -Name "xavier_repo" `
+    -MemoryPath "repo/xavier" `
+    -MemoryContent "Xavier repository keeps the typed memory schema in src/memory/schema.rs. Bridge import path in src/memory/bridge.rs. Version: 0.4.1." `
+    -Question "Where is the Xavier memory schema stored?" `
     -ExpectedKeyword "schema"
 
 Test-Real -Name "openclaw_status" `
     -MemoryPath "projects/openclaw/status" `
-    -MemoryContent "OpenClaw status: Gateway healthy on port 9124. Xavier2 memory healthy. Telegram has delivery errors for heartbeat." `
+    -MemoryContent "OpenClaw status: Gateway healthy on port 9124. Xavier memory healthy. Telegram has delivery errors for heartbeat." `
     -Question "What is the status of OpenClaw?" `
     -ExpectedKeyword "healthy"
 
@@ -154,7 +164,7 @@ Write-Host "`n=== SESSION SUMMARIES ===" -ForegroundColor Yellow
 
 Test-Real -Name "session_handoff" `
     -MemoryPath "session/openclaw-handoff" `
-    -MemoryContent "Session handoff: Agent openclaw-content imported the YouTube publishing backlog and saved the result in Xavier2 for the ops team." `
+    -MemoryContent "Session handoff: Agent openclaw-content imported the YouTube publishing backlog and saved the result in Xavier for the ops team." `
     -Question "What did the openclaw-content agent do?" `
     -ExpectedKeyword "youtube"
 
@@ -163,7 +173,7 @@ Write-Host "`n=== MULTI-HOP (Real Data) ===" -ForegroundColor Yellow
 
 Test-Real -Name "multihop_bel_swal" `
     -MemoryPath "memory/bel-swal-relation" `
-    -MemoryContent "Bel is the founder of Southwest AI Labs. Bel's Telegram is 2076598024. Bel works on the Xavier2 project." `
+    -MemoryContent "Bel is the founder of Southwest AI Labs. Bel's Telegram is 2076598024. Bel works on the Xavier project." `
     -Question "What company did Bel found and what project does he work on?" `
     -ExpectedKeyword "southwest"
 
@@ -185,9 +195,9 @@ Write-Host "Failed: $($results.failed)  ($([Math]::Round($results.failed/$result
 Write-Host ""
 
 if ($results.passed -eq $results.total) {
-    Write-Host "🏆 PERFECT SCORE! Xavier2 perfectly recalls all real OpenClaw memories." -ForegroundColor Green
+    Write-Host "🏆 PERFECT SCORE! Xavier perfectly recalls all real OpenClaw memories." -ForegroundColor Green
 } elseif ($results.passed -ge ($results.total * 0.8)) {
-    Write-Host "👍 EXCELLENT! Xavier2 has strong memory recall." -ForegroundColor Cyan
+    Write-Host "👍 EXCELLENT! Xavier has strong memory recall." -ForegroundColor Cyan
 } elseif ($results.passed -ge ($results.total * 0.6)) {
     Write-Host "👌 GOOD. Some recall gaps but mostly functional." -ForegroundColor Yellow
 } else {

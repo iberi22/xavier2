@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod coordination_tests {
-    use xavier2::coordination::{CoordinationMessage, Coordinator, Event};
+    use xavier::coordination::{CoordinationMessage, Coordinator, Event};
 
     #[test]
     fn test_coordinator_creation() {
@@ -70,7 +70,7 @@ mod coordination_tests {
 
 #[cfg(test)]
 mod distributed_lock_tests {
-    use xavier2::coordination::DistributedLock;
+    use xavier::coordination::DistributedLock;
 
     #[tokio::test]
     async fn test_lock_acquisition() {

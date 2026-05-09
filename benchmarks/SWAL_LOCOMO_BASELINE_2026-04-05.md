@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-05
 **Category:** all
-**Xavier2 URL:** http://localhost:8003
+**Xavier URL:** http://localhost:8003
 
 ---
 
@@ -38,21 +38,21 @@
 | SH-02 | single_hop | What is ManteniApp's pricing? | 1722ms | 4.2/5 | 100% | 0% | âœ… |
 | SH-03 | single_hop | Who is Leonardo working with? | 460ms | 4.4/5 | 100% | 20% | âœ… |
 | SH-04 | single_hop | What product are we selling to Rodacenter? | 1243ms | 5/5 | 100% | 0% | âœ… |
-| SH-05 | single_hop | What is Xavier2's current version? | 1255ms | 3.8/5 | 100% | 40% | âœ… |
+| SH-05 | single_hop | What is Xavier's current version? | 1255ms | 3.8/5 | 100% | 40% | âœ… |
 | SH-06 | single_hop | What is pplx-embed status? | 1561ms | 5/5 | 100% | 0% | âœ… |
 | SH-07 | single_hop | What is the Tripro demo URL? | 626ms | 4.4/5 | 100% | 20% | âœ… |
 | SH-08 | single_hop | Where should projects be stored? | 1177ms | 4.8/5 | 100% | 0% | âœ… |
-| MH-01 | multi_hop | Who worked on Xavier2 fixes and what decisions w... | 458ms | 4.6/5 | 100% | 0% | âœ… |
+| MH-01 | multi_hop | Who worked on Xavier fixes and what decisions w... | 458ms | 4.6/5 | 100% | 0% | âœ… |
 | MH-02 | multi_hop | Find a client interested in maintenance monitor... | 366ms | 4.6/5 | 80% | 0% | âœ… |
 | MH-03 | multi_hop | What projects involve Chile and what is the sta... | 415ms | 4.2/5 | 100% | 0% | âœ… |
 | MH-04 | multi_hop | What are the active SWAL cron jobs? | 496ms | 4.4/5 | 100% | 20% | âœ… |
 | MH-05 | multi_hop | What security measures are active for SWAL? | 1341ms | 4.2/5 | 100% | 0% | âœ… |
-| MH-06 | multi_hop | What is the Xavier2 memory architecture? | 1059ms | 4.8/5 | 100% | 0% | âœ… |
+| MH-06 | multi_hop | What is the Xavier memory architecture? | 1059ms | 4.8/5 | 100% | 0% | âœ… |
 | TR-01 | temporal | When was pplx-embed fixed? | 1692ms | 5/5 | 100% | 0% | âœ… |
 | TR-02 | temporal | What decisions were made about SurrealDB persis... | 4229ms | 4.6/5 | 100% | 0% | âœ… |
-| TR-03 | temporal | What happened in the last session about Xavier2? | 2326ms | 4.4/5 | 100% | 0% | âœ… |
-| TR-04 | temporal | What is the timeline of Xavier2 versions? | 1353ms | 4.6/5 | 100% | 0% | âœ… |
-| OD-01 | open_domain | Summarize the Xavier2 memory system improvements... | 448ms | 4/5 | 100% | 20% | âœ… |
+| TR-03 | temporal | What happened in the last session about Xavier? | 2326ms | 4.4/5 | 100% | 0% | âœ… |
+| TR-04 | temporal | What is the timeline of Xavier versions? | 1353ms | 4.6/5 | 100% | 0% | âœ… |
+| OD-01 | open_domain | Summarize the Xavier memory system improvements... | 448ms | 4/5 | 100% | 20% | âœ… |
 | OD-02 | open_domain | What is the overall status of SWAL operations? | 1399ms | 3.8/5 | 100% | 20% | âœ… |
 | OD-03 | open_domain | What skills are available for sales operations? | 519ms | 5/5 | 100% | 0% | âœ… |
 | OD-04 | open_domain | What is the complete SWAL product portfolio? | 623ms | 3.8/5 | 100% | 40% | âœ… |
@@ -64,16 +64,16 @@
 - **SH-01**: What is BELA's timezone? (Latency: 1463ms)
 - **SH-02**: What is ManteniApp's pricing? (Latency: 1722ms)
 - **SH-04**: What product are we selling to Rodacenter? (Latency: 1243ms)
-- **SH-05**: What is Xavier2's current version? (Latency: 1255ms)
+- **SH-05**: What is Xavier's current version? (Latency: 1255ms)
 - **SH-06**: What is pplx-embed status? (Latency: 1561ms)
 - **SH-07**: What is the Tripro demo URL? (Latency: 626ms)
 - **SH-08**: Where should projects be stored? (Latency: 1177ms)
 - **MH-05**: What security measures are active for SWAL? (Latency: 1341ms)
-- **MH-06**: What is the Xavier2 memory architecture? (Latency: 1059ms)
+- **MH-06**: What is the Xavier memory architecture? (Latency: 1059ms)
 - **TR-01**: When was pplx-embed fixed? (Latency: 1692ms)
 - **TR-02**: What decisions were made about SurrealDB persistence? (Latency: 4229ms)
-- **TR-03**: What happened in the last session about Xavier2? (Latency: 2326ms)
-- **TR-04**: What is the timeline of Xavier2 versions? (Latency: 1353ms)
+- **TR-03**: What happened in the last session about Xavier? (Latency: 2326ms)
+- **TR-04**: What is the timeline of Xavier versions? (Latency: 1353ms)
 - **OD-02**: What is the overall status of SWAL operations? (Latency: 1399ms)
 - **OD-03**: What skills are available for sales operations? (Latency: 519ms)
 - **OD-04**: What is the complete SWAL product portfolio? (Latency: 623ms)

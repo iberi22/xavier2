@@ -6,7 +6,7 @@ created: 2025-12-02
 updated: 2025-12-02
 source: "Extracted from CDE Orchestrator MCP (archived)"
 summary: |
-  Template for technical implementation plans with architecture, 
+  Template for technical implementation plans with architecture,
   design decisions, and testing strategy. Defines HOW.
 ---
 

@@ -2,7 +2,7 @@ $env:NODE_OPTIONS = '--max-old-space-size=128'
 $start = Get-Date
 $out = [System.IO.Path]::GetTempFileName()
 $err = [System.IO.Path]::GetTempFileName()
-$proc = Start-Process node -ArgumentList 'E:\scripts-python\xavier2\scripts\sync-all-to-xavier2.js' -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+$proc = Start-Process node -ArgumentList 'E:\scripts-python\xavier\scripts\sync-all-to-xavier.js' -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
 $ok = $proc.WaitForExit(110000)
 $elapsed = (Get-Date) - $start
 if ($ok) {

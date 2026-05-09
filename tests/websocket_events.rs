@@ -10,10 +10,10 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message as WsProtocolMessage};
-use xavier2::memory::sqlite_vec_store::{VecSqliteMemoryStore, VecSqliteStoreConfig};
-use xavier2::memory::store::MemoryRecord;
-use xavier2::memory::store::MemoryStore;
-use xavier2::server::events::{RealtimeEvent, WsEvent, WsMessage};
+use xavier::memory::sqlite_vec_store::{VecSqliteMemoryStore, VecSqliteStoreConfig};
+use xavier::memory::store::MemoryRecord;
+use xavier::memory::store::MemoryStore;
+use xavier::server::events::{RealtimeEvent, WsEvent, WsMessage};
 
 /// Inline app state for the websocket integration test.
 /// Avoids coupling with the production CliState or AppState.
@@ -61,7 +61,7 @@ async fn test_add_handler(
 
     let record = MemoryRecord::from_document(
         &state.workspace_id,
-        &xavier2::memory::qmd_memory::MemoryDocument {
+        &xavier::memory::qmd_memory::MemoryDocument {
             id: Some(event.event_type.clone()),
             path: path.clone(),
             content: content.to_string(),
@@ -79,7 +79,7 @@ async fn test_add_handler(
     (StatusCode::OK, Json(serde_json::json!({"status": "ok"})))
 }
 
-/// GET /xavier2/events/stream — WebSocket upgrade.
+/// GET /xavier/events/stream — WebSocket upgrade.
 async fn test_ws_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
     axum::extract::State(state): axum::extract::State<TestState>,
@@ -147,7 +147,7 @@ async fn test_websocket_streaming() {
 
     let app = Router::new()
         .route("/memory/add", post(test_add_handler))
-        .route("/xavier2/events/stream", get(test_ws_handler))
+        .route("/xavier/events/stream", get(test_ws_handler))
         .with_state(test_state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -157,7 +157,7 @@ async fn test_websocket_streaming() {
         axum::serve(listener, app).await.unwrap();
     });
 
-    let ws_url = format!("ws://{}/xavier2/events/stream", addr);
+    let ws_url = format!("ws://{}/xavier/events/stream", addr);
     let (mut ws_stream, _) = connect_async(ws_url).await.unwrap();
 
     // Subscribe to events

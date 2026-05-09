@@ -1,5 +1,5 @@
----
-title: "Xavier2 Sale Readiness Review"
+﻿---
+title: "Xavier Sale Readiness Review"
 type: REPORT
 id: "report-sale-readiness-2026-03-22"
 created: 2026-03-22
@@ -8,11 +8,11 @@ agent: codex
 model: gpt-5
 requested_by: user
 summary: |
-  Sale-readiness assessment for Xavier2 covering CI/CD, documentation,
+  Sale-readiness assessment for Xavier covering CI/CD, documentation,
   security, enterprise gaps, remediation effort, and pricing guidance.
 keywords: [sale-readiness, security, enterprise, pricing, ci-cd]
 tags: ["#sale-readiness", "#enterprise", "#security", "#pricing"]
-project: Xavier2
+project: Xavier
 module: repo-wide
 language: rust
 priority: high
@@ -22,7 +22,7 @@ token_estimate: 1800
 complexity: moderate
 ---
 
-# Xavier2 Sale Readiness
+# Xavier Sale Readiness
 
 ## Current Status
 
@@ -35,7 +35,7 @@ complexity: moderate
 - The core Rust service is in better shape than the surrounding product surface:
   - `cargo test --all-features` passed locally on 2026-03-22
   - `cargo clippy --all-targets --all-features -- -D warnings` passed locally
-  - `cargo build --release --bin xavier2` passed locally
+  - `cargo build --release --bin xavier` passed locally
   - `cargo test --test integration` passed locally with `86 passed, 7 ignored`
 - The docs site builds locally.
 - The root monorepo build fails because `panel-ui` cannot resolve a required package artifact from `@openuidev/react-headless`, so the full product build is not currently green.
@@ -70,7 +70,7 @@ Buyer impact:
 
 Strengths:
 
-- There is a substantial amount of material: `README.md`, `docs/XAVIER2.md`, docs site content, architecture notes, and agent-facing specs.
+- There is a substantial amount of material: `README.md`, `docs/XAVIER.md`, docs site content, architecture notes, and agent-facing specs.
 - The repo communicates product direction well.
 
 Gaps:
@@ -99,7 +99,7 @@ Buyer impact:
 High-risk findings:
 
 - Authentication still defaults to a shared token model, with `dev-token` documented and used as a fallback in multiple places.
-- `XAVIER2_DEV_MODE` bypass logic exists in request auth flow.
+- `XAVIER_DEV_MODE` bypass logic exists in request auth flow.
 - The crypto/auth helper code is not production-grade:
   - `encrypt()` is hex encoding, not encryption.
   - password hashing uses a plain SHA-256 digest, not Argon2/bcrypt/scrypt.
@@ -113,7 +113,7 @@ High-risk findings:
 
 Security positives:
 
-- Protected routes require `X-Xavier2-Token`.
+- Protected routes require `X-Xavier-Token`.
 - Request IDs are attached for traceability.
 - Prompt injection detection is present.
 - Workspace-aware isolation and quota logic exist.
@@ -207,7 +207,7 @@ This includes:
 
 ### Pricing conclusion
 
-Xavier2 should **not** be priced like Mem0 Pro or Mem0 Enterprise yet. The codebase shows strong technical direction, but it lacks the security and enterprise maturity that justify premium managed-memory pricing.
+Xavier should **not** be priced like Mem0 Pro or Mem0 Enterprise yet. The codebase shows strong technical direction, but it lacks the security and enterprise maturity that justify premium managed-memory pricing.
 
 ### Recommended pricing by stage
 
@@ -234,7 +234,7 @@ Xavier2 should **not** be priced like Mem0 Pro or Mem0 Enterprise yet. The codeb
 
 ## Bottom Line
 
-Xavier2 has real technical value and a stronger backend than many early-stage repos, but it is currently a **promising beta**, not an enterprise-ready sale asset.
+Xavier has real technical value and a stronger backend than many early-stage repos, but it is currently a **promising beta**, not an enterprise-ready sale asset.
 
 The fastest path to monetization is:
 
@@ -244,4 +244,4 @@ The fastest path to monetization is:
 4. add basic security and release hardening
 5. sell pilots first, not broad enterprise contracts
 
-With those fixes, Xavier2 can plausibly support paid pilots within weeks. Without them, it is likely to stall in technical due diligence.
+With those fixes, Xavier can plausibly support paid pilots within weeks. Without them, it is likely to stall in technical due diligence.

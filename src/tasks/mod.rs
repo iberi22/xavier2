@@ -1,7 +1,7 @@
 //! Tasks Module - Backend-agnostic task management
 //!
 //! Architecture:
-//! - Tasks are stored in Xavier2's own backend (TaskStore)
+//! - Tasks are stored in Xavier's own backend (TaskStore)
 //! - Planka is just a sync target (optional)
 //! - Can work fully offline without Planka
 
@@ -119,7 +119,7 @@ impl TaskQueue {
 /// Default projects for SouthLabs
 pub fn default_projects() -> Vec<(&'static str, &'static str)> {
     vec![
-        ("Xavier2", "Sistema de memoria y cognitive"),
+        ("Xavier", "Sistema de memoria y cognitive"),
         ("ZeroClaw", "Runtime Rust para agentes"),
         ("Trading Bot", "Automatizacion de trading"),
         ("ManteniApp", "SaaS mantenimiento industrial"),

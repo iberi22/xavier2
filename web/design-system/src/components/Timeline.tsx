@@ -13,7 +13,7 @@ export interface TimelineProps {
 
 export function Timeline({ items }: TimelineProps) {
   const defaultItems: TimelineItem[] = [
-    { date: 'Apr 5, 2026', title: 'Xavier2 99.1% recall', description: 'LoCoMo benchmark' },
+    { date: 'Apr 5, 2026', title: 'Xavier 99.1% recall', description: 'LoCoMo benchmark' },
     { date: 'Apr 4, 2026', title: 'Memory manager', description: 'Decay+consolidate+evict' },
     { date: 'Apr 3, 2026', title: 'SurrealDB v3', description: 'Upgrade complete' },
   ];

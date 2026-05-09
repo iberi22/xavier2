@@ -1,4 +1,4 @@
-# Xavier2 Quick Reference
+# Xavier Quick Reference
 
 **Base:** `http://localhost:8003` | **Token:** `dev-token`
 
@@ -11,7 +11,7 @@
 | `sqlite` | Simple SQLite |
 | `file` | Development |
 
-**Config:** `XAVIER2_MEMORY_BACKEND=vec` | `XAVIER2_EMBEDDING_DIMENSIONS=768`
+**Config:** `XAVIER_MEMORY_BACKEND=vec` | `XAVIER_EMBEDDING_DIMENSIONS=768`
 
 ## Search Architecture
 
@@ -53,7 +53,7 @@ POST /memory/kg/traverse -Body @{start="X"; hops=2}
 - ❌ Vague, duplicate, >4KB, stale
 
 ## Sync (automatic)
-- Sessions → Xavier2: every 1 hour (cron)
+- Sessions → Xavier: every 1 hour (cron)
 - Auto-curation: daily 6 AM
 
 ## Management

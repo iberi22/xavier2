@@ -1,26 +1,36 @@
-# LoCoMo Benchmark for Xavier2 - Isolated Tests
+# LoCoMo Benchmark for Xavier - Isolated Tests
 # Each test runs independently with fresh memory
 
-$XAVIER2 = "http://localhost:8006"
-$TOKEN = "dev-token"
-$headers = @{"X-Xavier2-Token" = $TOKEN; "Content-Type" = "application/json"}
+$XAVIER = "http://localhost:8006"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
+$TOKEN = Get-XavierToken
+$headers = @{"X-Xavier-Token" = $TOKEN; "Content-Type" = "application/json"}
 
 function Test-Isolated {
     param([string]$Name, [string]$Content, [string]$Query, [string]$Expected)
 
     # Fresh reset for each test
-    $null = Invoke-RestMethod -Uri "$XAVIER2/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}'
+    $null = Invoke-RestMethod -Uri "$XAVIER/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}'
     Start-Sleep -Milliseconds 500
 
     # Add single memory
-    $null = Invoke-RestMethod -Uri "$XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
+    $null = Invoke-RestMethod -Uri "$XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
         path = "bench/$([guid]::NewGuid().ToString('N').Substring(0,8))"
         content = $Content
         metadata = @{test=$Name}
     } | ConvertTo-Json -Compress)
 
     # Query
-    $resp = Invoke-RestMethod -Uri "$XAVIER2/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
+    $resp = Invoke-RestMethod -Uri "$XAVIER/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body (@{
         query = $Query
         limit = 2
         system3_mode = "disabled"
@@ -54,7 +64,7 @@ $total++; if (Test-Isolated "company" "I work at Southwest AI Labs" "Where do I 
 
 # TEMPORAL
 Write-Host "`n=== TEMPORAL REASONING ===" -ForegroundColor Yellow
-$total++; if (Test-Isolated "yesterday" "Yesterday I worked on Xavier2" "What did I work on yesterday?" "xavier2") { $passed++ }
+$total++; if (Test-Isolated "yesterday" "Yesterday I worked on Xavier" "What did I work on yesterday?" "xavier") { $passed++ }
 $total++; if (Test-Isolated "after" "After the meeting I updated the docs" "What did I do after the meeting?" "updated") { $passed++ }
 $total++; if (Test-Isolated "sequence" "First I wrote code, then I tested, finally I deployed" "What was the sequence?" "wrote") { $passed++ }
 
@@ -71,7 +81,7 @@ $total++; if (Test-Isolated "version" "Project version is 0.4.1" "What version i
 # ENTITY
 Write-Host "`n=== ENTITY RECALL ===" -ForegroundColor Yellow
 $total++; if (Test-Isolated "skills" "Rust and TypeScript are my main languages" "What languages?" "rust") { $passed++ }
-$total++; if (Test-Isolated "project" "Project name is Xavier2" "What is the project name?" "xavier") { $passed++ }
+$total++; if (Test-Isolated "project" "Project name is Xavier" "What is the project name?" "xavier") { $passed++ }
 
 # SUMMARY
 Write-Host ""

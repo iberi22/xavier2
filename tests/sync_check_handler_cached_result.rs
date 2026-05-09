@@ -3,14 +3,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::Utc;
 
-use xavier2::adapters::inbound::http::routes::sync_check_handler;
-use xavier2::memory::schema::MemoryQueryFilters;
-use xavier2::memory::store::{
-    DurableWorkspaceState, MemoryRecord, MemoryStore, SessionTokenRecord,
-};
-use xavier2::ports::outbound::health_check_port::HealthStatus;
-use xavier2::ports::outbound::HealthCheckPort;
-use xavier2::tasks::session_sync_task::SessionSyncTask;
+use xavier::adapters::inbound::http::routes::sync_check_handler;
+use xavier::memory::schema::MemoryQueryFilters;
+use xavier::memory::store::{DurableWorkspaceState, MemoryRecord, MemoryStore, SessionTokenRecord};
+use xavier::ports::outbound::health_check_port::HealthStatus;
+use xavier::ports::outbound::HealthCheckPort;
+use xavier::tasks::session_sync_task::SessionSyncTask;
 
 struct MockHealthPort;
 
@@ -92,7 +90,7 @@ impl MemoryStore for MockMemoryStore {
     async fn save_beliefs(
         &self,
         _workspace_id: &str,
-        _beliefs: Vec<xavier2::memory::belief_graph::BeliefRelation>,
+        _beliefs: Vec<xavier::memory::belief_graph::BeliefRelation>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -116,7 +114,7 @@ impl MemoryStore for MockMemoryStore {
     async fn save_checkpoint(
         &self,
         _workspace_id: &str,
-        _checkpoint: xavier2::checkpoint::Checkpoint,
+        _checkpoint: xavier::checkpoint::Checkpoint,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -126,7 +124,7 @@ impl MemoryStore for MockMemoryStore {
         _workspace_id: &str,
         _task_id: &str,
         _name: &str,
-    ) -> anyhow::Result<Option<xavier2::checkpoint::Checkpoint>> {
+    ) -> anyhow::Result<Option<xavier::checkpoint::Checkpoint>> {
         Ok(None)
     }
 
@@ -134,7 +132,7 @@ impl MemoryStore for MockMemoryStore {
         &self,
         _workspace_id: &str,
         _task_id: &str,
-    ) -> anyhow::Result<Vec<xavier2::checkpoint::Checkpoint>> {
+    ) -> anyhow::Result<Vec<xavier::checkpoint::Checkpoint>> {
         Ok(Vec::new())
     }
 
@@ -147,8 +145,8 @@ impl MemoryStore for MockMemoryStore {
         Ok(())
     }
 
-    fn backend(&self) -> xavier2::memory::store::MemoryBackend {
-        xavier2::memory::store::MemoryBackend::Memory
+    fn backend(&self) -> xavier::memory::store::MemoryBackend {
+        xavier::memory::store::MemoryBackend::Memory
     }
 
     async fn health(&self) -> anyhow::Result<String> {

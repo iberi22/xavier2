@@ -1,14 +1,14 @@
-# Xavier2
+# Xavier
 
 > Cognitive memory infrastructure for agent workflows.
 
-Xavier2 is a Rust-native memory system for AI agents. It combines hybrid retrieval, long-horizon context, code indexing, and authenticated HTTP access so agents can reuse knowledge across sessions, tasks, and repositories.
+Xavier is a Rust-native memory system for AI agents. It combines hybrid retrieval, long-horizon context, code indexing, and authenticated HTTP access so agents can reuse knowledge across sessions, tasks, and repositories.
 
 The recommended operational path is local HTTP/CLI usage with authenticated `curl`. MCP is supported, but it is a secondary transport for IDE-native integrations.
 
 ## Core Positioning
 
-Xavier2 is not just a RAG add-on. It is the memory substrate for agentic workflows:
+Xavier is not just a RAG add-on. It is the memory substrate for agentic workflows:
 
 - persistent project memory
 - reusable research and architectural context
@@ -21,7 +21,7 @@ Xavier2 is not just a RAG add-on. It is the memory substrate for agentic workflo
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                        XAVIER2 CORE                          │
+│                        XAVIER CORE                          │
 ├─────────────────────────────────────────────────────────────┤
 │  Retrieval     Reasoning     Runtime     HTTP / MCP        │
 │  Memory Store  Belief Graph  Agents      Integration       │
@@ -61,15 +61,15 @@ Use this as the default local integration surface. For automation, smoke checks,
 | `POST` | `/code/find` | search indexed symbols |
 | `GET` | `/code/stats` | inspect code index stats |
 
-All HTTP endpoints except `/health` and `/readiness` require `X-Xavier2-Token`, and every response carries `X-Request-Id`.
+All HTTP endpoints except `/health` and `/readiness` require `X-Xavier-Token`, and every response carries `X-Request-Id`.
 
 ### Example
 
 ```bash
 curl -X POST http://localhost:8003/memory/search \
-  -H "X-Xavier2-Token: dev-token" \
+  -H "X-Xavier-Token: dev-token" \
   -H "Content-Type: application/json" \
-  -d '{"query":"xavier2 memory","limit":5}'
+  -d '{"query":"xavier memory","limit":5}'
 ```
 
 ### MCP
@@ -87,7 +87,7 @@ The current documented tool surface aligns with the in-repo implementation:
 
 ## Storage Backends
 
-Xavier2 supports three storage backends for memory persistence, controlled via `XAVIER2_MEMORY_BACKEND`:
+Xavier supports three storage backends for memory persistence, controlled via `XAVIER_MEMORY_BACKEND`:
 
 | Backend | Value | Best For | Limits |
 |---------|-------|----------|--------|
@@ -97,21 +97,21 @@ Xavier2 supports three storage backends for memory persistence, controlled via `
 
 ### Switching Backends
 
-Set `XAVIER2_MEMORY_BACKEND` before starting Xavier2:
+Set `XAVIER_MEMORY_BACKEND` before starting Xavier:
 
 ```bash
 # File (default)
-XAVIER2_MEMORY_BACKEND=file
+XAVIER_MEMORY_BACKEND=file
 
 # SurrealDB
-XAVIER2_MEMORY_BACKEND=surreal
-XAVIER2_SURREALDB_URL=ws://surrealdb:8000
-XAVIER2_SURREALDB_USER=root
-XAVIER2_SURREALDB_PASS=your-password
+XAVIER_MEMORY_BACKEND=surreal
+XAVIER_SURREALDB_URL=ws://surrealdb:8000
+XAVIER_SURREALDB_USER=root
+XAVIER_SURREALDB_PASS=your-password
 
 # SQLite
-XAVIER2_MEMORY_BACKEND=sqlite
-XAVIER2_MEMORY_SQLITE_PATH=./data/workspaces/default/memory-store.sqlite3
+XAVIER_MEMORY_BACKEND=sqlite
+XAVIER_MEMORY_SQLITE_PATH=./data/workspaces/default/memory-store.sqlite3
 ```
 
 ### Data Migration
@@ -175,11 +175,11 @@ ls -lh ./data/workspaces/default/memory-store.sqlite3
 - `/readiness` reports workspace, embedding, and LLM readiness.
 - `/build` reports version, logging configuration, and provider/model status for diagnostics.
 - `/v1/account/usage` now includes optimization counters for routing, semantic cache hits/misses, and LLM calls by model.
-- `scripts/release-smoke.ps1` and `scripts/release-smoke.sh` provide basic release validation against a live Xavier2 instance.
+- `scripts/release-smoke.ps1` and `scripts/release-smoke.sh` provide basic release validation against a live Xavier instance.
 
 ## Monorepo Packages
 
-- Rust workspace: root `xavier2`, `code-graph/`, `web/`
+- Rust workspace: root `xavier`, `code-graph/`, `web/`
 - Node workspace: `panel-ui/`, `docs/site/`
 - Support assets: `skills/`, `scripts/`, `docker/`, `docs/`
 
@@ -188,7 +188,7 @@ ls -lh ./data/workspaces/default/memory-store.sqlite3
 In this repository the contract is explicit:
 
 - GitHub Issues track task state
-- Xavier2 stores reusable memory and durable context
+- Xavier stores reusable memory and durable context
 - `.gitcore/ARCHITECTURE.md` defines binding implementation decisions
 - `AGENTS.md` defines workflow behavior for all agents
 
@@ -198,8 +198,8 @@ In this repository the contract is explicit:
 - `docs/site/` for the published docs site source
 - `docs/system/` for the documentation system prototype
 - `docs/agent-docs/` for agent-facing specs, research, and archives
-- `skills/xavier2-http-curl/` for curl-based agent usage without MCP
+- `skills/xavier-http-curl/` for curl-based agent usage without MCP
 
 ## Status
 
-Xavier2 is under active development and already runs locally through Docker with a healthy application surface and an authenticated HTTP API for agent integrations.
+Xavier is under active development and already runs locally through Docker with a healthy application surface and an authenticated HTTP API for agent integrations.

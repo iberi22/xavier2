@@ -1,20 +1,20 @@
-# Cloudflare Tunnel Configuration for Xavier2 Enterprise
-# This config exposes Xavier2 via Cloudflare Tunnel
+# Cloudflare Tunnel Configuration for Xavier Enterprise
+# This config exposes Xavier via Cloudflare Tunnel
 
-tunnel: xavier2-enterprise
+tunnel: xavier-enterprise
 credentials-file: /etc/cloudflared/credentials.json
 
 ingress:
-  # Xavier2 HTTP API
-  - hostname: xavier2.swallowai.com
-    service: http://xavier2:8003
+  # Xavier HTTP API
+  - hostname: xavier.swallowai.com
+    service: http://xavier:8003
     originRequest:
       noTLSVerify: false
       connectTimeout: 30s
 
   # Health check
-  - hostname: xavier2-health.swallowai.com
-    service: http://xavier2:8003/health
+  - hostname: xavier-health.swallowai.com
+    service: http://xavier:8003/health
 
   # Catch-all - don't route anything else
   - service: http_status:404

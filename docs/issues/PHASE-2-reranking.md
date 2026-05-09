@@ -29,10 +29,10 @@ We need **hybrid search with Reciprocal Rank Fusion (RRF)** to combine both appr
 use std::collections::HashMap;
 
 /// Reciprocal Rank Fusion
-/// 
+///
 /// Combines multiple ranked result sets into a single ranked list.
 /// Formula: score(d) = Σ 1/(k + rank(d))
-/// 
+///
 /// where:
 /// - k = 60 (default, tunable constant)
 /// - rank(d) = position of document d in result set
@@ -43,11 +43,11 @@ pub fn reciprocal_rank_fusion(
     k: u32,
 ) -> Vec<ScoredResult> {
     let mut scores: HashMap<String, FusedScore> = HashMap::new();
-    
+
     for result_set in result_sets {
         for (rank, result) in result_set.into_iter().enumerate() {
             let rrf_score = 1.0 / (k + rank as u32);
-            
+
             scores.entry(result.id.clone())
                 .or_insert_with(|| FusedScore {
                     id: result.id,
@@ -58,11 +58,11 @@ pub fn reciprocal_rank_fusion(
                 .add_score(result.source.clone(), result.score, rrf_score);
         }
     }
-    
+
     // Sort by total RRF score descending
     let mut ranked: Vec<_> = scores.into_values().collect();
     ranked.sort_by(|a, b| b.total_rrf.partial_cmp(&a.total_rrf).unwrap());
-    
+
     ranked.into_iter().map(|s| s.into_result()).collect()
 }
 
@@ -86,13 +86,13 @@ impl FusedScore {
         self.scores.insert(source, (original_score, rrf_score));
         self.total_rrf += rrf_score;
     }
-    
+
     fn into_result(self) -> ScoredResult {
         // Use content from highest-scoring source
         let (content, _) = self.scores.values()
             .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
             .cloned().unwrap_or_default();
-        
+
         ScoredResult {
             id: self.id,
             content,
@@ -136,20 +136,20 @@ impl HybridSearcher {
     ) -> Result<Vec<ScoredResult>, SearchError> {
         // 1. Keyword search (FTS5)
         let keyword_results = self.keyword_search(state, query, limit * 2).await?;
-        
+
         // 2. Vector search (sqlite-vec)
         let vector_results = self.vector_search(state, query, limit * 2).await?;
-        
+
         // 3. RRF fusion
         let fused = rrf::reciprocal_rank_fusion(
             vec![keyword_results, vector_results],
             self.rrf_k,
         );
-        
+
         // 4. Return top results
         Ok(fused.into_iter().take(limit).collect())
     }
-    
+
     async fn keyword_search(
         &self,
         state: &AppState,
@@ -158,7 +158,7 @@ impl HybridSearcher {
     ) -> Result<Vec<ScoredResult>, SearchError> {
         let memories = state.db.fts_search(query, limit).await
             .map_err(|e| SearchError::DatabaseError(e.to_string()))?;
-        
+
         Ok(memories.into_iter().enumerate()
             .map(|(i, m)| ScoredResult {
                 id: m.id,
@@ -168,7 +168,7 @@ impl HybridSearcher {
             })
             .collect())
     }
-    
+
     async fn vector_search(
         &self,
         state: &AppState,
@@ -178,11 +178,11 @@ impl HybridSearcher {
         // Generate query embedding
         let query_vector = state.embedder.encode(query).await
             .map_err(|e| SearchError::EmbeddingError(e.to_string()))?;
-        
+
         // Search sqlite-vec
         let results = state.vec_store.search(&query_vector, limit).await
             .map_err(|e| SearchError::VectorSearchError(e.to_string()))?;
-        
+
         Ok(results.into_iter().enumerate()
             .map(|(i, r)| ScoredResult {
                 id: r.id,
@@ -198,10 +198,10 @@ impl HybridSearcher {
 pub enum SearchError {
     #[error("Database error: {0}")]
     DatabaseError(String),
-    
+
     #[error("Embedding error: {0}")]
     EmbeddingError(String),
-    
+
     #[error("Vector search error: {0}")]
     VectorSearchError(String),
 }
@@ -257,26 +257,26 @@ pub async fn hybrid_search(
 ) -> Result<Json<SearchResponse>, StatusCode> {
     let limit = request.limit.unwrap_or(10);
     let k = request.rrf_k.unwrap_or(60);
-    
+
     let searcher = HybridSearcher {
         keyword_weight: 0.5,
         vector_weight: 0.5,
         rrf_k: k,
     };
-    
+
     let results = searcher.search(&state, &request.query, limit).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     // Get total count for pagination info
     let total = state.db.get_memory_count().await
         .unwrap_or(0);
-    
+
     let search_type = if results.first().map(|r| r.source == "hybrid").unwrap_or(false) {
         "hybrid"
     } else {
         "hybrid"  // Always hybrid since we're fusing
     };
-    
+
     let response = SearchResponse {
         results: results.into_iter().map(|r| SearchResult {
             id: r.id,
@@ -290,7 +290,7 @@ pub async fn hybrid_search(
         total_available: total,
         search_type: search_type.to_string(),
     };
-    
+
     Ok(Json(response))
 }
 ```
@@ -316,7 +316,7 @@ pub async fn search(
     Json(request): Json<SearchRequest>,
 ) -> Result<Json<SearchResponse>, StatusCode> {
     let search_type = request.search_type.as_deref().unwrap_or("hybrid");
-    
+
     match search_type {
         "keyword" => keyword_search_handler(state, request).await,
         "vector" => vector_search_handler(state, request).await,
@@ -407,10 +407,10 @@ fn test_rrf_fusion_two_result_sets() {
             ScoredResult { id: "a".into(), content: "".into(), score: 0.8, source: "vector".into() },
         ],
     ];
-    
+
     let fused = reciprocal_rank_fusion(results, 60);
     let ids: Vec<_> = fused.iter().map(|r| r.id.clone()).collect();
-    
+
     // "a" and "b" appear in both, should rank highest
     assert_eq!(ids[0], "b");  // b appears at rank 1 in vector, rank 2 in keyword
     assert_eq!(ids[1], "a");  // a appears at rank 1 in keyword, rank 3 in vector
@@ -424,7 +424,7 @@ fn test_rrf_with_empty_result_set() {
         ],
         vec![],  // Empty vector results
     ];
-    
+
     let fused = reciprocal_rank_fusion(results, 60);
     assert_eq!(fused.len(), 1);
     assert_eq!(fused[0].id, "a");

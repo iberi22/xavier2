@@ -1,10 +1,10 @@
-# TOOLS.md - Xavier2 Tools
+# TOOLS.md - Xavier Tools
 
-## Xavier2 (Mi Cerebro - PRIMARY MEMORY)
+## Xavier (Mi Cerebro - PRIMARY MEMORY)
 
 ### API Direct
 - **URL:** http://localhost:8006
-- **Token:** dev-token (header: `X-Xavier2-Token`)
+- **Token:** dev-token (header: `X-Xavier-Token`)
 - **Endpoints:**
   - `GET /health` — Status
   - `POST /memory/search` — Vector search
@@ -14,13 +14,13 @@
 ### Wrapper Script (PowerShell)
 ```powershell
 # Ubicación
-.\scripts\xavier2-helper.ps1
+.\scripts\xavier-helper.ps1
 
 # Comandos
-.\scripts\xavier2-helper.ps1 -Action search -Query "roadmap"
-.\scripts\xavier2-helper.ps1 -Action add -Content "..." -Category decisions
-.\scripts\xavier2-helper.ps1 -Action health
-.\scripts\xavier2-helper.ps1 -Action stats
+.\scripts\xavier-helper.ps1 -Action search -Query "roadmap"
+.\scripts\xavier-helper.ps1 -Action add -Content "..." -Category decisions
+.\scripts\xavier-helper.ps1 -Action health
+.\scripts\xavier-helper.ps1 -Action stats
 ```
 
 ---
@@ -42,13 +42,13 @@
 ssh termux-cf
 
 # Script principal
-swal-node.sh [docker|xavier2|status|tunnel|restart]
+swal-node.sh [docker|xavier|status|tunnel|restart]
 ```
 
 ### Docker Containers (PC)
 | Container | Port | Status |
 |-----------|------|--------|
-| xavier2 | 8006 | ✅ |
+| xavier | 8006 | ✅ |
 | cortex | 8003 | ✅ |
 | synapse-dashboard | 8080 | ✅ |
 | pgheart-postgres | 5432 | ✅ |
@@ -59,14 +59,14 @@ swal-node.sh [docker|xavier2|status|tunnel|restart]
 ## GitHub
 
 ### Repos Principales
-- `iberi22/xavier2` — Mi cerebro
+- `iberi22/xavier` — Mi cerebro
 - `iberi22/gestalt-rust` — Agente Rust
 - `iberi22/tripro_landing_page_astro` — ManteniApp
 
 ### CLI
 ```bash
-gh issue list --repo iberi22/xavier2
-gh issue create --repo iberi22/xavier2 --title "..." --body "..."
+gh issue list --repo iberi22/xavier
+gh issue create --repo iberi22/xavier --title "..." --body "..."
 ```
 
 ---
@@ -87,4 +87,4 @@ python E:\scripts-python\scripts\audio-to-text.py audio.ogg --language es
 
 ---
 
-_Xavier2 CEO — Herramientas actualizadas 2026-04-30_
+_Xavier CEO — Herramientas actualizadas 2026-04-30_

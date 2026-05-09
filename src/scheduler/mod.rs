@@ -281,7 +281,7 @@ mod tests {
 
     async fn temp_scheduler_path() -> PathBuf {
         let root = std::env::temp_dir()
-            .join("xavier2-scheduler-tests")
+            .join("xavier-scheduler-tests")
             .join(ulid::Ulid::new().to_string());
         fs::create_dir_all(&root).await.unwrap();
         root.join("scheduler").join("jobs.json")

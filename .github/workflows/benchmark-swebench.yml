@@ -1,4 +1,4 @@
-name: SWE-bench Benchmark
+﻿name: SWE-bench Benchmark
 
 on:
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
             --predictions-path "${{ github.event.inputs.predictions_path || 'gold' }}" \
             --max-workers "${{ github.event.inputs.max_workers || '1' }}" \
             --instance-ids "${{ github.event.inputs.instance_ids || '' }}" \
-            --run-id "${{ github.event.inputs.run_id || format('xavier2-{0}', github.run_id) }}" \
+            --run-id "${{ github.event.inputs.run_id || format('xavier-{0}', github.run_id) }}" \
             --output-dir benchmark-results/swebench
 
       - name: Upload SWE-bench results

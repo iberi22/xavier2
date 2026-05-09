@@ -4,10 +4,10 @@
 mod memory_manager_tests {
     use std::sync::Arc;
     use tokio::sync::RwLock;
-    use xavier2::memory::manager::{
+    use xavier::memory::manager::{
         MemoryManagementAction, MemoryManager, MemoryManagerConfig, MemoryPriority,
     };
-    use xavier2::memory::qmd_memory::{MemoryDocument, QmdMemory};
+    use xavier::memory::qmd_memory::{MemoryDocument, QmdMemory};
 
     fn empty_memory() -> Arc<QmdMemory> {
         Arc::new(QmdMemory::new(Arc::new(RwLock::new(Vec::new()))))
@@ -109,7 +109,7 @@ mod memory_manager_tests {
 #[cfg(test)]
 mod memory_stats_tests {
     use std::collections::HashMap;
-    use xavier2::memory::manager::MemoryStats;
+    use xavier::memory::manager::MemoryStats;
 
     #[test]
     fn test_memory_stats_creation() {
@@ -132,7 +132,7 @@ mod memory_stats_tests {
 
 #[cfg(test)]
 mod memory_action_tests {
-    use xavier2::memory::manager::MemoryAction;
+    use xavier::memory::manager::MemoryAction;
 
     #[test]
     fn test_memory_action_variants() {

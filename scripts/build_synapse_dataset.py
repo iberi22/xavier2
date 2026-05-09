@@ -48,7 +48,7 @@ SWAL_KNOWLEDGE = {
         "categories": ["technical", "client", "operations", "sales"],
         "backend": "vectorial"
     },
-    "xavier2": {
+    "xavier": {
         "type": "Agente principal SWAL",
         "host": "EditorOne (Windows)",
         "role": "Ventas y operaciones",
@@ -68,7 +68,7 @@ SWAL_KNOWLEDGE = {
 def generate_verification_pairs(n=150):
     """Generate pre-action verification pairs."""
     pairs = []
-    
+
     templates = [
         {
             "instruction": "Verifica esta acción: enviar email a {contact} sobre {topic}",
@@ -111,12 +111,12 @@ def generate_verification_pairs(n=150):
             ]
         }
     ]
-    
+
     contacts = ["Leonardo Duque", "cliente Rodacenter", "equipo SWAL", "nuevo prospecto"]
     topics = ["ManteniApp pricing", "seguimiento demo", "nueva propuesta", "actualización proyecto"]
     statuses = ["sin respuesta", "interesado", "en evaluación", "listo para comprar"]
     days_range = [1, 3, 7, 14, 30]
-    
+
     actions = [
         "Crear RFI para nuevo cliente",
         "Enviar cotización de ManteniApp",
@@ -128,16 +128,16 @@ def generate_verification_pairs(n=150):
         "Crear nuevo skill en OpenClaw",
         "Ejecutar análisis de security"
     ]
-    
+
     for i in range(n):
         template = random.choice(templates)
-        
+
         instruction = template["instruction"].format(
             contact=random.choice(contacts),
             topic=random.choice(topics),
             action=random.choice(actions)
         )
-        
+
         context = random.choice(template["context_templates"]).format(
             days=random.choice(days_range),
             status=random.choice(statuses),
@@ -145,9 +145,9 @@ def generate_verification_pairs(n=150):
             context="consulta de ventas",
             history="interacción previa positiva"
         )
-        
+
         outcome = random.choice(template["outcomes"])
-        
+
         if outcome.startswith("VERIFIED"):
             pairs.append({
                 "instruction": f"{instruction}\nContexto: {context}",
@@ -169,13 +169,13 @@ def generate_verification_pairs(n=150):
                 "category": "verification",
                 "trigger": "action_blocked"
             })
-    
+
     return pairs
 
 def generate_orchestration_pairs(n=100):
     """Generate multi-step operation orchestration pairs."""
     pairs = []
-    
+
     tasks = [
         ("Setup nuevo cliente en el sistema", [
             "1. Consultar memoria para info previa del cliente",
@@ -209,47 +209,47 @@ def generate_orchestration_pairs(n=100):
             "4. Evaluar fit con productos SWAL"
         ])
     ]
-    
+
     for i in range(n):
         task, steps = random.choice(tasks)
-        
+
         orchestration = "Pasos:\n" + "\n".join(f"{j+1}. {s}" for j, s in enumerate(steps))
         orchestration += "\n\nCheckpoint después de cada paso."
-        
+
         evaluation = random.choice([
             "Plan ORCHESTRATED correctamente.Procede con ejecución.",
             "Plan optimizado: pasos 2 y 3 pueden ejecutarse en paralelo.",
             "Añadir verificación antes del paso final."
         ])
-        
+
         pairs.append({
             "instruction": f"Orquesta esta tarea: {task}",
             "response": f"{orchestration}\n\nEvaluación: {evaluation}",
             "category": "orchestration",
             "trigger": "multi_step_task"
         })
-    
+
     return pairs
 
 def generate_synthesis_pairs(n=125):
     """Generate memory + generation synthesis pairs."""
     pairs = []
-    
+
     queries = [
         "Qué sabes de {entity}?",
         "Dame información sobre {entity} incluyendo lo más reciente",
         "Qué tenemos registrado de {entity}?",
         "Cuál es el estado actual de {entity}?"
     ]
-    
+
     entities = list(SWAL_KNOWLEDGE.keys())
-    
+
     for i in range(n):
         entity_key = random.choice(entities)
         entity_data = SWAL_KNOWLEDGE[entity_key]
-        
+
         query = random.choice(queries).format(entity=entity_key.replace("_", " ").title())
-        
+
         if entity_key == "bela":
             response = f"Según mi memoria, BELA es {entity_data['role']}. Opera desde Colombia ({entity_data['timezone']}) y gestiona múltiples proyectos de software. Productos: {', '.join(entity_data['products'])}. proyectos activos: {', '.join(entity_data['projects'])}."
         elif entity_key == "leonardo_duque":
@@ -263,34 +263,34 @@ def generate_synthesis_pairs(n=125):
             response = f"Rodacenter es {entity_data['type']} en {entity_data['location']}. {entity_data['relation']}. Interesado en: {entity_data['interest']}. Empresa: {entity_data['company_url']}"
         else:
             response = f"{entity_key}: {str(entity_data)}"
-        
+
         synthesis_marker = random.choice([
             "Basándome en lo que tengo registrado...",
             "Según mi memoria...",
             "Tengo información de que...",
             "Consultando Cortex, encuentro que..."
         ])
-        
+
         pairs.append({
             "instruction": query,
             "response": f"{synthesis_marker} {response}",
             "category": "synthesis",
             "trigger": "memory_plus_generation"
         })
-    
+
     return pairs
 
 def generate_generation_pairs(n=75):
     """Pure generation when memory doesn't have info."""
     pairs = []
-    
+
     instructions = [
         "Cómo harías para {task}?",
         "Explica el proceso para {task}",
         "Qué pasos sigues para {task}?",
         "Describe cómo ejecutar {task} de forma óptima"
     ]
-    
+
     tasks = [
         "crear un RFI desde cero",
         "generar propuesta comercial",
@@ -302,67 +302,67 @@ def generate_generation_pairs(n=75):
         "auditar seguridad de repos",
         "sincronizar tareas con Leonardo"
     ]
-    
+
     responses = [
         "Para {task}, seguiría: 1) Identificar objetivo, 2) Consultar templates existentes, 3) Personalizar según contexto, 4) Ejecutar y verificar resultado, 5) Documentar en memoria.",
         "El proceso sería: Primero reviso si hay info previa en Cortex, luego busco template correspondiente en skills/, ejecuto con adaptaciones, finalmente guardo resultado.",
         "Pasos: 1) Definir alcance, 2) Revisar recursos disponibles (skills, memory), 3) Ejecutar con verificación intermedio, 4) Guardar resultado y actualizar memoria.",
         "Para {task} recomendo: revisar MEMORY.md para contexto, usar skill apropiado si existe, ejecutar y validar output, guardar en Cortex si es información valiosa."
     ]
-    
+
     for i in range(n):
         task = random.choice(tasks)
         instruction = random.choice(instructions).format(task=task)
         response_template = random.choice(responses)
         response = response_template.format(task=task)
-        
+
         pairs.append({
             "instruction": instruction,
             "response": response,
             "category": "generation",
             "trigger": "pure_generation"
         })
-    
+
     return pairs
 
 def generate_retrieval_trigger_pairs(n=50):
     """Pairs teaching when to consult Cortex."""
     pairs = []
-    
+
     instructions = [
         "Necesito info sobre {entity}",
         "Qué tienes de {entity}?",
         "Consultar {entity}",
         "Revisa lo que tenemos de {entity}"
     ]
-    
+
     entities = ["Leonardo Duque", "Rodacenter", "ManteniApp", "gestalt-rust", "ventas ManteniApp"]
-    
+
     for i in range(n):
         entity = random.choice(entities)
         instruction = random.choice(instructions).format(entity=entity)
-        
+
         trigger = random.choice([
             "TRIGGER_RETRIEVAL - Buscar en Cortex categoría: ",
             "RETRIEVAL_SIGNAL - Consultar memoria: ",
             "CONSULT_MEMORY - Revisar registros de "
         ])
-        
+
         category = random.choice(["client", "product", "projects", "sales"])
-        
+
         pairs.append({
             "instruction": instruction,
             "response": f"{trigger}{category}",
             "category": "retrieval_trigger",
             "trigger": "when_to_consult_memory"
         })
-    
+
     return pairs
 
 def generate_decision_pairs(n=50):
     """Decision-making pairs."""
     pairs = []
-    
+
     scenarios = [
         ("Cliente pregunta precio de ManteniApp", "Starter $499, Pro $999, Enterprise $2499 - explicar diferencias y recomendar según necesidad"),
         ("Leonardo pide información de demo", "Enviar link tripro.cl/manteniapp, confirmar fecha, preparar materiales"),
@@ -370,23 +370,23 @@ def generate_decision_pairs(n=50):
         ("Se detecta secret expuesto en repo", "Seguir protocolo: 1) Alertar Telegram, 2) Crear issue security/critical, 3) Auto-fix git rm --cached, 4) Crear PR"),
         ("Cliente pregunta por integración API", "Software Factory puede desarrollar integración custom - agendar llamada para spec")
     ]
-    
+
     for i in range(n):
         scenario, decision = random.choice(scenarios)
-        
+
         pairs.append({
             "instruction": f"Decisión: {scenario}",
             "response": f"RECOMENDACIÓN: {decision}",
             "category": "decision",
             "trigger": "operational_decision"
         })
-    
+
     return pairs
 
 def generate_operations_pairs(n=50):
     """How-to operational pairs."""
     pairs = []
-    
+
     how_tos = [
         ("cómo hago un git commit con mensaje descriptivo", "git add . && git commit -m 'feat: descripción corta de cambios'"),
         ("cómo creo un cron job en OpenClaw", "Usar openclaw cron add con schedule y payload apropiados. Definir sessionTarget según necesidad (main/isolated)."),
@@ -397,52 +397,52 @@ def generate_operations_pairs(n=50):
         ("cómo hago backup de memoria", "Sincronizar a Git (git add memory/ && git commit), también guardar en E:\\datasetsDrive\\backup\\"),
         ("cómo limpio sessions antiguas", "openclaw sessions list, luego eliminar con cuidado. Mantener solo activas.")
     ]
-    
+
     for i in range(n):
         how, answer = random.choice(how_tos)
-        
+
         pairs.append({
             "instruction": f"{how}?",
             "response": answer,
             "category": "operations",
             "trigger": "how_to"
         })
-    
+
     return pairs
 
 def generate_reasoning_pairs(n=50):
     """Reasoning chain pairs."""
     pairs = []
-    
+
     scenarios = [
         "Un cliente dice que el precio es muy alto. Cómo respondes?",
         "Necesito decidir entre enviar email o esperar. Qué consideras?",
         "Analiza: tenemos 3 prospectos en pipeline, cuál priorizo?",
         "Por qué es importante mantener memoria actualizada?"
     ]
-    
+
     for i in range(n):
         scenario = random.choice(scenarios)
-        
+
         reasoning = random.choice([
             "Pensándolo paso a paso: 1) Identificar variables clave, 2) Evaluar restricciones, 3) Considerar historial, 4) Proyectar outcomes, 5) Decidir.",
             "Análisis: Primero necesito contexto de memoria, luego evaluar opciones, finalmente producir recomendación con explicación.",
             "Razonamiento: a) ¿Qué información tengo? b) ¿Qué falta? c) ¿Cuál es el objetivo? d) ¿Qué impedimentos hay? e) Conclusión."
         ])
-        
+
         pairs.append({
             "instruction": scenario,
             "response": f"{reasoning} Considerando el contexto actual de SWAL y los principios definidos.",
             "category": "reasoning",
             "trigger": "step_by_step"
         })
-    
+
     return pairs
 
 def generate_swal_core_pairs(n=75):
     """Core SWAL knowledge pairs."""
     pairs = []
-    
+
     knowledge = [
         ("Quién es BELA?", "BELA es el fundador de Southwest AI Labs (SWAL), empresa de software con productos ManteniApp, Cortex y Software Factory. Opera desde Colombia."),
         ("Qué es ManteniApp?", "ManteniApp es la plataforma de monitoreo de maquinaria con AI de SWAL. Tiene 3 planes: Starter $499, Pro $999, Enterprise $2499."),
@@ -455,7 +455,7 @@ def generate_swal_core_pairs(n=75):
         ("Qué cron jobs hay activos?", "Project Synthesizer (6h), Weekly Report (Lunes 8AM), Security Audit (8AM), GitHub Actions Analyzer (4h), GitHub Monitor (1h)."),
         ("Cuántos productos tiene SWAL?", "Tres principales: ManteniApp (monitoreo AI), Software Factory (desarrollo a medida), Cortex (memoria IA).")
     ]
-    
+
     for i in range(n):
         q, a = random.choice(knowledge)
         pairs.append({
@@ -464,7 +464,7 @@ def generate_swal_core_pairs(n=75):
             "category": "swal_core",
             "trigger": "core_knowledge"
         })
-    
+
     return pairs
 
 def main():
@@ -472,9 +472,9 @@ def main():
     print("BUILDING SWAL SYNAPSE TRAINING DATASET")
     print("Target: 500+ examples")
     print("=" * 60)
-    
+
     all_pairs = []
-    
+
     # Generate all categories
     categories = [
         ("verification", generate_verification_pairs, 150),
@@ -487,32 +487,32 @@ def main():
         ("reasoning", generate_reasoning_pairs, 50),
         ("swal_core", generate_swal_core_pairs, 75),
     ]
-    
+
     total = 0
     for name, generator, count in categories:
         pairs = generator(count)
         all_pairs.extend(pairs)
         total += len(pairs)
         print(f"  {name}: {len(pairs)} pairs")
-    
+
     # Shuffle
     random.shuffle(all_pairs)
-    
+
     # Save
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
         for pair in all_pairs:
             f.write(json.dumps(pair, ensure_ascii=False) + '\n')
-    
+
     print(f"\nTotal: {total} pairs")
     print(f"Saved to: {OUTPUT_FILE}")
-    
+
     # Stats
     categories_count = {}
     for pair in all_pairs:
         cat = pair.get("category", "unknown")
         categories_count[cat] = categories_count.get(cat, 0) + 1
-    
+
     print("\nCategory distribution:")
     for cat, count in sorted(categories_count.items(), key=lambda x: -x[1]):
         print(f"  {cat}: {count}")

@@ -1,4 +1,4 @@
-# Xavier2 Architecture
+﻿# Xavier Architecture
 
 **Version:** 0.4.1
 **Last Updated:** 2026-04-20
@@ -7,11 +7,11 @@
 
 ## System Overview
 
-Xavier2 is a fast vector memory system for AI agents, providing ~7ms average search latency using SQLite-vec with hybrid retrieval (vector + keyword + graph).
+Xavier is a fast vector memory system for AI agents, providing ~7ms average search latency using SQLite-vec with hybrid retrieval (vector + keyword + graph).
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Xavier2 v0.4.1                        │
+│                      Xavier v0.4.1                        │
 ├───────────────┬───────────────┬─────────────────────────────┤
 │   CLI Tool    │   HTTP API    │      MCP-stdio              │
 ├───────────────┴───────────────┴─────────────────────────────┤
@@ -37,12 +37,12 @@ Xavier2 is a fast vector memory system for AI agents, providing ~7ms average sea
 ### 1. CLI (`src/cli.rs`)
 
 Human-friendly command interface for:
-- `xavier2 http` - Start HTTP server
-- `xavier2 mcp` - Start MCP-stdio server
-- `xavier2 search <query>` - Search memories
-- `xavier2 add <content>` - Add memory
-- `xavier2 stats` - Show statistics
-- `xavier2 code scan|find|stats` - Code graph operations
+- `xavier http` - Start HTTP server
+- `xavier mcp` - Start MCP-stdio server
+- `xavier search <query>` - Search memories
+- `xavier add <content>` - Add memory
+- `xavier stats` - Show statistics
+- `xavier code scan|find|stats` - Code graph operations
 
 All CLI commands pass through `secure_cli_input()` for security scanning.
 
@@ -154,11 +154,11 @@ Request → SecurityService.process_input()
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XAVIER2_PORT` | `8006` | HTTP server port |
-| `XAVIER2_HOST` | `0.0.0.0` | Bind address |
-| `XAVIER2_TOKEN` | `dev-token` | Authentication |
-| `XAVIER2_DEV_MODE` | `false` | Skip auth (dev) |
-| `XAVIER2_LOG_LEVEL` | `info` | Log verbosity |
+| `XAVIER_PORT` | `8006` | HTTP server port |
+| `XAVIER_HOST` | `0.0.0.0` | Bind address |
+| `XAVIER_TOKEN` | `dev-token` | Authentication |
+| `XAVIER_DEV_MODE` | `false` | Skip auth (dev) |
+| `XAVIER_LOG_LEVEL` | `info` | Log verbosity |
 
 ## Performance
 
@@ -169,7 +169,7 @@ Request → SecurityService.process_input()
 
 ## Storage
 
-- **Memory DB:** `xavier2_memory_vec.db` (~400-500 memories)
+- **Memory DB:** `xavier_memory_vec.db` (~400-500 memories)
 - **Code DB:** `data/code_graph.db` (141 files, ~2669 symbols)
 
 ## Security Model
@@ -194,12 +194,12 @@ Security is applied at:
 
 ## Workspace Evolution
 
-As of v0.4.1, Xavier2 operates as a single-member Cargo workspace (with `code-graph` as an external member). To improve reusability, build times, and allow for granular publishing of components, a transition to a multi-crate workspace is planned for v0.5.0+.
+As of v0.4.1, Xavier operates as a single-member Cargo workspace (with `code-graph` as an external member). To improve reusability, build times, and allow for granular publishing of components, a transition to a multi-crate workspace is planned for v0.5.0+.
 
 ### Proposed Crate Extraction:
-1. **`xavier2-common`**: Core utilities, crypto, and shared types.
-2. **`xavier2-security`**: The `SecurityService` and prompt injection detection layers.
-3. **`xavier2-memory-core`**: The `QmdMemory` domain and storage adapters.
-4. **`xavier2-a2a`**: Agent-to-Agent protocol and registry logic.
+1. **`xavier-common`**: Core utilities, crypto, and shared types.
+2. **`xavier-security`**: The `SecurityService` and prompt injection detection layers.
+3. **`xavier-memory-core`**: The `QmdMemory` domain and storage adapters.
+4. **`xavier-a2a`**: Agent-to-Agent protocol and registry logic.
 
-The main `xavier2` crate will evolve into a thin wrapper providing the CLI and HTTP server, orchestrating these specialized components.
+The main `xavier` crate will evolve into a thin wrapper providing the CLI and HTTP server, orchestrating these specialized components.

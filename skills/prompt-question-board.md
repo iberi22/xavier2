@@ -1,7 +1,7 @@
 # Prompt Template: Question Board Card Generator
 
 ## Purpose
-This template guides the LLM to generate structured question cards that can be stored in Xavier2 and rendered in the Questions Board UI.
+This template guides the LLM to generate structured question cards that can be stored in Xavier and rendered in the Questions Board UI.
 
 ## Question Data Structure
 
@@ -20,7 +20,7 @@ interface Question {
 }
 ```
 
-## Xavier2 Storage Path
+## Xavier Storage Path
 ```
 sweat-operations/questions/{id}
 ```
@@ -77,12 +77,12 @@ Genera una pregunta estructurada basada en la siguiente descripción:
 }
 ```
 
-## Integration with Xavier2
+## Integration with Xavier
 
-Para guardar en Xavier2:
+Para guardar en Xavier:
 ```bash
 curl -X POST "http://localhost:8003/memory/add" \
-  -H "X-Xavier2-Token: dev-token" \
+  -H "X-Xavier-Token: dev-token" \
   -H "Content-Type: application/json" \
   -d '{
     "path": "sweat-operations/questions/q-{id}",
@@ -99,7 +99,7 @@ curl -X POST "http://localhost:8003/memory/add" \
 Para buscar preguntas:
 ```bash
 curl -X POST "http://localhost:8003/memory/search" \
-  -H "X-Xavier2-Token: dev-token" \
+  -H "X-Xavier-Token: dev-token" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "sweat-operations questions",

@@ -1,20 +1,29 @@
 #!/usr/bin/env node
 /**
- * SWAL Xavier2 - Code Indexing Script
+ * SWAL Xavier - Code Indexing Script
  * Indexes SWAL code repositories for code search
  *
  * Usage: node index-swal-code.js
  *
- * IMPORTANT: Xavier2 runs in Docker and paths inside the container are Unix-style.
+ * IMPORTANT: Xavier runs in Docker and paths inside the container are Unix-style.
  * The SWAL repos are mounted at /mnt/swal/ inside the container.
  */
 
-const XAVIER2_URL = process.env.XAVIER2_URL || 'http://localhost:8003';
-const XAVIER2_TOKEN = process.env.XAVIER2_API_KEY || 'dev-token';
+const XAVIER_URL = process.env.XAVIER_URL || 'http://localhost:8003';
+
+function getRequiredXavierToken() {
+  const token = process.env.XAVIER_TOKEN || process.env.XAVIER_API_KEY || process.env.XAVIER_TOKEN;
+  if (!token) {
+    throw new Error('Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.');
+  }
+  return token;
+}
+
+const XAVIER_TOKEN = getRequiredXavierToken();
 
 // ===== SWAL REPOS (Unix paths inside Docker container) =====
 const SWAL_REPOS_UNIX = [
-  '/mnt/swal/xavier2/src',
+  '/mnt/swal/xavier/src',
   '/mnt/swal/scripts',
   '/mnt/swal/gestalt-rust/src',
   '/mnt/swal/manteniapp/src',
@@ -28,13 +37,13 @@ const FULL_SCAN_PATH = '/mnt/swal';
 
 // ===== HTTP HELPERS =====
 async function codeScan(repoPath) {
-  const url = `${XAVIER2_URL}/code/scan`;
+  const url = `${XAVIER_URL}/code/scan`;
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Xavier2-Token': XAVIER2_TOKEN
+        'X-Xavier-Token': XAVIER_TOKEN
       },
       body: JSON.stringify({ path: repoPath })
     });
@@ -56,11 +65,11 @@ async function codeScan(repoPath) {
 }
 
 async function codeStats() {
-  const url = `${XAVIER2_URL}/code/stats`;
+  const url = `${XAVIER_URL}/code/stats`;
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'X-Xavier2-Token': XAVIER2_TOKEN }
+      headers: { 'X-Xavier-Token': XAVIER_TOKEN }
     });
     if (!response.ok) return null;
     return await response.json();
@@ -70,13 +79,13 @@ async function codeStats() {
 }
 
 async function codeFind(query, limit = 10) {
-  const url = `${XAVIER2_URL}/code/find`;
+  const url = `${XAVIER_URL}/code/find`;
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Xavier2-Token': XAVIER2_TOKEN
+        'X-Xavier-Token': XAVIER_TOKEN
       },
       body: JSON.stringify({ query, limit })
     });
@@ -89,8 +98,8 @@ async function codeFind(query, limit = 10) {
 
 // ===== MAIN =====
 async function main() {
-  console.log('🔍 SWAL Xavier2 - Code Indexing\n');
-  console.log(`   Xavier2: ${XAVIER2_URL}\n`);
+  console.log('🔍 SWAL Xavier - Code Indexing\n');
+  console.log(`   Xavier: ${XAVIER_URL}\n`);
 
   // Get baseline stats
   const beforeStats = await codeStats();
@@ -119,11 +128,11 @@ async function main() {
   } else if (result.success) {
     console.log(`⚠️  Scan completed but 0 files indexed.`);
     console.log(`   This usually means repos aren't mounted in Docker.\n`);
-    console.log(`   Verify mounts with: docker exec xavier2 ls /mnt/swal/\n`);
+    console.log(`   Verify mounts with: docker exec xavier ls /mnt/swal/\n`);
   } else {
     console.log(`❌ Scan failed: ${result.error}\n`);
     console.log(`   Make sure Docker volumes are mounted in docker-compose.yml:\n`);
-    console.log(`   - E:/scripts-python/xavier2:/mnt/swal/xavier2:ro`);
+    console.log(`   - E:/scripts-python/xavier:/mnt/swal/xavier:ro`);
     console.log(`   - E:/scripts-python/scripts:/mnt/swal/scripts:ro`);
     console.log(`   etc.\n`);
   }
@@ -139,7 +148,7 @@ async function main() {
 
   // Test search
   console.log('🔎 Testing code search...\n');
-  const testQueries = ['memory', 'xavier2', 'indexer', 'sync'];
+  const testQueries = ['memory', 'xavier', 'indexer', 'sync'];
 
   for (const query of testQueries) {
     const results = await codeFind(query, 3);
@@ -157,11 +166,11 @@ async function main() {
   console.log('\n✅ Code indexing complete!');
   console.log('\n📝 Usage Examples:');
   console.log('   # Find functions named "memory"');
-  console.log('   curl -H "X-Xavier2-Token: dev-token" -X POST http://localhost:8003/code/find \\');
+  console.log('   curl -H "X-Xavier-Token: ${XAVIER_TOKEN}" -X POST http://localhost:8003/code/find \\');
   console.log('     -H "Content-Type: application/json" \\');
   console.log('     -d \'{"query": "memory", "limit": 10}\'');
   console.log('\n   # Find structs only');
-  console.log('   curl -H "X-Xavier2-Token: dev-token" -X POST http://localhost:8003/code/find \\');
+  console.log('   curl -H "X-Xavier-Token: ${XAVIER_TOKEN}" -X POST http://localhost:8003/code/find \\');
   console.log('     -H "Content-Type: application/json" \\');
   console.log('     -d \'{"query": "memory", "limit": 10, "kind": "struct"}\'');
   console.log('\n   # Re-index (run this script again)');

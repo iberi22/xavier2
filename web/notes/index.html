@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Xavier2 Notes</title>
+  <title>Xavier Notes</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize@2.0.0/modern-normalize.min.css">
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -144,31 +144,31 @@
     const { useState, useEffect, useRef, useCallback } = React;
 
     // ============================================
-    // XAVIER2 API CLIENT
+    // XAVIER API CLIENT
     // ============================================
-    const XAVIER2_URL = 'http://localhost:8003';
-    const XAVIER2_TOKEN = 'dev-token';
+    const XAVIER_URL = 'http://localhost:8003';
+    const XAVIER_TOKEN = 'dev-token';
 
-    const xavier2Api = {
+    const xavierApi = {
       async searchNotes(query) {
-        const res = await fetch(`${XAVIER2_URL}/memory/search`, {
+        const res = await fetch(`${XAVIER_URL}/memory/search`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Xavier2-Token': XAVIER2_TOKEN },
+          headers: { 'Content-Type': 'application/json', 'X-Xavier-Token': XAVIER_TOKEN },
           body: JSON.stringify({ query, limit: 10 })
         });
         const data = await res.json();
         return data.results || [];
       },
       async getStats() {
-        const res = await fetch(`${XAVIER2_URL}/memory/stats`, {
-          headers: { 'X-Xavier2-Token': XAVIER2_TOKEN }
+        const res = await fetch(`${XAVIER_URL}/memory/stats`, {
+          headers: { 'X-Xavier-Token': XAVIER_TOKEN }
         });
         return res.json();
       },
       async addNote(content, metadata = {}) {
-        const res = await fetch(`${XAVIER2_URL}/memory/add`, {
+        const res = await fetch(`${XAVIER_URL}/memory/add`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Xavier2-Token': XAVIER2_TOKEN },
+          headers: { 'Content-Type': 'application/json', 'X-Xavier-Token': XAVIER_TOKEN },
           body: JSON.stringify({ content, metadata })
         });
         return res.json();
@@ -228,7 +228,7 @@
         <div className="header">
           <div className="header-logo">
             <div className="icon">🧠</div>
-            <span>Xavier2 Notes</span>
+            <span>Xavier Notes</span>
           </div>
           <div className="header-search">
             <input
@@ -555,7 +555,7 @@
         <div className="status-bar">
           <div className="status-item">
             <div className="status-dot"></div>
-            <span>Connected to Xavier2</span>
+            <span>Connected to Xavier</span>
           </div>
           <div className="status-item">
             <span>📊 {stats?.total_documents || 0} notes</span>
@@ -595,7 +595,7 @@
       }, []);
 
       const loadNotes = async () => {
-        const results = await xavier2Api.searchNotes('note project');
+        const results = await xavierApi.searchNotes('note project');
         const parsed = results.map((r, i) => ({
           id: r.id || `note-${i}`,
           title: r.content?.split('\n')[0]?.replace(/^#\s*/, '') || 'Untitled',
@@ -610,7 +610,7 @@
 
       const loadStats = async () => {
         try {
-          const s = await xavier2Api.getStats();
+          const s = await xavierApi.getStats();
           setStats(s);
         } catch (e) {
           console.error('Failed to load stats:', e);
@@ -618,12 +618,12 @@
       };
 
       const handleSearch = async (query) => {
-        const results = await xavier2Api.searchNotes(query);
+        const results = await xavierApi.searchNotes(query);
         setSearchResults(results);
       };
 
       const handleSaveNote = async (note) => {
-        await xavier2Api.addNote(note.content, {
+        await xavierApi.addNote(note.content, {
           ...note,
           title: note.title,
           category: 'note'

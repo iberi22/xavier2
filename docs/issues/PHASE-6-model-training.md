@@ -1,14 +1,14 @@
-# PHASE 6: Fine-Tune Local Model with Xavier2 Memory Data
+# PHASE 6: Fine-Tune Local Model with Xavier Memory Data
 
-**Status:** 🔴 PROPOSED  
-**Created:** 2026-04-16  
-**Labels:** training, fine-tuning, ML  
+**Status:** 🔴 PROPOSED
+**Created:** 2026-04-16
+**Labels:** training, fine-tuning, ML
 
 ---
 
 ## Vision
 
-Train a small local LLM (3-8B parameters) using all curated memory data from Xavier2 to create a **domain-specific AI assistant** that:
+Train a small local LLM (3-8B parameters) using all curated memory data from Xavier to create a **domain-specific AI assistant** that:
 - Understands SWAL context perfectly
 - Has better retrieval accuracy than generic models
 - Runs 100% offline on local GPU
@@ -24,7 +24,7 @@ Train a small local LLM (3-8B parameters) using all curated memory data from Xav
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐     │
-│  │  Xavier2     │───▶│  Data        │───▶│  Fine-tune    │     │
+│  │  Xavier     │───▶│  Data        │───▶│  Fine-tune    │     │
 │  │  Memory      │    │  Curation    │    │  (QLoRA)     │     │
 │  │  (Raw)       │    │  Pipeline    │    │  Small LLM   │     │
 │  └──────────────┘    └──────────────┘    └──────────────┘     │
@@ -54,7 +54,7 @@ Train a small local LLM (3-8B parameters) using all curated memory data from Xav
 
 ---
 
-## Data Sources from Xavier2
+## Data Sources from Xavier
 
 ### 1. Structured Memory Categories
 
@@ -82,12 +82,12 @@ Train a small local LLM (3-8B parameters) using all curated memory data from Xav
 
 ## Data Curation Pipeline
 
-### Step 1: Export from Xavier2
+### Step 1: Export from Xavier
 
 ```python
 # Export all memories to JSONL
 def export_memories():
-    memories = xavier2.query_all(limit=10000)
+    memories = xavier.query_all(limit=10000)
     for m in memories:
         yield {
             "content": m.content,
@@ -105,7 +105,7 @@ def export_memories():
 ```json
 {
   "instruction": "Quién es BELA y qué proyectos tiene SWAL?",
-  "response": "BELA es el fundador y desarrollador principal de SouthWest AI Labs (SWAL). Tiene varios proyectos incluyendo: Xavier2 (sistema de memoria para agentes AI), ManteniApp (SaaS de monitoreo de maquinaria), Gestalt-Rust (sistema de ejecución de agentes), y Cortex (memoria enterprise).",
+  "response": "BELA es el fundador y desarrollador principal de SouthWest AI Labs (SWAL). Tiene varios proyectos incluyendo: Xavier (sistema de memoria para agentes AI), ManteniApp (SaaS de monitoreo de maquinaria), Gestalt-Rust (sistema de ejecución de agentes), y Cortex (memoria enterprise).",
   "category": "business",
   "source": "swal/business/overview"
 }
@@ -212,7 +212,7 @@ config = {
 ## Implementation Phases
 
 ### Phase 6.1: Data Export & Curation
-- [ ] Create export script from Xavier2 API
+- [ ] Create export script from Xavier API
 - [ ] Build deduplication pipeline
 - [ ] Create JSONL formatter
 - [ ] Manual review of sample data
@@ -232,7 +232,7 @@ config = {
 ### Phase 6.4: Integration
 - [ ] Export model to Ollama format
 - [ ] Create inference API
-- [ ] Integrate with Xavier2 retrieval
+- [ ] Integrate with Xavier retrieval
 - [ ] A/B test vs base model
 
 ---
@@ -279,7 +279,7 @@ config = {
 - [ ] Fine-tuned model passes LOCOMO at >70%
 - [ ] Model runs locally on RX 6600
 - [ ] Benchmark shows improvement over base model
-- [ ] Integrated into Xavier2 inference pipeline
+- [ ] Integrated into Xavier inference pipeline
 
 ---
 
@@ -287,7 +287,7 @@ config = {
 
 ```bash
 # Export memories
-python scripts/export_xavier2_memories.py --output data/training.jsonl
+python scripts/export_xavier_memories.py --output data/training.jsonl
 
 # Deduplicate
 python scripts/curate_training_data.py --input data/training.jsonl --output data/curated.jsonl

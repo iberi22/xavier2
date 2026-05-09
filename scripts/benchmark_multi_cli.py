@@ -1,15 +1,16 @@
 """
-Multi-Memory Benchmark - Using CLI for Engram, HTTP for Xavier2
+Multi-Memory Benchmark - Using CLI for Engram, HTTP for Xavier
 ============================================================
 Compare memory systems using their native interfaces:
 - Engram: CLI commands (engram search, engram mem_save)
-- Xavier2: HTTP API
+- Xavier: HTTP API
 """
 
 import json
 import time
 import subprocess
 import asyncio
+import os
 import aiohttp
 from datetime import datetime
 from pathlib import Path
@@ -17,9 +18,17 @@ from pathlib import Path
 # Engram CLI path
 ENGRAM_CLI = "C:\\Users\\belal\\AppData\\Local\\Temp\\engram\\engram.exe"
 
-# Xavier2 HTTP
-XAVIER2_URL = "http://localhost:8003"
-XAVIER2_TOKEN = "dev-token"
+# Xavier HTTP
+XAVIER_URL = "http://localhost:8003"
+def get_required_xavier_token() -> str:
+    for env_var in ("XAVIER_TOKEN", "XAVIER_API_KEY", "XAVIER_TOKEN"):
+        token = os.environ.get(env_var, "").strip()
+        if token:
+            return token
+    raise RuntimeError("Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.")
+
+
+XAVIER_TOKEN = get_required_xavier_token()
 
 # LOCOMO Queries
 QUERIES = [
@@ -49,7 +58,7 @@ def engram_search(query: str, timeout: int = 10) -> dict:
             timeout=timeout
         )
         elapsed = (time.time() - start) * 1000
-        
+
         if result.returncode == 0:
             return {
                 "success": True,
@@ -96,16 +105,16 @@ def engram_stats() -> dict:
     except:
         return {"success": False}
 
-# ============ XAVIER2 HTTP ============
-async def xavier2_search(query: str, timeout: int = 30) -> dict:
-    """Search using Xavier2 HTTP API."""
+# ============ XAVIER HTTP ============
+async def xavier_search(query: str, timeout: int = 30) -> dict:
+    """Search using Xavier HTTP API."""
     start = time.time()
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{XAVIER2_URL}/memory/search",
+                f"{XAVIER_URL}/memory/search",
                 json={"query": query, "limit": 5},
-                headers={"X-Xavier2-Token": XAVIER2_TOKEN},
+                headers={"X-Xavier-Token": XAVIER_TOKEN},
                 timeout=aiohttp.ClientTimeout(total=timeout)
             ) as resp:
                 elapsed = (time.time() - start) * 1000
@@ -119,12 +128,12 @@ async def xavier2_search(query: str, timeout: int = 30) -> dict:
     except Exception as e:
         return {"success": False, "latency_ms": 0, "error": str(e)}
 
-async def xavier2_health() -> bool:
-    """Check Xavier2 health."""
+async def xavier_health() -> bool:
+    """Check Xavier health."""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                f"{XAVIER2_URL}/health",
+                f"{XAVIER_URL}/health",
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as resp:
                 return resp.status == 200
@@ -137,35 +146,35 @@ async def run_benchmark():
     log("MULTI-MEMORY BENCHMARK (CLI + HTTP)")
     log(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     log("=" * 60)
-    
-    results = {"engram": [], "xavier2": []}
-    
+
+    results = {"engram": [], "xavier": []}
+
     # Pre-check systems
     log("\n[1] System Status")
     log("-" * 40)
-    
+
     # Check Engram
     engram_ok = Path(ENGRAM_CLI).exists()
     log(f"  Engram CLI: {'FOUND' if engram_ok else 'NOT FOUND'}")
-    
-    # Check Xavier2
-    xav_ok = await xavier2_health()
-    log(f"  Xavier2 HTTP: {'UP' if xav_ok else 'DOWN'}")
-    
+
+    # Check Xavier
+    xav_ok = await xavier_health()
+    log(f"  Xavier HTTP: {'UP' if xav_ok else 'DOWN'}")
+
     if not engram_ok:
         log("\n  ERROR: Engram CLI not found at expected path")
         log(f"  Expected: {ENGRAM_CLI}")
-    
+
     if not xav_ok:
-        log("\n  ERROR: Xavier2 not responding on {XAVIER2_URL}")
-    
+        log("\n  ERROR: Xavier not responding on {XAVIER_URL}")
+
     # Run benchmark
     log("\n[2] Running Benchmark Queries")
     log("-" * 40)
-    
+
     for q in QUERIES:
         log(f"\n  [{q['id']}] {q['query'][:50]}...")
-        
+
         # Engram CLI
         if engram_ok:
             r = engram_search(q["query"])
@@ -186,11 +195,11 @@ async def run_benchmark():
                 "success": False,
                 "has_results": False
             })
-        
-        # Xavier2 HTTP
+
+        # Xavier HTTP
         if xav_ok:
-            r = await xavier2_search(q["query"])
-            results["xavier2"].append({
+            r = await xavier_search(q["query"])
+            results["xavier"].append({
                 "id": q["id"],
                 "type": q["type"],
                 "latency_ms": r["latency_ms"],
@@ -199,38 +208,38 @@ async def run_benchmark():
             })
             status = "OK" if r["success"] else "FAIL"
             count = r.get("count", 0)
-            log(f"    Xavier2 HTTP: {status} ({r['latency_ms']:.0f}ms, {count} results)")
+            log(f"    Xavier HTTP: {status} ({r['latency_ms']:.0f}ms, {count} results)")
         else:
-            results["xavier2"].append({
+            results["xavier"].append({
                 "id": q["id"],
                 "type": q["type"],
                 "latency_ms": 0,
                 "success": False,
                 "count": 0
             })
-    
+
     # Summary
     log("\n" + "=" * 60)
     log("SUMMARY")
     log("=" * 60)
-    
+
     for system, data in results.items():
         if not data:
             continue
-            
+
         successful = sum(1 for r in data if r["success"] and r.get("has_results", r.get("count", 0)) > 0)
         latencies = [r["latency_ms"] for r in data if r["success"]]
         avg_lat = sum(latencies) / len(latencies) if latencies else 0
-        
+
         recall = successful / len(QUERIES) * 100 if QUERIES else 0
-        
+
         log(f"\n  {system.upper()}:")
         log(f"    Recall: {successful}/{len(QUERIES)} ({recall:.1f}%)")
         log(f"    Avg Latency: {avg_lat:.0f}ms")
-        
+
         if latencies:
             log(f"    Min/Max: {min(latencies):.0f}ms / {max(latencies):.0f}ms")
-        
+
         # By type
         by_type = {}
         for r in data:
@@ -239,30 +248,30 @@ async def run_benchmark():
                 by_type[t] = {"count": 0, "total": 0}
             by_type[t]["count"] += int(r.get("has_results", r.get("count", 0)) > 0)
             by_type[t]["total"] += 1
-        
+
         log("    By Type:")
         for t, stats in sorted(by_type.items()):
             pct = stats["count"] / stats["total"] * 100 if stats["total"] else 0
             log(f"      {t}: {stats['count']}/{stats['total']} ({pct:.0f}%)")
-    
+
     # Save
-    output_dir = Path("E:/scripts-python/xavier2/benchmark_results")
+    output_dir = Path("E:/scripts-python/xavier/benchmark_results")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / f"multi_benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    
+
     with open(output_file, "w") as f:
         json.dump({
             "timestamp": datetime.now().isoformat(),
             "systems": {
                 "engram": {"type": "cli", "path": ENGRAM_CLI if engram_ok else None},
-                "xavier2": {"type": "http", "url": XAVIER2_URL}
+                "xavier": {"type": "http", "url": XAVIER_URL}
             },
             "queries": len(QUERIES),
             "results": results
         }, f, indent=2)
-    
+
     log(f"\nSaved: {output_file}")
-    
+
     return results
 
 if __name__ == "__main__":

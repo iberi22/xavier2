@@ -43,7 +43,7 @@ CATEGORIES = {
     "sales": ["RFI", "propuesta", "cotización", "cliente", "Leonardo", "Rodacenter"],
 
     # Technical patterns
-    "technical": ["código", "script", "API", "modelo", "OpenClaw", "Cortex", "Xavier2"],
+    "technical": ["código", "script", "API", "modelo", "OpenClaw", "Cortex", "Xavier"],
 }
 
 def load_memory_files() -> List[Dict]:

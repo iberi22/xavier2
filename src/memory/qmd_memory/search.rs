@@ -490,9 +490,7 @@ pub fn memory_decay_penalty(document: &MemoryDocument) -> f32 {
         return 0.0;
     };
     use chrono::Utc;
-    let age_days = (Utc::now() - parsed.with_timezone(&Utc))
-        .num_days()
-        .max(0) as f32;
+    let age_days = (Utc::now() - parsed.with_timezone(&Utc)).num_days().max(0) as f32;
     -(age_days / 365.0).min(1.0) * 0.15
 }
 

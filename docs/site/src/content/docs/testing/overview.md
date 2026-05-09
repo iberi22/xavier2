@@ -1,6 +1,6 @@
----
+﻿---
 title: Testing Overview
-description: Current verification strategy for Xavier2
+description: Current verification strategy for Xavier
 ---
 
 # Testing Strategy
@@ -10,8 +10,8 @@ This page describes the validation flow that is currently relevant to the repo a
 ## Main Validation Commands
 
 ```bash
-cargo test --workspace --features ci-safe --exclude xavier2-web
-cargo build --bin xavier2
+cargo test --workspace --features ci-safe --exclude xavier-web
+cargo build --bin xavier
 npm run build --workspace panel-ui
 npm run build --workspace docs/site
 ```

@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod agent_tests {
-    use xavier2::agents::{Agent, AgentConfig, AgentStatus};
+    use xavier::agents::{Agent, AgentConfig, AgentStatus};
 
     #[test]
     fn test_agent_creation() {
@@ -60,7 +60,7 @@ mod agent_tests {
 
 #[cfg(test)]
 mod agent_coordination_tests {
-    use xavier2::agents::coordination::{AgentCoordinator, AgentMessage, MessageType};
+    use xavier::agents::coordination::{AgentCoordinator, AgentMessage, MessageType};
 
     #[test]
     fn test_coordinator_creation() {
@@ -139,7 +139,7 @@ mod agent_coordination_tests {
 
 #[cfg(test)]
 mod agent_state_tests {
-    use xavier2::agents::AgentState;
+    use xavier::agents::AgentState;
 
     #[test]
     fn test_agent_state_creation() {

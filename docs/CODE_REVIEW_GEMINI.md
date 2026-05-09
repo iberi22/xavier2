@@ -1,15 +1,15 @@
 # Code Review (Gemini): fix/compiler-errors-may2026
 
-**Review Date:** 2026-05-01  
-**Branch:** `fix/compiler-errors-may2026`  
-**Author:** Gemini CLI (v0.40.0)  
+**Review Date:** 2026-05-01
+**Branch:** `fix/compiler-errors-may2026`
+**Author:** Gemini CLI (v0.40.0)
 **Files Reviewed:** `src/server/mcp_server.rs`, `src/memory/sqlite_vec_store.rs`, `src/memory/surreal_store.rs`, `src/cli.rs`
 
 ---
 
 ## Gemini's Analysis
 
-This PR is a substantial feature expansion and bug-fix branch for Xavier2. The diff shows **1,712 insertions and 231 deletions** across 44 files, representing a major evolution of the memory system, MCP protocol handler, and HTTP API surface.
+This PR is a substantial feature expansion and bug-fix branch for Xavier. The diff shows **1,712 insertions and 231 deletions** across 44 files, representing a major evolution of the memory system, MCP protocol handler, and HTTP API surface.
 
 ### Key Changes
 
@@ -39,7 +39,7 @@ This PR is a substantial feature expansion and bug-fix branch for Xavier2. The d
 
 **4. CLI (`cli.rs`) — HTTP API surface changes**
 - Added `/timeline/events` endpoint for Gestalt integration
-- Removed `/xavier2/events/stream` (WebSocket handler) and `/xavier2/verify/save` routes
+- Removed `/xavier/events/stream` (WebSocket handler) and `/xavier/verify/save` routes
 - Added agent registry endpoints: register, heartbeat, push context, unregister
 - Security scanning consistently applied across all handlers
 
@@ -82,7 +82,7 @@ let records = workspace.workspace.list_memory_records().await?;
 ```
 This loads **all** memory records into memory, then filters in Rust. For workspaces with large memory counts, this could be O(n) memory allocation and slow iteration. Consider adding a workspace-scoped query with ordering to the store interface, or at minimum applying the limit before collecting.
 
-**Severity:** Medium  
+**Severity:** Medium
 **Impact:** Performance degradation at scale
 
 ### 2. **`list_memory_records` in `get_project_context` Has Same Issue**
@@ -133,7 +133,7 @@ The `SimpleAgentRegistry` stores agent heartbeats in-memory only. If the server 
 **Severity:** Medium
 
 ### 7. **No Rate Limiting on New Endpoints**
-The new agent endpoints (`/xavier2/agents/register`, `/xavier2/agents/{id}/heartbeat`, `/xavier2/agents/{id}/push`) have no rate limiting. A misbehaving or compromised agent could spam these endpoints.
+The new agent endpoints (`/xavier/agents/register`, `/xavier/agents/{id}/heartbeat`, `/xavier/agents/{id}/push`) have no rate limiting. A misbehaving or compromised agent could spam these endpoints.
 
 **Severity:** Medium
 
@@ -167,7 +167,7 @@ if requested_path.contains("..") {
 Session operations use `X-Cortex-Token` header for authentication.
 
 ### ⚠️ **Agent Endpoints Lack Authentication**
-The new agent registry endpoints (`/xavier2/agents/*`) have no apparent authentication mechanism. Any caller can register agents, send heartbeats, and push context. This could allow:
+The new agent registry endpoints (`/xavier/agents/*`) have no apparent authentication mechanism. Any caller can register agents, send heartbeats, and push context. This could allow:
 - Unauthorized agent registration
 - Memory pollution via `agent_push_context_handler`
 - Agent impersonation
@@ -186,7 +186,7 @@ The `timeline_events` response includes `prev_hash` and `curr_hash` which are in
 
 **Thumbs Up: ✅ APPROVED WITH CONCERNS**
 
-This PR represents a significant and well-architected improvement to Xavier2. The core changes—the SurrealDB O(n)→O(1) fix, QJL embedding encoding, entity extraction, graph traversal, and tamper-evident timeline—are technically sound and follow good software engineering practices.
+This PR represents a significant and well-architected improvement to Xavier. The core changes—the SurrealDB O(n)→O(1) fix, QJL embedding encoding, entity extraction, graph traversal, and tamper-evident timeline—are technically sound and follow good software engineering practices.
 
 ### Primary Strengths:
 - **Performance-critical fix** (SurrealDB get) is correct
@@ -195,7 +195,7 @@ This PR represents a significant and well-architected improvement to Xavier2. Th
 - **Error handling is consistent** with the codebase style
 
 ### Must-Address Before Merging:
-1. **Agent endpoint authentication** — No auth on `/xavier2/agents/*` is a security risk
+1. **Agent endpoint authentication** — No auth on `/xavier/agents/*` is a security risk
 2. **Unbounded `list_memory_records()` calls** in `memoryfragment_recent` and `get_project_context` will cause OOM at scale
 
 ### Should Address:
@@ -208,4 +208,4 @@ This PR represents a significant and well-architected improvement to Xavier2. Th
 7. Tag filtering pushed to store layer
 8. MCP error code documentation
 
-**Overall:** Strong PR that significantly improves Xavier2's capabilities. The security concerns are manageable but should not be ignored. With proper authentication on agent endpoints and bounded query patterns, this would be a clear approval.
+**Overall:** Strong PR that significantly improves Xavier's capabilities. The security concerns are manageable but should not be ignored. With proper authentication on agent endpoints and bounded query patterns, this would be a clear approval.

@@ -1,7 +1,7 @@
-# Xavier2 — Project Tasks
+# Xavier — Project Tasks
 
-**Project:** iberi22/xavier2
-**Last Updated:** 2026-03-25
+**Project:** iberi22/xavier
+**Last Updated:** 2026-05-08
 **Status:** Active Development
 
 ---
@@ -43,7 +43,7 @@
 
 ### Developer Experience
 - [ ] **SDK packages** — Official SDKs (Python, JavaScript, Go)
-- [ ] **CLI improvements** — Enhanced `xavier2` CLI
+- [ ] **CLI improvements** — Enhanced `xavier` CLI
 - [ ] **VS Code extension** — IDE integration
 
 ### Advanced Features

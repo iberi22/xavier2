@@ -1,11 +1,11 @@
 ---
 title: Public Export
-description: Export Xavier2 public data manifests to GitHub and analytical artifacts to Hugging Face.
+description: Export Xavier public data manifests to GitHub and analytical artifacts to Hugging Face.
 ---
 
 # Public Export
 
-`xavier2 export --public` publishes a Xavier2 dataset as a two-host public release:
+`xavier export --public` publishes a Xavier dataset as a two-host public release:
 
 - GitHub stores the lightweight context layer as NDJSON manifests and schemas.
 - Hugging Face stores the heavy analytical and vector artifacts.
@@ -15,16 +15,16 @@ The protocol lets agents inspect public context from GitHub raw URLs first, then
 ## Command
 
 ```bash
-xavier2 export --public \
-  --huggingface-repo iberi22/xavier2-dataset \
+xavier export --public \
+  --huggingface-repo iberi22/xavier-dataset \
   --huggingface-token $HUGGINGFACE_TOKEN
 ```
 
 ## Purpose
 
-Public export is designed for portable, agent-readable Xavier2 releases. The GitHub repository keeps the files that are useful for discovery, validation, and quick context loading. The Hugging Face dataset stores larger files that are better served through dataset hosting and versioned artifact downloads.
+Public export is designed for portable, agent-readable Xavier releases. The GitHub repository keeps the files that are useful for discovery, validation, and quick context loading. The Hugging Face dataset stores larger files that are better served through dataset hosting and versioned artifact downloads.
 
-Any agent with a Xavier2 node can understand this protocol:
+Any agent with a Xavier node can understand this protocol:
 
 1. Read the GitHub raw manifest.
 2. Validate records against the included schemas.
@@ -32,7 +32,7 @@ Any agent with a Xavier2 node can understand this protocol:
 
 ## Publishing Pipeline
 
-`xavier2 export --public` performs the public release as a split pipeline:
+`xavier export --public` performs the public release as a split pipeline:
 
 1. Generate NDJSON manifests, context records, and JSON schemas.
 2. Commit the NDJSON and schema files to the GitHub dataset repository.
@@ -54,8 +54,8 @@ Any agent with a Xavier2 node can understand this protocol:
 
 The canonical public dataset target is:
 
-- GitHub: `iberi22/xavier2-dataset`
-- Hugging Face: `iberi22/xavier2-dataset`
+- GitHub: `iberi22/xavier-dataset`
+- Hugging Face: `iberi22/xavier-dataset`
 
 The same owner/name is intentional. GitHub is the stable lightweight index, while Hugging Face is the large artifact store.
 
@@ -103,32 +103,32 @@ Use Hugging Face when a workflow needs heavy artifacts, usually in the `~50 MB-2
 
 ## Examples
 
-Export to the canonical Xavier2 public dataset:
+Export to the canonical Xavier public dataset:
 
 ```bash
-xavier2 export --public \
-  --huggingface-repo iberi22/xavier2-dataset \
+xavier export --public \
+  --huggingface-repo iberi22/xavier-dataset \
   --huggingface-token $HUGGINGFACE_TOKEN
 ```
 
 Use the GitHub raw layer when an agent needs lightweight context:
 
 ```text
-https://raw.githubusercontent.com/iberi22/xavier2-dataset/main/manifest.ndjson
+https://raw.githubusercontent.com/iberi22/xavier-dataset/main/manifest.ndjson
 ```
 
 Use the Hugging Face dataset when a workflow needs heavy analytical files:
 
 ```text
-https://huggingface.co/datasets/iberi22/xavier2-dataset
+https://huggingface.co/datasets/iberi22/xavier-dataset
 ```
 
 ## Publishing Protocol
 
 1. Generate NDJSON manifests and schemas.
-2. Commit the NDJSON and schema files to `iberi22/xavier2-dataset` on GitHub.
+2. Commit the NDJSON and schema files to `iberi22/xavier-dataset` on GitHub.
 3. Generate Parquet, SQLite, Lance, and FAISS artifacts.
-4. Upload heavy artifacts to the `iberi22/xavier2-dataset` Hugging Face dataset.
+4. Upload heavy artifacts to the `iberi22/xavier-dataset` Hugging Face dataset.
 5. Ensure NDJSON records point to their matching Hugging Face artifact URLs.
 
 This split keeps public context cheap to inspect while preserving full analytical fidelity for downstream agents and notebooks.

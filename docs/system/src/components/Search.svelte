@@ -16,17 +16,17 @@
       return;
     }
     const q = searchQuery.toLowerCase();
-    results = docs.filter(d => 
-      d.title.toLowerCase().includes(q) || 
+    results = docs.filter(d =>
+      d.title.toLowerCase().includes(q) ||
       d.tags.some(t => t.toLowerCase().includes(q))
     );
   }
 </script>
 
 <div class="search-container">
-  <input 
-    type="text" 
-    bind:value={searchQuery} 
+  <input
+    type="text"
+    bind:value={searchQuery}
     on:input={handleSearch}
     placeholder="Search docs..."
     class="search-input"

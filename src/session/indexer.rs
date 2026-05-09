@@ -3,7 +3,7 @@ use tracing::info;
 use crate::session::event_mapper::PanelThreadEntry;
 use crate::session::types::SessionEvent;
 
-/// Maps session events to PanelThreadEntry and indexes them into Xavier2 memory stores
+/// Maps session events to PanelThreadEntry and indexes them into Xavier memory stores
 pub struct SessionIndexer;
 
 impl SessionIndexer {

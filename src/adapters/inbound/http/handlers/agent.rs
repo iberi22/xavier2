@@ -1,7 +1,7 @@
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use crate::adapters::inbound::http::AppState;
-use xavier2::coordination::agent_registry::AgentMetadata;
+use xavier::coordination::agent_registry::AgentMetadata;
 
 #[derive(Debug, Deserialize)]
 pub struct AgentRegisterPayload {
@@ -90,7 +90,7 @@ pub async fn agent_push_context_handler(
     // In a real implementation, this would use a port to add context to the memory store
     // tied to the agent's session.
     let importance = payload.importance.unwrap_or(0.5);
-    
+
     // Placeholder logic for now, similar to what might be in cli.rs
     Json(serde_json::json!({
         "status": "ok",

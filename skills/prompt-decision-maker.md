@@ -79,7 +79,7 @@ PROPOSED → ACCEPTED → DEPRECATED
 
 ## Storage
 Store all ADRs in:
-- **Xavier2 path:** `sweat-operations/decisions/{id}`
+- **Xavier path:** `sweat-operations/decisions/{id}`
 - **Local fallback:** `E:\scripts-python\SWAL-Operations-Dashboard\decisions/`
 
 ## Example Decision Questions
@@ -106,7 +106,7 @@ Store all ADRs in:
 3. **List** at least 3 viable options with trade-offs
 4. **Recommend** the best option with rationale
 5. **Document** consequences honestly
-6. **Store** in Xavier2 with proper path
+6. **Store** in Xavier with proper path
 7. **Track** blockers and deadlines
 
 ## Quality Checklist
@@ -117,4 +117,4 @@ Store all ADRs in:
 - [ ] Decision includes "why" not just "what"
 - [ ] Consequences include both positive AND negative
 - [ ] Priority matches impact assessment
-- [ ] Stored in correct Xavier2 path
+- [ ] Stored in correct Xavier path

@@ -1,20 +1,20 @@
 //! Integration test for Hierarchical Curation & Retrieval
 
 use serde_json::json;
-use xavier2::agents::RuntimeConfig;
-use xavier2::workspace::{
+use xavier::agents::RuntimeConfig;
+use xavier::workspace::{
     EmbeddingProviderMode, PlanTier, SyncPolicy, WorkspaceConfig, WorkspaceState,
 };
 
 #[tokio::test]
 async fn test_hierarchical_curation_and_retrieval() {
     // Setup workspace
-    let temp_dir = std::env::temp_dir().join(format!("xavier2-test-{}", uuid::Uuid::new_v4()));
+    let temp_dir = std::env::temp_dir().join(format!("xavier-test-{}", uuid::Uuid::new_v4()));
     let config = WorkspaceConfig {
         id: "test-curation".to_string(),
         token: "test-token".to_string(),
         plan: PlanTier::Personal,
-        memory_backend: xavier2::memory::store::MemoryBackend::File,
+        memory_backend: xavier::memory::store::MemoryBackend::File,
         storage_limit_bytes: Some(10 * 1024 * 1024),
         request_limit: Some(1000),
         request_unit_limit: Some(2000),

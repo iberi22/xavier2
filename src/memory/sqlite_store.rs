@@ -1,4 +1,4 @@
-//! SQLite backend for Xavier2 memory store.
+//! SQLite backend for Xavier memory store.
 //!
 //! Provides a persistent, ACID-compliant storage layer using SQLite.
 
@@ -18,9 +18,9 @@ use crate::memory::store::{
     filter_records, revisioned_record, stable_key, DurableWorkspaceState, MemoryBackend,
     MemoryRecord, MemoryStore, SessionTokenRecord,
 };
-use crate::settings::Xavier2Settings;
+use crate::settings::XavierSettings;
 
-const DB_FILENAME: &str = "xavier2_memory.db";
+const DB_FILENAME: &str = "xavier_memory.db";
 pub(crate) const TABLE_MEMORIES: &str = "memory_records";
 pub(crate) const TABLE_BELIEFS: &str = "belief_states";
 pub(crate) const TABLE_SESSION_TOKENS: &str = "session_tokens";
@@ -49,9 +49,9 @@ pub struct SqliteStoreConfig {
 
 impl SqliteStoreConfig {
     pub fn from_env() -> Self {
-        let settings = Xavier2Settings::current();
+        let settings = XavierSettings::current();
         Self {
-            path: std::env::var("XAVIER2_MEMORY_SQLITE_PATH")
+            path: std::env::var("XAVIER_MEMORY_SQLITE_PATH")
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| {
                     if settings.memory.sqlite_path.trim().is_empty() {

@@ -1,10 +1,10 @@
-//! UI State - Manages UI state and connects to Xavier2 Task System
+//! UI State - Manages UI state and connects to Xavier Task System
 
 use crate::tasks::models::{Priority, Project, Task, TaskStatus};
 use crate::ui::board::Column;
 use egui::*;
 
-/// Main UI state that bridges egui with Xavier2 tasks
+/// Main UI state that bridges egui with Xavier tasks
 pub struct KanbanState {
     /// Current tasks (cached)
     tasks: Vec<Task>,
@@ -57,7 +57,7 @@ impl KanbanState {
     /// Default projects for SouthLabs
     fn default_projects() -> Vec<Project> {
         vec![
-            Project::new("Xavier2", "Sistema de memoria y cognitive"),
+            Project::new("Xavier", "Sistema de memoria y cognitive"),
             Project::new("ZeroClaw", "Runtime Rust para agentes"),
             Project::new("Trading Bot", "Automatizacion de trading"),
             Project::new("ManteniApp", "SaaS mantenimiento industrial"),
@@ -100,14 +100,14 @@ impl KanbanState {
     fn get_demo_tasks(&self) -> Vec<Task> {
         vec![
             {
-                let mut t = Task::new("Integrar Planka con Xavier2", "Xavier2", "system");
+                let mut t = Task::new("Integrar Planka con Xavier", "Xavier", "system");
                 t.status = TaskStatus::InProgress;
                 t.priority = Priority::High;
                 t.labels = vec!["integration".to_string(), "backend".to_string()];
                 t
             },
             {
-                let mut t = Task::new("Crear UI nativa con egui", "Xavier2", "system");
+                let mut t = Task::new("Crear UI nativa con egui", "Xavier", "system");
                 t.status = TaskStatus::Backlog;
                 t.priority = Priority::Medium;
                 t.labels = vec!["ui".to_string(), "frontend".to_string()];
@@ -124,7 +124,7 @@ impl KanbanState {
     }
 
     fn render_sidebar(&mut self, ui: &mut Ui) {
-        ui.heading("Xavier2");
+        ui.heading("Xavier");
         ui.separator();
 
         // Theme toggle
@@ -256,7 +256,7 @@ impl KanbanState {
 
     fn get_project_icon(name: &str) -> &'static str {
         match name.to_lowercase().as_str() {
-            "xavier2" => "🧠",
+            "xavier" => "🧠",
             "zeroclaw" => "⚡",
             "trading bot" => "📈",
             "manteniapp" => "🔧",

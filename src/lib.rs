@@ -1,4 +1,4 @@
-//! Xavier2 - Cognitive Memory System
+//! Xavier - Cognitive Memory System
 #![cfg_attr(feature = "telegram", allow(dead_code))]
 //!
 //! A cognitive memory system with agent runtime, task management, and native UI.

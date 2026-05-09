@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "xavier2",
+  "productName": "xavier",
   "version": "0.1.0",
-  "identifier": "com.swalsystems.xavier2",
+  "identifier": "com.swalsystems.xavier",
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "xavier2",
+        "title": "xavier",
         "width": 800,
         "height": 600,
         "resizable": true,

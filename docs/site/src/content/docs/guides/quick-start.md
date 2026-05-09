@@ -1,17 +1,17 @@
 ---
 title: Quick Start
-description: Get started with Xavier2 in 5 minutes
+description: Get started with Xavier in 5 minutes
 ---
 
 # Quick Start Guide
 
-Get Xavier2 running and make your first authenticated HTTP call in under 5 minutes.
+Get Xavier running and make your first authenticated HTTP call in under 5 minutes.
 
 The recommended local path is HTTP with `curl`. MCP is optional and should only be enabled when your IDE specifically needs it.
 
 ## Start the Server
 
-Run Xavier2 directly:
+Run Xavier directly:
 
 ```bash
 cargo run
@@ -31,12 +31,12 @@ curl http://localhost:8006/health
 
 ## Prepare Auth
 
-Non-secret runtime settings belong in `config/xavier2.config.json`.
+Non-secret runtime settings belong in `config/xavier.config.json`.
 Secrets belong in `.env`.
 
 ```bash
-export XAVIER2_URL="${XAVIER2_URL:-http://localhost:8006}"
-export XAVIER2_TOKEN="${XAVIER2_TOKEN:?set-a-long-random-token-first}"
+export XAVIER_URL="${XAVIER_URL:-http://localhost:8006}"
+export XAVIER_TOKEN="${XAVIER_TOKEN:?set-a-long-random-token-first}"
 ```
 
 ## Your First API Calls
@@ -44,11 +44,11 @@ export XAVIER2_TOKEN="${XAVIER2_TOKEN:?set-a-long-random-token-first}"
 ### 1. Add Memory
 
 ```bash
-curl -X POST "$XAVIER2_URL/memory/add" \
-  -H "X-Xavier2-Token: $XAVIER2_TOKEN" \
+curl -X POST "$XAVIER_URL/memory/add" \
+  -H "X-Xavier-Token: $XAVIER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "Xavier2 is a cognitive memory system for AI agents",
+    "content": "Xavier is a cognitive memory system for AI agents",
     "path": "test/intro",
     "metadata": {"tags": ["ai", "memory"]}
   }'
@@ -66,8 +66,8 @@ curl -X POST "$XAVIER2_URL/memory/add" \
 ### 2. Search Memory
 
 ```bash
-curl -X POST "$XAVIER2_URL/memory/search" \
-  -H "X-Xavier2-Token: $XAVIER2_TOKEN" \
+curl -X POST "$XAVIER_URL/memory/search" \
+  -H "X-Xavier-Token: $XAVIER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "cognitive memory system",
@@ -84,7 +84,7 @@ curl -X POST "$XAVIER2_URL/memory/search" \
   "results": [
     {
       "id": "memory_abc123",
-      "content": "Xavier2 is a cognitive memory system for AI agents",
+      "content": "Xavier is a cognitive memory system for AI agents",
       "path": "test/intro",
       "metadata": {"tags": ["ai", "memory"]}
     }
@@ -95,11 +95,11 @@ curl -X POST "$XAVIER2_URL/memory/search" \
 ### 3. Query Through the Runtime
 
 ```bash
-curl -X POST "$XAVIER2_URL/memory/query" \
-  -H "X-Xavier2-Token: $XAVIER2_TOKEN" \
+curl -X POST "$XAVIER_URL/memory/query" \
+  -H "X-Xavier-Token: $XAVIER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "query": "What is Xavier2?",
+    "query": "What is Xavier?",
     "limit": 5
   }'
 ```
@@ -107,8 +107,8 @@ curl -X POST "$XAVIER2_URL/memory/query" \
 ### 4. Inspect Code Index Stats
 
 ```bash
-curl -H "X-Xavier2-Token: $XAVIER2_TOKEN" \
-  "$XAVIER2_URL/code/stats"
+curl -H "X-Xavier-Token: $XAVIER_TOKEN" \
+  "$XAVIER_URL/code/stats"
 ```
 
 ## Optional MCP Integration
@@ -122,7 +122,7 @@ Add to your OpenClaw config:
   "tools": {
     "mcp": {
       "servers": {
-        "xavier2": {
+        "xavier": {
           "enabled": true,
           "url": "http://localhost:8006/mcp"
         }

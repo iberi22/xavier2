@@ -1,8 +1,8 @@
 # Memory Systems Benchmark Comparison
 
-**Document version:** 1.0  
-**Date:** 2026-04-15  
-**Focus:** xavier2 vs competitors in AI Agent Memory Systems
+**Document version:** 1.0
+**Date:** 2026-04-15
+**Focus:** xavier vs competitors in AI Agent Memory Systems
 
 ---
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 🏆 xavier2 Competitive Analysis
+## 🏆 xavier Competitive Analysis
 
 ### Current State (v0.4.1)
 
@@ -81,7 +81,7 @@ OpenAI Mem:   52.9%
 LangMem:      ~50%
 ```
 
-**xavier2 target:** Match or exceed Mem0g through:
+**xavier target:** Match or exceed Mem0g through:
 - Entity tracking for multi-hop reasoning
 - Consolidation for temporal accuracy
 - RRF for robust single-hop retrieval
@@ -97,7 +97,7 @@ LangMem:      ~50%
 - Across all conversation lengths (100K to 10M tokens)
 - Memory efficiency > context window size
 
-**xavier2 advantage:**
+**xavier advantage:**
 - Self-hosted = no context window limits
 - Consolidation = memory stays relevant over time
 - Entity graph = relationship-aware retrieval
@@ -110,20 +110,20 @@ LangMem:      ~50%
 | Mem0 | 1.44s | Cloud API, vector search |
 | Letta | ~2.0s | RAG-based, heavier |
 | Mem0g | 2.59s | Local embeddings (better accuracy) |
-| **xavier2 (target)** | **~1.2-1.5s** | Local, OpenAI embeddings |
+| **xavier (target)** | **~1.2-1.5s** | Local, OpenAI embeddings |
 
-**Latency optimization strategies for xavier2:**
+**Latency optimization strategies for xavier:**
 1. Embedding cache (already implemented in codebase)
 2. Async embedding generation
 3. Batch embedding for bulk operations
 
 ---
 
-## 🏅 xavier2 Competitive Advantages
+## 🏅 xavier Competitive Advantages
 
 ### vs Mem0
 
-| Aspect | Mem0 | xavier2 |
+| Aspect | Mem0 | xavier |
 |--------|------|---------|
 | **Deployment** | Cloud-only | Self-hosted ✅ |
 | **Privacy** | Data leaves server | Data stays local ✅ |
@@ -133,7 +133,7 @@ LangMem:      ~50%
 
 ### vs Letta/Zep
 
-| Aspect | Letta | xavier2 |
+| Aspect | Letta | xavier |
 |--------|-------|---------|
 | **Architecture** | Heavy (Python) | Light (Rust) ✅ |
 | **Startup time** | ~30s | ~1s ✅ |
@@ -142,7 +142,7 @@ LangMem:      ~50%
 
 ### vs Naive RAG
 
-| Aspect | Naive RAG | xavier2 |
+| Aspect | Naive RAG | xavier |
 |--------|-----------|---------|
 | **Semantic search** | Basic | With embeddings ✅ |
 | **Hybrid retrieval** | Keyword-only | Keyword + Vector ✅ |
@@ -151,7 +151,7 @@ LangMem:      ~50%
 
 ---
 
-## 📋 Target Metrics for xavier2 v0.5
+## 📋 Target Metrics for xavier v0.5
 
 After implementing all phases:
 
@@ -169,7 +169,7 @@ After implementing all phases:
 
 ## 🧪 Testing Protocol
 
-To properly benchmark xavier2 against competitors:
+To properly benchmark xavier against competitors:
 
 ### Test 1: LOCOMO Benchmark Suite
 
@@ -210,13 +210,13 @@ done | awk '{sum+=$1; count++} END {print "Avg:" sum/count "ms"}'
 
 ---
 
-## 📊 Benchmark Results (xavier2 v0.5 Target)
+## 📊 Benchmark Results (xavier v0.5 Target)
 
 Based on architecture analysis:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│               xavier2 v0.5 Target Scores                   │
+│               xavier v0.5 Target Scores                   │
 ├─────────────────────────────────────────────────────────────┤
 │  LOCOMO Overall:        68-72%  ★★★☆☆                       │
 │  Single-hop:            72-75%  ★★★★☆                       │
@@ -277,7 +277,7 @@ Based on architecture analysis:
 - Cloud dependency
 - Limited entity tracking
 
-### xavier2 Differentiation
+### xavier Differentiation
 
 1. **Rust-based:** Fast, low memory, self-contained
 2. **Self-hosted:** Complete privacy
@@ -289,7 +289,7 @@ Based on architecture analysis:
 
 ## 📈 Success Criteria
 
-xavier2 v0.5 will be considered competitive if:
+xavier v0.5 will be considered competitive if:
 
 - [ ] **LOCOMO Score >66%** (match Mem0)
 - [ ] **p95 Latency <2s** (competitive with Mem0)

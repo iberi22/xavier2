@@ -1,8 +1,8 @@
-# Xavier2 HTTP API Reference
+# Xavier HTTP API Reference
 
-Base URL: `http://localhost:8006` (configurable via `XAVIER2_HOST` and `XAVIER2_PORT`)
+Base URL: `http://localhost:8006` (configurable via `XAVIER_HOST` and `XAVIER_PORT`)
 
-Authentication: All endpoints require `X-Xavier2-Token` header with the value of `XAVIER2_TOKEN` environment variable.
+Authentication: All endpoints require `X-Xavier-Token` header with the value of `XAVIER_TOKEN` environment variable.
 
 ## Health
 

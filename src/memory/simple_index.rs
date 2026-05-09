@@ -43,21 +43,21 @@ fn extract_keywords(content: &str) -> Vec<String> {
         "the", "is", "at", "which", "on", "a", "an", "and", "or", "but",
         "in", "to", "for", "of", "with", "by", "from", "as", "it", "be",
     ];
-    
+
     let mut keywords = Vec::new();
-    
+
     for word in content.split_whitespace() {
         let clean = word
             .chars()
             .filter(|c| c.is_alphanumeric())
             .collect::<String>()
             .to_lowercase();
-        
+
         if clean.len() > 2 && !stop_words.contains(&clean.as_str()) {
             keywords.push(clean);
         }
     }
-    
+
     keywords.sort();
     keywords.dedup();
     keywords.truncate(100);
@@ -77,10 +77,10 @@ impl SimpleMemoryIndex {
             keyword_index: HashMap::new(),
         }
     }
-    
+
     pub fn add(&mut self, doc: SimpleMemoryDoc) -> usize {
         let idx = self.docs.len();
-        
+
         // Index all keywords
         for kw in &doc.keywords {
             self.keyword_index
@@ -88,21 +88,21 @@ impl SimpleMemoryIndex {
                 .or_insert_with(Vec::new)
                 .push(idx);
         }
-        
+
         self.docs.push(doc);
         idx
     }
-    
+
     pub fn search(&self, query: &str, limit: usize) -> Vec<SearchResult> {
         let query_keywords: Vec<String> = extract_keywords(query);
-        
+
         if query_keywords.is_empty() {
             return Vec::new();
         }
-        
+
         // Score documents
         let mut scores: HashMap<usize, f32> = HashMap::new();
-        
+
         for kw in &query_keywords {
             if let Some(indices) = self.keyword_index.get(kw) {
                 for &idx in indices {
@@ -110,7 +110,7 @@ impl SimpleMemoryIndex {
                 }
             }
         }
-        
+
         // Sort by score
         let mut results: Vec<_> = scores
             .into_iter()
@@ -124,12 +124,12 @@ impl SimpleMemoryIndex {
                 }
             })
             .collect();
-        
+
         results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
         results.truncate(limit);
         results
     }
-    
+
     pub fn count(&self) -> usize {
         self.docs.len()
     }

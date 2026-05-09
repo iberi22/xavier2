@@ -1,9 +1,9 @@
-# CLAUDE.md - Xavier2 Cognitive Memory System
+# CLAUDE.md - Xavier Cognitive Memory System
 
-> Guía de desarrollo, pruebas y auditoría para Xavier2.
+> Guía de desarrollo, pruebas y auditoría para Xavier.
 > Última auditoría: 2026-04-14
 
-## Proyecto: xavier2
+## Proyecto: xavier
 
 **Descripción:** Motor de memoria cognitiva para agentes IA - Rust binario monolítico
 **Stack:** Rust, Tokio, SQLite + SQLite-vec, React/Vite, Axum
@@ -20,11 +20,11 @@
 # Instalar dependencias de Rust
 cargo build --release
 
-# Ejecutar servidor Xavier2
-./target/release/xavier2
+# Ejecutar servidor Xavier
+./target/release/xavier
 
 # Tests principales
-cargo test --lib -p xavier2
+cargo test --lib -p xavier
 
 # Benchmarks
 cargo bench --bench api_v1
@@ -33,7 +33,7 @@ cargo bench --bench api_v1
 ## 📁 Estructura del Proyecto
 
 ```
-xavier2/
+xavier/
 ├── src/
 │   ├── agents/          # Agent runtime (System 1-2-3 layers)
 │   │   ├── system1.rs   # Fast retrieval
@@ -71,7 +71,7 @@ xavier2/
 |---------|-------------|
 | `cargo build --release` | Build de producción |
 | `cargo test --lib` | Tests unitarios |
-| `cargo test -p xavier2` | Todos los tests |
+| `cargo test -p xavier` | Todos los tests |
 | `cargo test --test e2e -- --nocapture` | E2E tests |
 | `cargo clippy --all-targets -- -D warnings` | Linting strict |
 | `cargo bench --bench api_v1` | Benchmarks de API |
@@ -79,7 +79,7 @@ xavier2/
 
 ## 🏗️ Arquitectura
 
-Xavier2 es un **motor de memoria cognitiva** para agentes IA, inspirado en el **"System 3 paradigm"**:
+Xavier es un **motor de memoria cognitiva** para agentes IA, inspirado en el **"System 3 paradigm"**:
 - **System 1**: Recuperación rápida (lexical + vector search + belief graph)
 - **System 2**: Razonamiento deliberado (Chain of Thought)
 - **System 3**: Oversight meta-cognitivo (validación de alucinaciones)
@@ -148,10 +148,10 @@ benches/*.rs           → LoCoMo benchmark, hybrid search, API latency
 
 ### Comandos
 - `cargo test --lib` - Unit tests rápidos
-- `cargo test -p xavier2` - Todos los tests
+- `cargo test -p xavier` - Todos los tests
 - `cargo test --test e2e -- --nocapture` - E2E con output
 - `cargo bench` - Benchmarks completos
-- Linting: `cargo clippy -p xavier2 --all-targets -- -D warnings`
+- Linting: `cargo clippy -p xavier --all-targets -- -D warnings`
 
 ---
 
@@ -160,7 +160,7 @@ benches/*.rs           → LoCoMo benchmark, hybrid search, API latency
 ### ✅ Implementado
 | Componente | Mecanismo |
 |------------|-----------|
-| **Auth** | Token header `X-Xavier2-Token`, per-workspace |
+| **Auth** | Token header `X-Xavier-Token`, per-workspace |
 | **Isolation** | WorkspaceRegistry, separate Arc<QmdMemory> por workspace |
 | **Encryption** | AES-GCM para cloud tier, sha256 para audit chain |
 | **Quotas** | Storage limits, request rate limits, per PlanTier |
@@ -186,7 +186,7 @@ benches/*.rs           → LoCoMo benchmark, hybrid search, API latency
 - **Leer antes de trabajar**: `.gitcore/ARCHITECTURE.md` (decisiones críticas)
 - **Features tracking**: `.gitcore/features.json` (status oficial)
 - **Integration points**: HTTP API en `src/server/http.rs`, MCP en `src/server/mcp_server.rs`
-- **Memory backend**: Default es `Vec` (sqlite-vec), configurable via `XAVIER2_MEMORY_BACKEND`
+- **Memory backend**: Default es `Vec` (sqlite-vec), configurable via `XAVIER_MEMORY_BACKEND`
 - **Multi-tenant**: Todos los accesos deben pasar `workspace_id` y validar token
 - **Async-first**: Tokio runtime, `Arc<RwLock<T>>` para state, `.await` pattern
 - **AgentRuntime**: Accesible via `WorkspaceState::runtime`, System 1/2/3 orchestrated

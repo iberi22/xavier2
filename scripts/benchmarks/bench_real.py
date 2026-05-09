@@ -1,23 +1,31 @@
 #!/usr/bin/env python3
-import json, time, urllib.request, urllib.error
+import json, os, time, urllib.request, urllib.error
 from datetime import datetime
 
 BASE_URL = "http://localhost:8003"
-TOKEN = "dev-token"
 OUTPUT_DIR = "benchmark-results/real-memory-benchmark"
+
+def get_required_xavier_token():
+    for env_var in ("XAVIER_TOKEN", "XAVIER_API_KEY", "XAVIER_TOKEN"):
+        token = os.environ.get(env_var, "").strip()
+        if token:
+            return token
+    raise RuntimeError("Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.")
+
+TOKEN = get_required_xavier_token()
 
 def api(path, payload=None, method="POST"):
     url = BASE_URL + path
     data = json.dumps(payload).encode("utf-8") if payload else None
     req = urllib.request.Request(url, data=data, method=method,
-        headers={"Content-Type": "application/json", "X-Xavier2-Token": TOKEN})
+        headers={"Content-Type": "application/json", "X-Xavier-Token": TOKEN})
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             return json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code == 405 and method == "GET":
             req = urllib.request.Request(url, method="GET",
-                headers={"X-Xavier2-Token": TOKEN})
+                headers={"X-Xavier-Token": TOKEN})
             with urllib.request.urlopen(req, timeout=60) as r:
                 return json.loads(r.read().decode("utf-8"))
         raise
@@ -28,7 +36,7 @@ def wait_health():
             with urllib.request.urlopen(BASE_URL + "/health", timeout=5) as r:
                 if r.status == 200: return
         except: time.sleep(1)
-    raise RuntimeError("Xavier2 not healthy")
+    raise RuntimeError("Xavier not healthy")
 
 def load_docs(docs):
     api("/memory/reset", {})
@@ -61,11 +69,11 @@ def do_agents(query, filters=None):
     r = api("/agents/run", p)
     return r.get("response",""), (time.time()-t0)*1000
 
-print("Waiting for Xavier2...")
+print("Waiting for Xavier...")
 wait_health()
-print("Xavier2 is healthy.")
+print("Xavier is healthy.")
 
-with open("E:\\scripts-python\\xavier2\\scripts\\benchmarks\\datasets\\internal_swal_openclaw_memory.json", encoding="utf-8") as f:
+with open("E:\\scripts-python\\xavier\\scripts\\benchmarks\\datasets\\internal_swal_openclaw_memory.json", encoding="utf-8") as f:
     dataset = json.load(f)
 
 docs = dataset["documents"]

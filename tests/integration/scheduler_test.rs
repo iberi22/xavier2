@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod scheduler_tests {
-    use xavier2::scheduler::{CronSchedule, Job, JobStatus, Scheduler};
+    use xavier::scheduler::{CronSchedule, Job, JobStatus, Scheduler};
 
     #[test]
     fn test_scheduler_creation() {
@@ -103,7 +103,7 @@ mod scheduler_tests {
 
 #[cfg(test)]
 mod cron_schedule_tests {
-    use xavier2::scheduler::CronSchedule;
+    use xavier::scheduler::CronSchedule;
 
     #[test]
     fn test_cron_parsing() {

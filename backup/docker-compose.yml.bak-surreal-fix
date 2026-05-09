@@ -1,41 +1,41 @@
 services:
-  # Xavier2 Memory Server
-  xavier2:
+  # xavier Memory Server
+  xavier:
     build:
       context: .
       dockerfile: Dockerfile
-    image: xavier2:${XAVIER2_IMAGE_TAG:-0.4.1}
-    container_name: xavier2
+    image: xavier:${XAVIER_IMAGE_TAG:-0.4.1}
+    container_name: xavier
     restart: unless-stopped
     ports:
       - "8003:8003"
     environment:
-      - XAVIER2_PORT=8003
-      - XAVIER2_HOST=0.0.0.0
-      - XAVIER2_CODE_GRAPH_DB_PATH=/data/code_graph.db
-      - XAVIER2_TOKEN=${XAVIER2_TOKEN:-dev-token}
+      - XAVIER_PORT=8003
+      - XAVIER_HOST=0.0.0.0
+      - XAVIER_CODE_GRAPH_DB_PATH=/data/code_graph.db
+      - XAVIER_TOKEN=${XAVIER_TOKEN:-dev-token}
       # FIXED: Using file backend for reliable local persistence
       # SurrealDB integration disabled due to persistent write failures (see BENCHMARKS.md)
-      - XAVIER2_MEMORY_BACKEND=file
-      - XAVIER2_WORKSPACE_DIR=/data/workspaces
+      - XAVIER_MEMORY_BACKEND=file
+      - XAVIER_WORKSPACE_DIR=/data/workspaces
       - RUST_LOG=${RUST_LOG:-info}
-      - XAVIER2_LOG_LEVEL=${XAVIER2_LOG_LEVEL:-info}
+      - XAVIER_LOG_LEVEL=${XAVIER_LOG_LEVEL:-info}
       - SURREALDB_URL=http://surrealdb:8000
       - SURREALDB_USER=${SURREALDB_USER:-root}
       - SURREALDB_PASS=${SURREALDB_PASS:-root}
-      - XAVIER2_EMBEDDING_URL=http://pplx-embed:8000
-      - XAVIER2_EMBEDDING_MODEL=${XAVIER2_EMBEDDING_MODEL:-perplexity-ai/pplx-embed-v1-0.6b}
-      - XAVIER2_ROUTER_RETRIEVED_MODEL=${XAVIER2_ROUTER_RETRIEVED_MODEL:-}
-      - XAVIER2_ROUTER_COMPLEX_MODEL=${XAVIER2_ROUTER_COMPLEX_MODEL:-}
-      - XAVIER2_LOCAL_LLM_MODEL=${XAVIER2_LOCAL_LLM_MODEL:-llama3}
-      - XAVIER2_LOCAL_LLM_URL=${XAVIER2_LOCAL_LLM_URL:-http://host.docker.internal:11434/v1}
+      - XAVIER_EMBEDDING_URL=http://pplx-embed:8000
+      - XAVIER_EMBEDDING_MODEL=${XAVIER_EMBEDDING_MODEL:-perplexity-ai/pplx-embed-v1-0.6b}
+      - XAVIER_ROUTER_RETRIEVED_MODEL=${XAVIER_ROUTER_RETRIEVED_MODEL:-}
+      - XAVIER_ROUTER_COMPLEX_MODEL=${XAVIER_ROUTER_COMPLEX_MODEL:-}
+      - XAVIER_LOCAL_LLM_MODEL=${XAVIER_LOCAL_LLM_MODEL:-llama3}
+      - XAVIER_LOCAL_LLM_URL=${XAVIER_LOCAL_LLM_URL:-http://host.docker.internal:11434/v1}
       # CRITICAL FIX: Disable HyDE (Hypothetical Document Embeddings) by default
       # HyDE doubles latency by generating a hypothetical document before embedding
       # Set to 0/false/no to re-enable if needed
-      - XAVIER2_DISABLE_HYDE=${XAVIER2_DISABLE_HYDE:-1}
+      - XAVIER_DISABLE_HYDE=${XAVIER_DISABLE_HYDE:-1}
     volumes:
-      - xavier2_data:/data
-      - xavier2_logs:/logs
+      - xavier_data:/data
+      - xavier_logs:/logs
     depends_on:
       # SurrealDB disabled - using file backend for reliable persistence
       # surrealdb:
@@ -43,7 +43,7 @@ services:
       pplx-embed:
         condition: service_healthy
     networks:
-      - xavier2_network
+      - xavier_network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 30s
@@ -51,8 +51,8 @@ services:
       retries: 3
       start_period: 10s
     labels:
-      - "xavier2.version=${XAVIER2_IMAGE_TAG:-0.4.1}"
-      - "xavier2.service=memory"
+      - "xavier.version=${XAVIER_IMAGE_TAG:-0.4.1}"
+      - "xavier.service=memory"
     logging:
       driver: json-file
       options:
@@ -67,13 +67,13 @@ services:
       - "8002:8000"
     environment:
       - PORT=8000
-      - MODEL_NAME=${XAVIER2_EMBEDDING_MODEL:-perplexity-ai/pplx-embed-v1-0.6b}
+      - MODEL_NAME=${XAVIER_EMBEDDING_MODEL:-perplexity-ai/pplx-embed-v1-0.6b}
       - DEVICE=${PPLX_EMBED_DEVICE:-cpu}
       - TRANSFORMERS_CACHE=/models
     volumes:
       - pplx_embed_models:/models
     networks:
-      - xavier2_network
+      - xavier_network
     logging:
       driver: json-file
       options:
@@ -105,7 +105,7 @@ services:
     volumes:
       - surreal_data:/data
     networks:
-      - xavier2_network
+      - xavier_network
     healthcheck:
       test: ["CMD", "/surreal", "is-ready", "--endpoint", "ws://localhost:8000"]
       interval: 30s
@@ -130,7 +130,7 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     networks:
-      - xavier2_network
+      - xavier_network
     profiles:
       - monitoring
 
@@ -147,22 +147,22 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
     networks:
-      - xavier2_network
+      - xavier_network
     profiles:
       - monitoring
     depends_on:
       - prometheus
 
 networks:
-  xavier2_network:
+  xavier_network:
     driver: bridge
-    name: xavier2_network
+    name: xavier_network
 
 volumes:
-  xavier2_data:
-    name: xavier2_data
-  xavier2_logs:
-    name: xavier2_logs
+  xavier_data:
+    name: xavier_data
+  xavier_logs:
+    name: xavier_logs
   surreal_data:
     name: surreal_data
   prometheus_data:

@@ -1,9 +1,9 @@
-# Xavier2 Dependency Reduction Strategy
+# Xavier Dependency Reduction Strategy
 
-> **Purpose:** Analyze Xavier2's Rust dependency tree and propose which crates can be replaced with custom implementations to reduce external dependencies, keep core logic proprietary, and adopt modern Rust patterns.
+> **Purpose:** Analyze Xavier's Rust dependency tree and propose which crates can be replaced with custom implementations to reduce external dependencies, keep core logic proprietary, and adopt modern Rust patterns.
 >
 > **Last Updated:** 2026-04-06
-> **Xavier2 Version:** 0.4.1
+> **Xavier Version:** 0.4.1
 > **License:** Apache-2.0 (core), BSD-like for SurrealDB fork
 
 ---
@@ -25,7 +25,7 @@
 
 ## Executive Summary
 
-Xavier2 currently has **35 direct dependencies** across the main crate and `code-graph` workspace member. After analysis, we categorize them as:
+Xavier currently has **35 direct dependencies** across the main crate and `code-graph` workspace member. After analysis, we categorize them as:
 
 | Category | Count | Risk | Proprietary Value |
 |----------|-------|------|-------------------|
@@ -40,7 +40,7 @@ Xavier2 currently has **35 direct dependencies** across the main crate and `code
 
 ## Dependency Inventory
 
-### Main Crate (`xavier2/`)
+### Main Crate (`xavier/`)
 
 ```
 tokio              1.50.0   [full]              async runtime
@@ -231,7 +231,7 @@ tokio = { version = "1.50.0", features = ["full"] }
 ### 9. `ratatui` + `crossterm` — TUI
 
 **Why Keep:**
-- Used only for the TUI dashboard binary (`xavier2-tui`).
+- Used only for the TUI dashboard binary (`xavier-tui`).
 - TUI is a terminal interface — not proprietary.
 - Replacing would require reimplementing layout, rendering, and event handling.
 
@@ -824,7 +824,7 @@ tokio = { version = "1.50.0", default-features = false, features = [
 **Current:** `features = ["cors", "compression-full"]`
 **Audit Result:** **UNUSED** in the codebase. We use axum's built-in CORS and our own middleware. `tower-http` is not imported anywhere in `src/`.
 
-**Action:** Remove entirely. Both from `xavier2/Cargo.toml` and `code-graph/Cargo.toml`.
+**Action:** Remove entirely. Both from `xavier/Cargo.toml` and `code-graph/Cargo.toml`.
 
 **Impact:** Saves compilation of two middleware libraries.
 
@@ -961,14 +961,14 @@ BSL               → Can use, but may have usage limits (commercial friendly)
 **What SurrealDB's "BSD-like" license means:**
 - SurrealDB will be Apache-2.0 (per their roadmap)
 - Others CAN use SurrealDB without restriction
-- **Our Xavier2-specific logic** (memory graph, belief system, embeddings) is proprietary regardless of SurrealDB's license
+- **Our Xavier-specific logic** (memory graph, belief system, embeddings) is proprietary regardless of SurrealDB's license
 - The license protects the **database engine**, not our **application logic**
 
 ### Proprietary Value Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  XAVIER2 APPLICATION CODE (Apache-2.0 or BSD, ours)      │
+│  XAVIER APPLICATION CODE (Apache-2.0 or BSD, ours)      │
 │  • Memory graph, belief system, embedding pipeline        │
 │  • Agent runtime, task scheduler                         │
 │  • API layer, UI, TUI                                   │
@@ -1018,7 +1018,7 @@ tokio = { version = "1.50.0", default-features = false, features = [
 **Current:** `features = ["cors", "compression-full"]`
 **Audit Result:** **UNUSED** in the codebase. We use axum's built-in CORS and our own middleware. `tower-http` is not imported anywhere in `src/`.
 
-**Action:** Remove entirely. Both from `xavier2/Cargo.toml` and `code-graph/Cargo.toml`.
+**Action:** Remove entirely. Both from `xavier/Cargo.toml` and `code-graph/Cargo.toml`.
 
 **Impact:** Saves compilation of two middleware libraries.
 
@@ -1272,13 +1272,13 @@ SurrealDB provides:
 4. ACID transactions
 5. Schema validation
 
-**What Xavier2 actually uses SurrealDB for:**
+**What Xavier actually uses SurrealDB for:**
 - Document storage (memory records as JSON)
 - WebSocket connections for real-time
 - Key-value access by ID
 - Simple queries (get by workspace, search by content)
 
-**What Xavier2 does NOT use:**
+**What Xavier does NOT use:**
 - SurrealQL query language
 - Complex relational features
 - Schema validation
@@ -1342,7 +1342,7 @@ impl MemoryStore for SqliteMemoryStore {
 
 #### Option C: Build Custom Protocol (Long-Term)
 
-**Concept: "Xavier2 Protocol"**
+**Concept: "Xavier Protocol"**
 
 Design a simple wire protocol for our specific needs:
 

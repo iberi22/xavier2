@@ -5,7 +5,7 @@ import { QuestionForm } from "./QuestionForm";
 
 interface QuestionsBoardProps {
   token: string;
-  xavier2Url?: string;
+  xavierUrl?: string;
 }
 
 type FilterState = {
@@ -22,7 +22,7 @@ const defaultFilters: FilterState = {
   project: "",
 };
 
-export function QuestionsBoard({ token, xavier2Url = "http://localhost:8003" }: QuestionsBoardProps) {
+export function QuestionsBoard({ token, xavierUrl = "http://localhost:8003" }: QuestionsBoardProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const [showForm, setShowForm] = useState(false);
@@ -39,11 +39,11 @@ export function QuestionsBoard({ token, xavier2Url = "http://localhost:8003" }: 
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch(`${xavier2Url}/memory/search`, {
+      const response = await fetch(`${xavierUrl}/memory/search`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Xavier2-Token": token,
+          "X-Xavier-Token": token,
         },
         body: JSON.stringify({
           query: "sweat-operations questions",
@@ -52,7 +52,7 @@ export function QuestionsBoard({ token, xavier2Url = "http://localhost:8003" }: 
       });
 
       if (!response.ok) {
-        throw new Error("Failed to load questions from Xavier2");
+        throw new Error("Failed to load questions from Xavier");
       }
 
       const data = await response.json() as { results?: Array<{ memory?: Question }> };
@@ -98,11 +98,11 @@ export function QuestionsBoard({ token, xavier2Url = "http://localhost:8003" }: 
         updated_at: now,
       };
 
-      const response = await fetch(`${xavier2Url}/memory/add`, {
+      const response = await fetch(`${xavierUrl}/memory/add`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Xavier2-Token": token,
+          "X-Xavier-Token": token,
         },
         body: JSON.stringify({
           path: `sweat-operations/questions/${question.id}`,
@@ -118,7 +118,7 @@ export function QuestionsBoard({ token, xavier2Url = "http://localhost:8003" }: 
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save question to Xavier2");
+        throw new Error("Failed to save question to Xavier");
       }
 
       await loadQuestions();
@@ -134,11 +134,11 @@ export function QuestionsBoard({ token, xavier2Url = "http://localhost:8003" }: 
   async function deleteQuestion(id: string) {
     try {
       setIsLoading(true);
-      const response = await fetch(`${xavier2Url}/memory/delete`, {
+      const response = await fetch(`${xavierUrl}/memory/delete`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Xavier2-Token": token,
+          "X-Xavier-Token": token,
         },
         body: JSON.stringify({
           path: `sweat-operations/questions/${id}`,

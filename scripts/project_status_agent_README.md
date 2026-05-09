@@ -1,12 +1,12 @@
 # Project Status Agent
 
-Agent que obtiene el estado de los proyectos desde GitHub API y lo guarda en Xavier2.
+Agent que obtiene el estado de los proyectos desde GitHub API y lo guarda en Xavier.
 
 ## Uso
 
 ### Ejecución única
 ```bash
-cd E:\scripts-python\xavier2
+cd E:\scripts-python\xavier
 python project_status_agent.py
 ```
 
@@ -27,7 +27,7 @@ python project_status_agent.py --poll --interval 600  # cada 10 minutos
 - **Last Commit** - Fecha del último commit
 - **Blockers** - Traducción desde STATUS.md
 
-## Paths en Xavier2
+## Paths en Xavier
 
 - Overview: `sweat-operations/projects/overview`
 - Proyecto individual: `sweat-operations/projects/{name}/status`
@@ -36,5 +36,5 @@ python project_status_agent.py --poll --interval 600  # cada 10 minutos
 
 - Python 3.8+
 - requests library
-- Acceso a Xavier2 en localhost:8003
+- Acceso a Xavier en localhost:8003
 - GitHub API token (opcional, para mayor rate limit)

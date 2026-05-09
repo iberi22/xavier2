@@ -248,14 +248,14 @@ fn should_prescan_tool_argument(tool_name: &str, argument_name: &str) -> bool {
 }
 
 // ============================================================================
-// Xavier2 MCP Tools
+// Xavier MCP Tools
 // ============================================================================
 
-pub fn get_xavier2_tools() -> Vec<MCPTool> {
+pub fn get_xavier_tools() -> Vec<MCPTool> {
     vec![
         MCPTool {
             name: "create_memory".to_string(),
-            description: "Create a new memory document in Xavier2".to_string(),
+            description: "Create a new memory document in Xavier".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -293,7 +293,7 @@ pub fn get_xavier2_tools() -> Vec<MCPTool> {
         },
         MCPTool {
             name: "search_memory".to_string(),
-            description: "Search memory documents in Xavier2".to_string(),
+            description: "Search memory documents in Xavier".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -330,7 +330,7 @@ pub fn get_xavier2_tools() -> Vec<MCPTool> {
         },
         MCPTool {
             name: "list_projects".to_string(),
-            description: "List all projects in Xavier2".to_string(),
+            description: "List all projects in Xavier".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {}
@@ -511,20 +511,20 @@ pub fn get_xavier2_tools() -> Vec<MCPTool> {
     ]
 }
 
-pub fn get_xavier2_resources() -> Vec<MCPResource> {
+pub fn get_xavier_resources() -> Vec<MCPResource> {
     vec![
         MCPResource {
-            uri: "xavier2://memory".to_string(),
+            uri: "xavier://memory".to_string(),
             name: "Memory Store".to_string(),
             mime_type: "application/json".to_string(),
         },
         MCPResource {
-            uri: "xavier2://projects".to_string(),
+            uri: "xavier://projects".to_string(),
             name: "Projects List".to_string(),
             mime_type: "application/json".to_string(),
         },
         MCPResource {
-            uri: "xavier2://health".to_string(),
+            uri: "xavier://health".to_string(),
             name: "System Health".to_string(),
             mime_type: "application/json".to_string(),
         },
@@ -589,7 +589,7 @@ fn resolve_mcp_session_header(
     }
 
     if payload_method(payload).is_some_and(|method| method == "initialize") {
-        let session_id = format!("xavier2-{}", Ulid::new());
+        let session_id = format!("xavier-{}", Ulid::new());
         let value = HeaderValue::from_str(&session_id)
             .map_err(|_| "Failed to generate MCP session header".to_string())?;
         return Ok(Some(value));
@@ -717,7 +717,7 @@ async fn handle_mcp_request(
                     "tools": {}
                 },
                 "serverInfo": {
-                    "name": "xavier2-memory",
+                    "name": "xavier-memory",
                     "version": env!("CARGO_PKG_VERSION")
                 }
             })),
@@ -728,7 +728,7 @@ async fn handle_mcp_request(
             jsonrpc: "2.0".to_string(),
             id: request.id.unwrap_or(Value::Null),
             result: Some(json!({
-                "resources": get_xavier2_resources()
+                "resources": get_xavier_resources()
             })),
             error: None,
         }),
@@ -736,7 +736,7 @@ async fn handle_mcp_request(
             jsonrpc: "2.0".to_string(),
             id: request.id.unwrap_or(Value::Null),
             result: Some(json!({
-                "tools": get_xavier2_tools()
+                "tools": get_xavier_tools()
             })),
             error: None,
         }),
@@ -1358,7 +1358,7 @@ mod tests {
     }
 
     async fn test_state() -> (AppState, WorkspaceContext) {
-        let db_path = unique_test_path("xavier2-code-mcp", "code_graph.db");
+        let db_path = unique_test_path("xavier-code-mcp", "code_graph.db");
         let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).unwrap());
         let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
         let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
@@ -1377,7 +1377,7 @@ mod tests {
                 sync_policy: crate::workspace::SyncPolicy::CloudMirror,
             },
             RuntimeConfig::default(),
-            unique_test_path("xavier2-mcp-store", "threads"),
+            unique_test_path("xavier-mcp-store", "threads"),
         )
         .await
         .unwrap();
@@ -1470,11 +1470,11 @@ mod tests {
             .get(MCP_SESSION_HEADER)
             .and_then(|value| value.to_str().ok())
             .unwrap();
-        assert!(session_id.starts_with("xavier2-"));
+        assert!(session_id.starts_with("xavier-"));
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let payload: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(payload["result"]["protocolVersion"], "2025-03-26");
-        assert_eq!(payload["result"]["serverInfo"]["name"], "xavier2-memory");
+        assert_eq!(payload["result"]["serverInfo"]["name"], "xavier-memory");
     }
 
     #[tokio::test]
@@ -1486,7 +1486,7 @@ mod tests {
                 "jsonrpc": "2.0",
                 "method": "notifications/initialized"
             }),
-            &[(MCP_SESSION_HEADER, "xavier2-session-test")],
+            &[(MCP_SESSION_HEADER, "xavier-session-test")],
         )
         .await;
 
@@ -1496,7 +1496,7 @@ mod tests {
                 .headers()
                 .get(MCP_SESSION_HEADER)
                 .and_then(|value| value.to_str().ok()),
-            Some("xavier2-session-test")
+            Some("xavier-session-test")
         );
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert!(body.is_empty());
@@ -1512,7 +1512,7 @@ mod tests {
                 "id": 12,
                 "method": "tools/list"
             }),
-            &[(MCP_SESSION_HEADER, "xavier2-session-existing")],
+            &[(MCP_SESSION_HEADER, "xavier-session-existing")],
         )
         .await;
 
@@ -1522,7 +1522,7 @@ mod tests {
                 .headers()
                 .get(MCP_SESSION_HEADER)
                 .and_then(|value| value.to_str().ok()),
-            Some("xavier2-session-existing")
+            Some("xavier-session-existing")
         );
     }
 
@@ -1545,7 +1545,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tools_list_returns_all_xavier2_tools() {
+    async fn tools_list_returns_all_xavier_tools() {
         let (state, workspace) = test_state().await;
         let response = post_json(
             test_router(state, workspace),
@@ -1621,7 +1621,7 @@ mod tests {
                     "name": "create_memory",
                     "arguments": {
                         "path": "bridge/openclaw/task",
-                        "content": "OpenClaw imported the publishing backlog into Xavier2.",
+                        "content": "OpenClaw imported the publishing backlog into Xavier.",
                         "kind": "task",
                         "evidence_kind": "fact_atom",
                         "namespace": {
@@ -1703,14 +1703,14 @@ mod tests {
             .workspace
             .memory
             .add_document_typed(
-                "projects/xavier2/spec".to_string(),
-                "Xavier2 durable memory context".to_string(),
+                "projects/xavier/spec".to_string(),
+                "Xavier durable memory context".to_string(),
                 json!({}),
                 Some(TypedMemoryPayload {
                     kind: Some(MemoryKind::Semantic),
                     evidence_kind: Some(EvidenceKind::Observation),
                     namespace: Some(MemoryNamespace {
-                        project: Some("xavier2".to_string()),
+                        project: Some("xavier".to_string()),
                         ..MemoryNamespace::default()
                     }),
                     provenance: None,
@@ -1765,7 +1765,7 @@ mod tests {
                 "method": "tools/call",
                 "params": {
                     "name": "get_project_context",
-                    "arguments": { "project_id": "xavier2" }
+                    "arguments": { "project_id": "xavier" }
                 }
             }),
         )
@@ -1778,14 +1778,14 @@ mod tests {
         assert!(payload["result"]["content"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("Xavier2 durable memory context"));
+            .contains("Xavier durable memory context"));
     }
 
     #[tokio::test]
     async fn sync_gitcore_is_idempotent_and_revisioned() {
         let (state, workspace) = test_state().await;
         let app = test_router(state, workspace.clone());
-        let root = unique_test_path("xavier2-gitcore", "repo");
+        let root = unique_test_path("xavier-gitcore", "repo");
         tokio::fs::create_dir_all(root.join(".gitcore"))
             .await
             .unwrap();

@@ -1,4 +1,4 @@
-# Xavier2 - Multi-stage Docker Build
+﻿# Xavier - Multi-stage Docker Build
 # Stage 1: Build dependencies and binary
 FROM rust:1.77-slim as builder
 
@@ -39,22 +39,22 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # Create non-root user
-RUN useradd -m -u 1000 xavier2
+RUN useradd -m -u 1000 xavier
 
 WORKDIR /app
 
 # Copy binary from builder
-COPY --from=builder /app/target/release/xavier2 /usr/local/bin/
+COPY --from=builder /app/target/release/xavier /usr/local/bin/
 
 # Set environment
-ENV XAVIER2_PORT=8006
+ENV XAVIER_PORT=8006
 ENV RUST_LOG=info
-ENV XAVIER2_STORAGE=/data
+ENV XAVIER_STORAGE=/data
 
 # Create data directory
-RUN mkdir /data && chown xavier2:xavier2 /data
+RUN mkdir /data && chown xavier:xavier /data
 
-USER xavier2
+USER xavier
 
 # Expose port
 EXPOSE 8006
@@ -64,4 +64,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8006/health || exit 1
 
 # Run
-ENTRYPOINT ["xavier2", "--port", "8006"]
+ENTRYPOINT ["xavier", "--port", "8006"]

@@ -26,7 +26,7 @@ impl UiRenderAgent {
 
         let mut blocks = vec![
             format!(
-                "<Card title=\"Xavier2 Response\" description=\"Rendered by the internal UI agent\"><TextContent content=\"{}\" /></Card>",
+                "<Card title=\"Xavier Response\" description=\"Rendered by the internal UI agent\"><TextContent content=\"{}\" /></Card>",
                 escape_attr(&plain_text)
             ),
             format!(
@@ -86,7 +86,7 @@ impl UiRenderAgent {
 
         if trace.agent.confidence < 0.55 {
             blocks.push(
-                "<TextCallout variant=\"warning\" title=\"Low confidence answer\" content=\"Xavier2 found weak or partial evidence. Review the supporting memory before acting on this output.\" />".to_string(),
+                "<TextCallout variant=\"warning\" title=\"Low confidence answer\" content=\"Xavier found weak or partial evidence. Review the supporting memory before acting on this output.\" />".to_string(),
             );
             rules.push("warn_when_confidence_low".to_string());
         } else {
@@ -98,7 +98,7 @@ impl UiRenderAgent {
         }
 
         let openui_lang = format!(
-            "<SectionBlock title=\"Xavier2 Internal Panel\" description=\"Reasoning output rendered through the dedicated UI agent\">{}</SectionBlock>",
+            "<SectionBlock title=\"Xavier Internal Panel\" description=\"Reasoning output rendered through the dedicated UI agent\">{}</SectionBlock>",
             blocks.join("")
         );
 

@@ -1,6 +1,6 @@
 # SurrealDB Fix Mission
 $PROMPT = @"
-You are a senior Rust developer. Your mission: fix the SurrealDB persistence issue in this Xavier2 project at E:\scripts-python\xavier2.
+You are a senior Rust developer. Your mission: fix the SurrealDB persistence issue in this Xavier project at E:\scripts-python\xavier.
 
 ## Current Problem
 SurrealDB was disabled because WebSocket writes appeared to succeed but data was NOT persisted to disk. The system is currently using FileMemoryStore as fallback.
@@ -22,22 +22,22 @@ After any fix, run this:
 
 ```powershell
 `$TS = Get-Date -Format yyyyMMdd_HHmmss
-curl -H "X-Xavier2-Token: dev-token" -Method POST "http://localhost:8003/memory/add" -ContentType "application/json" -Body "{`"content`": `"SURREALDB_TEST_`$TS`", `"metadata`": {`"source`": `"fix`"}}"
-docker compose -f E:\scripts-python\xavier2\docker-compose.yml down
-docker compose -f E:\scripts-python\xavier2\docker-compose.yml up -d
+curl -H "X-Xavier-Token: `$env:XAVIER_TOKEN" -Method POST "http://localhost:8003/memory/add" -ContentType "application/json" -Body "{`"content`": `"SURREALDB_TEST_`$TS`", `"metadata`": {`"source`": `"fix`"}}"
+docker compose -f E:\scripts-python\xavier\docker-compose.yml down
+docker compose -f E:\scripts-python\xavier\docker-compose.yml up -d
 Start-Sleep 10
-curl -H "X-Xavier2-Token: dev-token" "http://localhost:8003/v1/memories" | Select-String "SURREALDB_TEST_`$TS"
+curl -H "X-Xavier-Token: `$env:XAVIER_TOKEN" "http://localhost:8003/v1/memories" | Select-String "SURREALDB_TEST_`$TS"
 ```
 
 ### 5. If SurrealDB works, enable it back as the primary backend
 ### 6. If it still doesn't work, document thoroughly in SURREALDB_INVESTIGATION.md
 
 ## Constraints
-- NEVER move the project from E:\scripts-python\xavier2
+- NEVER move the project from E:\scripts-python\xavier
 - Keep FileMemoryStore as fallback
 - Back up files before modifying
 
 When done, run: openclaw system event --text "Done: SurrealDB fix attempt finished" --mode now
 "@
 
-Set-Content -Path "E:\scripts-python\xavier2\task-prompt.txt" -Value $PROMPT
+Set-Content -Path "E:\scripts-python\xavier\task-prompt.txt" -Value $PROMPT

@@ -1,9 +1,9 @@
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
-use std::collections::HashMap;
-use crate::memory::qmd_memory::utils::*;
 use crate::memory::qmd_memory::types::QueryBundle;
+use crate::memory::qmd_memory::utils::*;
+use std::collections::HashMap;
 
 pub fn build_query_bundle_internal(query_text: &str) -> QueryBundle {
     let normalized_query = normalize_query(query_text);
@@ -38,7 +38,9 @@ pub fn build_query_bundle_internal(query_text: &str) -> QueryBundle {
             if cleaned.len() < 3 || cleaned == normalized_query {
                 continue;
             }
-            if let std::collections::hash_map::Entry::Vacant(entry) = weights.entry(format!("{normalized_query} {cleaned}")) {
+            if let std::collections::hash_map::Entry::Vacant(entry) =
+                weights.entry(format!("{normalized_query} {cleaned}"))
+            {
                 let expanded = entry.key().clone();
                 variants.push(expanded.clone());
                 entry.insert(0.8);

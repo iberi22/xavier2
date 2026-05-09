@@ -17,7 +17,7 @@ export function Leaderboard({ items }: LeaderboardProps) {
     <div className="bg-bg-3 rounded-lg overflow-hidden">
       {(items || [
         { name: 'ManteniApp', value: '100' },
-        { name: 'Xavier2', value: '95' },
+        { name: 'Xavier', value: '95' },
         { name: 'Synapse', value: '87' },
         { name: 'Edge Hive', value: '72' },
       ]).map((item, i) => (

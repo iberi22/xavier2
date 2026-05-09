@@ -170,9 +170,9 @@ impl PatternStore {
 
         let conn = self.conn.lock();
         conn.execute(
-            r#"INSERT INTO patterns 
-               (id, category, pattern, project, discovered_by, confidence, 
-                source_file, source_occurrences, source_snippet, created_at, updated_at, 
+            r#"INSERT INTO patterns
+               (id, category, pattern, project, discovered_by, confidence,
+                source_file, source_occurrences, source_snippet, created_at, updated_at,
                 usage_count, verification)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending')"#,
             params![
@@ -344,9 +344,9 @@ impl PatternStore {
         let cutoff = Utc::now() - chrono::Duration::days(30);
 
         let affected = conn.execute(
-            r#"UPDATE patterns 
+            r#"UPDATE patterns
                SET confidence = MAX(0.0, confidence - 0.1)
-               WHERE verification = 'pending' 
+               WHERE verification = 'pending'
                AND datetime(updated_at) < datetime(?)"#,
             params![cutoff.to_rfc3339()],
         )?;

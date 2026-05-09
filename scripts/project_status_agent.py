@@ -3,7 +3,7 @@
 SWAL Project Status Agent
 =========================
 Reads project status from STATUS.md, fetches real-time data from GitHub API,
-and stores project status in Xavier2.
+and stores project status in Xavier.
 
 Usage:
     python project_status_agent.py              # Run once
@@ -11,6 +11,7 @@ Usage:
 """
 
 import json
+import os
 import re
 import time
 import argparse
@@ -21,26 +22,36 @@ from typing import Optional
 import requests
 
 # Configuration
-XAVIER2_URL = "http://localhost:8003"
-XAVIER2_TOKEN = "dev-token"
+XAVIER_URL = "http://localhost:8003"
+
+
+def get_required_xavier_token() -> str:
+    for env_var in ("XAVIER_TOKEN", "XAVIER_API_KEY", "XAVIER_TOKEN"):
+        token = os.environ.get(env_var, "").strip()
+        if token:
+            return token
+    raise RuntimeError("Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.")
+
+
+XAVIER_TOKEN = get_required_xavier_token()
 STATUS_FILE = Path("E:/scripts-python/SWAL-Operations-Dashboard/projects/STATUS.md")
 GITHUB_API = "https://api.github.com"
 GITHUB_HEADERS = {"Accept": "application/vnd.github.v3+json"}
 
 
-def get_xavier2_headers():
+def get_xavier_headers():
     return {
-        "X-Xavier2-Token": XAVIER2_TOKEN,
+        "X-Xavier-Token": XAVIER_TOKEN,
         "Content-Type": "application/json"
     }
 
 
-def save_to_xavier2(path: str, content: dict) -> bool:
-    """Save project status to Xavier2."""
+def save_to_xavier(path: str, content: dict) -> bool:
+    """Save project status to Xavier."""
     try:
         response = requests.post(
-            f"{XAVIER2_URL}/memory/add",
-            headers=get_xavier2_headers(),
+            f"{XAVIER_URL}/memory/add",
+            headers=get_xavier_headers(),
             json={
                 "path": path,
                 "content": json.dumps(content, indent=2),
@@ -53,7 +64,7 @@ def save_to_xavier2(path: str, content: dict) -> bool:
         )
         return response.status_code in (200, 201)
     except Exception as e:
-        print(f"  [ERROR] Failed to save to Xavier2: {e}")
+        print(f"  [ERROR] Failed to save to Xavier: {e}")
         return False
 
 
@@ -275,7 +286,7 @@ def enrich_project_data(project: dict) -> dict:
 
 
 def save_projects_overview(projects: list[dict]) -> bool:
-    """Save overview of all projects to Xavier2."""
+    """Save overview of all projects to Xavier."""
     overview = {
         'updated_at': datetime.now().isoformat(),
         'total_projects': len(projects),
@@ -301,7 +312,7 @@ def save_projects_overview(projects: list[dict]) -> bool:
         else:
             overview['ci_health']['unknown'] = overview['ci_health'].get('unknown', 0) + 1
 
-    return save_to_xavier2("sweat-operations/projects/overview", overview)
+    return save_to_xavier("sweat-operations/projects/overview", overview)
 
 
 def run_status_update():
@@ -321,19 +332,19 @@ def run_status_update():
         projects[i] = enrich_project_data(project)
         time.sleep(0.3)  # Rate limiting
 
-    # Save individual project status to Xavier2
-    print("\n[3/3] Saving to Xavier2...")
+    # Save individual project status to Xavier
+    print("\n[3/3] Saving to Xavier...")
     saved_count = 0
     for project in projects:
         path = f"sweat-operations/projects/{project['name'].lower().replace(' ', '-')}/status"
-        if save_to_xavier2(path, project):
+        if save_to_xavier(path, project):
             saved_count += 1
 
     # Save overview
     if save_projects_overview(projects):
         saved_count += 1
 
-    print(f"\n[SUMMARY] Saved {saved_count}/{len(projects) + 1} entries to Xavier2")
+    print(f"\n[SUMMARY] Saved {saved_count}/{len(projects) + 1} entries to Xavier")
     print(f"Completed at: {datetime.now().isoformat()}")
 
     return projects

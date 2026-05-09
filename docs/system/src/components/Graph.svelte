@@ -90,7 +90,7 @@
 
 <div class="graph-container">
   <h3 class="graph-title">Knowledge Graph</h3>
-  <canvas 
+  <canvas
     bind:this={canvas}
     width="280"
     height="280"

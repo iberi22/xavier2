@@ -1,9 +1,9 @@
-# Xavier2 Architecture
+# Xavier Architecture
 
-> **Version:** 0.6.0-beta  
-> **License:** MIT  
+> **Version:** 0.6.0-beta
+> **License:** MIT
 
-Xavier2 is a **cognitive memory runtime for AI agents** built in Rust. It follows a **hexagonal (ports & adapters) architecture** to keep the core domain logic decoupled from frameworks, databases, and transport protocols.
+Xavier is a **cognitive memory runtime for AI agents** built in Rust. It follows a **hexagonal (ports & adapters) architecture** to keep the core domain logic decoupled from frameworks, databases, and transport protocols.
 
 ---
 
@@ -73,7 +73,7 @@ Xavier2 is a **cognitive memory runtime for AI agents** built in Rust. It follow
 
 | Layer | Directory | Responsibility |
 |-------|-----------|----------------|
-| **Entry Points** | `src/bin/`, `src/cli.rs` | Binary entry points: `xavier2 http`, `xavier2 mcp`, `xavier2` (CLI) |
+| **Entry Points** | `src/bin/`, `src/cli.rs` | Binary entry points: `xavier http`, `xavier mcp`, `xavier` (CLI) |
 | **Inbound Adapters** | `src/adapters/inbound/` | HTTP routes (`axum`), CLI handler bindings, request DTOs, auth middleware |
 | **Inbound Ports** | `src/ports/inbound/` | Trait definitions for what the application provides (memory queries, agent lifecycle, health, etc.) |
 | **Domain** | `src/domain/` | Pure domain models: `MemoryRecord`, `MemoryQueryFilters`, `TimeMetric` |
@@ -116,7 +116,7 @@ Dependencies point **inward**: Entry points → Adapters → Ports → Domain. T
 
 ## 3. Memory System
 
-Xavier2's memory system has three tiers, each serving a different purpose in the agent's cognitive architecture.
+Xavier's memory system has three tiers, each serving a different purpose in the agent's cognitive architecture.
 
 ### 3.1 Memory Store Backends
 
@@ -202,7 +202,7 @@ Embedder trait (async fn encode(&self, text: &str) -> Result<Vec<f32>>)
     ├── OpenAICompatibleEmbedder (primary)
     │     ├── Endpoint: configurable (default cloud: api.openai.com / local: localhost:11434)
     │     ├── Model: configurable (default cloud: text-embedding-3-small / local: embeddinggemma)
-    │     └── API key: XAVIER2_EMBEDDING_API_KEY or OPENAI_API_KEY
+    │     └── API key: XAVIER_EMBEDDING_API_KEY or OPENAI_API_KEY
     │
     └── FallbackEmbedder (optional)
           └── Secondary embedder for resilience
@@ -210,15 +210,15 @@ Embedder trait (async fn encode(&self, text: &str) -> Result<Vec<f32>>)
 
 ### Configuration
 
-The embedding system in `src/embedding/` supports three modes, controlled by `XAVIER2_EMBEDDING_PROVIDER_MODE`:
+The embedding system in `src/embedding/` supports three modes, controlled by `XAVIER_EMBEDDING_PROVIDER_MODE`:
 
 | Mode | Auto-detection | Behavior |
 |------|---------------|----------|
-| **Local** | `XAVIER2_EMBEDDING_ENDPOINT`, `XAVIER2_EMBEDDING_URL`, `XAVIER2_EMBEDDING_MODEL` set, or explicit `XAVIER2_EMBEDDING_PROVIDER_MODE=local` | Uses local endpoint (e.g., Ollama) |
-| **Cloud** | `OPENAI_API_KEY` or `XAVIER2_EMBEDDING_API_KEY` set, or explicit `XAVIER2_EMBEDDING_PROVIDER_MODE=cloud` | Uses OpenAI-compatible cloud endpoint |
-| **Disabled** | Explicit `XAVIER2_EMBEDDING_PROVIDER_MODE=disabled` | Returns empty vectors (keyword-only search) |
+| **Local** | `XAVIER_EMBEDDING_ENDPOINT`, `XAVIER_EMBEDDING_URL`, `XAVIER_EMBEDDING_MODEL` set, or explicit `XAVIER_EMBEDDING_PROVIDER_MODE=local` | Uses local endpoint (e.g., Ollama) |
+| **Cloud** | `OPENAI_API_KEY` or `XAVIER_EMBEDDING_API_KEY` set, or explicit `XAVIER_EMBEDDING_PROVIDER_MODE=cloud` | Uses OpenAI-compatible cloud endpoint |
+| **Disabled** | Explicit `XAVIER_EMBEDDING_PROVIDER_MODE=disabled` | Returns empty vectors (keyword-only search) |
 
-If both local and cloud signals are present, Xavier2 configures a **primary + fallback** chain automatically.
+If both local and cloud signals are present, Xavier configures a **primary + fallback** chain automatically.
 
 ### Known Embedding Models & Dimensions
 
@@ -235,7 +235,7 @@ If both local and cloud signals are present, Xavier2 configures a **primary + fa
 
 ## 5. Search System
 
-Xavier2 provides three search methods, all accessible via HTTP API and internal APIs.
+Xavier provides three search methods, all accessible via HTTP API and internal APIs.
 
 ### 5.1 Keyword Search (BM25)
 
@@ -430,4 +430,4 @@ src/
 
 ---
 
-*Xavier2 — Cognitive Memory Runtime for AI Agents. Built with Rust.*
+*Xavier — Cognitive Memory Runtime for AI Agents. Built with Rust.*

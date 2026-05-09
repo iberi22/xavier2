@@ -1,4 +1,4 @@
-//! SQLite backend with sqlite-vec vector search for Xavier2 memory store.
+//! SQLite backend with sqlite-vec vector search for Xavier memory store.
 //!
 //! Uses HNSW-like approximate nearest neighbor search via sqlite-vec
 //! for semantic similarity matching on memory embeddings.
@@ -31,9 +31,9 @@ use crate::memory::store::{
     stable_key, DurableWorkspaceState, GraphHopPath, GraphHopResult, HybridSearchMode,
     HybridSearchResult, MemoryBackend, MemoryRecord, MemoryStore, SessionTokenRecord,
 };
-use crate::settings::Xavier2Settings;
+use crate::settings::XavierSettings;
 
-const DB_FILENAME: &str = "xavier2_memory_vec.db";
+const DB_FILENAME: &str = "xavier_memory_vec.db";
 const DEFAULT_EMBEDDING_DIMENSIONS: usize = 768;
 const DEFAULT_RRF_K: usize = 60;
 const DEFAULT_VECTOR_WEIGHT: f32 = 0.40;
@@ -102,8 +102,8 @@ pub struct VecSqliteStoreConfig {
 
 impl VecSqliteStoreConfig {
     pub fn from_env() -> Self {
-        let settings = Xavier2Settings::current();
-        let embedding_dimensions = std::env::var("XAVIER2_EMBEDDING_DIMENSIONS")
+        let settings = XavierSettings::current();
+        let embedding_dimensions = std::env::var("XAVIER_EMBEDDING_DIMENSIONS")
             .ok()
             .and_then(|v| v.parse::<usize>().ok())
             .unwrap_or({
@@ -115,7 +115,7 @@ impl VecSqliteStoreConfig {
             });
 
         Self {
-            path: std::env::var("XAVIER2_MEMORY_VEC_PATH")
+            path: std::env::var("XAVIER_MEMORY_VEC_PATH")
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| {
                     if settings.memory.vec_path.trim().is_empty() {
@@ -611,7 +611,7 @@ impl VecSqliteMemoryStore {
     }
 
     pub fn configured_qjl_threshold() -> usize {
-        std::env::var("XAVIER2_QJL_THRESHOLD")
+        std::env::var("XAVIER_QJL_THRESHOLD")
             .ok()
             .and_then(|value| value.parse::<usize>().ok())
             .filter(|value| *value > 0)
@@ -720,7 +720,7 @@ impl VecSqliteMemoryStore {
     }
 
     pub fn configured_rrf_k() -> usize {
-        std::env::var("XAVIER2_RRF_K")
+        std::env::var("XAVIER_RRF_K")
             .ok()
             .and_then(|value| value.parse::<usize>().ok())
             .filter(|value| *value > 0)
@@ -741,7 +741,7 @@ impl VecSqliteMemoryStore {
     }
 
     pub fn entity_extraction_enabled() -> bool {
-        std::env::var("XAVIER2_ENTITY_EXTRACTION_ENABLED")
+        std::env::var("XAVIER_ENTITY_EXTRACTION_ENABLED")
             .ok()
             .map(|value| {
                 !matches!(
@@ -753,7 +753,7 @@ impl VecSqliteMemoryStore {
     }
 
     pub fn audit_chain_enabled() -> bool {
-        std::env::var("XAVIER2_AUDIT_CHAIN_ENABLED")
+        std::env::var("XAVIER_AUDIT_CHAIN_ENABLED")
             .ok()
             .map(|value| {
                 !matches!(
@@ -1972,7 +1972,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         filters: Option<&MemoryQueryFilters>,
     ) -> Result<Vec<MemoryRecord>> {
         // Try to embed the query for vector search
-        let query_embedding = if std::env::var("XAVIER2_EMBEDDING_URL").is_ok() {
+        let query_embedding = if std::env::var("XAVIER_EMBEDDING_URL").is_ok() {
             match EmbeddingClient::from_env() {
                 Ok(client) => client.embed(query).await.ok(),
                 Err(_) => None,
@@ -2005,7 +2005,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         limit: usize,
     ) -> Result<Vec<HybridSearchResult>> {
         let query_embedding = if matches!(mode, HybridSearchMode::Vector | HybridSearchMode::Both)
-            && std::env::var("XAVIER2_EMBEDDING_URL").is_ok()
+            && std::env::var("XAVIER_EMBEDDING_URL").is_ok()
         {
             match EmbeddingClient::from_env() {
                 Ok(client) => client.embed(query).await.ok(),

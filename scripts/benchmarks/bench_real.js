@@ -2,7 +2,16 @@
 const http = require('http');
 
 const BASE_URL = 'http://localhost:8003';
-const TOKEN = 'dev-token';
+
+function getRequiredXavierToken() {
+  const token = process.env.XAVIER_TOKEN || process.env.XAVIER_API_KEY || process.env.XAVIER_TOKEN;
+  if (!token) {
+    throw new Error('Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.');
+  }
+  return token;
+}
+
+const TOKEN = getRequiredXavierToken();
 
 function api(path, payload, method) {
   return new Promise((resolve, reject) => {
@@ -15,7 +24,7 @@ function api(path, payload, method) {
       method: method || (payload ? 'POST' : 'GET'),
       headers: {
         'Content-Type': 'application/json',
-        'X-Xavier2-Token': TOKEN,
+        'X-Xavier-Token': TOKEN,
       },
     };
     if (data) options.headers['Content-Length'] = Buffer.byteLength(data);
@@ -41,7 +50,7 @@ async function waitHealth() {
     } catch {}
     await new Promise(s => setTimeout(s, 1000));
   }
-  throw new Error('Xavier2 not healthy');
+  throw new Error('Xavier not healthy');
 }
 
 async function loadDocs(docs) {
@@ -82,13 +91,13 @@ async function doAgents(query, filters) {
 }
 
 async function run() {
-  console.log('Waiting for Xavier2...');
+  console.log('Waiting for Xavier...');
   await waitHealth();
-  console.log('Xavier2 is healthy.');
+  console.log('Xavier is healthy.');
 
   const fs = require('fs');
   const dataset = JSON.parse(fs.readFileSync(
-    'E:\\scripts-python\\xavier2\\scripts\\benchmarks\\datasets\\internal_swal_openclaw_memory.json', 'utf-8'));
+    'E:\\scripts-python\\xavier\\scripts\\benchmarks\\datasets\\internal_swal_openclaw_memory.json', 'utf-8'));
 
   const docs = dataset.documents;
   const cases = dataset.cases;

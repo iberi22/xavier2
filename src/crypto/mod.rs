@@ -1,4 +1,4 @@
-//! Crypto Module - E2E Encryption for Xavier2 Cloud Tier
+//! Crypto Module - E2E Encryption for Xavier Cloud Tier
 //!
 //! This module provides end-to-end encryption for the cloud storage tier.
 //! The server NEVER sees plaintext or keys - all encryption/decryption happens client-side.

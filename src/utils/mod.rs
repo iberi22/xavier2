@@ -1,4 +1,4 @@
-//! Utility modules for Xavier2
+//! Utility modules for Xavier
 //!
 //! This module provides lightweight utilities that replace external dependencies.
 

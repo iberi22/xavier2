@@ -15,7 +15,7 @@ impl Researcher {
     /// Generate a hypothesis for the next experiment
     pub async fn generate_hypothesis(&self) -> Result<Hypothesis> {
         // Pattern based on autoresearch: generate simple, testable ideas
-        // For Xavier2, we focus on memory architecture improvements
+        // For Xavier, we focus on memory architecture improvements
 
         let hypotheses = [Hypothesis::optimization(
                 "add retrieval cache layer".to_string(),

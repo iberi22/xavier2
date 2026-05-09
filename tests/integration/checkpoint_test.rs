@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod checkpoint_tests {
-    use xavier2::checkpoint::{
+    use xavier::checkpoint::{
         Checkpoint, CheckpointManager, SessionCheckpoint, MAX_SESSION_CHECKPOINT_BYTES,
     };
 

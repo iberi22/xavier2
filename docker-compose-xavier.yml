@@ -1,0 +1,34 @@
+﻿services:
+  xavier:
+    image: xavier:latest
+    container_name: xavier
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      # Required auth token for all protected Xavier endpoints.
+      XAVIER_TOKEN: ${XAVIER_TOKEN:?Set XAVIER_TOKEN before starting xavier}
+      # Backend selector accepted by the Xavier launcher.
+      XAVIER_BACKEND: ${XAVIER_BACKEND:-vec}
+      # Explicit runtime backend override passed through to Xavier.
+      XAVIER_MEMORY_BACKEND: ${XAVIER_MEMORY_BACKEND:-vec}
+      # Network binding and runtime paths.
+      XAVIER_HOST: 0.0.0.0
+      XAVIER_PORT: 8003
+      XAVIER_WORKSPACE_DIR: /data/workspaces
+      XAVIER_CODE_GRAPH_DB_PATH: /data/code_graph.db
+      # Logging controls.
+      RUST_LOG: ${RUST_LOG:-info}
+      XAVIER_LOG_LEVEL: ${XAVIER_LOG_LEVEL:-info}
+    volumes:
+      - xavier_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  xavier_data:
+    name: xavier_data

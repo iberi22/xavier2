@@ -1,12 +1,21 @@
-# SEVIER2 Stress Test Runner for Xavier2
-# Validates endpoints: /health, /xavier2/events/session, /xavier2/verify/save,
-# /xavier2/time/metric, /ready
+# SEVIER Stress Test Runner for Xavier
+# Validates endpoints: /health, /xavier/events/session, /xavier/verify/save,
+# /xavier/time/metric, /ready
 
 param(
     [string]$BaseUrl = "http://localhost:8006",
-    [string]$Token = "dev-token",
-    [switch]$StartDocker   # Start Xavier2 via docker compose if not running
+    [string]$Token = "",
+    [switch]$StartDocker   # Start Xavier via docker compose if not running
 )
+
+if (-not $Token) {
+    $Token = $env:XAVIER_TOKEN
+    if (-not $Token) { $Token = $env:XAVIER_API_KEY }
+    if (-not $Token) { $Token = $env:XAVIER_TOKEN }
+    if (-not $Token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+}
 
 $ErrorActionPreference = "Continue"
 $startTime = Get-Date
@@ -31,17 +40,17 @@ try {
         -TimeoutSec 5 -ErrorAction SilentlyContinue
     if ($healthResp.StatusCode -eq 200) {
         $running = $true
-        Log-Message "Xavier2 is already running at $BaseUrl" "INFO"
+        Log-Message "Xavier is already running at $BaseUrl" "INFO"
     }
 } catch {
-    Log-Message "Xavier2 not responding at $BaseUrl" "WARN"
+    Log-Message "Xavier not responding at $BaseUrl" "WARN"
 }
 
 if (-not $running) {
     if ($StartDocker) {
-        Log-Message "Starting Xavier2 via docker compose..." "INFO"
-        Set-Location "E:\scripts-python\xavier2"
-        docker compose up -d xavier2
+        Log-Message "Starting Xavier via docker compose..." "INFO"
+        Set-Location "E:\scripts-python\xavier"
+        docker compose up -d xavier
         Start-Sleep -Seconds 5
 
         # Poll /health until ready (max 60s)
@@ -52,26 +61,26 @@ if (-not $running) {
                     -TimeoutSec 5 -ErrorAction SilentlyContinue
                 if ($h.StatusCode -eq 200) {
                     $running = $true
-                    Log-Message "Xavier2 started and healthy" "PASS"
+                    Log-Message "Xavier started and healthy" "PASS"
                     break
                 }
             } catch { }
             $attempts++
-            Log-Message "Waiting for Xavier2... ($attempts/12)" "WARN"
+            Log-Message "Waiting for Xavier... ($attempts/12)" "WARN"
             Start-Sleep -Seconds 5
         }
         if (-not $running) {
-            Log-Message "Xavier2 failed to start in 60s" "FAIL"
+            Log-Message "Xavier failed to start in 60s" "FAIL"
             exit 1
         }
     } else {
-        Log-Message "Xavier2 not running. Use -StartDocker to auto-start." "FAIL"
+        Log-Message "Xavier not running. Use -StartDocker to auto-start." "FAIL"
         exit 1
     }
 }
 
 # ─── 2. Helper function for POST with JSON ────────────────────────────────────
-function Invoke-Sevier2Post {
+function Invoke-SevierPost {
     param([string]$Endpoint, [object]$Body, [string]$Description)
     try {
         $json = $Body | ConvertTo-Json -Depth 5 -Compress
@@ -151,36 +160,36 @@ try {
     }
 }
 
-# ─── Test C: POST /xavier2/events/session ─────────────────────────────────────
+# ─── Test C: POST /xavier/events/session ─────────────────────────────────────
 $body = @{
     session_id = "ps-test-session"
     event_type = "message"
     content = "PowerShell stress test event"
     timestamp = (Get-Date).ToUniversalTime().ToString("o")
 }
-$result = Invoke-Sevier2Post -Endpoint "/xavier2/events/session" `
+$result = Invoke-SevierPost -Endpoint "/xavier/events/session" `
     -Body $body -Description "Session Event"
 $result.LatencyMs = $sw.ElapsedMilliseconds
 $results += @{
-    Name = "POST /xavier2/events/session"
+    Name = "POST /xavier/events/session"
     Pass = $result.Success
     Status = $result.Status
     Detail = $result.Body
 }
 
-# ─── Test D: POST /xavier2/verify/save ────────────────────────────────────────
+# ─── Test D: POST /xavier/verify/save ────────────────────────────────────────
 $body = @{
-    path = "tests/sevier2/powershell-runner"
+    path = "tests/sevier/powershell-runner"
     content = "PowerShell test content $(Get-Date -Format 'o')"
 }
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
-$result = Invoke-Sevier2Post -Endpoint "/xavier2/verify/save" `
+$result = Invoke-SevierPost -Endpoint "/xavier/verify/save" `
     -Body $body -Description "Verify Save"
 $sw.Stop()
 if ($result.Success) {
     $json = $result.Body | ConvertFrom-Json
     $results += @{
-        Name = "POST /xavier2/verify/save"
+        Name = "POST /xavier/verify/save"
         Pass = $json.save_ok -eq $true
         Status = $result.Status
         LatencyMs = $sw.ElapsedMilliseconds
@@ -188,7 +197,7 @@ if ($result.Success) {
     }
 } else {
     $results += @{
-        Name = "POST /xavier2/verify/save"
+        Name = "POST /xavier/verify/save"
         Pass = $false
         Status = $result.Status
         LatencyMs = $sw.ElapsedMilliseconds
@@ -196,7 +205,7 @@ if ($result.Success) {
     }
 }
 
-# ─── Test E: POST /xavier2/time/metric ─────────────────────────────────────────
+# ─── Test E: POST /xavier/time/metric ─────────────────────────────────────────
 $body = @{
     metric_type = "powershell-stress-test"
     agent_id = "powershell-runner"
@@ -212,11 +221,11 @@ $body = @{
     metadata = @{}
 }
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
-$result = Invoke-Sevier2Post -Endpoint "/xavier2/time/metric" `
+$result = Invoke-SevierPost -Endpoint "/xavier/time/metric" `
     -Body $body -Description "Time Metric"
 $sw.Stop()
 $results += @{
-    Name = "POST /xavier2/time/metric"
+    Name = "POST /xavier/time/metric"
     Pass = $result.Success
     Status = $result.Status
     LatencyMs = $sw.ElapsedMilliseconds
@@ -247,7 +256,7 @@ for ($i = 0; $i -lt 10; $i++) {
         } catch {
             return @{ Status = 0; Success = $false; Error = $_.Exception.Message }
         }
-    } -ArgumentList $BaseUrl, $Token, "/xavier2/events/session", $body
+    } -ArgumentList $BaseUrl, $Token, "/xavier/events/session", $body
 }
 $completed = $jobs | Wait-Job -Timeout 30
 $concurrentMs = ((Get-Date) - $concurrentStart).TotalMilliseconds
@@ -260,7 +269,7 @@ Log-Message "Concurrent events: $okCount/10 succeeded in $([math]::Round($concur
 $totalMs = ((Get-Date) - $startTime).TotalMilliseconds
 Write-Host ""
 Write-Host "══════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  SEVIER2 Stress Test Results" -ForegroundColor Cyan
+Write-Host "  SEVIER Stress Test Results" -ForegroundColor Cyan
 Write-Host "  Base URL: $BaseUrl" -ForegroundColor Cyan
 Write-Host "  Total Time: $([math]::Round($totalMs))ms" -ForegroundColor Cyan
 Write-Host "══════════════════════════════════════" -ForegroundColor Cyan
@@ -270,7 +279,8 @@ $passCount = 0
 foreach ($r in $results) {
     $icon = if ($r.Pass) { "✅" } else { "❌" }
     $level = if ($r.Pass) { "PASS" } else { "FAIL" }
-    Log-Message "$icon $($r.Name) | status=$($r.Status) | latency=$($r.LatencyMs)ms | $($r.Detail ?? $r.Error)" $level
+    $detail = if ($null -ne $r.Detail) { $r.Detail } else { $r.Error }
+    Log-Message "$icon $($r.Name) | status=$($r.Status) | latency=$($r.LatencyMs)ms | $detail" $level
     if ($r.Pass) { $passCount++ }
 }
 

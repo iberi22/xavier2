@@ -1,4 +1,4 @@
-//! Agent-to-Agent (A2A) protocol primitives used by Xavier2.
+//! Agent-to-Agent (A2A) protocol primitives used by Xavier.
 //!
 //! The module provides:
 //! - JSON-RPC 2.0 request/response types tailored to the A2A task flow.
@@ -398,7 +398,7 @@ pub trait TaskHandler: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'a>>;
 }
 
-/// JSON-RPC dispatcher for the A2A task methods supported by Xavier2.
+/// JSON-RPC dispatcher for the A2A task methods supported by Xavier.
 pub struct A2AServer {
     task_handler: Arc<dyn TaskHandler>,
     agent_card: types::AgentCard,
@@ -526,10 +526,10 @@ fn error_response(id: String, code: i32, message: String) -> types::JsonRpcRespo
     }
 }
 
-/// Builds Xavier2's default A2A discovery card.
-pub fn create_xavier2_agent_card() -> types::AgentCard {
+/// Builds Xavier's default A2A discovery card.
+pub fn create_xavier_agent_card() -> types::AgentCard {
     types::AgentCard {
-        name: "Xavier2".to_string(),
+        name: "Xavier".to_string(),
         description: "Cognitive Memory System with A2A Protocol support".to_string(),
         url: "http://localhost:8003".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -628,7 +628,7 @@ impl A2AProtocol {
         self.validate_message(&payload)?;
         Ok(A2AMessage::new(
             sender,
-            "xavier2".to_string(),
+            "xavier".to_string(),
             MessageType::Response,
             payload,
         ))
@@ -701,22 +701,19 @@ mod tests {
     fn test_message() -> types::Message {
         types::Message {
             role: "user".to_string(),
-            content: types::MessageContent::Text("hello xavier2".to_string()),
+            content: types::MessageContent::Text("hello xavier".to_string()),
         }
     }
 
     fn test_server() -> A2AServer {
-        A2AServer::new(
-            create_xavier2_agent_card(),
-            Arc::new(TestTaskHandler::new()),
-        )
+        A2AServer::new(create_xavier_agent_card(), Arc::new(TestTaskHandler::new()))
     }
 
     #[test]
-    fn create_xavier2_agent_card_exposes_expected_metadata() {
-        let card = create_xavier2_agent_card();
+    fn create_xavier_agent_card_exposes_expected_metadata() {
+        let card = create_xavier_agent_card();
 
-        assert_eq!(card.name, "Xavier2");
+        assert_eq!(card.name, "Xavier");
         assert_eq!(card.version, env!("CARGO_PKG_VERSION"));
         assert_eq!(card.skills.len(), 3);
         assert!(card.capabilities.streaming);
@@ -747,10 +744,10 @@ mod tests {
     #[test]
     fn client_registry_returns_registered_agent() {
         let client = A2AClient::new();
-        let card = create_xavier2_agent_card();
-        client.register_agent("xavier2", card.clone());
+        let card = create_xavier_agent_card();
+        client.register_agent("xavier", card.clone());
 
-        assert_eq!(client.get_registered_agent("xavier2"), Some(card));
+        assert_eq!(client.get_registered_agent("xavier"), Some(card));
         assert_eq!(client.get_registered_agent("missing"), None);
     }
 

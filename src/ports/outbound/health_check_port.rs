@@ -11,11 +11,11 @@ pub struct HealthStatus {
     pub active_agents: usize,
 }
 
-/// Outbound port for checking Xavier2 health.
-/// Abstracts the HTTP call to /xavier2/health so SessionSyncTask
+/// Outbound port for checking Xavier health.
+/// Abstracts the HTTP call to /xavier/health so SessionSyncTask
 /// doesn't depend on reqwest directly.
 #[async_trait]
 pub trait HealthCheckPort: Send + Sync {
-    /// Check Xavier2 health endpoint and return status.
+    /// Check Xavier health endpoint and return status.
     async fn check_health(&self) -> anyhow::Result<HealthStatus>;
 }

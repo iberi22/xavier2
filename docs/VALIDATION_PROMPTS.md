@@ -1,13 +1,13 @@
-# Xavier2 Validation Prompts
+# Xavier Validation Prompts
 
-Use these prompts to validate Xavier2 installation and performance.
+Use these prompts to validate Xavier installation and performance.
 
 ---
 
 ## 1. Basic Health Check
 
 ```
-Ask Xavier2: "What is your version and status?"
+Ask Xavier: "What is your version and status?"
 Expected: {version, status: ok}
 ```
 
@@ -15,7 +15,7 @@ Expected: {version, status: ok}
 
 ### Add Memory
 ```
-Add: "Xavier2 validation test - [DATE]"
+Add: "Xavier validation test - [DATE]"
 Metadata: source=validation, priority=low
 Expected: {status: ok}
 ```
@@ -23,7 +23,7 @@ Expected: {status: ok}
 ### Search Memory
 ```
 Search: "validation test"
-Expected: Results containing "Xavier2 validation"
+Expected: Results containing "Xavier validation"
 ```
 
 ### Stats Check
@@ -78,7 +78,7 @@ Expected: Low quality count > 0 OR = 0
 
 ### OpenClaw Sync
 ```bash
-node sync-all-to-xavier2.js
+node sync-all-to-xavier.js
 Expected: X memories synced
 ```
 
@@ -100,7 +100,7 @@ Expected: {status: ok}
 
 ### Token Auth
 ```
-curl -H "X-Xavier2-Token: wrong-token" /health
+curl -H "X-Xavier-Token: wrong-token" /health
 Expected: 401 Unauthorized
 ```
 
@@ -109,10 +109,10 @@ Expected: 401 Unauthorized
 ## Automated Validation Script
 
 ```powershell
-# xavier2-validation.ps1
+# xavier-validation.ps1
 $ErrorActionPreference = "Stop"
 
-Write-Host "🧪 Xavier2 Validation" -ForegroundColor Cyan
+Write-Host "🧪 Xavier Validation" -ForegroundColor Cyan
 
 # 1. Health
 $h = Invoke-RestMethod http://localhost:8003/health
@@ -142,7 +142,7 @@ Write-Host "`n🎉 All validations passed!" -ForegroundColor Green
 
 Run with:
 ```powershell
-.\xavier2-validation.ps1
+.\xavier-validation.ps1
 ```
 
 ---

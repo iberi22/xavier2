@@ -1,6 +1,6 @@
 //! Billing module for Stripe integration.
 //!
-//! Provides cloud tier billing for Xavier2 with the following pricing:
+//! Provides cloud tier billing for Xavier with the following pricing:
 //! - Free: $0/mo - Local only
 //! - Cloud: $8/mo - 1GB storage, 3 nodes
 //! - Pro: $19/mo - 10GB storage, 10 nodes
@@ -34,9 +34,9 @@ impl BillingConfig {
         Self {
             enabled: stripe_client::StripeClient::is_configured(),
             success_url: std::env::var("STRIPE_SUCCESS_URL")
-                .unwrap_or_else(|_| "https://xavier2.example.com/billing/success".to_string()),
+                .unwrap_or_else(|_| "https://xavier.example.com/billing/success".to_string()),
             cancel_url: std::env::var("STRIPE_CANCEL_URL")
-                .unwrap_or_else(|_| "https://xavier2.example.com/billing/cancel".to_string()),
+                .unwrap_or_else(|_| "https://xavier.example.com/billing/cancel".to_string()),
         }
     }
 }

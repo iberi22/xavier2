@@ -1,31 +1,31 @@
 ---
-title: "Xavier2 API: Rules & Guidelines for AI Agents"
+title: "Xavier API: Rules & Guidelines for AI Agents"
 type: GUIDE
-id: "guide-xavier2-api"
+id: "guide-xavier-api"
 created: 2026-03-21
 updated: 2026-03-26
 agent: antigravity
 model: gemini-2.0-pro
 requested_by: user
 summary: |
-  Comprehensive documentation for AI agents to interact with the Xavier2 Memory System.
+  Comprehensive documentation for AI agents to interact with the Xavier Memory System.
   Includes RPC, REST (v1), Code Intelligence, and Agent Runtime endpoints.
-keywords: [api, curl, agents, guidelines, memory, rag, xavier2]
+keywords: [api, curl, agents, guidelines, memory, rag, xavier]
 tags: ["#api", "#memory", "#agents", "#v2.0"]
 ---
 
-# 🧠 Xavier2 API: Guidelines for AI Agents
+# 🧠 Xavier API: Guidelines for AI Agents
 
-AI agents should use Xavier2 as the primary memory and reasoning backend. This document outlines the protocols for context retrieval, task verification, and long-term memory storage.
+AI agents should use Xavier as the primary memory and reasoning backend. This document outlines the protocols for context retrieval, task verification, and long-term memory storage.
 
 ## 🛡️ Authentication & Environment
-Xavier2 requires a valid token for all requests (except health checks).
+Xavier requires a valid token for all requests (except health checks).
 
-1. **Header**: `X-Xavier2-Token: <your_token>`
+1. **Header**: `X-Xavier-Token: <your_token>`
 2. **Local Development**:
    - Default Token: `dev-token`
    - Default Port: `8003`
-   - Ensure `XAVIER2_DEV_MODE=1` is set in your environment to use the default `dev-token` without explicit configuration.
+   - Ensure `XAVIER_DEV_MODE=1` is set in your environment to use the default `dev-token` without explicit configuration.
 
 ## 📡 Endpoint Categories
 
@@ -35,7 +35,7 @@ Use these for direct manipulation of the cognitive memory buffer.
 - **Add Memory** (`POST /memory/add`)
   ```bash
   curl -X POST http://127.0.0.1:8003/memory/add \
-    -H "X-Xavier2-Token: dev-token" \
+    -H "X-Xavier-Token: dev-token" \
     -H "Content-Type: application/json" \
     -d '{
       "content": "Verified: Branch cleanup task completed successfully.",
@@ -47,7 +47,7 @@ Use these for direct manipulation of the cognitive memory buffer.
 - **Semantic Query** (`POST /memory/query`)
   ```bash
   curl -X POST http://127.0.0.1:8003/memory/query \
-    -H "X-Xavier2-Token: dev-token" \
+    -H "X-Xavier-Token: dev-token" \
     -H "Content-Type: application/json" \
     -d '{ "query": "What was the result of the last branch cleanup?" }'
   ```
@@ -55,7 +55,7 @@ Use these for direct manipulation of the cognitive memory buffer.
 - **Search (Keyword/BM25)** (`POST /memory/search`)
   ```bash
   curl -X POST http://127.0.0.1:8003/memory/search \
-    -H "X-Xavier2-Token: dev-token" \
+    -H "X-Xavier-Token: dev-token" \
     -H "Content-Type: application/json" \
     -d '{ "query": "cleanup", "limit": 5 }'
   ```
@@ -73,7 +73,7 @@ Trigger complex reasoning chains or specialized sub-agents.
 - **Run Agent Task** (`POST /agents/run`)
   ```bash
   curl -X POST http://127.0.0.1:8003/agents/run \
-    -H "X-Xavier2-Token: dev-token" \
+    -H "X-Xavier-Token: dev-token" \
     -H "Content-Type: application/json" \
     -d '{
       "query": "Analyze the potential impact of removing the legacy auth module.",
@@ -87,7 +87,7 @@ Interface with the workspace AST and code-graph.
 - **Find Code Symbols** (`POST /code/find`)
   ```bash
   curl -X POST http://127.0.0.1:8003/code/find \
-    -H "X-Xavier2-Token: dev-token" \
+    -H "X-Xavier-Token: dev-token" \
     -H "Content-Type: application/json" \
     -d '{ "query": "auth_middleware", "kind": "function", "limit": 1 }'
   ```
@@ -106,11 +106,11 @@ Standardized endpoints for compatibility with Mem0/Zep patterns.
 ## 🤖 Agent Usage Patterns
 
 ### Task Verification
-Always store a summary of completed tasks in Xavier2 to ensure persistent recall across sessions.
+Always store a summary of completed tasks in Xavier to ensure persistent recall across sessions.
 > **Action**: `POST /memory/add` with `type: task_verification` in metadata.
 
 ### Context Awareness
-Before starting a complex refactor, query Xavier2 for relevant "Crucial Decisions" or "Architectural Patterns".
+Before starting a complex refactor, query Xavier for relevant "Crucial Decisions" or "Architectural Patterns".
 > **Action**: `POST /memory/query` with reasoning enabled.
 
 ### System Health

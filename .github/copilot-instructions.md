@@ -1,6 +1,6 @@
 # GitHub Copilot Instructions
 
-This repository follows Git-Core Protocol with Xavier2 as the shared memory backend.
+This repository follows Git-Core Protocol with Xavier as the shared memory backend.
 
 ## Canonical Read Order
 
@@ -13,7 +13,7 @@ This repository follows Git-Core Protocol with Xavier2 as the shared memory back
 ## Memory Model
 
 - GitHub Issues are the source of truth for task state and progress.
-- Xavier2 is the source of truth for reusable project memory, research, and long-horizon agent context.
+- Xavier is the source of truth for reusable project memory, research, and long-horizon agent context.
 - Do not create local tracking files such as `TODO.md`, `PLAN.md`, `PROGRESS.md`, or workflow `CHANGELOG.md`.
 
 ## Required Workflow
@@ -26,7 +26,7 @@ This repository follows Git-Core Protocol with Xavier2 as the shared memory back
 
 ## IDE / MCP Rules
 
-- Prefer Xavier2 MCP at `http://localhost:8003/mcp`.
+- Prefer Xavier MCP at `http://localhost:8003/mcp`.
 - Keep credentials in machine environment variables only.
 - Do not hardcode access tokens into config or command arguments stored in repo files.
 

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Xavier2 CLI - Client for Xavier2 Memory Server
+Xavier CLI - Client for Xavier Memory Server
 
 Usage:
-    python xavier2_cli.py create --path "project/doc" --content "Content here"
-    python xavier2_cli.py search --query "authentication"
-    python xavier2_cli.py delete --path "project/doc"
-    python xavier2_cli.py reset
-    python xavier2_cli.py query --query "What changed?"
-    python xavier2_cli.py code-find --query "AgentRuntime"
-    python xavier2_cli.py code-stats
-    python xavier2_cli.py sync-gitcore --project "E:/scripts-python/manteniapp"
+    python xavier_cli.py create --path "project/doc" --content "Content here"
+    python xavier_cli.py search --query "authentication"
+    python xavier_cli.py delete --path "project/doc"
+    python xavier_cli.py reset
+    python xavier_cli.py query --query "What changed?"
+    python xavier_cli.py code-find --query "AgentRuntime"
+    python xavier_cli.py code-stats
+    python xavier_cli.py sync-gitcore --project "E:/scripts-python/manteniapp"
 """
 
 import argparse
@@ -21,17 +21,27 @@ from pathlib import Path
 import requests
 
 # Configuration
-XAVIER2_URL = os.environ.get("XAVIER2_URL", "http://localhost:8003")
-XAVIER2_TOKEN = os.environ.get("XAVIER2_TOKEN", "dev-token")
+XAVIER_URL = os.environ.get("XAVIER_URL", "http://localhost:8003")
 
 
-class Xavier2Client:
-    """Client for the Xavier2 HTTP API."""
+def get_required_xavier_token() -> str:
+    for env_var in ("XAVIER_TOKEN", "XAVIER_API_KEY", "XAVIER_TOKEN"):
+        token = os.environ.get(env_var, "").strip()
+        if token:
+            return token
+    raise RuntimeError("Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.")
 
-    def __init__(self, url=XAVIER2_URL, token=XAVIER2_TOKEN):
+
+XAVIER_TOKEN = get_required_xavier_token()
+
+
+class XavierClient:
+    """Client for the Xavier HTTP API."""
+
+    def __init__(self, url=XAVIER_URL, token=XAVIER_TOKEN):
         self.url = url.rstrip("/")
         self.token = token
-        self.headers = {"X-Xavier2-Token": token}
+        self.headers = {"X-Xavier-Token": token}
 
     def create_memory(self, path: str, content: str, metadata: dict = None):
         response = requests.post(
@@ -138,7 +148,7 @@ class Xavier2Client:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Xavier2 CLI")
+    parser = argparse.ArgumentParser(description="Xavier CLI")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     create_parser = subparsers.add_parser("create", help="Create memory")
@@ -176,7 +186,7 @@ def main():
         parser.print_help()
         return
 
-    client = Xavier2Client()
+    client = XavierClient()
 
     if args.command == "create":
         metadata = json.loads(args.metadata) if args.metadata else None

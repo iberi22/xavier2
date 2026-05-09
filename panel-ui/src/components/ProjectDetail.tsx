@@ -57,7 +57,7 @@ export function ProjectDetail({ project, onBack, onRefresh }: ProjectDetailProps
               CI: {ciStatus.icon} {ciStatus.label}
             </Badge>
           </div>
-          
+
           <h1>{project.name}</h1>
           <p className="repo-link">
             <a href={`https://github.com/${project.repo}`} target="_blank" rel="noopener noreferrer">
@@ -144,8 +144,8 @@ function HealthBar({ label, status }: { label: string; status: 'passing' | 'warn
     <div className="health-bar-row">
       <span className="health-bar-label">{label}</span>
       <div className="health-bar-track">
-        <div 
-          className="health-bar-fill" 
+        <div
+          className="health-bar-fill"
           style={{ width: bar.width, backgroundColor: bar.color }}
         />
       </div>
@@ -162,7 +162,7 @@ function formatRelativeTime(dateStr: string): string {
     const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
-    
+
     if (diffHours < 1) return 'Just now';
     if (diffHours < 24) return `${diffHours} hours ago`;
     if (diffDays < 7) return `${diffDays} days ago`;

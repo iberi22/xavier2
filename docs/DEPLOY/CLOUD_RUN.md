@@ -1,6 +1,6 @@
-# Xavier2 on Google Cloud Free Tier
+# Xavier on Google Cloud Free Tier
 
-Deploy Xavier2 to Google Cloud using free-tier eligible services.
+Deploy Xavier to Google Cloud using free-tier eligible services.
 
 ## Free Tier Resources
 
@@ -22,20 +22,20 @@ Deploy Xavier2 to Google Cloud using free-tier eligible services.
 gcloud auth configure-docker
 
 # Build image
-docker build -t xavier2 .
+docker build -t xavier .
 
 # Tag for Artifact Registry
-docker tag xavier2 gcr.io/[PROJECT-ID]/xavier2:v0.4.1
+docker tag xavier gcr.io/[PROJECT-ID]/xavier:v0.4.1
 
 # Push
-docker push gcr.io/[PROJECT-ID]/xavier2:v0.4.1
+docker push gcr.io/[PROJECT-ID]/xavier:v0.4.1
 ```
 
 ### 2. Deploy to Cloud Run
 
 ```bash
-gcloud run deploy xavier2 \
-  --image gcr.io/[PROJECT-ID]/xavier2:v0.4.1 \
+gcloud run deploy xavier \
+  --image gcr.io/[PROJECT-ID]/xavier:v0.4.1 \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
@@ -47,8 +47,8 @@ gcloud run deploy xavier2 \
 ### 3. Set Environment Variables
 
 ```bash
-gcloud run services update xavier2 \
-  --set-env-vars "XAVIER2_TOKEN=your-secure-token" \
+gcloud run services update xavier \
+  --set-env-vars "XAVIER_TOKEN=your-secure-token" \
   --region us-central1
 ```
 
@@ -90,23 +90,23 @@ gcloud app deploy
 ### Cloud Storage (~$0.02/GB/month)
 ```bash
 # Mount GCS bucket as volume
-gcloud run deploy xavier2 \
+gcloud run deploy xavier \
   --mount-memory=512Mi \
-  --volume "xavier2-data=/data" \
+  --volume "xavier-data=/data" \
   ...
 ```
 
 ### Cloud SQL (First 90 days free)
 ```bash
 # Create instance
-gcloud sql instances create xavier2-db \
+gcloud sql instances create xavier-db \
   --database-version=MYSQL_8_0 \
   --tier=db-f1-micro \
   --region=us-central1
 
 # Connect from Cloud Run
-gcloud run deploy xavier2 \
-  --add-cloudsql-instances=[PROJECT-ID]:us-central1:xavier2-db
+gcloud run deploy xavier \
+  --add-cloudsql-instances=[PROJECT-ID]:us-central1:xavier-db
 ```
 
 ---
@@ -114,7 +114,7 @@ gcloud run deploy xavier2 \
 ## Custom Domain (Free)
 
 ```bash
-gcloud run domain-mappings create --service xavier2 --domain xavier2.yourdomain.com
+gcloud run domain-mappings create --service xavier --domain xavier.yourdomain.com
 ```
 
 SSL is automatic with Cloud Run.
@@ -150,9 +150,9 @@ COPY . .
 RUN cargo build --release --features ci-safe
 
 FROM debian:bookworm-slim
-COPY --from=builder /app/target/release/xavier2 /usr/local/bin/
+COPY --from=builder /app/target/release/xavier /usr/local/bin/
 EXPOSE 8003
-CMD ["xavier2"]
+CMD ["xavier"]
 ```
 
 ---
@@ -165,7 +165,7 @@ curl https://[YOUR-REGION]-[PROJECT-ID].run.app/health
 
 Response:
 ```json
-{"status":"ok","service":"xavier2","version":"0.4.1"}
+{"status":"ok","service":"xavier","version":"0.4.1"}
 ```
 
 ---
@@ -174,7 +174,7 @@ Response:
 
 ```bash
 # View logs
-gcloud run logs xavier2 --region us-central1
+gcloud run logs xavier --region us-central1
 
 # View metrics
 gcloud monitoring dashboard create --config-from-file=dashboard.json
@@ -186,7 +186,7 @@ gcloud monitoring dashboard create --config-from-file=dashboard.json
 
 ### Container exceeds memory
 ```bash
-gcloud run services update xavier2 \
+gcloud run services update xavier \
   --memory 1Gi \
   --region us-central1
 ```

@@ -1,4 +1,4 @@
-//! Core memory store trait and shared types for Xavier2.
+//! Core memory store trait and shared types for Xavier.
 //!
 //! Defines the MemoryStore trait and all shared data structures
 //! used by concrete store implementations (SqliteMemoryStore in sqlite_store.rs,

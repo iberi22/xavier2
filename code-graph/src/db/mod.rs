@@ -112,12 +112,12 @@ impl CodeGraphDB {
                 parent TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
-            
+
             CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
             CREATE INDEX IF NOT EXISTS idx_symbols_kind ON symbols(kind);
             CREATE INDEX IF NOT EXISTS idx_symbols_lang ON symbols(lang);
             CREATE INDEX IF NOT EXISTS idx_symbols_file ON symbols(file_path);
-            
+
             CREATE TABLE IF NOT EXISTS refs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 symbol_id INTEGER NOT NULL,
@@ -127,9 +127,9 @@ impl CodeGraphDB {
                 context TEXT,
                 FOREIGN KEY (symbol_id) REFERENCES symbols(id)
             );
-            
+
             CREATE INDEX IF NOT EXISTS idx_refs_symbol ON refs(symbol_id);
-            
+
             CREATE TABLE IF NOT EXISTS imports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 from_path TEXT NOT NULL,
@@ -137,9 +137,9 @@ impl CodeGraphDB {
                 file_path TEXT NOT NULL,
                 line INTEGER NOT NULL
             );
-            
+
             CREATE INDEX IF NOT EXISTS idx_imports_file ON imports(file_path);
-            
+
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL

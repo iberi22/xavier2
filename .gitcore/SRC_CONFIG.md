@@ -1,21 +1,21 @@
-# SRC Configuration - Xavier2
+# SRC Configuration - Xavier
 
-**Versión:** 1.0  
-**Fecha:** 2026-04-14  
-**Proyecto:** Xavier2 Cognitive Memory System
+**Versión:** 1.0
+**Fecha:** 2026-04-14
+**Proyecto:** Xavier Cognitive Memory System
 
 ---
 
 ## 1. Propósito
 
-Este archivo define la configuración del sistema SRC (Software Requirements Specification) para Xavier2, un motor de memoria cognitiva para agentes IA.
+Este archivo define la configuración del sistema SRC (Software Requirements Specification) para Xavier, un motor de memoria cognitiva para agentes IA.
 
 ---
 
 ## 2. Estructura SRC
 
 ```
-XAVIER2/
+XAVIER/
 ├── docs/
 │   ├── SRC/
 │   │   ├── index.md              ← Entry point
@@ -51,13 +51,13 @@ XAVIER2/
 ### IDs de Requisitos
 
 ```
-XAVIER2-[TIPO]-[NÚMERO]
+XAVIER-[TIPO]-[NÚMERO]
 
 Ejemplos:
-XAVIER2-FUN-001  → Requisito funcional #1
-XAVIER2-NF-001   → Requisito no funcional #1
-XAVIER2-INT-001  → Interface #1
-XAVIER2-DB-001   → Entidad de base de datos #1
+XAVIER-FUN-001  → Requisito funcional #1
+XAVIER-NF-001   → Requisito no funcional #1
+XAVIER-INT-001  → Interface #1
+XAVIER-DB-001   → Entidad de base de datos #1
 ```
 
 ### Estados
@@ -79,7 +79,7 @@ Los requisitos SRC se linkean con `.gitcore/planning/TASK.md`:
 ```
 | ID            | Requirement          | Status      | Issue |
 |---------------|----------------------|-------------|-------|
-| XAVIER2-FUN-001 | Memory persistence | implemented | #123  |
+| XAVIER-FUN-001 | Memory persistence | implemented | #123  |
 ```
 
 ---
@@ -94,11 +94,11 @@ Ver `.gitcore/features.json` para tracking oficial.
 
 ```yaml
 src_version: "1.0"
-project: "Xavier2"
+project: "Xavier"
 version: "0.4.1"
 created: "2026-04-14"
 ```
 
 ---
 
-*Configuración SRC para Xavier2*
+*Configuración SRC para Xavier*

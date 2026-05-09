@@ -12,7 +12,7 @@ impl Drop for ChildGuard {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_health_endpoint_via_xavier2_binary() {
+async fn test_health_endpoint_via_xavier_binary() {
     let port = TcpListener::bind("127.0.0.1:0")
         .expect("bind ephemeral port")
         .local_addr()
@@ -20,18 +20,18 @@ async fn test_health_endpoint_via_xavier2_binary() {
         .port();
     let url = format!("http://127.0.0.1:{port}");
     let _child = ChildGuard(
-        std::process::Command::new(env!("CARGO_BIN_EXE_xavier2"))
-            .env("XAVIER2_HOST", "127.0.0.1")
-            .env("XAVIER2_PORT", port.to_string())
-            .env("XAVIER2_TOKEN", "test-token")
+        std::process::Command::new(env!("CARGO_BIN_EXE_xavier"))
+            .env("XAVIER_HOST", "127.0.0.1")
+            .env("XAVIER_PORT", port.to_string())
+            .env("XAVIER_TOKEN", "test-token")
             .env(
-                "XAVIER2_CODE_GRAPH_DB_PATH",
+                "XAVIER_CODE_GRAPH_DB_PATH",
                 format!("data/e2e-code-graph-{port}.db"),
             )
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .expect("failed to start xavier2 binary"),
+            .expect("failed to start xavier binary"),
     );
 
     let client = reqwest::Client::new();
@@ -58,7 +58,7 @@ async fn test_health_endpoint_via_xavier2_binary() {
                 assert!(readiness.status().is_success());
                 assert!(readiness.headers().contains_key("x-request-id"));
                 let readiness_body = readiness.text().await.expect("readiness body");
-                assert!(readiness_body.contains("\"service\":\"xavier2\""));
+                assert!(readiness_body.contains("\"service\":\"xavier\""));
                 assert!(
                     readiness_body.contains("\"status\":\"ok\"")
                         || readiness_body.contains("\"status\":\"degraded\"")
@@ -75,7 +75,7 @@ async fn test_health_endpoint_via_xavier2_binary() {
 
                 let authorized = client
                     .get(&protected_url)
-                    .header("X-Xavier2-Token", "test-token")
+                    .header("X-Xavier-Token", "test-token")
                     .send()
                     .await
                     .expect("authorized response");
@@ -92,13 +92,13 @@ async fn test_health_endpoint_via_xavier2_binary() {
         }
     }
 
-    assert!(healthy, "xavier2 did not expose a healthy /health endpoint");
+    assert!(healthy, "xavier did not expose a healthy /health endpoint");
     assert!(
         readiness_checked,
-        "xavier2 did not expose a valid /readiness endpoint"
+        "xavier did not expose a valid /readiness endpoint"
     );
     assert!(
         auth_checked,
-        "xavier2 did not enforce authentication on protected routes"
+        "xavier did not enforce authentication on protected routes"
     );
 }

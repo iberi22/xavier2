@@ -5,7 +5,7 @@ const panelApiRoot = "/panel/api";
 const assetRoot =
   appPath === "/" ? "/assets" : `${appPath.replace(/\/$/, "")}/assets`;
 const prompts = [
-  "Explain xavier2 memory and show the answer as a structured UI.",
+  "Explain xavier memory and show the answer as a structured UI.",
   "Summarize the current agent workflow as cards with supporting details.",
 ];
 
@@ -16,13 +16,13 @@ async function enterPanel(page: Page) {
     page.getByText("OpenUI cockpit for the internal agent"),
   ).toBeVisible();
 
-  await page.getByPlaceholder("XAVIER2_TOKEN").fill("dev-token");
+  await page.getByPlaceholder("XAVIER_TOKEN").fill("dev-token");
   await page.getByRole("button", { name: "Enter panel" }).click();
 
   await expect(page.getByRole("button", { name: "New thread" })).toBeVisible();
 }
 
-test.describe("Xavier2 generative panel", () => {
+test.describe("Xavier generative panel", () => {
   test("keeps the shell public while protecting panel APIs and assets", async ({
     page,
     request,
@@ -45,7 +45,7 @@ test.describe("Xavier2 generative panel", () => {
     const authorizedThreadsResponse = await request.get(
       `${panelApiRoot}/threads`,
       {
-        headers: { "X-Xavier2-Token": "dev-token" },
+        headers: { "X-Xavier-Token": "dev-token" },
       },
     );
     expect(authorizedThreadsResponse.status()).toBe(200);
@@ -65,7 +65,7 @@ test.describe("Xavier2 generative panel", () => {
     await expect(page.locator(".message-card")).toHaveCount(0);
 
     const composer = page.getByPlaceholder(
-      "Ask Xavier2 for memory, code, or a structured answer...",
+      "Ask Xavier for memory, code, or a structured answer...",
     );
 
     for (const prompt of prompts) {
@@ -95,7 +95,7 @@ test.describe("Xavier2 generative panel", () => {
     await expect(page.locator(".topbar h1")).not.toHaveText("New Thread");
 
     const threadsResponse = await request.get(`${panelApiRoot}/threads`, {
-      headers: { "X-Xavier2-Token": "dev-token" },
+      headers: { "X-Xavier-Token": "dev-token" },
     });
     const threads = (await threadsResponse.json()) as Array<{
       id: string;
@@ -108,7 +108,7 @@ test.describe("Xavier2 generative panel", () => {
     const detailResponse = await request.get(
       `${panelApiRoot}/threads/${activeThread?.id}`,
       {
-        headers: { "X-Xavier2-Token": "dev-token" },
+        headers: { "X-Xavier-Token": "dev-token" },
       },
     );
     expect(detailResponse.status()).toBe(200);

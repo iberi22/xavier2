@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build Xavier2 using Docker BuildKit (no cross-compilation needed)
+# Build Xavier using Docker BuildKit (no cross-compilation needed)
 set -e
 
-echo "=== Xavier2 Docker Build (Native) ==="
+echo "=== Xavier Docker Build (Native) ==="
 
 cd "$(dirname "$0")/.."
 
@@ -16,10 +16,10 @@ fi
 echo "Building Docker image..."
 DOCKER_BUILDKIT=1 docker build \
     --platform linux/amd64 \
-    -t iberi22/xavier2:latest \
+    -t iberi22/xavier:latest \
     -f docker/Dockerfile \
     .
 
 echo ""
 echo "=== Build successful ==="
-docker images iberi22/xavier2 --format "{{.Repository}}:{{.Tag}} - {{.Size}}"
+docker images iberi22/xavier --format "{{.Repository}}:{{.Tag}} - {{.Size}}"

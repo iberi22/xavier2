@@ -1,28 +1,28 @@
-# Xavier2 — Fast Vector Memory for AI Agents
+# Xavier — Fast Vector Memory for AI Agents
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.6.0--beta-green.svg)](https://github.com/iberi22/xavier2)
+[![Version](https://img.shields.io/badge/version-0.6.0--beta-green.svg)](https://github.com/iberi22/xavier)
 [![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/iberi22/xavier2/actions)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/iberi22/xavier/actions)
 
-Xavier2 is a **Rust-based memory runtime for AI agents** with HTTP, CLI, and MCP entry points. It stores, retrieves, and manages vector embeddings and structured memory over a SQLite-backed store, giving agents fast contextual recall without external dependencies.
+Xavier is a **Rust-based memory runtime for AI agents** with HTTP, CLI, and MCP entry points. It stores, retrieves, and manages vector embeddings and structured memory over a SQLite-backed store, giving agents fast contextual recall without external dependencies.
 
 ## Quick Start
 
 ```bash
 # Option 1: Install from source
-cargo install xavier2
+cargo install xavier
 
 # Option 2: Run with Docker
-docker run -p 8006:8006 -v xavier-data:/data ghcr.io/iberi22/xavier2:latest
+docker run -p 8006:8006 -v xavier-data:/data ghcr.io/iberi22/xavier:latest
 
 # Start the server with a token
-export XAVIER2_TOKEN=your-secret-token
-xavier2 http
+export XAVIER_TOKEN=your-secret-token
+xavier http
 
 # Add and search memory
-xavier2 add "AI agents should always verify their sources" "agent-guidelines"
-xavier2 search "agent guidelines"
+xavier add "AI agents should always verify their sources" "agent-guidelines"
+xavier search "agent guidelines"
 ```
 
 ## Features
@@ -38,7 +38,7 @@ xavier2 search "agent guidelines"
 
 ## Enterprise Plugins
 
-Xavier2 supports enterprise integrations via the plugin system:
+Xavier supports enterprise integrations via the plugin system:
 
 ### Cortex Enterprise
 Bidirectional sync with Cortex Enterprise Cloud.
@@ -49,7 +49,7 @@ export CORTEX_ENTERPRISE_URL=https://cortex.example.com
 export CORTEX_TOKEN=your-token
 
 # Sync manually
-xavier2 plugin sync cortex push
+xavier plugin sync cortex push
 ```
 
 ### PgHeart
@@ -62,7 +62,7 @@ export PGHEART_TOKEN=your-token
 export PGHEART_INSTANCE_ID=instance-123
 
 # Sync manually
-xavier2 plugin sync pgheart push
+xavier plugin sync pgheart push
 ```
 
 ### Automated Sync
@@ -99,7 +99,7 @@ The three entry points (CLI, HTTP, MCP) share the same core engine, which handle
 Generate a public, read-optimized dataset for agent context without cloning or rebuilding:
 
 ```bash
-xavier2 export --public
+xavier export --public
 ```
 
 Output lives in `xavier-dataset/` at the repository root with NDJSON files for memories, entities, timeline events, git commits, code symbols, and more.
@@ -107,7 +107,7 @@ Output lives in `xavier-dataset/` at the repository root with NDJSON files for m
 Example agent bootstrap from GitHub raw:
 
 ```bash
-BASE="https://raw.githubusercontent.com/iberi22/xavier2/main/xavier-dataset"
+BASE="https://raw.githubusercontent.com/iberi22/xavier/main/xavier-dataset"
 
 curl -fsSL "$BASE/dataset_manifest.json"
 curl -fsSL "$BASE/memories.ndjson" | head -n 20
@@ -122,12 +122,12 @@ Full export schema is documented at [docs/FEATURE_STATUS.md](docs/FEATURE_STATUS
 curl http://localhost:8006/health
 
 curl -X POST http://localhost:8006/memory/add \
-  -H "X-Xavier2-Token: $XAVIER2_TOKEN" \
+  -H "X-Xavier-Token: $XAVIER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"content":"Design decision: use RRF","path":"decisions/001"}'
 
 curl -X POST http://localhost:8006/memory/search \
-  -H "X-Xavier2-Token: $XAVIER2_TOKEN" \
+  -H "X-Xavier-Token: $XAVIER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query":"design decision","limit":5}'
 ```
@@ -139,26 +139,26 @@ Full API reference: [docs/site/src/content/docs/reference/api.md](docs/site/src/
 Start the MCP stdio server:
 
 ```bash
-xavier2 mcp
+xavier mcp
 ```
 
 Current MCP tools: `search`, `add`, `stats`.
 
 ## Public Data & Export
 
-Xavier2 will expose a public export pipeline through:
+Xavier will expose a public export pipeline through:
 
 ```bash
-xavier2 export --public \
-  --huggingface-repo iberi22/xavier2-dataset \
+xavier export --public \
+  --huggingface-repo iberi22/xavier-dataset \
   --huggingface-token $HUGGINGFACE_TOKEN
 ```
 
 The export protocol splits lightweight public context from heavy analytical artifacts:
 
-1. Generate NDJSON manifests and JSON schemas, then commit them to GitHub in `iberi22/xavier2-dataset`.
+1. Generate NDJSON manifests and JSON schemas, then commit them to GitHub in `iberi22/xavier-dataset`.
 2. Generate Parquet files for embeddings and metrics, a complete `.sqlite3` snapshot, and vector indexes such as `.lance/` or `.faiss`.
-3. Upload the heavy artifacts to the Hugging Face dataset `iberi22/xavier2-dataset`.
+3. Upload the heavy artifacts to the Hugging Face dataset `iberi22/xavier-dataset`.
 4. Include Hugging Face artifact URLs inside the NDJSON records committed to GitHub.
 
 Use GitHub raw URLs for lightweight agent context and Hugging Face for larger downloads.
@@ -173,13 +173,13 @@ See the full public export reference in [docs/site/src/content/docs/reference/ex
 
 ## Configuration
 
-Runtime configuration lives in [config/xavier2.config.json](config/xavier2.config.json). Secrets go in `.env` (see [.env.example](.env.example)).
+Runtime configuration lives in [config/xavier.config.json](config/xavier.config.json). Secrets go in `.env` (see [.env.example](.env.example)).
 
 | Variable | Default | Description |
 |---|---|---|
-| `XAVIER2_TOKEN` | auto-generated | Authentication token for HTTP API |
-| `XAVIER2_DEV_MODE` | `false` | Skip auth in development scenarios |
-| `XAVIER2_CONFIG_PATH` | `config/xavier2.config.json` | Override runtime config file |
+| `XAVIER_TOKEN` | auto-generated | Authentication token for HTTP API |
+| `XAVIER_DEV_MODE` | `false` | Skip auth in development scenarios |
+| `XAVIER_CONFIG_PATH` | `config/xavier.config.json` | Override runtime config file |
 | Provider keys | unset | External API credentials (e.g. embedding providers) |
 
 ## Documentation

@@ -13,7 +13,7 @@ pub struct ContextBuilderConfig {
 impl Default for ContextBuilderConfig {
     fn default() -> Self {
         Self {
-            persona: "You are Xavier2, a cognitive memory runtime for AI agents.".to_string(),
+            persona: "You are Xavier, a cognitive memory runtime for AI agents.".to_string(),
             rules: vec![],
             goals: vec![],
             constraints: vec![],

@@ -1,25 +1,25 @@
 # SWAL Memory — Technical Backlog (from Engram analysis)
 
-> Extracted from `docs/engram_extraction_analysis_prompt.md`. Engram is design reference only — these are ideas to consider for Xavier2/Cortex, not direct imports.
+> Extracted from `docs/engram_extraction_analysis_prompt.md`. Engram is design reference only — these are ideas to consider for Xavier/Cortex, not direct imports.
 
 ---
 
 ## 1. Canonical Project Identity
 - **What:** Projects have a stable canonical ID across sessions/contexts
 - **Why matters:** Prevents fragmentation when same project referenced via different paths
-- **Status:** Not implemented in Xavier2/Cortex
+- **Status:** Not implemented in Xavier/Cortex
 - **Priority:** 🟡 Medium
 
 ## 2. Session Context Alignment
 - **What:** Memory layer understands active session context vs global context
 - **Why matters:** Reduces hallucination in retrieval when session scope is explicit
-- **Status:** Xavier2 has workspace_id concept, but session-level context not modeled
+- **Status:** Xavier has workspace_id concept, but session-level context not modeled
 - **Priority:** 🟡 Medium
 
 ## 3. Topic-Key Upsert
 - **What:** Merge semantics (update if exists, insert if not) at the topic/thread level
 - **Why matters:** Avoids duplicate entries for the same logical memory
-- **Status:** Xavier2 has revision tracking, but topic-level dedup not implemented
+- **Status:** Xavier has revision tracking, but topic-level dedup not implemented
 - **Priority:** 🟡 Medium
 
 ## 4. Duplicate Counter / Occurrence Tracking
@@ -31,13 +31,13 @@
 ## 5. Progressive Retrieval
 - **What:** Start with fast/cheap results, escalate to deep/expensive search only if needed
 - **Why matters:** For real-time use cases, avoid expensive embedding search when keyword match suffices
-- **Status:** Xavier2 has hybrid search but no explicit escalation path
+- **Status:** Xavier has hybrid search but no explicit escalation path
 - **Priority:** 🟡 Medium
 
 ## 6. MCP Profiles (Multi-Context Protocol)
 - **What:** Attach different retrieval/config profiles to different contexts
 - **Why matters:** Developer context vs chat context vs automation context need different memory behaviors
-- **Status:** Not modeled in Xavier2
+- **Status:** Not modeled in Xavier
 - **Priority:** 🟡 Medium
 
 ## 7. Token-Savings Benchmark
@@ -49,7 +49,7 @@
 ## 8. Memory Importance Scoring + Decay
 - **What:** Facts that keep being retrieved should be boosted; rarely accessed facts should decay
 - **Why matters:** Keeps most relevant memories at top of results
-- **Status:** Xavier2 hybrid search scores by relevance, but importance/decay not implemented
+- **Status:** Xavier hybrid search scores by relevance, but importance/decay not implemented
 - **Priority:** 🟡 Medium
 
 ---

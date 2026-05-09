@@ -89,7 +89,7 @@ function renderComponent(id: string) {
       return (
         <ListCards
           items={[
-            { icon: '📊', title: 'Xavier2 Memory', subtitle: 'AI-powered search' },
+            { icon: '📊', title: 'Xavier Memory', subtitle: 'AI-powered search' },
             { icon: '🔒', title: 'E2E Encryption', subtitle: 'AES-256-GCM' },
             { icon: '🛡️', title: 'Anticipator', subtitle: 'Prompt injection protection' },
           ]}
@@ -99,14 +99,14 @@ function renderComponent(id: string) {
       return (
         <Timeline
           items={[
-            { date: 'Apr 5, 2026', title: 'Xavier2 99.1% recall', description: 'LoCoMo benchmark' },
+            { date: 'Apr 5, 2026', title: 'Xavier 99.1% recall', description: 'LoCoMo benchmark' },
             { date: 'Apr 4, 2026', title: 'Memory manager', description: 'Decay+consolidate+evict' },
             { date: 'Apr 3, 2026', title: 'SurrealDB v3', description: 'Upgrade complete' },
           ]}
         />
       );
     case 'alert':
-      return <Alert type="info" title="Xavier2 Online" description="Memory system ready at 99.1% recall." />;
+      return <Alert type="info" title="Xavier Online" description="Memory system ready at 99.1% recall." />;
     case 'hero':
       return <HeroBanner value="99.1%" label="Recall Achieved" subtitle="Surpassing industry benchmarks" />;
     case 'leader':
@@ -114,7 +114,7 @@ function renderComponent(id: string) {
         <Leaderboard
           items={[
             { name: 'ManteniApp', value: '100' },
-            { name: 'Xavier2', value: '95' },
+            { name: 'Xavier', value: '95' },
             { name: 'Synapse', value: '87' },
             { name: 'Edge Hive', value: '72' },
           ]}
@@ -127,7 +127,7 @@ function renderComponent(id: string) {
     case 'comparison':
       return (
         <Comparison
-          left={{ label: 'Xavier2', value: '99.1%' }}
+          left={{ label: 'Xavier', value: '99.1%' }}
           right={{ label: 'Mem0', value: '66.88%' }}
         />
       );
@@ -177,7 +177,7 @@ function renderComponent(id: string) {
       return (
         <BadgeRow
           badges={[
-            { label: 'Xavier2', variant: 'blue' },
+            { label: 'Xavier', variant: 'blue' },
             { label: 'Memory', variant: 'green' },
             { label: 'AI', variant: 'purple' },
             { label: 'Secure', variant: 'yellow' },
@@ -200,7 +200,7 @@ export default function App() {
     <div className="min-h-screen bg-bg text-white" style={{ background: '#09090b' }}>
       {/* Header */}
       <div className="border-b px-6 py-4" style={{ borderColor: '#3f3f46', background: '#18181b' }}>
-        <h1 className="text-xl font-bold">🧠 Xavier2 Design System</h1>
+        <h1 className="text-xl font-bold">🧠 Xavier Design System</h1>
         <p className="text-sm text-zinc-400 mt-1">
           React + TypeScript + TailwindCSS — 18 pre-built infographic components
         </p>

@@ -1,6 +1,6 @@
-# Xavier2 Enterprise Edition
+# Xavier Enterprise Edition
 
-Xavier2 is available as an MIT-licensed open-source runtime and as a commercial enterprise offering from SouthWest AI Labs.
+Xavier is available as an MIT-licensed open-source runtime and as a commercial enterprise offering from SouthWest AI Labs.
 
 ## Open Source vs Enterprise
 
@@ -27,7 +27,7 @@ The public runtime ships with the standard RRF baseline. Enterprise deployments 
 
 ### Proprietary embedding models
 
-When `XAVIER2_EMBEDDING_MODEL=enterprise`, enterprise customers may use non-public embedding providers, private routing logic, and tuned model variants delivered by SWAL under commercial agreement.
+When `XAVIER_EMBEDDING_MODEL=enterprise`, enterprise customers may use non-public embedding providers, private routing logic, and tuned model variants delivered by SWAL under commercial agreement.
 
 ### Advanced audit and logging
 
@@ -41,7 +41,7 @@ Enterprise support plans may include response-time targets, private escalation c
 
 | Tier | Monthly Price | Intended Use | Support |
 |------|---------------|--------------|---------|
-| Starter | $49 per workspace | Small teams validating Xavier2 in production-adjacent workflows | Email support, best effort |
+| Starter | $49 per workspace | Small teams validating Xavier in production-adjacent workflows | Email support, best effort |
 | Pro | $499 per workspace | Teams needing faster response times and commercial guidance | Priority support queue |
 | Enterprise | Custom | Organizations needing private enhancements, audit controls, and contractual SLAs | Dedicated support plan |
 

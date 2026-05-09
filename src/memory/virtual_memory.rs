@@ -1,5 +1,5 @@
 // ============================================
-// XAVIER2 MEMORY VIRTUALIZATION LAYER
+// XAVIER MEMORY VIRTUALIZATION LAYER
 // Based on Context Mode MCP architecture
 // ============================================
 //

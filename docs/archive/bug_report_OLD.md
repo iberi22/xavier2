@@ -1,4 +1,4 @@
-# Xavier2 Bug Report
+# Xavier Bug Report
 **File:** `src/server/http.rs`
 **Line:** ~1176
 **Severity:** Critical (blocks compilation)

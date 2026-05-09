@@ -34,7 +34,7 @@ export function Settings() {
     <div className="space-y-8 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Settings</h1>
-        <p className="text-stone-500 text-sm mt-1">Configure your Xavier2 dashboard</p>
+        <p className="text-stone-500 text-sm mt-1">Configure your Xavier dashboard</p>
       </div>
 
       {/* API Keys */}

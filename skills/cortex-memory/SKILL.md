@@ -1,10 +1,10 @@
-# SKILL.md - Xavier2 Memory Agent Skill
+# SKILL.md - Xavier Memory Agent Skill
 
 ## Name
-**xavier2-memory** — Shared memory system for AI agents
+**xavier-memory** — Shared memory system for AI agents
 
 ## Description
-Use Xavier2 as the shared brain for all agent operations. This skill provides:
+Use Xavier as the shared brain for all agent operations. This skill provides:
 - Memory read/write operations
 - Automatic sync from agent sessions
 - Token-efficient patterns
@@ -22,7 +22,7 @@ Memory / Knowledge Management
 ## Commands
 
 ### read_memory(query, limit=5)
-Search Xavier2 for relevant memories.
+Search Xavier for relevant memories.
 
 ```powershell
 POST /memory/search
@@ -30,7 +30,7 @@ Body: { "query": "your question", "limit": 5 }
 ```
 
 ### write_memory(content, metadata)
-Add a memory to Xavier2.
+Add a memory to Xavier.
 
 ```powershell
 POST /memory/add
@@ -92,8 +92,8 @@ READ: "client profile and history"
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| XAVIER2_URL | http://localhost:8003 | Xavier2 API URL |
-| XAVIER2_TOKEN | dev-token | API authentication token |
+| XAVIER_URL | http://localhost:8003 | Xavier API URL |
+| XAVIER_TOKEN | dev-token | API authentication token |
 
 ## Pricing
 
@@ -106,8 +106,8 @@ READ: "client profile and history"
 
 ```bash
 # Clone repository
-git clone https://github.com/iberi22/xavier2-1.git
-cd xavier2-1
+git clone https://github.com/iberi22/xavier.git
+cd xavier
 
 # Run with Docker
 docker compose up -d
@@ -119,7 +119,7 @@ curl http://localhost:8003/health
 ## Files
 
 - `SKILL.md` — This file
-- `xavier2-client.js` — Node.js client library
+- `xavier-client.js` — Node.js client library
 - `examples/` — Usage examples
 
 ## Author

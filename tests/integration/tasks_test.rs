@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod task_tests {
-    use xavier2::tasks::{Task, TaskPriority, TaskStatus};
+    use xavier::tasks::{Task, TaskPriority, TaskStatus};
 
     #[test]
     fn test_task_creation() {
@@ -64,7 +64,7 @@ mod task_tests {
 
 #[cfg(test)]
 mod task_queue_tests {
-    use xavier2::tasks::{Task, TaskPriority, TaskQueue};
+    use xavier::tasks::{Task, TaskPriority, TaskQueue};
 
     #[tokio::test]
     async fn test_task_queue_creation() {

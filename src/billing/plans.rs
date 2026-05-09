@@ -1,4 +1,4 @@
-//! Plan definitions and limits for Xavier2 billing tiers.
+//! Plan definitions and limits for Xavier billing tiers.
 
 use serde::{Deserialize, Serialize};
 

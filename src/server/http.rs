@@ -1,4 +1,4 @@
-//! HTTP handlers for the minimal Xavier2 vertical slice.
+//! HTTP handlers for the minimal Xavier vertical slice.
 
 use axum::{
     extract::{ws::Message, ws::WebSocket, State, WebSocketUpgrade},
@@ -292,7 +292,7 @@ pub fn install_panic_hook() {
         let thread_name = thread.name().map(|n| format!("[{n}] ")).unwrap_or_default();
 
         eprintln!(
-            "--------------------------------------------------\n  PANIC in Xavier2 ({})\n  Thread: {}\n  Location: {}\n--------------------------------------------------\n",
+            "--------------------------------------------------\n  PANIC in Xavier ({})\n  Thread: {}\n  Location: {}\n--------------------------------------------------\n",
             chrono::Utc::now().to_rfc3339(),
             thread_name,
             location
@@ -303,7 +303,7 @@ pub fn install_panic_hook() {
             panic_message = %msg,
             panic_location = %location,
             thread_name = %thread.name().unwrap_or("unknown"),
-            "xavier2_panic"
+            "xavier_panic"
         );
 
         // Call the original hook (default prints to stderr) so we don't
@@ -643,7 +643,7 @@ pub struct ResetMemoryResponse {
 /// Kubernetes liveness probes.
 pub async fn health() -> impl IntoResponse {
     const HEALTH_JSON: &str = concat!(
-        "{\"status\":\"ok\",\"service\":\"xavier2\",\"version\":\"",
+        "{\"status\":\"ok\",\"service\":\"xavier\",\"version\":\"",
         env!("CARGO_PKG_VERSION"),
         "\"}"
     );
@@ -765,7 +765,7 @@ pub async fn readiness(State(state): State<AppState>) -> impl IntoResponse {
 
     Json(ReadinessResponse {
         status: if ready { "ok" } else { "degraded" }.to_string(),
-        service: "xavier2".to_string(),
+        service: "xavier".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         workspace,
         memory_store,
@@ -815,7 +815,7 @@ pub struct BuildInfoResponse {
     pub service: String,
     pub version: String,
     pub rust_log: Option<String>,
-    pub xavier2_log_level: Option<String>,
+    pub xavier_log_level: Option<String>,
     pub model_provider: crate::agents::provider::ModelProviderStatus,
     pub memory_store: MemoryStoreBuildInfo,
 }
@@ -824,10 +824,10 @@ pub async fn build_info(State(state): State<AppState>) -> impl IntoResponse {
     let workspace = state.workspace_registry.default_context().await;
 
     Json(BuildInfoResponse {
-        service: "xavier2".to_string(),
+        service: "xavier".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         rust_log: std::env::var("RUST_LOG").ok(),
-        xavier2_log_level: std::env::var("XAVIER2_LOG_LEVEL").ok(),
+        xavier_log_level: std::env::var("XAVIER_LOG_LEVEL").ok(),
         model_provider: ModelProviderClient::from_env().status(),
         memory_store: workspace
             .map(|workspace| MemoryStoreBuildInfo {
@@ -849,7 +849,7 @@ pub async fn build_info(State(state): State<AppState>) -> impl IntoResponse {
                 audit_chain_enabled: VecSqliteMemoryStore::audit_chain_enabled(),
             })
             .unwrap_or(MemoryStoreBuildInfo {
-                selected_backend: std::env::var("XAVIER2_MEMORY_BACKEND")
+                selected_backend: std::env::var("XAVIER_MEMORY_BACKEND")
                     .map(|value| {
                         crate::memory::store::MemoryBackend::from_env(&value)
                             .as_str()

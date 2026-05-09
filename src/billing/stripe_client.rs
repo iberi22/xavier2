@@ -43,7 +43,7 @@ impl StripeClient {
     /// Create a new Stripe customer
     pub async fn create_customer(&self, email: &str, name: &str) -> Result<Customer> {
         let url = format!("{}/customers", self.base_url());
-        
+
         let params = [
             ("email", email),
             ("name", name),
@@ -220,17 +220,17 @@ impl StripeClient {
 
         // Compute expected signature
         let signed_payload = format!("{}.{}", timestamp, String::from_utf8_lossy(payload));
-        
+
         // Use HMAC SHA256
         use hmac::{Hmac, Mac};
         type HmacSha256 = Hmac<sha2::Sha256>;
-        
+
         let mut mac = HmacSha256::new_from_slice(self.webhook_secret.as_bytes())
             .map_err(|_| anyhow!("HMAC error"))?;
         mac.update(signed_payload.as_bytes());
-        
+
         let expected = hex::encode(mac.finalize().into_bytes());
-        
+
         if sig != expected {
             return Err(anyhow!("Webhook signature verification failed"));
         }
@@ -344,7 +344,7 @@ impl BillingService {
     pub async fn get_status(&self, workspace_id: &str) -> Result<SubscriptionStatus> {
         // Load workspace billing metadata from store
         let metadata = self.get_workspace_billing_metadata(workspace_id).await?;
-        
+
         if let Some(stripe_customer_id) = &metadata.stripe_customer_id {
             if let Some(subscription_id) = &metadata.stripe_subscription_id {
                 match self.stripe.get_subscription(subscription_id).await {
@@ -381,7 +381,7 @@ impl BillingService {
     /// Create a new customer for a workspace
     pub async fn create_customer(&self, workspace_id: &str, email: &str, name: &str) -> Result<String> {
         let customer = self.stripe.create_customer(email, name).await?;
-        
+
         // Store customer ID in workspace metadata
         self.save_workspace_billing_metadata(workspace_id, &WorkspaceBillingMetadata {
             stripe_customer_id: Some(customer.id.clone()),
@@ -401,10 +401,10 @@ impl BillingService {
         cancel_url: &str,
     ) -> Result<String> {
         let metadata = self.get_workspace_billing_metadata(workspace_id).await?;
-        
+
         let customer_id = metadata.stripe_customer_id
             .ok_or_else(|| anyhow!("No Stripe customer found. Call create-customer first."))?;
-        
+
         let price_id = plan.price_id()
             .ok_or_else(|| anyhow!("Plan {} does not have a price configured", plan))?;
 
@@ -425,7 +425,7 @@ impl BillingService {
     /// Create customer portal session
     pub async fn create_portal(&self, workspace_id: &str, return_url: &str) -> Result<String> {
         let metadata = self.get_workspace_billing_metadata(workspace_id).await?;
-        
+
         let customer_id = metadata.stripe_customer_id
             .ok_or_else(|| anyhow!("No Stripe customer found"))?;
 
@@ -436,7 +436,7 @@ impl BillingService {
     /// Cancel subscription
     pub async fn cancel_subscription(&self, workspace_id: &str) -> Result<()> {
         let metadata = self.get_workspace_billing_metadata(workspace_id).await?;
-        
+
         let subscription_id = metadata.stripe_subscription_id
             .ok_or_else(|| anyhow!("No active subscription found"))?;
 

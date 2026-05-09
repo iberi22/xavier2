@@ -1,8 +1,8 @@
-# Xavier2 Feature Status
+# Xavier Feature Status
 
 Current product label: `0.6 beta usable`
 
-This matrix is the operational truth for the repository as of the latest Xavier2 usage review. It is intentionally stricter than roadmap copy: if a feature is not reproducibly usable from the current repo, it is not marked release-ready here.
+This matrix is the operational truth for the repository as of the latest Xavier usage review. It is intentionally stricter than roadmap copy: if a feature is not reproducibly usable from the current repo, it is not marked release-ready here.
 
 ## Release Status
 
@@ -10,9 +10,9 @@ This matrix is the operational truth for the repository as of the latest Xavier2
 |---|---|---|
 | HTTP health/readiness | Beta | `/health` works. `/readiness` responds, but current output still exposes backend noise that should be cleaned before 1.0. |
 | HTTP memory add/search/stats | Beta usable | Authenticated memory write and search work in the current server. |
-| Canonical runtime config | In progress | `config/xavier2.config.json` is now the intended source of non-secret runtime configuration, with `.env` reserved for credentials and secrets. |
-| CLI add/search/stats | Beta usable | These commands currently act as HTTP clients. They require a running server and use `XAVIER2_URL` as the canonical client endpoint, falling back to the JSON config server address. |
-| Public Dataset Export | Planned | `xavier2 export --public` is now a core planned feature. It should generate `xavier-dataset/` with manifest, memory, graph, timeline, git, code symbol, code relation, and CK metrics NDJSON files for public agent context. |
+| Canonical runtime config | In progress | `config/xavier.config.json` is now the intended source of non-secret runtime configuration, with `.env` reserved for credentials and secrets. |
+| CLI add/search/stats | Beta usable | These commands currently act as HTTP clients. They require a running server and use `XAVIER_URL` as the canonical client endpoint, falling back to the JSON config server address. |
+| Public Dataset Export | Planned | `xavier export --public` is now a core planned feature. It should generate `xavier-dataset/` with manifest, memory, graph, timeline, git, code symbol, code relation, and CK metrics NDJSON files for public agent context. |
 | MCP stdio | Beta usable | `initialize`, `tools/list`, `tools/call create_memory`, `tools/call search_memory`, and legacy aliases `add`/`search` work. |
 | Panel shell/API | Experimental | Panel routes exist, but the shell requires built frontend assets and is not consistently release-ready in the current repo state. |
 | Release smoke scripts | Unstable | Current smoke scripts still assume endpoints and defaults that do not always match the running server. |
@@ -23,13 +23,13 @@ This matrix is the operational truth for the repository as of the latest Xavier2
 
 ### Confirmed working
 
-- `xavier2 http`
+- `xavier http`
 - `POST /memory/add`
 - `POST /memory/search`
 - `GET /memory/stats`
 - `GET /health`
 - auth gate on protected routes
-- `xavier2 mcp`
+- `xavier mcp`
 - MCP `tools/list`
 - MCP `tools/call` for `add` and `search`
 
@@ -43,7 +43,7 @@ This matrix is the operational truth for the repository as of the latest Xavier2
 
 ## Definition Of `1.0`
 
-Xavier2 should only be labeled `1.0` when all of the following are true:
+Xavier should only be labeled `1.0` when all of the following are true:
 
 - one canonical server contract exists for CLI, HTTP, MCP, panel, and smoke scripts
 - token and port behavior are documented and consistent

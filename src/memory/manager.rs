@@ -898,7 +898,7 @@ impl MemoryManager {
 }
 
 // Backwards compatibility alias
-pub use MemoryManager as Xavier2MemoryManager;
+pub use MemoryManager as XavierMemoryManager;
 
 /// Legacy action types for backwards compatibility with existing code
 #[derive(Debug, Clone)]

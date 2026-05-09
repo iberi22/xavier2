@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 """
-Real memory benchmark using OpenClaw Xavier2 operations.
-Tests the ACTUAL behavior of Xavier2 with real HTTP API calls.
+Real memory benchmark using OpenClaw Xavier operations.
+Tests the ACTUAL behavior of Xavier with real HTTP API calls.
 No hardcoded expectations - measures real recall, latency, and throughput.
 """
 
 import json
+import os
 import time
 import urllib.request
 import urllib.error
 from datetime import datetime
 
 BASE_URL = "http://localhost:8003"
-TOKEN = "dev-token"
+def get_required_xavier_token() -> str:
+    for env_var in ("XAVIER_TOKEN", "XAVIER_API_KEY", "XAVIER_TOKEN"):
+        token = os.environ.get(env_var, "").strip()
+        if token:
+            return token
+    raise RuntimeError("Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.")
+
+
+TOKEN = get_required_xavier_token()
 OUTPUT_DIR = "benchmark-results/real-memory-benchmark"
 
 
@@ -21,7 +30,7 @@ def api(path: str, payload: dict = None, method: str = "POST") -> dict:
     data = json.dumps(payload).encode("utf-8") if payload else None
     req = urllib.request.Request(
         url, data=data, method=method,
-        headers={"Content-Type": "application/json", "X-Xavier2-Token": TOKEN}
+        headers={"Content-Type": "application/json", "X-Xavier-Token": TOKEN}
     )
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
@@ -29,7 +38,7 @@ def api(path: str, payload: dict = None, method: str = "POST") -> dict:
     except urllib.error.HTTPError as e:
         if e.code == 405 and method == "GET":
             req = urllib.request.Request(url, method="GET",
-                headers={"X-Xavier2-Token": TOKEN})
+                headers={"X-Xavier-Token": TOKEN})
             with urllib.request.urlopen(req, timeout=60) as r:
                 return json.loads(r.read().decode("utf-8"))
         raise
@@ -43,7 +52,7 @@ def wait_health():
                     return
         except Exception:
             time.sleep(1)
-    raise RuntimeError("Xavier2 not healthy")
+    raise RuntimeError("Xavier not healthy")
 
 
 def reset_and_load(documents: list) -> float:
@@ -94,18 +103,18 @@ def run_benchmark():
     import os
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    print(f"Waiting for Xavier2 at {BASE_URL}...")
+    print(f"Waiting for Xavier at {BASE_URL}...")
     wait_health()
-    print("Xavier2 is healthy.")
+    print("Xavier is healthy.")
 
-    dataset_path = "E:\\scripts-python\\xavier2\\scripts\\benchmarks\\datasets\\internal_swal_openclaw_memory.json"
+    dataset_path = "E:\\scripts-python\\xavier\\scripts\\benchmarks\\datasets\\internal_swal_openclaw_memory.json"
     with open(dataset_path, encoding="utf-8") as f:
         dataset = json.load(f)
 
     documents = dataset["documents"]
     cases = dataset["cases"]
 
-    print(f"\nLoading {len(documents)} documents via OpenClaw Xavier2 API...")
+    print(f"\nLoading {len(documents)} documents via OpenClaw Xavier API...")
     load_time_ms = reset_and_load(documents)
     print(f"  [OK] Load time: {load_time_ms:.1f}ms per document")
 
@@ -115,7 +124,7 @@ def run_benchmark():
     correct = 0
     total = len(cases)
 
-    print(f"\nRunning {total} benchmark cases via OpenClaw Xavier2 API...")
+    print(f"\nRunning {total} benchmark cases via OpenClaw Xavier API...")
     for case in cases:
         cid = case["id"]
         endpoint = case["endpoint"]

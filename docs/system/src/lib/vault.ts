@@ -42,14 +42,14 @@ export interface GraphEdge {
  */
 export function readVault(vaultPath: string): Doc[] {
   const docs: Doc[] = [];
-  
+
   function walkDir(dir: string) {
     const files = fs.readdirSync(dir);
-    
+
     for (const file of files) {
       const fullPath = path.join(dir, file);
       const stat = fs.statSync(fullPath);
-      
+
       if (stat.isDirectory()) {
         walkDir(fullPath);
       } else if (file.endsWith('.md') || file.endsWith('.markdown')) {
@@ -58,11 +58,11 @@ export function readVault(vaultPath: string): Doc[] {
       }
     }
   }
-  
+
   if (fs.existsSync(vaultPath)) {
     walkDir(vaultPath);
   }
-  
+
   return docs;
 }
 
@@ -73,14 +73,14 @@ function readDoc(filePath: string, basePath: string): Doc | null {
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
     const { data, content: body } = matter(content);
-    
+
     const slug = path.relative(basePath, filePath)
       .replace(/\.md$/, '')
       .replace(/\\/g, '/');
-    
+
     // Extract internal links [[doc-name]]
     const links = extractInternalLinks(body);
-    
+
     return {
       slug,
       path: filePath,
@@ -109,11 +109,11 @@ function extractInternalLinks(content: string): string[] {
   const regex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
   const links: string[] = [];
   let match;
-  
+
   while ((match = regex.exec(content)) !== null) {
     links.push(match[1]);
   }
-  
+
   return links;
 }
 
@@ -127,38 +127,38 @@ export function buildGraph(docs: Doc[]): { nodes: GraphNode[]; edges: GraphEdge[
     type: doc.metadata.type || 'doc',
     tags: doc.metadata.tags || [],
   }));
-  
+
   const edges: GraphEdge[] = [];
-  
+
   // Add edges from internal links
   docs.forEach(doc => {
     doc.links.forEach(link => {
       // Find target doc
-      const target = docs.find(d => 
-        d.slug === link || 
+      const target = docs.find(d =>
+        d.slug === link ||
         d.metadata.title.toLowerCase() === link.toLowerCase()
       );
-      
+
       if (target) {
         edges.push({ from: doc.slug, to: target.slug });
       }
     });
   });
-  
+
   // Add edges from related field
   docs.forEach(doc => {
     (doc.metadata.related || []).forEach(rel => {
-      const target = docs.find(d => 
-        d.slug === rel || 
+      const target = docs.find(d =>
+        d.slug === rel ||
         d.metadata.title.toLowerCase() === rel.toLowerCase()
       );
-      
+
       if (target) {
         edges.push({ from: doc.slug, to: target.slug });
       }
     });
   });
-  
+
   return { nodes, edges };
 }
 
@@ -167,8 +167,8 @@ export function buildGraph(docs: Doc[]): { nodes: GraphNode[]; edges: GraphEdge[
  */
 export function searchDocs(docs: Doc[], query: string): Doc[] {
   const q = query.toLowerCase();
-  
-  return docs.filter(doc => 
+
+  return docs.filter(doc =>
     doc.metadata.title.toLowerCase().includes(q) ||
     doc.content.toLowerCase().includes(q) ||
     (doc.metadata.tags || []).some(t => t.toLowerCase().includes(q))

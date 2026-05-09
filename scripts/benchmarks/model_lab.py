@@ -21,7 +21,15 @@ DEFAULT_DATASET = (
     ROOT / "scripts" / "benchmarks" / "datasets" / "internal_swal_openclaw_memory.json"
 )
 DEFAULT_BASE_URL = "http://127.0.0.1:8003"
-DEFAULT_TOKEN = os.environ.get("XAVIER2_TOKEN", "dev-token")
+def get_required_xavier_token() -> str:
+    for env_var in ("XAVIER_TOKEN", "XAVIER_API_KEY", "XAVIER_TOKEN"):
+        token = os.environ.get(env_var, "").strip()
+        if token:
+            return token
+    raise RuntimeError("Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.")
+
+
+DEFAULT_TOKEN = get_required_xavier_token()
 HTTP_TIMEOUT_SECONDS = 90
 
 
@@ -41,7 +49,7 @@ def write_json(path: Path, payload: Any) -> None:
 def http_json(url: str, payload: dict | None = None, method: str = "GET") -> dict[str, Any]:
     headers = {
         "Content-Type": "application/json",
-        "X-Xavier2-Token": DEFAULT_TOKEN,
+        "X-Xavier-Token": DEFAULT_TOKEN,
     }
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, method=method, headers=headers)
@@ -58,7 +66,7 @@ def wait_for_health(base_url: str) -> None:
                     return
         except Exception:
             time.sleep(1)
-    raise RuntimeError("Xavier2 did not become healthy in time")
+    raise RuntimeError("Xavier did not become healthy in time")
 
 
 def reserve_base_url(base_url: str) -> str:
@@ -95,24 +103,24 @@ def percentile(values: list[float], pct: float) -> float:
     return lower_value + (upper_value - lower_value) * (rank - lower)
 
 
-def launch_xavier2(
+def launch_xavier(
     base_url: str,
     output_dir: Path,
     env_overrides: dict[str, str],
 ) -> subprocess.Popen[bytes]:
     parsed = urllib.parse.urlparse(base_url)
     env = os.environ.copy()
-    env.setdefault("XAVIER2_TOKEN", DEFAULT_TOKEN)
-    env["XAVIER2_HOST"] = parsed.hostname or "127.0.0.1"
+    env.setdefault("XAVIER_TOKEN", DEFAULT_TOKEN)
+    env["XAVIER_HOST"] = parsed.hostname or "127.0.0.1"
     if parsed.port:
-        env["XAVIER2_PORT"] = str(parsed.port)
+        env["XAVIER_PORT"] = str(parsed.port)
     env.update({key: value for key, value in env_overrides.items() if value is not None})
 
-    stdout_path = output_dir / "xavier2.stdout.log"
-    stderr_path = output_dir / "xavier2.stderr.log"
+    stdout_path = output_dir / "xavier.stdout.log"
+    stderr_path = output_dir / "xavier.stderr.log"
     output_dir.mkdir(parents=True, exist_ok=True)
     return subprocess.Popen(
-        ["cargo", "run", "--bin", "xavier2"],
+        ["cargo", "run", "--bin", "xavier"],
         cwd=ROOT,
         env=env,
         stdout=stdout_path.open("wb"),
@@ -287,14 +295,14 @@ def benchmark_embedding_candidate(
     candidate_dir = output_dir / f"embedding-{candidate['label']}"
     actual_base_url = reserve_base_url(base_url)
     try:
-        child = launch_xavier2(
+        child = launch_xavier(
             actual_base_url,
             candidate_dir,
             {
-                "XAVIER2_DISABLE_HYDE": "1",
-                "XAVIER2_MODEL_PROVIDER": "disabled",
-                "XAVIER2_EMBEDDING_URL": candidate["url"],
-                "XAVIER2_EMBEDDING_MODEL": candidate["model"],
+                "XAVIER_DISABLE_HYDE": "1",
+                "XAVIER_MODEL_PROVIDER": "disabled",
+                "XAVIER_EMBEDDING_URL": candidate["url"],
+                "XAVIER_EMBEDDING_MODEL": candidate["model"],
             },
         )
         wait_for_health(actual_base_url)
@@ -348,14 +356,14 @@ def configure_llm_env(candidate: dict[str, Any]) -> dict[str, str]:
     provider = candidate.get("provider", "local").strip().lower()
     if provider == "local":
         return {
-            "XAVIER2_MODEL_PROVIDER": "local",
-            "XAVIER2_LOCAL_LLM_URL": candidate["url"],
-            "XAVIER2_LOCAL_LLM_MODEL": candidate["model"],
+            "XAVIER_MODEL_PROVIDER": "local",
+            "XAVIER_LOCAL_LLM_URL": candidate["url"],
+            "XAVIER_LOCAL_LLM_MODEL": candidate["model"],
         }
     if provider in {"gemini", "openai", "minimax", "anthropic"}:
         return {
-            "XAVIER2_MODEL_PROVIDER": provider,
-            "XAVIER2_LLM_MODEL": candidate["model"],
+            "XAVIER_MODEL_PROVIDER": provider,
+            "XAVIER_LLM_MODEL": candidate["model"],
         }
     raise ValueError(f"Unsupported LLM provider '{provider}'")
 
@@ -371,15 +379,15 @@ def benchmark_llm_candidate(
     candidate_dir = output_dir / f"llm-{candidate['label']}"
     actual_base_url = reserve_base_url(base_url)
     env = {
-        "XAVIER2_DISABLE_HYDE": "1",
+        "XAVIER_DISABLE_HYDE": "1",
     }
     env.update(configure_llm_env(candidate))
     if baseline_embedding:
-        env["XAVIER2_EMBEDDING_URL"] = baseline_embedding["url"]
-        env["XAVIER2_EMBEDDING_MODEL"] = baseline_embedding["model"]
+        env["XAVIER_EMBEDDING_URL"] = baseline_embedding["url"]
+        env["XAVIER_EMBEDDING_MODEL"] = baseline_embedding["model"]
 
     try:
-        child = launch_xavier2(actual_base_url, candidate_dir, env)
+        child = launch_xavier(actual_base_url, candidate_dir, env)
         wait_for_health(actual_base_url)
         reset_and_seed_memory(actual_base_url, dataset)
         records = []
@@ -548,10 +556,10 @@ def generate_query(memory: dict[str, Any]) -> str:
     project = namespace.get("project") or metadata.get("project")
     content = str(memory.get("memory", "")).strip()
     if title:
-        return f"What should Xavier2 retrieve about {title}?"
+        return f"What should Xavier retrieve about {title}?"
     sentence = content.split(".")[0].strip()
     if project:
-        return f"What does Xavier2 know about {project}: {sentence[:96]}?"
+        return f"What does Xavier know about {project}: {sentence[:96]}?"
     return f"What memory matches this fact: {sentence[:96]}?"
 
 
@@ -853,7 +861,7 @@ def command_publish_policy(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Unified benchmark, training export, and router policy publisher for Xavier2."
+        description="Unified benchmark, training export, and router policy publisher for Xavier."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -866,7 +874,7 @@ def build_parser() -> argparse.ArgumentParser:
     export_training.add_argument(
         "--base-url",
         default=DEFAULT_BASE_URL,
-        help="Xavier2 base URL used to fetch primary memories.",
+        help="Xavier base URL used to fetch primary memories.",
     )
     export_training.add_argument(
         "--tasks-file",

@@ -1,18 +1,18 @@
-use axum::{extract::Query, Extension, Json};
+﻿use axum::{extract::Query, Extension, Json};
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use xavier2::agents::RuntimeConfig;
-use xavier2::server::v1_api::{
+use xavier::agents::RuntimeConfig;
+use xavier::server::v1_api::{
     v1_memories_add, v1_memories_list, v1_memories_search, V1AddMemoryRequest, V1PaginationParams,
     V1SearchRequest,
 };
-use xavier2::workspace::{WorkspaceConfig, WorkspaceContext, WorkspaceState};
+use xavier::workspace::{WorkspaceConfig, WorkspaceContext, WorkspaceState};
 
 fn bench_v1_api(c: &mut Criterion) {
     let runtime = Runtime::new().expect("tokio runtime");
 
-    let temp_dir = std::env::temp_dir().join(format!("xavier2-bench-{}", std::process::id()));
+    let temp_dir = std::env::temp_dir().join(format!("xavier-bench-{}", std::process::id()));
     std::fs::create_dir_all(&temp_dir).unwrap();
 
     let workspace = runtime.block_on(async {
@@ -20,14 +20,14 @@ fn bench_v1_api(c: &mut Criterion) {
             WorkspaceConfig {
                 id: "bench".to_string(),
                 token: "bench-token".to_string(),
-                plan: xavier2::workspace::PlanTier::Pro,
-                memory_backend: xavier2::memory::MemoryBackend::File,
+                plan: xavier::workspace::PlanTier::Pro,
+                memory_backend: xavier::memory::MemoryBackend::File,
                 storage_limit_bytes: None,
                 request_limit: None,
                 request_unit_limit: None,
-                embedding_provider_mode: xavier2::workspace::EmbeddingProviderMode::BringYourOwn,
+                embedding_provider_mode: xavier::workspace::EmbeddingProviderMode::BringYourOwn,
                 managed_google_embeddings: false,
-                sync_policy: xavier2::workspace::SyncPolicy::LocalOnly,
+                sync_policy: xavier::workspace::SyncPolicy::LocalOnly,
             },
             RuntimeConfig::default(),
             temp_dir.join("threads"),
@@ -98,8 +98,8 @@ fn bench_v1_api(c: &mut Criterion) {
     c.bench_function("sync_export_100_docs", |b| {
         let docs = runtime.block_on(async { context.workspace.memory.all_documents().await });
         b.iter(|| {
-            let mut manifest = xavier2::sync::chunks::ChunkManifest::default();
-            let _ = xavier2::sync::chunks::export_to_chunk(&temp_dir, &docs, &mut manifest);
+            let mut manifest = xavier::sync::chunks::ChunkManifest::default();
+            let _ = xavier::sync::chunks::export_to_chunk(&temp_dir, &docs, &mut manifest);
         });
     });
 }

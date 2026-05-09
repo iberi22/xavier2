@@ -1,22 +1,32 @@
-# Migrate memories from old Xavier2 (8003) to Xavier2 (8006)
+# Migrate memories from old Xavier (8003) to Xavier (8006)
 # Run this script to transfer all memories
 
 $ErrorActionPreference = "Stop"
 
-$OLD_XAVIER2 = "http://localhost:8003"
-$NEW_XAVIER2 = "http://localhost:8006"
-$TOKEN = "dev-token"
+$OLD_XAVIER = "http://localhost:8003"
+$NEW_XAVIER = "http://localhost:8006"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
 
-$headers = @{"X-Xavier2-Token" = $TOKEN}
+$TOKEN = Get-XavierToken
 
-Write-Host "=== Xavier2 Migration ===" -ForegroundColor Cyan
-Write-Host "From: $OLD_XAVIER2"
-Write-Host "To:   $NEW_XAVIER2"
+$headers = @{"X-Xavier-Token" = $TOKEN}
+
+Write-Host "=== Xavier Migration ===" -ForegroundColor Cyan
+Write-Host "From: $OLD_XAVIER"
+Write-Host "To:   $NEW_XAVIER"
 Write-Host ""
 
-# Get all memories from old Xavier2
-Write-Host "Fetching memories from old Xavier2..." -ForegroundColor Yellow
-$response = Invoke-RestMethod -Uri "$OLD_XAVIER2/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body '{"query":"*","limit":100}'
+# Get all memories from old Xavier
+Write-Host "Fetching memories from old Xavier..." -ForegroundColor Yellow
+$response = Invoke-RestMethod -Uri "$OLD_XAVIER/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body '{"query":"*","limit":100}'
 
 if ($response.status -ne "ok") {
     Write-Host "ERROR: Failed to fetch memories" -ForegroundColor Red
@@ -27,9 +37,9 @@ $memories = $response.results
 Write-Host "Found $($memories.Count) memories to migrate"
 Write-Host ""
 
-# Reset Xavier2 first (optional - comment out if you want to append)
-Write-Host "Resetting Xavier2..." -ForegroundColor Yellow
-$null = Invoke-RestMethod -Uri "$NEW_XAVIER2/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}'
+# Reset Xavier first (optional - comment out if you want to append)
+Write-Host "Resetting Xavier..." -ForegroundColor Yellow
+$null = Invoke-RestMethod -Uri "$NEW_XAVIER/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}'
 Start-Sleep -Seconds 2
 
 # Migrate each memory
@@ -45,7 +55,7 @@ foreach ($m in $memories) {
     } | ConvertTo-Json -Compress
 
     try {
-        $result = Invoke-RestMethod -Uri "$NEW_XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $payload
+        $result = Invoke-RestMethod -Uri "$NEW_XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $payload
         if ($result.status -eq "ok") {
             $success++
             Write-Host "[OK] $($m.path)" -ForegroundColor Green
@@ -66,6 +76,6 @@ Write-Host "Failed:  $failed" -ForegroundColor Red
 
 # Verify
 Write-Host ""
-Write-Host "Verifying in Xavier2..." -ForegroundColor Yellow
-$verify = Invoke-RestMethod -Uri "$NEW_XAVIER2/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body '{"query":"*","limit":100}'
-Write-Host "Xavier2 now has $($verify.results.Count) memories"
+Write-Host "Verifying in Xavier..." -ForegroundColor Yellow
+$verify = Invoke-RestMethod -Uri "$NEW_XAVIER/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body '{"query":"*","limit":100}'
+Write-Host "Xavier now has $($verify.results.Count) memories"

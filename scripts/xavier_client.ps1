@@ -1,5 +1,5 @@
-# Xavier2 Client - Simple test script
-# Usage: .\xavier2_client.ps1 <command> [args]
+# Xavier Client - Simple test script
+# Usage: .\xavier_client.ps1 <command> [args]
 
 param(
     [Parameter(Mandatory=$true)]
@@ -10,17 +10,27 @@ param(
     [string]$Query = ""
 )
 
-$XAVIER2 = "http://localhost:8006"
-$TOKEN = "dev-token"
-$headers = @{"X-Xavier2-Token" = $TOKEN}
+$XAVIER = "http://localhost:8006"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
+$TOKEN = Get-XavierToken
+$headers = @{"X-Xavier-Token" = $TOKEN}
 
 function Show-Health {
-    $r = Invoke-RestMethod -Uri "$XAVIER2/health" -Headers $headers
+    $r = Invoke-RestMethod -Uri "$XAVIER/health" -Headers $headers
     $r | ConvertTo-Json
 }
 
 function Show-Build {
-    $r = Invoke-RestMethod -Uri "$XAVIER2/build" -Headers $headers
+    $r = Invoke-RestMethod -Uri "$XAVIER/build" -Headers $headers
     $r | ConvertTo-Json -Depth 3
 }
 
@@ -37,7 +47,7 @@ function Add-Memory {
     }
 
     $body = $payload | ConvertTo-Json -Compress
-    $r = Invoke-RestMethod -Uri "$XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body
+    $r = Invoke-RestMethod -Uri "$XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body
     $r | ConvertTo-Json
 }
 
@@ -53,7 +63,7 @@ function Search-Memory {
     }
 
     $body = $payload | ConvertTo-Json -Compress
-    $r = Invoke-RestMethod -Uri "$XAVIER2/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body $body
+    $r = Invoke-RestMethod -Uri "$XAVIER/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body $body
 
     if ($r.status -eq "ok") {
         Write-Host "Found $($r.results.Count) results:" -ForegroundColor Green
@@ -80,18 +90,18 @@ function Query-Agent {
     }
 
     $body = $payload | ConvertTo-Json -Compress
-    $r = Invoke-RestMethod -Uri "$XAVIER2/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $body
+    $r = Invoke-RestMethod -Uri "$XAVIER/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $body
 
     Write-Host "Response: $($r.response)" -ForegroundColor White
 }
 
 function Test-All {
-    Write-Host "=== Xavier2 Test Suite ===" -ForegroundColor Cyan
+    Write-Host "=== Xavier Test Suite ===" -ForegroundColor Cyan
     Write-Host ""
 
     Write-Host "1. Health Check..." -ForegroundColor Yellow
     try {
-        $h = Invoke-RestMethod -Uri "$XAVIER2/health" -Headers $headers
+        $h = Invoke-RestMethod -Uri "$XAVIER/health" -Headers $headers
         Write-Host "   Status: $($h.status)" -ForegroundColor Green
     } catch {
         Write-Host "   FAILED: $_" -ForegroundColor Red
@@ -100,7 +110,7 @@ function Test-All {
     Write-Host ""
     Write-Host "2. Build Info..." -ForegroundColor Yellow
     try {
-        $b = Invoke-RestMethod -Uri "$XAVIER2/build" -Headers $headers
+        $b = Invoke-RestMethod -Uri "$XAVIER/build" -Headers $headers
         Write-Host "   Version: $($b.version)" -ForegroundColor Green
         Write-Host "   Backend: $($b.memory_store.backend)" -ForegroundColor Green
     } catch {
@@ -111,8 +121,8 @@ function Test-All {
     Write-Host "3. Add Memory..." -ForegroundColor Yellow
     try {
         $testId = "test/ping-$(Get-Random)"
-        $body = @{path=$testId; content="Xavier2 test $(Get-Date)"; metadata=@{}} | ConvertTo-Json -Compress
-        $a = Invoke-RestMethod -Uri "$XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body
+        $body = @{path=$testId; content="Xavier test $(Get-Date)"; metadata=@{}} | ConvertTo-Json -Compress
+        $a = Invoke-RestMethod -Uri "$XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $body
         if ($a.status -eq "ok") {
             Write-Host "   Added: $testId" -ForegroundColor Green
         } else {
@@ -126,7 +136,7 @@ function Test-All {
     Write-Host "4. Search Memory..." -ForegroundColor Yellow
     try {
         $body = @{query="test"; limit=5} | ConvertTo-Json -Compress
-        $s = Invoke-RestMethod -Uri "$XAVIER2/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body $body
+        $s = Invoke-RestMethod -Uri "$XAVIER/memory/search" -Method POST -Headers $headers -ContentType "application/json" -Body $body
         Write-Host "   Found: $($s.results.Count) results" -ForegroundColor Green
     } catch {
         Write-Host "   FAILED: $_" -ForegroundColor Red

@@ -1,4 +1,4 @@
-# Xavier2 - State-of-the-Art Memory System
+# Xavier - State-of-the-Art Memory System
 
 **Goal:** Build the best memory system for LLM agents
 **Version:** 0.5.0 (target)
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Transformar xavier2 de un simple vector store a un **cognitive memory runtime** completo con:
+Transformar xavier de un simple vector store a un **cognitive memory runtime** completo con:
 - Semantic search (embeddings)
 - Hybrid retrieval (vector + keyword + reranking)
 - Memory graph (entity relationships)
@@ -27,7 +27,7 @@ Transformar xavier2 de un simple vector store a un **cognitive memory runtime** 
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              Xavier2 Memory System (v0.5)                  │
+│              Xavier Memory System (v0.5)                  │
 │                                                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐│
 │  │ Embedding   │  │ Memory     │  │ Temporal / Entity    ││
@@ -68,13 +68,13 @@ pub async fn add_memory(
 ) -> Result<Json<AddMemoryResponse>, StatusCode> {
     // 1. Generar embedding del content
     let content_vector = state.embedding_model.encode(&payload.content).await?;
-    
+
     // 2. Guardar en sqlite-vec
     state.vec_store.insert(&payload.content, &content_vector).await?;
-    
+
     // 3. Guardar documento completo
     state.db.insert_memory(&payload).await?;
-    
+
     Ok(Json(AddMemoryResponse { id: memory_id }))
 }
 ```
@@ -91,8 +91,8 @@ pub struct MiniMaxEmbedder { api_key: String }
 pub struct LocalEmbedder { model_path: PathBuf }  // ONNX/shrimp
 
 // Config via environment
-// XAVIER2_EMBEDDER=openai|minimax|local
-// XAVIER2_EMBEDDING_MODEL=text-embedding-3-small
+// XAVIER_EMBEDDER=openai|minimax|local
+// XAVIER_EMBEDDING_MODEL=text-embedding-3-small
 ```
 
 ### Dependencies to Add
@@ -110,7 +110,7 @@ tokio = { version = "1.50", features = ["full"] }
 POST /memory/add
 Body: {
     "content": "string",
-    "path": "string", 
+    "path": "string",
     "metadata": {...}
 }
 
@@ -149,17 +149,17 @@ pub async fn hybrid_search(
 ) -> Result<Json<SearchResponse>, StatusCode> {
     // 1. Keyword search (sqlite FTS5)
     let keyword_results = state.db.fts_search(&request.query, request.limit * 2).await?;
-    
+
     // 2. Vector search (sqlite-vec)
     let query_vector = state.embedder.encode(&request.query).await?;
     let vector_results = state.vec_store.search(&query_vector, request.limit * 2).await?;
-    
+
     // 3. RRF fusion
     let fused = reciprocal_rank_fusion(
         vec![keyword_results, vector_results],
         request.r rf_k.unwrap_or(60),
     );
-    
+
     // 4. Return top results
     Ok(Json(SearchResponse { results: fused }))
 }
@@ -167,14 +167,14 @@ pub async fn hybrid_search(
 fn reciprocal_rank_fusion(results: Vec<Vec<ScoredResult>>, k: u32) -> Vec<ScoredResult> {
     // RRF formula: 1 / (k + rank)
     let mut scores: HashMap<String, f32> = HashMap::new();
-    
+
     for result_set in results {
         for (rank, item) in result_set.iter().enumerate() {
             let score = 1.0 / (k + rank as u32);
             *scores.entry(item.id.clone()).or_default() += score;
         }
     }
-    
+
     let mut ranked: Vec<_> = scores.into_iter().collect();
     ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
     ranked.into_iter().map(|(id, score)| ScoredResult { id, score }).collect()
@@ -260,14 +260,14 @@ pub async fn query_graph(
 ) -> Result<Json<GraphResponse>, StatusCode> {
     // 1. Encontrar entity inicial
     let start_entity = state.db.find_entity(&request.entity).await?;
-    
+
     // 2. BFS/DFS traversal
     let relations = state.graph.traverse(
         start_entity,
         request.max_depth.unwrap_or(2),
         request.relation_types.as_deref(),
     ).await?;
-    
+
     Ok(Json(GraphResponse { relations }))
 }
 ```
@@ -347,16 +347,16 @@ impl ConsolidationTask {
         let to_replay = state.db.select_memories_for_consolidation(
             self.replay_batch_size
         ).await?;
-        
+
         let mut stats = ConsolidationStats::default();
-        
+
         for memory in to_replay {
             // 2. Re-generate embedding
             let new_vector = state.embedder.encode(&memory.content).await?;
-            
+
             // 3. Comparar con embedding existente
             let similarity = cosine_similarity(&memory.content_vector, &new_vector);
-            
+
             // 4. Si similarity < threshold, marcar para revisión
             if similarity < 0.85 {
                 state.db.mark_for_revision(&memory.id).await?;
@@ -366,12 +366,12 @@ impl ConsolidationTask {
                 state.db.increment_importance(&memory.id).await?;
                 stats.reinforced += 1;
             }
-            
+
             // 5. Aplicar decay aImportance score
             state.db.apply_importance_decay(&memory.id).await?;
             stats.processed += 1;
         }
-        
+
         Ok(stats)
     }
 }
@@ -381,7 +381,7 @@ pub async fn start_consolidation_scheduler(state: AppState) {
         interval: Duration::hours(1),
         replay_batch_size: 50,
     };
-    
+
     let mut interval = tokio::time::interval(task.interval);
     loop {
         interval.tick().await;
@@ -418,7 +418,7 @@ Response: {
 ### Cron Job
 ```json
 {
-  "name": "xavier2-consolidation",
+  "name": "xavier-consolidation",
   "schedule": { "kind": "cron", "expr": "0 * * * *" },
   "payload": { "kind": "agentTurn", "message": "Run /memory/consolidate" }
 }
@@ -444,19 +444,19 @@ pub struct ReflectionResult {
 pub async fn reflect(state: &AppState) -> Result<ReflectionResult> {
     // 1. Analyze recent memories (last 24h)
     let recent = state.db.get_recent_memories(Duration::days(1)).await?;
-    
+
     // 2. Extract entities
     let entities = extract_entities(&recent);
-    
+
     // 3. Find themes (simple clustering by vector similarity)
     let themes = find_themes(&recent);
-    
+
     // 4. Identify recent learning
     let learning = identify_learning(&recent);
-    
+
     // 5. Generate suggestions based on gaps
     let suggestions = generate_suggestions(&entities, &themes);
-    
+
     Ok(ReflectionResult {
         themes,
         entities,
@@ -521,20 +521,20 @@ impl SyncManager {
     pub async fn sync(&mut self) -> Result<SyncResult> {
         // 1. Get server state
         let server_state = self.fetch_server_state().await?;
-        
+
         // 2. Get local changes since last_sync
         let local_changes = self.db.get_changes_since(self.last_sync).await?;
-        
+
         // 3. Merge with conflict resolution (timestamp-based)
         let merged = self.merge_changes(server_state, local_changes);
-        
+
         // 4. Apply to local
         self.db.apply_changes(merged).await?;
-        
+
         self.last_sync = Utc::now();
         Ok(SyncResult { synced: true })
     }
-    
+
     fn merge_changes(&self, server: MemoryState, local: MemoryState) -> MemoryState {
         // Last-write-wins (timestamp-based)
         // TODO: more sophisticated merge for conflicts
@@ -558,7 +558,7 @@ impl SyncManager {
 // Client → Server
 { "type": "sync_request", "last_sync": "2026-04-15T10:00:00Z" }
 
-// Server → Client  
+// Server → Client
 { "type": "sync_response", "memories": [...], "server_time": "..." }
 
 // Bidirectional sync

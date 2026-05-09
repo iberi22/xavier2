@@ -18,7 +18,7 @@ def run(cmd, cwd=None, env=None):
 
 
 def clone_or_update(repo_url: str, name: str) -> Path:
-    base = Path(tempfile.gettempdir()) / "xavier2-benchmark-sources"
+    base = Path(tempfile.gettempdir()) / "xavier-benchmark-sources"
     base.mkdir(parents=True, exist_ok=True)
     target = base / name
     if target.exists():
@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument("--dataset-name", default="princeton-nlp/SWE-bench_Lite")
     parser.add_argument("--predictions-path", default="gold")
     parser.add_argument("--max-workers", type=int, default=1)
-    parser.add_argument("--run-id", default=f"xavier2-{int(time.time())}")
+    parser.add_argument("--run-id", default=f"xavier-{int(time.time())}")
     parser.add_argument("--instance-ids", default="")
     parser.add_argument("--output-dir", required=True)
     return parser.parse_args()

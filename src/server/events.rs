@@ -1,4 +1,4 @@
-//! Real-time event types for Xavier2 WebSocket streaming.
+//! Real-time event types for Xavier WebSocket streaming.
 
 use serde::{Deserialize, Serialize};
 

@@ -220,9 +220,9 @@ ensure_env_example_is_secrets_only() {
         return
     fi
 
-    local non_secret_pattern='^\+XAVIER2_(HOST|PORT|LOG_LEVEL|MEMORY_BACKEND|DATA_DIR|WORKSPACE_DIR|MEMORY_SQLITE_PATH|MEMORY_VEC_PATH|CODE_GRAPH_DB_PATH|EMBEDDING_URL|EMBEDDING_MODEL|MODEL_PROVIDER|LOCAL_LLM_URL|LOCAL_LLM_MODEL|DISABLE_HYDE|SYNC_INTERVAL_MS|SYNC_LAG_THRESHOLD_MS|SYNC_SAVE_OK_RATE_THRESHOLD|SYNC_MAX_RETRIES|SYNC_RETRY_DELAY_MS|DEFAULT_WORKSPACE_ID|DEFAULT_PLAN|REQUEST_LIMIT|REQUEST_UNIT_LIMIT|STORAGE_LIMIT_BYTES)='
+    local non_secret_pattern='^\+XAVIER_(HOST|PORT|LOG_LEVEL|MEMORY_BACKEND|DATA_DIR|WORKSPACE_DIR|MEMORY_SQLITE_PATH|MEMORY_VEC_PATH|CODE_GRAPH_DB_PATH|EMBEDDING_URL|EMBEDDING_MODEL|MODEL_PROVIDER|LOCAL_LLM_URL|LOCAL_LLM_MODEL|DISABLE_HYDE|SYNC_INTERVAL_MS|SYNC_LAG_THRESHOLD_MS|SYNC_SAVE_OK_RATE_THRESHOLD|SYNC_MAX_RETRIES|SYNC_RETRY_DELAY_MS|DEFAULT_WORKSPACE_ID|DEFAULT_PLAN|REQUEST_LIMIT|REQUEST_UNIT_LIMIT|STORAGE_LIMIT_BYTES)='
     if git diff --cached --unified=0 --no-color -- .env.example | grep -E "$non_secret_pattern" >/dev/null; then
-        die ".env.example must contain credentials only; move operational settings to config/xavier2.config.json"
+        die ".env.example must contain credentials only; move operational settings to config/xavier.config.json"
     fi
 }
 
@@ -233,8 +233,8 @@ ensure_runtime_config_is_canonical() {
         [ -z "$file" ] && continue
         case "$file" in
             config/*.json)
-                if [ "$file" != "config/xavier2.config.json" ]; then
-                    die "runtime configuration JSON must live in config/xavier2.config.json"
+                if [ "$file" != "config/xavier.config.json" ]; then
+                    die "runtime configuration JSON must live in config/xavier.config.json"
                 fi
                 ;;
         esac

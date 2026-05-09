@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
-# xavier2-service.ps1 - Self-healing Xavier2 background service manager
-# Usage: .\xavier2-service.ps1 [start|stop|restart|status|logs]
-# 
+# xavier-service.ps1 - Self-healing Xavier background service manager
+# Usage: .\xavier-service.ps1 [start|stop|restart|status|logs]
+#
 # Features:
 #   - Auto-restart on crash
 #   - Port conflict detection & resolution
@@ -10,8 +10,8 @@
 #   - Watchdog timer (restart if no health ping within 60s)
 #
 # Requirements:
-#   - Xavier2 binary at: E:\scripts-python\xavier2\target\release\xavier2.exe
-#   - Config: XAVIER2_PORT env var (default: 8040)
+#   - Xavier binary at: E:\scripts-python\xavier\target\release\xavier.exe
+#   - Config: XAVIER_PORT env var (default: 8040)
 #   - Admin not required for basic operation
 
 param(
@@ -24,12 +24,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$PROJECT_ROOT = 'E:\scripts-python\xavier2'
-$BINARY = "$PROJECT_ROOT\target\release\xavier2.exe"
-$PID_FILE = "$PROJECT_ROOT\data\xavier2.pid"
+$PROJECT_ROOT = 'E:\scripts-python\xavier'
+$BINARY = "$PROJECT_ROOT\target\release\xavier.exe"
+$PID_FILE = "$PROJECT_ROOT\data\xavier.pid"
 $LOG_DIR = "$PROJECT_ROOT\logs"
-$LOG_FILE = "$LOG_DIR\xavier2.log"
-$PORT = if ($env:XAVIER2_PORT) { $env:XAVIER2_PORT } else { 8040 }
+$LOG_FILE = "$LOG_DIR\xavier.log"
+$PORT = if ($env:XAVIER_PORT) { $env:XAVIER_PORT } else { 8040 }
 $HEALTH_URL = "http://localhost:$PORT/health"
 $READY_URL = "http://localhost:$PORT/ready"
 $MAX_LOG_BYTES = 5MB
@@ -116,14 +116,14 @@ function Wait-ForHealthy {
     return $false
 }
 
-function Test-Xavier2Healthy {
+function Test-XavierHealthy {
     try {
         $r = Invoke-WebRequest -Uri $HEALTH_URL -TimeoutSec 5 -UseBasicParsing -ErrorAction SilentlyContinue
         return ($r.StatusCode -eq 200)
     } catch { return $false }
 }
 
-function Stop-Xavier2Process {
+function Stop-XavierProcess {
     $pid = Get-Pid
     if ($pid) {
         try {
@@ -140,9 +140,9 @@ function Stop-Xavier2Process {
         } catch {}
         Remove-Item $PID_FILE -Force -ErrorAction SilentlyContinue
     }
-    # Also check if xavier2 is running by process name
-    Get-Process -Name 'xavier2' -ErrorAction SilentlyContinue | ForEach-Object {
-        Write-Log "Killing stray xavier2 process PID $($_.Id)" 'WARN'
+    # Also check if xavier is running by process name
+    Get-Process -Name 'xavier' -ErrorAction SilentlyContinue | ForEach-Object {
+        Write-Log "Killing stray xavier process PID $($_.Id)" 'WARN'
         Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
     }
 }
@@ -156,15 +156,15 @@ function Test-IsRunning {
         } catch {}
     }
     # Fallback: check if health endpoint responds
-    return Test-Xavier2Healthy
+    return Test-XavierHealthy
 }
 
 # ─── Install/Uninstall (Windows Service-like via Task Scheduler) ───────────────
 
 function Install-Service {
-    Write-Log "Installing Xavier2 as scheduled task..." 'INFO'
-    $taskName = 'Xavier2Service'
-    $scriptPath = "$PSScriptRoot\xavier2-service.ps1"
+    Write-Log "Installing Xavier as scheduled task..." 'INFO'
+    $taskName = 'XavierService'
+    $scriptPath = "$PSScriptRoot\xavier-service.ps1"
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$scriptPath`" start"
     $trigger = New-ScheduledTaskTrigger -AtStartup
     $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
@@ -174,8 +174,8 @@ function Install-Service {
 }
 
 function Uninstall-Service {
-    Write-Log "Removing Xavier2 scheduled task..." 'INFO'
-    Unregister-ScheduledTask -TaskName 'Xavier2Service' -Confirm:$false -ErrorAction SilentlyContinue
+    Write-Log "Removing Xavier scheduled task..." 'INFO'
+    Unregister-ScheduledTask -TaskName 'XavierService' -Confirm:$false -ErrorAction SilentlyContinue
     Write-Log "Scheduled task removed." 'INFO'
 }
 
@@ -185,9 +185,9 @@ function Show-Status {
     $running = Test-IsRunning
     $pid = Get-Pid
     $proc = if ($pid) { Get-Process -Id $pid -ErrorAction SilentlyContinue } else { $null }
-    
+
     Write-Host ""
-    Write-Host "══ Xavier2 Service Status ══" -ForegroundColor Cyan
+    Write-Host "══ Xavier Service Status ══" -ForegroundColor Cyan
     Write-Host "  Running    : $(if ($running) { 'YES' } else { 'NO' })"
     Write-Host "  PID File   : $PID_FILE"
     Write-Host "  PID        : $(if ($pid) { $pid } else { 'N/A' })"
@@ -199,15 +199,15 @@ function Show-Status {
     Write-Host "  Health URL : $HEALTH_URL"
     Write-Host "  Log File   : $LOG_FILE"
     if (Test-Path $LOG_FILE) { Write-Host "  Log Size   : $([math]::Round((Get-Item $LOG_FILE).Length/1KB,1)) KB" }
-    
+
     # Check if port is in use by another process
     $portProc = Find-HostProcess $PORT
     if ($portProc -and (-not $running)) {
-        Write-Host "  WARNING    : Port $PORT is used by PID $($portProc.Id) ($($portProc.ProcessName)) but xavier2 is not running!" -ForegroundColor Red
+        Write-Host "  WARNING    : Port $PORT is used by PID $($portProc.Id) ($($portProc.ProcessName)) but xavier is not running!" -ForegroundColor Red
     }
-    
+
     if ($running) {
-        $healthy = Test-Xavier2Healthy
+        $healthy = Test-XavierHealthy
         Write-Host "  Health     : $(if ($healthy) { 'OK' } else { 'UNRESPONSIVE' })" -ForegroundColor $(if ($healthy) { 'Green' } else { 'Yellow' })
     }
     Write-Host ""
@@ -226,7 +226,7 @@ function Show-Logs {
 
 # ─── Start (with auto-restart loop) ─────────────────────────────────────────
 
-function Start-Xavier2 {
+function Start-Xavier {
     if (-not (Test-Path $BINARY)) {
         Write-Log "Binary not found at $BINARY. Run: cargo build --release" 'ERROR'
         throw "Binary missing: $BINARY"
@@ -235,7 +235,7 @@ function Start-Xavier2 {
     # Check if already running
     if (Test-IsRunning) {
         $pid = Get-Pid
-        Write-Log "Xavier2 already running (PID $pid). Use 'restart' to force." 'INFO'
+        Write-Log "Xavier already running (PID $pid). Use 'restart' to force." 'INFO'
         return
     }
 
@@ -245,9 +245,9 @@ function Start-Xavier2 {
         $conflicting = Find-HostProcess $PORT
         if ($conflicting) {
             Write-Log "Port conflict: PID $($conflicting.Id) ($($conflicting.ProcessName))" 'WARN'
-            # If it's a stray xavier2, kill it
+            # If it's a stray xavier, kill it
             if ($conflicting.ProcessName -like '*xavier*') {
-                Write-Log "Killing conflicting xavier2 process" 'WARN'
+                Write-Log "Killing conflicting xavier process" 'WARN'
                 Stop-Process -Id $conflicting.Id -Force -ErrorAction SilentlyContinue
                 Start-Sleep -Seconds 2
                 if (-not (Test-PortFree $PORT)) {
@@ -255,7 +255,7 @@ function Start-Xavier2 {
                     throw "Port $PORT still occupied after cleanup"
                 }
             } else {
-                Write-Log "Port $PORT is occupied by another process. Stop it first or set XAVIER2_PORT env." 'ERROR'
+                Write-Log "Port $PORT is occupied by another process. Stop it first or set XAVIER_PORT env." 'ERROR'
                 throw "Port conflict: $($conflicting.ProcessName) (PID $($conflicting.Id)) on port $PORT"
             }
         }
@@ -264,7 +264,7 @@ function Start-Xavier2 {
     # Rotate logs before starting
     Rotate-Logs
 
-    Write-Log "Starting Xavier2..." 'INFO'
+    Write-Log "Starting Xavier..." 'INFO'
     $env:RUST_LOG = $env:RUST_LOG ?? 'info'
 
     $proc = Start-Process -FilePath $BINARY `
@@ -277,43 +277,43 @@ function Start-Xavier2 {
 
     if (-not $proc.HasExited) {
         $proc.Id.ToString() | Set-Content $PID_FILE -Encoding UTF8
-        Write-Log "Xavier2 started (PID $($proc.Id))" 'INFO'
+        Write-Log "Xavier started (PID $($proc.Id))" 'INFO'
     } else {
-        Write-Log "Xavier2 exited immediately with code $($proc.ExitCode)" 'ERROR'
-        throw "Xavier2 failed to start (exit code: $($proc.ExitCode))"
+        Write-Log "Xavier exited immediately with code $($proc.ExitCode)" 'ERROR'
+        throw "Xavier failed to start (exit code: $($proc.ExitCode))"
     }
 
     # Wait for health check
     if (Wait-ForHealthy -TimeoutSec 30) {
-        Write-Log "Xavier2 is ready and listening on port $PORT" 'INFO'
+        Write-Log "Xavier is ready and listening on port $PORT" 'INFO'
     } else {
-        Write-Log "Xavier2 started but not responding to health checks. Check logs." 'WARN'
+        Write-Log "Xavier started but not responding to health checks. Check logs." 'WARN'
     }
 }
 
 # ─── Restart ────────────────────────────────────────────────────────────────
 
-function Restart-Xavier2 {
-    Write-Log "Restarting Xavier2..." 'INFO'
-    Stop-Xavier2Process
+function Restart-Xavier {
+    Write-Log "Restarting Xavier..." 'INFO'
+    Stop-XavierProcess
     Start-Sleep -Seconds 3
-    Start-Xavier2
+    Start-Xavier
 }
 
 # ─── Stop ───────────────────────────────────────────────────────────────────
 
 function Do-Stop {
-    Write-Log "Stopping Xavier2 service..." 'INFO'
-    Stop-Xavier2Process
-    Write-Log "Xavier2 stopped." 'INFO'
+    Write-Log "Stopping Xavier service..." 'INFO'
+    Stop-XavierProcess
+    Write-Log "Xavier stopped." 'INFO'
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 switch ($Action) {
-    'start'    { Start-Xavier2 }
+    'start'    { Start-Xavier }
     'stop'     { Do-Stop }
-    'restart'  { Restart-Xavier2 }
+    'restart'  { Restart-Xavier }
     'status'   { Show-Status }
     'logs'     { Show-Logs }
     'install'  { Install-Service }

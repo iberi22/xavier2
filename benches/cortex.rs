@@ -1,8 +1,8 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+﻿use criterion::{criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
 use tokio::runtime::Runtime;
-use xavier2::memory::belief_graph::{Belief, BeliefGraph, Confidence};
-use xavier2::security::SecurityManager;
+use xavier::memory::belief_graph::{Belief, BeliefGraph, Confidence};
+use xavier::security::SecurityManager;
 
 fn bench_belief_graph_search(c: &mut Criterion) {
     let runtime = Runtime::new().expect("tokio runtime");
@@ -47,8 +47,8 @@ fn bench_security_hash_password(c: &mut Criterion) {
 }
 
 criterion_group!(
-    xavier2_benches,
+    xavier_benches,
     bench_belief_graph_search,
     bench_security_hash_password
 );
-criterion_main!(xavier2_benches);
+criterion_main!(xavier_benches);

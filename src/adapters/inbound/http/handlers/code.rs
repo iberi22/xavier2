@@ -61,7 +61,7 @@ pub async fn code_scan_handler(
         Ok(res) => res,
         Err(e) => return Ok(Json(serde_json::json!({ "status": "error", "message": e.to_string() }))),
     };
-    
+
     if !sec_result.allowed {
         return Ok(Json(serde_json::json!({
             "status": "blocked",
@@ -216,7 +216,7 @@ pub async fn code_context_handler(
     } else {
         state.code_query.search(&payload.query, limit).map(|result| result.symbols).unwrap_or_default()
     };
-    
+
     filter_symbols_by_query(&mut symbols, &payload.query);
     symbols.truncate(limit);
 

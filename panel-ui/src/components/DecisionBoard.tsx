@@ -42,7 +42,7 @@ export function DecisionBoard({ decisions, token, onRefresh }: DecisionBoardProp
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "X-Xavier2-Token": token,
+          "X-Xavier-Token": token,
         },
         body: JSON.stringify({ ...adr, status }),
       });
@@ -65,7 +65,7 @@ export function DecisionBoard({ decisions, token, onRefresh }: DecisionBoardProp
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Xavier2-Token": token,
+          "X-Xavier-Token": token,
         },
         body: JSON.stringify(newAdr),
       });
@@ -86,7 +86,7 @@ export function DecisionBoard({ decisions, token, onRefresh }: DecisionBoardProp
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "X-Xavier2-Token": token,
+          "X-Xavier-Token": token,
         },
         body: JSON.stringify({ ...existing, ...adrData }),
       });

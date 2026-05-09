@@ -1,6 +1,6 @@
 # Software Requirements Specification (SRC)
 
-**Proyecto:** Xavier2
+**Proyecto:** Xavier
 **Versión:** 1.0
 **Fecha:** 2026-03-13
 **Estado:** Draft
@@ -25,7 +25,7 @@
 
 ```yaml
 src_version: "1.0"
-project: "Xavier2"
+project: "Xavier"
 created: "2026-03-13"
 status: "draft"
 ```

@@ -1,8 +1,8 @@
-# Xavier2 — Public Release Roadmap (Master Plan)
+﻿# Xavier — Public Release Roadmap (Master Plan)
 
-> **Generated:** 2026-04-30  
-> **Owner:** Xavier2 CEO  
-> **Status:** Planning  
+> **Generated:** 2026-04-30
+> **Owner:** Xavier CEO
+> **Status:** Planning
 > **Target v0.5 Public Release:** Q2 2026
 
 ---
@@ -27,13 +27,13 @@
 | # | Item | Category | Effort | Status | Dependency |
 |---|------|----------|--------|--------|------------|
 | 1 | Remove hardcoded credentials in kanban.rs (PlankaConfig default hardcodes password `swaladmin2026`, email `admin@swal.ai`, IP `192.168.1.8:3000`) | **SECURITY-SHOWSTOPPER** | 30 min | ❌ OPEN | None |
-| 2 | Remove `dev-token` fallback in all auth paths — `XAVIER2_TOKEN` default must error, not silently use `dev-token` | **SECURITY-SHOWSTOPPER** | 1 hr | ❌ OPEN | None |
+| 2 | Remove `dev-token` fallback in all auth paths — `XAVIER_TOKEN` default must error, not silently use `dev-token` | **SECURITY-SHOWSTOPPER** | 1 hr | ❌ OPEN | None |
 | 3 | Remove `#[derive(Debug)]` from all structs containing secrets (password, token, keys, credentials) across the codebase | **SECURITY** | 1 hr | ❌ OPEN | None |
 | 4 | Finish prompt_guard sanitize — incomplete patterns, missing contextual sanitization (template patterns only partially blocked, no URL/LLM injection context) | **SECURITY** | 2 hr | ❌ OPEN | None |
 | 5 | Create `docs/` for public consumption — current docs are internal/agent-only or scattered; need curated public-facing docs | **DOCS** | 4 hr | ❌ OPEN | None |
 | 6 | Create `examples/` directory with working examples (CLI, HTTP API, MCP integration) | **DOCS** | 2 hr | ❌ OPEN | #5 |
 | 7 | Clean up README — make CEO concept public-friendly, remove internal references, add proper badges and quick-start | **DOCS** | 1 hr | ❌ OPEN | #5 |
-| 8 | Document public export pipeline for GitHub raw + Hugging Face dataset artifacts (`xavier2 export --public`) | **DOCS** | 1 hr | ❌ OPEN | #5 |
+| 8 | Document public export pipeline for GitHub raw + Hugging Face dataset artifacts (`xavier export --public`) | **DOCS** | 1 hr | ❌ OPEN | #5 |
 | 9 | Audit all `unwrap()` and `expect()` in public API paths (crash risk) | **QUALITY** | 2 hr | ❌ OPEN | None |
 | 10 | Ensure no `localhost`-only assumption in HTTP binding — hardcoded bind patterns | **QUALITY** | 30 min | ❌ OPEN | None |
 | 11 | GitHub repo visibility finalization — set license, CONTRIBUTING.md, issue templates, CI workflow badges | **OPS** | 1 hr | ❌ OPEN | #7 |
@@ -47,7 +47,7 @@
 | Item | Why It Blocks | Fix |
 |------|---------------|-----|
 | Hardcoded credentials in kanban.rs | Any public user can `git grep` and see `swaladmin2026` + `admin@swal.ai` + internal IP — instant compromise | → Env vars only, panic on missing; remove Default impl |
-| `dev-token` fallback | Every user who pulls and runs without XAVIER2_TOKEN gets `dev-token` as auth — trivial auth bypass | → Unconditional env check, fail with clear error |
+| `dev-token` fallback | Every user who pulls and runs without XAVIER_TOKEN gets `dev-token` as auth — trivial auth bypass | → Unconditional env check, fail with clear error |
 | Debug derive on sensitive structs | `std::fmt::Debug` leaks secrets to logs, error messages, and debug output | → Manual Debug impl that redacts fields |
 | prompt_guard incomplete | Sanitize misses contextual attacks, LLM-escaped payloads, and advanced jailbreak patterns | → Add missing patterns, contextual detection |
 
@@ -58,7 +58,7 @@
 | Remove PlankaConfig Default impl (hardcoded creds) | 30 min |
 | Remove `dev-token` default in env var parsing | 20 min |
 | Add `.cargo/config.toml` deny of sensitive derives | 15 min |
-| Fix HTTP binding to respect XAVIER2_HOST properly | 30 min |
+| Fix HTTP binding to respect XAVIER_HOST properly | 30 min |
 | Add SECURITY.md banner pointing to docs | 15 min |
 | Create `.gitignore` for any credential artifacts | 5 min |
 | Pin Rust edition/MSRV in Cargo.toml | 10 min |
@@ -68,8 +68,8 @@
 
 ## 3. v0.5 — Minimal Public-Ready Release
 
-> **Goal:** Ship something safe, documented, and usable. Security + Docs + Basic CLI.  
-> **Target effort:** ~2-3 days  
+> **Goal:** Ship something safe, documented, and usable. Security + Docs + Basic CLI.
+> **Target effort:** ~2-3 days
 > **Must ship:** After all pre-release checklist items complete.
 
 ### 3.1 Priority Order
@@ -117,8 +117,8 @@
 
 ## 4. v1.0 — Full Feature Parity
 
-> **Goal:** Production-grade memory system with multi-tier architecture, proper MCP, split System modules.  
-> **Target effort:** ~3-4 weeks  
+> **Goal:** Production-grade memory system with multi-tier architecture, proper MCP, split System modules.
+> **Target effort:** ~3-4 weeks
 > **Prerequisite:** v0.5 released
 
 ### 4.1 Priority Order
@@ -134,14 +134,14 @@
 | **P1** | Add memory importance scoring (recency + access + novelty) | Feature | 4 hr | #4 |
 | **P1** | Add structured memory types (episodic, semantic, procedural, declarative) | Feature | 3 hr | v0.5 |
 | **P1** | Memory consolidation scheduler (background cron/interval) | Feature | 3 hr | #5 |
-| **P1** | Enhanced CLI: `xavier2 save --type X`, `xavier2 search --type X`, `xavier2 recall` | Feature | 3 hr | v0.5 |
+| **P1** | Enhanced CLI: `xavier save --type X`, `xavier search --type X`, `xavier recall` | Feature | 3 hr | v0.5 |
 | **P2** | Memory summarization (LLM-powered compression) | Feature | 4 hr | #10 |
 | **P2** | Memory graph/entity relationships | Feature | 5 hr | #4 |
 | **P2** | Context window optimization (auto-summarize) | Feature | 4 hr | #11 |
 | **P3** | Memory TTL/auto-expiry per type | Feature | 2 hr | #9 |
 | **P3** | Memory tags & categories | Feature | 1 hr | #9 |
 | **P3** | Memory versioning | Feature | 3 hr | #7 |
-| **P3** | Memory analytics (`xavier2 stats --insights`) | Feature | 2 hr | #4 |
+| **P3** | Memory analytics (`xavier stats --insights`) | Feature | 2 hr | #4 |
 | **P3** | Add end-to-end encryption (AES-256-GCM) for agent communication | Security | 6 hr | v0.5 |
 
 ### 4.2 Effort Breakdown
@@ -174,8 +174,8 @@
 
 ## 5. v1.1+ — Nice-to-Have Improvements
 
-> **Goal:** Differentiators, enterprise features, ecosystem growth.  
-> **Target effort:** 2-4 weeks per sub-release  
+> **Goal:** Differentiators, enterprise features, ecosystem growth.
+> **Target effort:** 2-4 weeks per sub-release
 > **Prerequisite:** v1.0 released
 
 ### 5.1 v1.1 — Production Hardening
@@ -288,7 +288,7 @@ v0.5 (2 days) → Phase A (3 days) → Phase B (3 days) → Phase C (5 days) →
 | Check | Description | Pass/Fail |
 |-------|-------------|-----------|
 | 🔒 No hardcoded secrets | `git grep` for password, secret, token, key in source → only valid env vars | ❌ FAIL |
-| 🔒 Auth can't be bypassed | Running without XAVIER2_TOKEN must fail with clear error, not use `dev-token` | ❌ FAIL |
+| 🔒 Auth can't be bypassed | Running without XAVIER_TOKEN must fail with clear error, not use `dev-token` | ❌ FAIL |
 | 🔒 No Debug on secrets | `grep derive(Debug)` on password/token/credential structs → none | ❌ FAIL |
 | 🔒 Basic injection protection | Ran prompt_guard test suite → all inject patterns blocked | ❌ FAIL |
 | 📝 README is public-worthy | No internal IPs, no CEO-only messages, no hardcoded paths | ❌ FAIL |
@@ -354,9 +354,9 @@ If all 8 items in **MUST PASS** are green and you have at least 2 of the **NICE 
 | v1.0 Release | — | — | — |
 | v1.1+ ongoing | 2-4 weeks each | ✅ (items parallel) | 1-2 |
 
-**Total to v1.0:** ~3-5 weeks from today  
+**Total to v1.0:** ~3-5 weeks from today
 **Total to v0.5 (safe public release):** ~2-3 days from today
 
 ---
 
-*Xavier2 CEO — Construyendo el futuro con memoria.*
+*Xavier CEO — Construyendo el futuro con memoria.*

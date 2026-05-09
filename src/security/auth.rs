@@ -1,4 +1,4 @@
-//! Authentication Module for Xavier2
+//! Authentication Module for Xavier
 //! JWT-based authentication and RBAC
 
 use std::fmt;

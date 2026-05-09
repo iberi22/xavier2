@@ -1,21 +1,21 @@
 # PHASE 5: Docker Production Ready + Feature Parity
 
-**Status:** 🔴 IN PROGRESS  
-**Created:** 2026-04-16  
-**Labels:** docker, production, enhancement  
+**Status:** 🔴 IN PROGRESS
+**Created:** 2026-04-16
+**Labels:** docker, production, enhancement
 
 ---
 
 ## Context
 
-Xavier2 es el sistema de memoria open source de SWAL. Necesita estar listo para:
+Xavier es el sistema de memoria open source de SWAL. Necesita estar listo para:
 1. **Despliegue Docker** - contenedor production-ready
 2. **Paridad de features** con Cortex (enterprise)
 3. **Mejoras de retrieval** - reducir alucinaciones, mejorar relevancia
 
 ### Benchmark Actual (vs Cortex)
 
-| Metric | Xavier2 | Cortex | Target |
+| Metric | Xavier | Cortex | Target |
 |--------|---------|--------|--------|
 | Latency Avg | 356ms | 969ms | <200ms |
 | Latency P95 | 404ms | 2418ms | <400ms |
@@ -34,7 +34,7 @@ Xavier2 es el sistema de memoria open source de SWAL. Necesita estar listo para:
 │  Synapse (Internet Evolve)                                  │
 │  └── Su propio sistema de memoria                          │
 │                                                             │
-│  Xavier2 (CORE - Memory Principal)                          │
+│  Xavier (CORE - Memory Principal)                          │
 │  └── SQLite-vec + RRF fusion                               │
 │  └── 100% local, MIT license                                │
 │                                                             │
@@ -79,7 +79,7 @@ Xavier2 es el sistema de memoria open source de SWAL. Necesita estar listo para:
 
 ### Enterprise Features de Cortex
 
-| Feature | Cortex | Xavier2 | Status |
+| Feature | Cortex | Xavier | Status |
 |---------|--------|---------|--------|
 | Memory Decay (Ebbinghaus) | ✅ | ⚠️ Partial | Implementar |
 | Memory Consolidation | ✅ | ✅ | Hecho |
@@ -149,7 +149,7 @@ Xavier2 es el sistema de memoria open source de SWAL. Necesita estar listo para:
 
 - Dockerfile actual: `Dockerfile.simple`
 - docker-compose: `docker-compose.yml`
-- Benchmark results: `E:\scripts-python\xavier2-benchmark\`
+- Benchmark results: `E:\scripts-python\xavier-benchmark\`
 
 ---
 
@@ -157,13 +157,13 @@ Xavier2 es el sistema de memoria open source de SWAL. Necesita estar listo para:
 
 ```bash
 # Build Docker
-docker build -t xavier2:0.4.1 .
+docker build -t xavier:0.4.1 .
 
 # Run
 docker compose up -d
 
 # Logs
-docker compose logs -f xavier2
+docker compose logs -f xavier
 
 # Benchmark
 powershell -File scripts/benchmark_runner.py

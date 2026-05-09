@@ -4,10 +4,10 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://southwest-ai-labs.github.io/xavier2/',
+  site: 'https://southwest-ai-labs.github.io/xavier/',
   integrations: [
     starlight({
-      title: 'Xavier2',
+      title: 'Xavier',
       description: 'Cognitive Memory for AI Swarms',
       pagefind: false,
       sidebar: [

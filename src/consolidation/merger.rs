@@ -308,8 +308,8 @@ mod tests {
     #[test]
     fn clusters_similar_memories() {
         let memories = vec![
-            memory("a", "BELA built Xavier2 for memory consolidation", 0.8),
-            memory("b", "BELA built Xavier2 for memory consolidation", 0.7),
+            memory("a", "BELA built Xavier for memory consolidation", 0.8),
+            memory("b", "BELA built Xavier for memory consolidation", 0.7),
             memory("c", "Different note about deployment", 0.2),
         ];
 

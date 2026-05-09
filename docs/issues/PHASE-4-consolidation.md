@@ -62,14 +62,14 @@ impl ConsolidationTask {
     pub async fn run(&self, state: &AppState) -> Result<ConsolidationStats> {
         let start = Instant::now();
         let mut stats = ConsolidationStats::default();
-        
+
         // 1. Select memories for consolidation
         let memories = state.db.select_memories_for_consolidation(
             self.batch_size
         ).await?;
-        
+
         stats.selected = memories.len();
-        
+
         for memory in memories {
             // 2. Regenerate embedding
             let new_vector = match state.embedder.encode(&memory.content).await {
@@ -79,11 +79,11 @@ impl ConsolidationTask {
                     continue;
                 }
             };
-            
+
             // 3. Compare with stored embedding
             if let Some(stored_vector) = &memory.content_vector {
                 let similarity = cosine_similarity(stored_vector, &new_vector);
-                
+
                 if similarity < self.similarity_threshold {
                     // Memory has drifted - mark for review
                     state.db.mark_for_review(&memory.id, similarity).await?;
@@ -94,32 +94,32 @@ impl ConsolidationTask {
                     stats.reinforced += 1;
                 }
             }
-            
+
             // 4. Apply decay
             if memory.importance >= self.min_importance_for_decay {
                 state.db.apply_decay(&memory.id, self.decay_rate).await?;
                 stats.decayed += 1;
             }
-            
+
             // 5. Check for expiration
             if memory.expires_at.map(|e| e < Utc::now()).unwrap_or(false) {
                 state.db.archive_memory(&memory.id).await?;
                 stats.expired += 1;
             }
-            
+
             stats.processed += 1;
         }
-        
+
         stats.duration_ms = start.elapsed().as_millis() as u64;
         Ok(stats)
     }
-    
+
     pub async fn start_scheduler(self: Arc<Self>, state: AppState) {
         let mut ticker = interval(Duration::hours(self.interval_hours));
-        
+
         loop {
             ticker.tick().await;
-            
+
             tracing::info!("Starting memory consolidation");
             match self.run(&state).await {
                 Ok(stats) => {
@@ -140,11 +140,11 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
     let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
     let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-    
+
     if magnitude_a == 0.0 || magnitude_b == 0.0 {
         return 0.0;
     }
-    
+
     dot_product / (magnitude_a * magnitude_b)
 }
 
@@ -176,7 +176,7 @@ pub async fn select_memories_for_consolidation(
     // 1. Haven't been consolidated recently (>1 hour)
     // 2. Are not marked for review
     // 3. Sort by importance (process high-importance first)
-    
+
     let query = r#"
         SELECT id, content, content_vector, path, metadata,
                importance, created_at, updated_at, expires_at
@@ -186,7 +186,7 @@ pub async fn select_memories_for_consolidation(
         ORDER BY importance DESC
         LIMIT ?
     "#;
-    
+
     db.query_many(query, &[&batch_size])
         .await
         .map_err(|e| DatabaseError::QueryError(e.to_string()))
@@ -198,13 +198,13 @@ pub async fn mark_for_review(
     similarity: f32,
 ) -> Result<(), DatabaseError> {
     let query = r#"
-        UPDATE memories 
+        UPDATE memories
         SET review_status = 'pending',
             review_reason = ?,
             last_consolidated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     "#;
-    
+
     db.execute(query, &[&similarity.to_string(), &memory_id])
         .await
         .map_err(|e| DatabaseError::UpdateError(e.to_string()))
@@ -216,12 +216,12 @@ pub async fn increment_importance(
     delta: f32,
 ) -> Result<(), DatabaseError> {
     let query = r#"
-        UPDATE memories 
+        UPDATE memories
         SET importance = MIN(1.0, importance + ?),
             last_consolidated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     "#;
-    
+
     db.execute(query, &[&delta.to_string(), &memory_id])
         .await
         .map_err(|e| DatabaseError::UpdateError(e.to_string()))
@@ -233,12 +233,12 @@ pub async fn apply_decay(
     decay_rate: f32,
 ) -> Result<(), DatabaseError> {
     let query = r#"
-        UPDATE memories 
+        UPDATE memories
         SET importance = importance * ?,
             last_consolidated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND importance >= 0.3
     "#;
-    
+
     db.execute(query, &[&decay_rate.to_string(), &memory_id])
         .await
         .map_err(|e| DatabaseError::UpdateError(e.to_string()))
@@ -250,15 +250,15 @@ pub async fn archive_memory(
 ) -> Result<(), DatabaseError> {
     // Move to archive table and delete from main
     let archive_query = r#"
-        INSERT INTO memories_archive 
+        INSERT INTO memories_archive
         SELECT *, CURRENT_TIMESTAMP as archived_at
         FROM memories WHERE id = ?
     "#;
-    
+
     db.execute(archive_query, &[&memory_id])
         .await
         .map_err(|e| DatabaseError::ArchiveError(e.to_string()))?;
-    
+
     let delete_query = "DELETE FROM memories WHERE id = ?";
     db.execute(delete_query, &[&memory_id])
         .await
@@ -293,7 +293,7 @@ CREATE TABLE IF NOT EXISTS memories_archive (
 );
 
 -- Index for consolidation queries
-CREATE INDEX IF NOT EXISTS idx_memories_consolidation 
+CREATE INDEX IF NOT EXISTS idx_memories_consolidation
 ON memories(last_consolidated_at, importance);
 ```
 
@@ -333,7 +333,7 @@ pub async fn consolidate(
     Json(request): Json<ConsolidateRequest>,
 ) -> Result<Json<ConsolidateResponse>, StatusCode> {
     let batch_size = request.batch_size.unwrap_or(50);
-    
+
     let task = ConsolidationTask {
         interval_hours: 1,
         batch_size,
@@ -341,10 +341,10 @@ pub async fn consolidate(
         decay_rate: 0.95,
         min_importance_for_decay: 0.3,
     };
-    
+
     let stats = task.run(&state).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     Ok(Json(ConsolidateResponse {
         status: "ok".to_string(),
         stats,
@@ -357,10 +357,10 @@ pub async fn consolidation_status(
     // Get last run info from database
     let last_run = state.db.get_last_consolidation_time().await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     let total = state.db.get_consolidation_total().await
         .unwrap_or(0);
-    
+
     Ok(Json(ConsolidationStatus {
         last_run,
         total_processed: total,
@@ -383,23 +383,23 @@ use crate::consolidation::ConsolidationTask;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ... existing setup ...
-    
+
     // Initialize embedder
     let embedder = EmbedderConfig::from_env().build()?;
-    
+
     // Initialize app state
     let state = AppState {
         embedder,
         // ... other fields ...
     };
-    
+
     // Start consolidation scheduler in background
     let consolidation_task = Arc::new(ConsolidationTask::default());
     let state_for_scheduler = state.clone();
     tokio::spawn(async move {
         consolidation_task.start_scheduler(state_for_scheduler).await;
     });
-    
+
     // ... rest of main ...
 }
 ```

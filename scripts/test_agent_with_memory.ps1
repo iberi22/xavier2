@@ -1,5 +1,5 @@
 $headers = @{
-    "X-Xavier2-Token" = "dev-token"
+    "X-Xavier-Token" = $(if ($env:XAVIER_TOKEN) { $env:XAVIER_TOKEN } elseif ($env:XAVIER_API_KEY) { $env:XAVIER_API_KEY } elseif ($env:XAVIER_TOKEN) { $env:XAVIER_TOKEN } else { throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN." })
     "Content-Type" = "application/json"
 }
 

@@ -1,8 +1,17 @@
-$XAVIER2_URL = "http://localhost:8003"
-$TOKEN = "dev-token"
-$body = @{
-  path="trading/cycle/2026-04-10-0048"
-  content="## Trading Cycle 171 — 2026-04-10 05:48 UTC
+$XAVIER_URL = "http://localhost:8003"
+function Get-XavierToken {
+  $token = $env:XAVIER_TOKEN
+  if (-not $token) { $token = $env:XAVIER_API_KEY }
+  if (-not $token) { $token = $env:XAVIER_TOKEN }
+  if (-not $token) {
+    throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+  }
+  return $token
+}
+
+$TOKEN = Get-XavierToken
+$content = @'
+## Trading Cycle 171 — 2026-04-10 05:48 UTC
 
 ### Leaderboard
 | Rank | Agent | Balance | Daily PnL | Win Rate | Trades |
@@ -36,7 +45,11 @@ $body = @{
 2. Win rate stuck at 0 for new agents
 3. Suggested fix: Lower volatility threshold from 5% to 3%
 4. Consider increasing position sizing for high-confidence signals
-"
+'@
+
+$body = @{
+  path="trading/cycle/2026-04-10-0048"
+  content=$content
   metadata=@{
     type="cycle_report"
     cycle=171
@@ -46,6 +59,6 @@ $body = @{
 } | ConvertTo-Json -Compress
 $temp = [System.IO.Path]::GetTempFileName() + ".json"
 [System.IO.File]::WriteAllText($temp, $body)
-curl.exe -s -X POST "$XAVIER2_URL/memory/add" -H "X-Xavier2-Token: $TOKEN" -H "Content-Type: application/json" --data-binary "@$temp"
+curl.exe -s -X POST "$XAVIER_URL/memory/add" -H "X-Xavier-Token: $TOKEN" -H "Content-Type: application/json" --data-binary "@$temp"
 Remove-Item $temp
-Write-Host "Saved to Xavier2"
+Write-Host "Saved to Xavier"

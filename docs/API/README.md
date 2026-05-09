@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADR)
 
-**Proyecto:** Xavier2
+**Proyecto:** Xavier
 
 ---
 

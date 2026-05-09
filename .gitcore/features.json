@@ -1,7 +1,7 @@
 {
-  "_comment": "Feature tracking file for Xavier2 Cognitive Memory System.",
+  "_comment": "Feature tracking file for Xavier Cognitive Memory System.",
   "metadata": {
-    "project": "Xavier2",
+    "project": "Xavier",
     "created": "2026-03-05",
     "last_verified": "2026-04-11",
     "total_features": 6,
@@ -77,7 +77,7 @@
       "steps": [
         "Initialize SQLite index for code symbols",
         "Expose `/code/scan`, `/code/find`, and `/code/stats`",
-        "Persist index path via `XAVIER2_CODE_GRAPH_DB_PATH` across local, test, and Docker runs"
+        "Persist index path via `XAVIER_CODE_GRAPH_DB_PATH` across local, test, and Docker runs"
       ],
       "passes": true,
       "verified_by": "automated",
@@ -104,10 +104,10 @@
     }
   ],
   "verification_commands": {
-    "all": "cargo test -p xavier2",
-    "unit": "cargo test -p xavier2 --lib",
-    "e2e": "cargo test -p xavier2 --test e2e -- --nocapture",
-    "lint": "cargo clippy -p xavier2 --all-targets -- -D warnings",
+    "all": "cargo test -p xavier",
+    "unit": "cargo test -p xavier --lib",
+    "e2e": "cargo test -p xavier --test e2e -- --nocapture",
+    "lint": "cargo clippy -p xavier --all-targets -- -D warnings",
     "benchmark_smoke": "python scripts/benchmarks/run_locomo_benchmark.py --sample-limit 1 --question-limit 2"
   }
 }

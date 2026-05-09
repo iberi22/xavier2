@@ -1,6 +1,6 @@
 {
   "benchmark": "internal_swal_openclaw_memory",
-  "dataset": "E:\\scripts-python\\xavier2\\scripts\\benchmarks\\datasets\\internal_swal_openclaw_memory.json",
+  "dataset": "E:\\scripts-python\\xavier\\scripts\\benchmarks\\datasets\\internal_swal_openclaw_memory.json",
   "base_url": "http://127.0.0.1:64404",
   "cases": 5,
   "passed": 5,

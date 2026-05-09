@@ -1,6 +1,6 @@
 # Visión General de Arquitectura
 
-**Proyecto:** Xavier2
+**Proyecto:** Xavier
 **Fecha:** 2026-03-13 (actualizado: 2026-04-13)
 
 ---
@@ -25,7 +25,7 @@
 
 ## Memory Backend: sqlite-pro (vec)
 
-Xavier2 uses **sqlite-pro** with the `sqlite-vec` extension as its primary memory store, providing a unified backend that combines full-text search, vector similarity, and knowledge graph traversal.
+Xavier uses **sqlite-pro** with the `sqlite-vec` extension as its primary memory store, providing a unified backend that combines full-text search, vector similarity, and knowledge graph traversal.
 
 ### Search Pipeline
 

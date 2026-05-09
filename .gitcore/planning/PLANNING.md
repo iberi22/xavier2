@@ -1,11 +1,11 @@
 # PLANNING.md
 
-Gestión de Planificación: Xavier2
+Gestión de Planificación: Xavier
 Última actualización: 2026-04-14
 
 ## Visión y Alcance
 
-Xavier2 es un motor de memoria cognitiva para agentes IA, construido en Rust. El objetivo es proporcionar memoria persistente, buscable e interpretable con arquitectura de System 3 (recuperación, razonamiento, oversight).
+Xavier es un motor de memoria cognitiva para agentes IA, construido en Rust. El objetivo es proporcionar memoria persistente, buscable e interpretable con arquitectura de System 3 (recuperación, razonamiento, oversight).
 
 ## Restricciones y Decisiones
 
@@ -21,7 +21,7 @@ Xavier2 es un motor de memoria cognitiva para agentes IA, construido en Rust. El
 | Capa | Herramienta | Uso |
 |------|-------------|-----|
 | Runtime | `cargo build --release` | Build producción |
-| Tests | `cargo test -p xavier2` | Validación |
+| Tests | `cargo test -p xavier` | Validación |
 | HTTP Server | `src/server/http.rs` | API + Panel UI |
 | MCP | `src/server/mcp_server.rs` | Model Context Protocol |
 | Docker | `docker-compose up` | Desarrollo local |
@@ -40,7 +40,7 @@ Xavier2 es un motor de memoria cognitiva para agentes IA, construido en Rust. El
 
 ## Criterios de Éxito
 
-1. Todos los tests pasan (`cargo test -p xavier2`)
+1. Todos los tests pasan (`cargo test -p xavier`)
 2. API endpoints documentados en `docs/site/`
 3. Multi-tenant isolation verificado
 4. Docker deployment funcional
@@ -57,4 +57,4 @@ Xavier2 es un motor de memoria cognitiva para agentes IA, construido en Rust. El
 
 ---
 
-*Xavier2 v0.4.1 - Cognitive Memory Runtime*
+*Xavier v0.4.1 - Cognitive Memory Runtime*

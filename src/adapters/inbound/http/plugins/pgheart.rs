@@ -1,7 +1,7 @@
 //! PgHeart PostgreSQL Monitoring Plugin
 //!
-//! Integrates Xavier2 with PgHeart for PostgreSQL monitoring and heartbeat.
-//! This plugin provides bidirectional synchronization between local Xavier2 memory
+//! Integrates Xavier with PgHeart for PostgreSQL monitoring and heartbeat.
+//! This plugin provides bidirectional synchronization between local Xavier memory
 //! and PgHeart monitoring system.
 
 use async_trait::async_trait;

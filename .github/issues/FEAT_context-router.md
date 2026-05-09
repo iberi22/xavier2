@@ -11,7 +11,7 @@ assignees: []
 Develop a dynamic `Context Router` in `src/agents/router.rs` that classifies incoming user queries based on their cognitive complexity in order to dynamically select the cheapest, most efficient LLM model needed to resolve the request.
 
 ### Background
-Currently, Xavier2 routes all queries indiscriminately through the same heavy System3 LLM path. The objective is to achieve massive cost savings by identifying queries that do not require multi-hop reasoning or vast context token consumption and offloading them to faster, cheaper models.
+Currently, Xavier routes all queries indiscriminately through the same heavy System3 LLM path. The objective is to achieve massive cost savings by identifying queries that do not require multi-hop reasoning or vast context token consumption and offloading them to faster, cheaper models.
 
 ### Proposed Architecture
 Create `src/agents/router.rs` with a router that acts as the entry point before `System1` (Retrieval) and `System3` (Generation).

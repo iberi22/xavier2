@@ -86,7 +86,7 @@ function App() {
       try {
         setError(null);
         const response = await fetch(`/panel/api/threads/${threadId}`, {
-          headers: { "X-Xavier2-Token": currentToken },
+          headers: { "X-Xavier-Token": currentToken },
         });
         if (!response.ok) {
           throw new Error("Failed to load thread");
@@ -108,10 +108,10 @@ function App() {
       try {
         setError(null);
         const response = await fetch("/panel/api/threads", {
-          headers: { "X-Xavier2-Token": currentToken },
+          headers: { "X-Xavier-Token": currentToken },
         });
         if (!response.ok) {
-          throw new Error("Token rejected by Xavier2");
+          throw new Error("Token rejected by Xavier");
         }
         const data = (await response.json()) as ThreadSummary[];
         setThreads(data);
@@ -153,7 +153,7 @@ function App() {
       ...options,
       headers: {
         "Content-Type": "application/json",
-        "X-Xavier2-Token": token,
+        "X-Xavier-Token": token,
         ...(options?.headers ?? {}),
       },
     });
@@ -219,13 +219,13 @@ function App() {
   if (!token) {
     return (
       <ThemeProvider mode="light" lightTheme={theme}>
-        <div className="xavier2-app token-screen">
+        <div className="xavier-app token-screen">
           <div className="token-card">
-            <p className="eyebrow">Xavier2 Internal Panel</p>
+            <p className="eyebrow">Xavier Internal Panel</p>
             <h1>OpenUI cockpit for the internal agent</h1>
             <p className="lede">
-              Paste the Xavier2 token. The shell stays public, but every panel
-              API call remains protected by <code>X-Xavier2-Token</code>.
+              Paste the Xavier token. The shell stays public, but every panel
+              API call remains protected by <code>X-Xavier-Token</code>.
             </p>
             <div className="token-meta">
               <div className="instrument-card">
@@ -241,7 +241,7 @@ function App() {
               className="cx-textarea token-input"
               value={draftToken}
               onChange={(event) => setDraftToken(event.target.value)}
-              placeholder="XAVIER2_TOKEN"
+              placeholder="XAVIER_TOKEN"
               rows={4}
             />
             <button
@@ -264,7 +264,7 @@ function App() {
   return (
     <ThemeProvider mode="light" lightTheme={theme}>
       <div
-        className="xavier2-app shell"
+        className="xavier-app shell"
         style={
           {
             "--cx-bg": designTokens.color.bg,
@@ -292,7 +292,7 @@ function App() {
         <aside className="sidebar">
           <div className="brand">
             <div>
-              <p className="eyebrow">Xavier2</p>
+              <p className="eyebrow">Xavier</p>
               <h2>Render Agent Console</h2>
             </div>
             <button
@@ -362,7 +362,7 @@ function App() {
                 <div className="message-header">
                   <strong>
                     {message.role === "assistant"
-                      ? "Xavier2 UI Agent"
+                      ? "Xavier UI Agent"
                       : "Operator"}
                   </strong>
                   <span className="message-time">
@@ -449,7 +449,7 @@ function App() {
               className="cx-textarea"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="Ask Xavier2 for memory, code, or a structured answer..."
+              placeholder="Ask Xavier for memory, code, or a structured answer..."
               rows={4}
             />
             <button

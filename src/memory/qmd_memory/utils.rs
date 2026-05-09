@@ -124,11 +124,7 @@ pub fn extract_speakers(text: &str) -> Vec<String> {
     let mut speakers = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
-    for re in &[
-        &*SPEAKER_COLON_RE,
-        &*SPEAKER_BRACKET_RE,
-        &*SPEAKER_ROLE_RE,
-    ] {
+    for re in &[&*SPEAKER_COLON_RE, &*SPEAKER_BRACKET_RE, &*SPEAKER_ROLE_RE] {
         for cap in re.captures_iter(text) {
             if let Some(name) = cap.get(1) {
                 let name = name.as_str().trim();
@@ -504,7 +500,9 @@ pub fn resolve_temporal_value(content: &str, session_time: Option<&str>) -> Opti
     if lowered.contains("last sunday") || lowered.contains("sunday before") {
         let weekday = session_date.weekday().num_days_from_sunday() as i64;
         let days_back = if weekday == 0 { 7 } else { weekday };
-        return Some(format_date(session_date - chrono::Duration::days(days_back)));
+        return Some(format_date(
+            session_date - chrono::Duration::days(days_back),
+        ));
     }
 
     None

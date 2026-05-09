@@ -2,7 +2,7 @@
 
 ## Contexto
 
-Jules está asignado a múltiples issues en `iberi22/xavier2`. Este documento explica cómoinvocarlo efectivamente con los hallazgos del sprint.
+Jules está asignado a múltiples issues en `iberi22/xavier`. Este documento explica cómoinvocarlo efectivamente con los hallazgos del sprint.
 
 ## Invocación Directa
 
@@ -23,9 +23,9 @@ Jules está asignado a múltiples issues en `iberi22/xavier2`. Este documento ex
 
 ## Fases Sugeridas
 
-### Phase 1: SEVIER2 Core (crítico)
+### Phase 1: SEVIER Core (crítico)
 - #78 Docker env vars
-- #75 unregister endpoint  
+- #75 unregister endpoint
 - #74 wrong payload
 
 ### Phase 2: Architecture Cleanup

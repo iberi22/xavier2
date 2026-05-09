@@ -1,6 +1,6 @@
-# Xavier2 Project Context
+# Xavier Project Context
 
-- Repository: `xavier2`
+- Repository: `xavier`
 - Runtime: Rust + Tokio
 - Memory store: SurrealDB
 - Agent memory endpoint: `http://localhost:8003/mcp`
@@ -15,4 +15,4 @@
 
 ## Project Intent
 
-Use Xavier2 as the reusable memory substrate for agentic workflows. Prefer storing durable knowledge in Xavier2 and keep repo files focused on product code, architecture, and user-facing documentation.
+Use Xavier as the reusable memory substrate for agentic workflows. Prefer storing durable knowledge in Xavier and keep repo files focused on product code, architecture, and user-facing documentation.

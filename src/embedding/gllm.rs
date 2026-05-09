@@ -42,7 +42,7 @@ impl GllmEmbedder {
     #[cfg(not(feature = "local-gllm"))]
     pub fn new(model: String, _dimension: usize) -> Result<Self, EmbeddingError> {
         Err(EmbeddingError::Config(format!(
-            "gllm embedder requested for model {model}, but Xavier2 was built without the local-gllm feature"
+            "gllm embedder requested for model {model}, but Xavier was built without the local-gllm feature"
         )))
     }
 }
@@ -64,7 +64,7 @@ impl Embedder for GllmEmbedder {
         {
             let _ = text;
             Err(EmbeddingError::Config(
-                "gllm embedder requested, but Xavier2 was built without the local-gllm feature"
+                "gllm embedder requested, but Xavier was built without the local-gllm feature"
                     .to_string(),
             ))
         }

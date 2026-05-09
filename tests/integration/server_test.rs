@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod http_server_tests {
-    use xavier2::server::http::{HttpConfig, HttpServer};
+    use xavier::server::http::{HttpConfig, HttpServer};
 
     #[test]
     fn test_http_config_creation() {

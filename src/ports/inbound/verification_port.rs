@@ -14,7 +14,7 @@ pub struct VerificationResult {
 pub trait VerificationPort: Send + Sync {
     async fn verify_save(
         &self,
-        xavier2_url: &str,
+        xavier_url: &str,
         auth_token: &str,
         path: &str,
         test_content: &str,

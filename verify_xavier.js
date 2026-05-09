@@ -7,7 +7,7 @@ function api(BASE, TOKEN, path, payload, method) {
     const options = {
       hostname: url.hostname, port: url.port, path: url.pathname,
       method: method || (payload ? 'POST' : 'GET'),
-      headers: {'Content-Type': 'application/json', 'X-Xavier2-Token': TOKEN}
+      headers: {'Content-Type': 'application/json', 'X-Xavier-Token': TOKEN}
     };
     if (data) options.headers['Content-Length'] = Buffer.byteLength(data);
     const req = http.request(options, res => {
@@ -22,9 +22,9 @@ function api(BASE, TOKEN, path, payload, method) {
 }
 
 async function main() {
-  console.log('=== Verifying Xavier2 memories ===\n');
+  console.log('=== Verifying Xavier memories ===\n');
 
-  const queries = ['*', 'task', 'repo', 'decision', 'session', 'xavier2', 'memory', 'openclaw'];
+  const queries = ['*', 'task', 'repo', 'decision', 'session', 'xavier', 'memory', 'openclaw'];
 
   for (const q of queries) {
     const r = await api('http://localhost:8006', 'dev-token', '/memory/search', {query: q, limit: 20});

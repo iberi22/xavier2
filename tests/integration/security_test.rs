@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod security_tests {
-    use xavier2::security::{SecurityConfig, SecurityManager};
+    use xavier::security::{SecurityConfig, SecurityManager};
 
     #[test]
     fn test_security_config_creation() {
@@ -35,8 +35,8 @@ mod security_tests {
 
     #[test]
     fn test_generate_token() {
-        // Token generation requires XAVIER2_TOKEN_SECRET to be set
-        std::env::set_var("XAVIER2_TOKEN_SECRET", "test-secret-key-for-testing");
+        // Token generation requires XAVIER_TOKEN_SECRET to be set
+        std::env::set_var("XAVIER_TOKEN_SECRET", "test-secret-key-for-testing");
         let security = SecurityManager::new();
 
         let token = security.generate_token("user123").unwrap();
@@ -49,7 +49,7 @@ mod security_tests {
 
 #[cfg(test)]
 mod secrets_tests {
-    use xavier2::secrets::SecretsManager;
+    use xavier::secrets::SecretsManager;
 
     #[test]
     fn test_secrets_manager_creation() {

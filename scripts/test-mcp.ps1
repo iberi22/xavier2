@@ -26,7 +26,7 @@ Write-Host "Starting MCP Verification..." -ForegroundColor Yellow
 
 # 1. Initialize
 $Init = Test-MCPMethod -Method "initialize"
-if ($Init.result.serverInfo.name -ne "xavier2-memory") {
+if ($Init.result.serverInfo.name -ne "xavier-memory") {
     Write-Host "FAILED: Wrong server info" -ForegroundColor Red
     exit 1
 }

@@ -157,7 +157,7 @@ fn detection_to_threats(detection: &security::ProcessResult, _target: &str) -> V
         level: threat_level,
         severity,
         description,
-        affected_component: "xavier2".to_string(),
+        affected_component: "xavier".to_string(),
         remediation: Some(if detection.sanitized_input.is_some() {
             "Input was sanitized. Review sanitized version before processing.".to_string()
         } else {

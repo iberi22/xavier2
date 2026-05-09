@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Xavier2 Agent UI</title>
+  <title>Xavier Agent UI</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -135,10 +135,10 @@
     const { useState, useEffect, useRef } = React;
 
     // ============================================
-    // XAVIER2 API
+    // XAVIER API
     // ============================================
-    const XAVIER2_URL = 'http://localhost:8003';
-    const XAVIER2_TOKEN = 'dev-token';
+    const XAVIER_URL = 'http://localhost:8003';
+    const XAVIER_TOKEN = 'dev-token';
 
     // ============================================
     // UI TEMPLATES (Generative)
@@ -327,7 +327,7 @@
         {
           id: 0,
           sender: 'agent',
-          text: '🧠 Hi! I\'m Xavier2 Agent. Tell me what UI you want to generate, like:',
+          text: '🧠 Hi! I\'m Xavier Agent. Tell me what UI you want to generate, like:',
           examples: [
             '"Show me a Kanban board for my project"',
             '"Create a notes app like Obsidian"',
@@ -375,7 +375,7 @@
                   { title: 'Build chat UI', priority: 'high', assignee: 'BELA' },
                 ]},
                 { id: 'done', title: 'Done', color: '#22c55e', items: [
-                  { title: 'Xavier2 benchmark 99.1%', priority: 'high', assignee: 'BELA' },
+                  { title: 'Xavier benchmark 99.1%', priority: 'high', assignee: 'BELA' },
                   { title: 'Memory manager implemented', priority: 'high', assignee: 'BELA' },
                 ]},
               ]
@@ -406,7 +406,7 @@
             type: 'timeline',
             data: {
               items: [
-                { date: '2026-04-05', title: 'Xavier2 99.1% recall achieved', description: 'LoCoMo benchmark surpassed' },
+                { date: '2026-04-05', title: 'Xavier 99.1% recall achieved', description: 'LoCoMo benchmark surpassed' },
                 { date: '2026-04-04', title: 'Memory manager implemented', description: 'Decay, consolidate, evict' },
                 { date: '2026-04-03', title: 'SurrealDB upgrade to v3', description: 'Protocol fix applied' },
                 { date: '2026-04-01', title: 'pplx-embed fixed', description: 'Restarted service' },
@@ -423,7 +423,7 @@
               columns: ['Project', 'Status', 'Priority', 'Due'],
               rows: [
                 ['ManteniApp', 'Active', 'High', '2026-04-10'],
-                ['Xavier2', 'Testing', 'High', '2026-04-08'],
+                ['Xavier', 'Testing', 'High', '2026-04-08'],
                 ['Tripro Landing', 'Done', 'Medium', '2026-04-01'],
                 ['Synapse Trader', 'Active', 'Medium', 'Ongoing'],
               ]
@@ -477,7 +477,7 @@
           <div className="header">
             <div className="header-logo">
               <div className="icon">🧠</div>
-              <span>Xavier2 Agent UI</span>
+              <span>Xavier Agent UI</span>
             </div>
             <span className="model-badge">MiniMax-M2.7</span>
           </div>
@@ -486,7 +486,7 @@
           <div className="chat-area">
             {messages.map(msg => (
               <div key={msg.id} className={`message ${msg.sender}`}>
-                <div className="sender">{msg.sender === 'agent' ? '🧠 Xavier2' : '👤 You'}</div>
+                <div className="sender">{msg.sender === 'agent' ? '🧠 Xavier' : '👤 You'}</div>
                 <div>{msg.text}</div>
 
                 {/* Show examples on first message */}
@@ -522,7 +522,7 @@
             {/* Generating indicator */}
             {generating && (
               <div className="message agent">
-                <div className="sender">🧠 Xavier2</div>
+                <div className="sender">🧠 Xavier</div>
                 <div className="ui-generating">
                   <div className="spinner"></div>
                   <span>Generating UI...</span>

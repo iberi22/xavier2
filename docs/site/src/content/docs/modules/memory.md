@@ -1,11 +1,11 @@
----
+﻿---
 title: Memory Module
 description: Core memory operations and storage
 ---
 
 # Memory Module
 
-The memory module is the core of Xavier2. It stores, retrieves, and searches workspace memories through a common `MemoryStore` abstraction.
+The memory module is the core of Xavier. It stores, retrieves, and searches workspace memories through a common `MemoryStore` abstraction.
 
 ## Current Runtime Truth
 
@@ -48,7 +48,7 @@ pub trait MemoryStore: Send + Sync {
 
 ### Active Default Backend
 
-For the current deployment story, Xavier2 uses the file-backed runtime store. That is the backend to assume when documenting behavior, recovery, and local persistence.
+For the current deployment story, Xavier uses the file-backed runtime store. That is the backend to assume when documenting behavior, recovery, and local persistence.
 
 ### Optional SurrealDB Direction
 
@@ -59,13 +59,13 @@ SurrealDB is still relevant to the architecture, especially for broader hosted d
 ### Add Memory
 
 ```rust
-use xavier2::memory::{MemoryManager, MemoryItem};
+use xavier::memory::{MemoryManager, MemoryItem};
 
 let manager = MemoryManager::new();
 
 let item = MemoryItem::new(
-    "Xavier2 stores this memory in the active file-backed runtime",
-    "xavier2/storage",
+    "Xavier stores this memory in the active file-backed runtime",
+    "xavier/storage",
 );
 
 let id = manager.add(item).await?;
@@ -85,7 +85,7 @@ for result in results {
 
 ## Operational Notes
 
-- Auth is enforced at the HTTP layer through `X-Xavier2-Token`.
+- Auth is enforced at the HTTP layer through `X-Xavier-Token`.
 - `GET /health` and `GET /readiness` are intentionally public.
 - JWT/RBAC code exists elsewhere in the repo, but it is not the active server auth path.
 - Retrieval quality is strong in the latest benchmark, but the **2026-04-11** run still reported **1006.4ms** average latency, above the older `< 500ms` target.
@@ -95,7 +95,7 @@ for result in results {
 Use the same verification path referenced in the aligned project docs:
 
 ```bash
-cargo test --workspace --features ci-safe --exclude xavier2-web
+cargo test --workspace --features ci-safe --exclude xavier-web
 npm run build --workspace panel-ui
 npm run build --workspace docs/site
 ```

@@ -100,21 +100,21 @@ impl Default for WorkingMemoryConfig {
 impl WorkingMemoryConfig {
     /// Load configuration from environment variables
     ///
-    /// Reads XAVIER2_WORKING_MEMORY_CAPACITY, XAVIER2_WORKING_LRU_THRESHOLD,
-    /// XAVIER2_WORKING_BM25_K1, XAVIER2_WORKING_BM25_B with validated defaults.
+    /// Reads XAVIER_WORKING_MEMORY_CAPACITY, XAVIER_WORKING_LRU_THRESHOLD,
+    /// XAVIER_WORKING_BM25_K1, XAVIER_WORKING_BM25_B with validated defaults.
     pub fn from_env() -> Self {
         let default = Self::default();
         Self {
-            capacity: Self::parse_or("XAVIER2_WORKING_MEMORY_CAPACITY", default.capacity, |v| {
+            capacity: Self::parse_or("XAVIER_WORKING_MEMORY_CAPACITY", default.capacity, |v| {
                 *v > 0
             }),
             lru_exempt_access_threshold: Self::parse_or(
-                "XAVIER2_WORKING_LRU_THRESHOLD",
+                "XAVIER_WORKING_LRU_THRESHOLD",
                 default.lru_exempt_access_threshold,
                 |v| *v > 0,
             ),
-            bm25_k1: Self::parse_or("XAVIER2_WORKING_BM25_K1", default.bm25_k1, |v| *v > 0.0),
-            bm25_b: Self::parse_or("XAVIER2_WORKING_BM25_B", default.bm25_b, |v| *v > 0.0),
+            bm25_k1: Self::parse_or("XAVIER_WORKING_BM25_K1", default.bm25_k1, |v| *v > 0.0),
+            bm25_b: Self::parse_or("XAVIER_WORKING_BM25_B", default.bm25_b, |v| *v > 0.0),
         }
     }
 
@@ -171,7 +171,7 @@ impl From<WorkingMemoryConfig> for crate::memory::layers_config::WorkingMemoryLa
 ///
 /// # Example
 /// ```rust
-/// use xavier2::memory::working::{WorkingMemory, MemoryItem};
+/// use xavier::memory::working::{WorkingMemory, MemoryItem};
 ///
 /// let mut wm = WorkingMemory::new();
 /// wm.push(MemoryItem::new("1", "First item"));

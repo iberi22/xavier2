@@ -2,7 +2,7 @@
 
 ## Plan Completo
 
-### 1. XAVIER2 DOCKER (Prioridad Alta)
+### 1. XAVIER DOCKER (Prioridad Alta)
 - [x] Multi-stage Dockerfile creado
 - [ ] Build corriendo (session: fast-lobster)
 - [ ] docker-compose.yml
@@ -18,7 +18,7 @@
 
 ### 3. NEW AGENT: "Gentleman Dev" (Telegram)
 - **Stack:** gentle-ai + engram + Telegram bot
-- **Propósito:** Competir con Cortex y Xavier2
+- **Propósito:** Competir con Cortex y Xavier
 - **Workflow:** SDD (Spec-Driven Development)
 
 ### Arquitectura:
@@ -28,7 +28,7 @@
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
-│  │   Xavier2   │  │   Cortex    │  │   Engram    │     │
+│  │   Xavier   │  │   Cortex    │  │   Engram    │     │
 │  │  (Memory)   │  │  (Memory)   │  │  (Memory)   │     │
 │  │             │  │             │  │             │     │
 │  │ Rust-based  │  │ Python/API  │  │ Gentle-ai   │     │
@@ -74,9 +74,9 @@
   - Telegram integration
   - Codex/Claude Code como backend
 
-### Engram vs Cortex vs Xavier2:
+### Engram vs Cortex vs Xavier:
 
-| Feature | Engram | Cortex | Xavier2 |
+| Feature | Engram | Cortex | Xavier |
 |---------|--------|--------|---------|
 | **Type** | Memory | Memory | Memory |
 | **API** | CLI/MCP | REST | REST |
@@ -99,7 +99,7 @@
 ### Phase 1: Docker Build (corriendo ahora)
 ```bash
 # Status: Building...
-docker build --platform linux/amd64 -t iberi22/xavier2:latest
+docker build --platform linux/amd64 -t iberi22/xavier:latest
 ```
 
 ### Phase 2: Install gentle-ai + engram
@@ -125,7 +125,7 @@ gentle-ai config set telegram.enabled true
 ### Phase 4: Benchmark Framework
 ```bash
 # Scripts de benchmark en:
-# E:\scripts-python\xavier2\scripts\benchmark_*.py
+# E:\scripts-python\xavier\scripts\benchmark_*.py
 ```
 
 ---
@@ -153,7 +153,7 @@ gentle-ai config set telegram.enabled true
 
 | Componente | Status | Owner |
 |------------|--------|-------|
-| Xavier2 Docker | 🔄 Building | Auto |
+| Xavier Docker | 🔄 Building | Auto |
 | Synapse Dataset | ✅ Done | Auto |
 | Colab Notebook | ✅ Done | Auto |
 | Benchmark Framework | ⏳ Pending | - |
@@ -167,7 +167,7 @@ gentle-ai config set telegram.enabled true
 
 Cuando termine el build de Docker, subir a Docker Hub:
 ```bash
-docker push iberi22/xavier2:latest
+docker push iberi22/xavier:latest
 ```
 
 *Last updated: 2026-04-16*

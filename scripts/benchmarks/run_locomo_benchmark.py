@@ -25,11 +25,11 @@ def run(cmd, cwd=None, env=None):
 
 
 def clone_or_update(repo_url: str, name: str) -> Path:
-    override_dir = os.environ.get("XAVIER2_BENCHMARK_CACHE_DIR", "").strip()
+    override_dir = os.environ.get("XAVIER_BENCHMARK_CACHE_DIR", "").strip()
     base = (
         Path(override_dir).expanduser()
         if override_dir
-        else Path(tempfile.gettempdir()) / "xavier2-benchmark-sources"
+        else Path(tempfile.gettempdir()) / "xavier-benchmark-sources"
     )
     base.mkdir(parents=True, exist_ok=True)
     target = base / name
@@ -40,7 +40,7 @@ def clone_or_update(repo_url: str, name: str) -> Path:
     return target
 
 
-def resolve_xavier2_binary(raw_path: str) -> Path:
+def resolve_xavier_binary(raw_path: str) -> Path:
     if raw_path:
         candidate = Path(raw_path).expanduser()
         if not candidate.is_absolute():
@@ -48,16 +48,16 @@ def resolve_xavier2_binary(raw_path: str) -> Path:
         if candidate.is_file():
             return candidate
         raise FileNotFoundError(
-            f"Xavier2 binary not found at '{candidate}'. "
-            f"Build it first with `cargo build --release --bin xavier2` "
-            f"or pass --xavier2-binary/ XAVIER2_BINARY with the absolute path."
+            f"Xavier binary not found at '{candidate}'. "
+            f"Build it first with `cargo build --release --bin xavier` "
+            f"or pass --xavier-binary/ XAVIER_BINARY with the absolute path."
         )
 
-    env_path = os.environ.get("XAVIER2_BINARY", "").strip()
+    env_path = os.environ.get("XAVIER_BINARY", "").strip()
     if env_path:
-        return resolve_xavier2_binary(env_path)
+        return resolve_xavier_binary(env_path)
 
-    names = ["xavier2.exe", "xavier2"] if os.name == "nt" else ["xavier2", "xavier2.exe"]
+    names = ["xavier.exe", "xavier"] if os.name == "nt" else ["xavier", "xavier.exe"]
     search_roots = [
         REPO_ROOT / "target" / "release",
         Path.home() / ".cargo" / "target_global" / "release",
@@ -71,17 +71,17 @@ def resolve_xavier2_binary(raw_path: str) -> Path:
 
     searched = ", ".join(str(root) for root in search_roots)
     raise FileNotFoundError(
-        "Unable to locate Xavier2 binary automatically. "
+        "Unable to locate Xavier binary automatically. "
         f"Searched: {searched}. "
-        "Build it first with `cargo build --release --bin xavier2` or set XAVIER2_BINARY."
+        "Build it first with `cargo build --release --bin xavier` or set XAVIER_BINARY."
     )
 
 
 def http_json(url: str, payload=None, method="GET", timeout=30):
     headers = {"Content-Type": "application/json"}
-    token = os.environ.get("XAVIER2_TOKEN", "").strip()
+    token = os.environ.get("XAVIER_TOKEN", "").strip()
     if token:
-        headers["X-Xavier2-Token"] = token
+        headers["X-Xavier-Token"] = token
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -99,7 +99,7 @@ def wait_for_health(base_url: str, timeout_seconds: int = 60) -> None:
         except Exception as error:  # pragma: no cover - integration only
             last_error = error
         time.sleep(1)
-    raise RuntimeError(f"Xavier2 health check failed: {last_error}")
+    raise RuntimeError(f"Xavier health check failed: {last_error}")
 
 
 def find_free_port() -> int:
@@ -410,7 +410,7 @@ def evaluate_mode(base_url: str, samples: list[dict], args, mode: str) -> tuple[
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--xavier2-binary", default="")
+    parser.add_argument("--xavier-binary", default="")
     parser.add_argument("--base-url", default="http://127.0.0.1:8003")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--sample-limit", type=int, default=10)
@@ -437,19 +437,19 @@ def main():
     samples = json.loads(dataset_path.read_text(encoding="utf-8"))[: args.sample_limit]
 
     child = None
-    child_stdout = output_dir / "xavier2.stdout.log"
-    child_stderr = output_dir / "xavier2.stderr.log"
+    child_stdout = output_dir / "xavier.stdout.log"
+    child_stderr = output_dir / "xavier.stderr.log"
     if not args.use_existing_server:
-        xavier2_binary = resolve_xavier2_binary(args.xavier2_binary)
+        xavier_binary = resolve_xavier_binary(args.xavier_binary)
         port = find_free_port()
         env = os.environ.copy()
-        env["XAVIER2_DEV_MODE"] = "1"
-        env["XAVIER2_HOST"] = "127.0.0.1"
-        env["XAVIER2_PORT"] = str(port)
-        env["XAVIER2_CODE_GRAPH_DB_PATH"] = str(output_dir / "code_graph.db")
+        env["XAVIER_DEV_MODE"] = "1"
+        env["XAVIER_HOST"] = "127.0.0.1"
+        env["XAVIER_PORT"] = str(port)
+        env["XAVIER_CODE_GRAPH_DB_PATH"] = str(output_dir / "code_graph.db")
         base_url = f"http://127.0.0.1:{port}"
         child = subprocess.Popen(
-            [str(xavier2_binary)],
+            [str(xavier_binary)],
             cwd=REPO_ROOT,
             env=env,
             stdout=child_stdout.open("wb"),

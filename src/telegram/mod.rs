@@ -1,4 +1,4 @@
-//! Telegram Bot for Xavier2 Management
+//! Telegram Bot for Xavier Management
 
 use serde::{Deserialize, Serialize};
 use teloxide::prelude::*;
@@ -36,21 +36,21 @@ pub struct TelegramConfig {
 impl Default for TelegramConfig {
     fn default() -> Self {
         Self {
-            bot_token: std::env::var("XAVIER2_TELEGRAM_TOKEN").unwrap_or_default(),
+            bot_token: std::env::var("XAVIER_TELEGRAM_TOKEN").unwrap_or_default(),
             admin_ids: Vec::new(),
-            enabled: std::env::var("XAVIER2_TELEGRAM_ENABLED")
+            enabled: std::env::var("XAVIER_TELEGRAM_ENABLED")
                 .map(|v| v == "true")
                 .unwrap_or(false),
         }
     }
 }
 
-pub struct Xavier2Bot {
+pub struct XavierBot {
     bot: Bot,
     config: TelegramConfig,
 }
 
-impl Xavier2Bot {
+impl XavierBot {
     pub fn new(config: TelegramConfig) -> Self {
         let bot = Bot::new(&config.bot_token);
         Self { bot, config }
@@ -86,13 +86,13 @@ impl Xavier2Bot {
             "/start" => {
                 bot.send_message(
                     msg.chat.id,
-                    "🦀 *Xavier2 Bot*\n\nWelcome! Use /help for commands.",
+                    "🦀 *Xavier Bot*\n\nWelcome! Use /help for commands.",
                 )
                 .parse_mode(ParseMode::MarkdownV2)
                 .await?;
             }
             "/health" => {
-                bot.send_message(msg.chat.id, "🟢 System: Running\n⚡ Xavier2 v0.4.1")
+                bot.send_message(msg.chat.id, "🟢 System: Running\n⚡ Xavier v0.4.1")
                     .await?;
             }
             "/stats" => {
@@ -131,12 +131,12 @@ impl Xavier2Bot {
             "/agents" => {
                 bot.send_message(
                     msg.chat.id,
-                    "🤖 Agents:\n• xavier2-main: ✅\n• memory-sync: ✅",
+                    "🤖 Agents:\n• xavier-main: ✅\n• memory-sync: ✅",
                 )
                 .await?;
             }
             "/help" => {
-                let help = "🦀 *Xavier2 Commands*\n\n\
+                let help = "🦀 *Xavier Commands*\n\n\
 /start - Welcome\n\
 /health - System status\n\
 /stats - Memory stats\n\
@@ -162,15 +162,15 @@ pub async fn run_bot() {
     let config = TelegramConfig::default();
 
     if !config.enabled {
-        log::info!("Telegram bot disabled. Set XAVIER2_TELEGRAM_ENABLED=true");
+        log::info!("Telegram bot disabled. Set XAVIER_TELEGRAM_ENABLED=true");
         return;
     }
 
     if config.bot_token.is_empty() {
-        log::error!("Telegram bot token not set. Set XAVIER2_TELEGRAM_TOKEN");
+        log::error!("Telegram bot token not set. Set XAVIER_TELEGRAM_TOKEN");
         return;
     }
 
-    let bot = Xavier2Bot::new(config);
+    let bot = XavierBot::new(config);
     bot.start().await;
 }

@@ -74,7 +74,7 @@ export function ProjectsGrid({ projects, onRefresh, lastUpdated }: ProjectsGridP
           <h1>Projects Status Board</h1>
           <Button onClick={onRefresh}>🔄 Refresh All</Button>
         </div>
-        
+
         {lastUpdated && (
           <p className="last-updated">
             Last updated: {lastUpdated.toLocaleTimeString()}
@@ -100,7 +100,7 @@ export function ProjectsGrid({ projects, onRefresh, lastUpdated }: ProjectsGridP
               onChange={(value) => setSearchQuery(value)}
             />
           </div>
-          
+
           <div className="filter-buttons">
             <span className="filter-label">Status:</span>
             {(['all', 'production', 'development', 'maintenance', 'stalled'] as const).map((status) => (

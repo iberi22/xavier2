@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SWAL Xavier2 - Minimal Robust Sync
+ * SWAL Xavier - Minimal Robust Sync
  * Key principle: finish within 100s, don't hang, skip problematic items
  */
 
@@ -8,26 +8,35 @@
 // NOTE: Must be set via NODE_OPTIONS env var, not here. Use the .bat launcher or set system env.
 const HEAP_LIMIT = 128; // MB - match NODE_OPTIONS externally set
 
-const XAVIER2_URL = process.env.XAVIER2_URL || 'http://localhost:8003';
-const XAVIER2_TOKEN = process.env.XAVIER2_API_KEY || 'dev-token';
+const XAVIER_URL = process.env.XAVIER_URL || 'http://localhost:8003';
 const fs = require('fs');
 const path = require('path');
 const { setTimeout: delay } = require('timers/promises');
 const { execSync } = require('child_process');
+
+function getRequiredXavierToken() {
+  const token = process.env.XAVIER_TOKEN || process.env.XAVIER_API_KEY || process.env.XAVIER_TOKEN;
+  if (!token) {
+    throw new Error('Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN.');
+  }
+  return token;
+}
+
+const XAVIER_TOKEN = getRequiredXavierToken();
 
 // Verify heap limit is set (warn if not)
 try {
   const heapLimit = parseInt(execSync('node -p "parseInt(process.env.NODE_OPTIONS||0)"', { encoding: 'utf8' }).trim());
   if (heapLimit < 64) {
     console.log('⚠️  WARNING: NODE_OPTIONS=max-old-space-size not set. Memory limits may be insufficient.');
-    console.log('⚠️  Run with: NODE_OPTIONS=--max-old-space-size=128 node sync-all-to-xavier2.js');
+    console.log('⚠️  Run with: NODE_OPTIONS=--max-old-space-size=128 node sync-all-to-xavier.js');
     console.log('⚠️  Or set system env: [System.Environment]::SetEnvironmentVariable("NODE_OPTIONS", "--max-old-space-size=128", "User")');
   }
 } catch {}
 
 // ===== HTTP HELPER =====
-async function postToXavier2(endpoint, payload, timeoutMs = 8000) {
-  const url = `${XAVIER2_URL}${endpoint}`;
+async function postToXavier(endpoint, payload, timeoutMs = 8000) {
+  const url = `${XAVIER_URL}${endpoint}`;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -35,7 +44,7 @@ async function postToXavier2(endpoint, payload, timeoutMs = 8000) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Xavier2-Token': XAVIER2_TOKEN
+        'X-Xavier-Token': XAVIER_TOKEN
       },
       body: JSON.stringify(payload),
       signal: controller.signal
@@ -68,7 +77,7 @@ async function syncMemoryMd() {
     const body = lines.slice(1).join('\n').trim();
     if (body.length < 20) continue;
 
-    const ok = await postToXavier2('/memory/add', {
+    const ok = await postToXavier('/memory/add', {
       content: `## ${title}\n\n${body}`,
       path: `openclaw/memory/memory-md/${title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`,
       metadata: { type: 'memory-md', source: 'openclaw', title, last_modified: stats.mtime.toISOString(), synced_at: new Date().toISOString() }
@@ -77,7 +86,7 @@ async function syncMemoryMd() {
     await delay(300);
   }
 
-  await postToXavier2('/memory/add', {
+  await postToXavier('/memory/add', {
     content: content.substring(0, 5000),
     path: 'openclaw/memory/memory-md/full',
     metadata: { type: 'memory-md-full', source: 'openclaw', title: 'MEMORY.md (Full)', last_modified: stats.mtime.toISOString(), synced_at: new Date().toISOString() }
@@ -111,7 +120,7 @@ async function syncDailyFiles() {
     const date = file.replace('.md', '');
     const title = content.split('\n').find(l => l.startsWith('# '))?.replace('# ', '').trim() || date;
 
-    const ok = await postToXavier2('/memory/add', {
+    const ok = await postToXavier('/memory/add', {
       content: content.substring(0, 6000),
       path: `openclaw/memory/daily/${date}`,
       metadata: { type: 'daily-memory', source: 'openclaw', date, title, last_modified: stats.mtime.toISOString(), synced_at: new Date().toISOString() }
@@ -170,7 +179,7 @@ async function syncSessions() {
     const dateMatch = file.match(/(\d{4}-\d{2}-\d{2})/);
     const date = dateMatch ? dateMatch[1] : new Date().toISOString().split('T')[0];
 
-    const ok = await postToXavier2('/memory/add', {
+    const ok = await postToXavier('/memory/add', {
       content: `Session: ${sessionId}\nDate: ${date}\n\n${msgs.join('\n---\n')}`,
       path: `openclaw/sessions/${sessionId}`,
       metadata: { type: 'session-log', source: 'openclaw', session_id: sessionId, date, synced_at: new Date().toISOString() }
@@ -197,7 +206,7 @@ async function syncQuestions() {
     const title = (block.match(/\[.*\] (.*?)\n/) || [])[1] || 'Unknown';
     if (!id) continue;
 
-    const ok = await postToXavier2('/memory/add', {
+    const ok = await postToXavier('/memory/add', {
       content: block.trim().substring(0, 2000),
       path: `sweat-operations/questions/${id}`,
       metadata: { type: 'question', source: 'swal-operations-dashboard', question_id: id, title: title.trim(), synced_at: new Date().toISOString() }
@@ -224,7 +233,7 @@ async function syncDecisions() {
       const status = (block.match(/Status:\*\* (PROPOSED|ACCEPTED|DEPRECATED|RESOLVED)/i) || [])[1] || 'proposed';
       if (!id) continue;
 
-      const ok = await postToXavier2('/memory/add', {
+      const ok = await postToXavier('/memory/add', {
         content: block.trim().substring(0, 2000),
         path: `sweat-operations/decisions/${id}`,
         metadata: { type: 'decision', source: 'swal-operations-dashboard', decision_id: id, title: title.trim(), status: status.toLowerCase(), synced_at: new Date().toISOString() }
@@ -248,7 +257,7 @@ async function main() {
   process.on('SIGTERM', () => { clearTimeout(timeoutId); process.exit(0); });
   process.on('SIGINT', () => { clearTimeout(timeoutId); process.exit(0); });
 
-  console.log('🔄 SWAL Xavier2 - Minimal Robust Sync\n');
+  console.log('🔄 SWAL Xavier - Minimal Robust Sync\n');
 
   let total = 0;
 

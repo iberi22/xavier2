@@ -1,6 +1,6 @@
 # MCP Integration Guide
 
-Xavier2 supports the Model Context Protocol (MCP) for seamless integration with AI clients.
+Xavier supports the Model Context Protocol (MCP) for seamless integration with AI clients.
 
 ## Supported Clients
 
@@ -21,11 +21,11 @@ Add to your MCP settings file:
 ```json
 {
   "mcpServers": {
-    "xavier2": {
-      "command": "xavier2",
+    "xavier": {
+      "command": "xavier",
       "args": ["mcp"],
       "env": {
-        "XAVIER2_TOKEN": "your-secret-token"
+        "XAVIER_TOKEN": "your-secret-token"
       }
     }
   }
@@ -53,7 +53,7 @@ Once configured, you can ask Claude things like:
 - "Remember that I prefer tabs over spaces"
 - "Find the code that handles authentication"
 
-Xavier2 will be consulted automatically for relevant context.
+Xavier will be consulted automatically for relevant context.
 
 ## Security
 
@@ -63,7 +63,7 @@ All MCP requests are subject to the same security scanning as HTTP requests. Pro
 
 ### Connection Issues
 
-1. Verify Xavier2 is running: `curl http://localhost:8006/health`
+1. Verify Xavier is running: `curl http://localhost:8006/health`
 2. Check token matches between config and environment
 
 ### Performance

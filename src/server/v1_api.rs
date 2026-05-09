@@ -403,7 +403,7 @@ mod tests {
     }
 
     async fn test_state() -> (AppState, WorkspaceContext) {
-        let db_path = unique_test_path("xavier2-v1-test", "code_graph.db");
+        let db_path = unique_test_path("xavier-v1-test", "code_graph.db");
         let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).unwrap());
         let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
         let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
@@ -422,7 +422,7 @@ mod tests {
                 sync_policy: crate::workspace::SyncPolicy::CloudMirror,
             },
             RuntimeConfig::default(),
-            unique_test_path("xavier2-v1-panel", "threads"),
+            unique_test_path("xavier-v1-panel", "threads"),
         )
         .await
         .unwrap();
@@ -611,7 +611,7 @@ mod tests {
                 "user_id": "belal",
                 "kind": "decision",
                 "namespace": {
-                    "project": "xavier2",
+                    "project": "xavier",
                     "session_id": "session-typed"
                 },
                 "provenance": {
@@ -624,7 +624,7 @@ mod tests {
                 "user_id": "other-user",
                 "kind": "task",
                 "namespace": {
-                    "project": "xavier2"
+                    "project": "xavier"
                 },
                 "provenance": {
                     "source_app": "engram",
@@ -652,7 +652,7 @@ mod tests {
                     "limit": 5,
                     "filters": {
                         "kinds": ["decision"],
-                        "project": "xavier2",
+                        "project": "xavier",
                         "user_id": "belal",
                         "source_app": "openclaw"
                     }
@@ -669,7 +669,7 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0]["user_id"], "belal");
         assert_eq!(results[0]["metadata"]["kind"], "decision");
-        assert_eq!(results[0]["metadata"]["namespace"]["project"], "xavier2");
+        assert_eq!(results[0]["metadata"]["namespace"]["project"], "xavier");
         assert_eq!(
             results[0]["metadata"]["provenance"]["source_app"],
             "openclaw"

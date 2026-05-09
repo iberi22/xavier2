@@ -1,7 +1,7 @@
 //! Standardized Save/Retrieve Verification Cycle for SWAL Agents
 //!
 //! Implements the mandatory verification loop:
-//! 1. SAVE → store in Xavier2 with path + content
+//! 1. SAVE → store in Xavier with path + content
 //! 2. RETRIEVE → fetch back with same query
 //! 3. VERIFY → compare retrieved vs saved
 //! 4. IF MISMATCH → retry (up to max_retries)
@@ -10,7 +10,7 @@
 //!
 //! Usage:
 //! ```ignore
-//! let result = VerificationCycle::new(client, xavier2_url, auth_token)
+//! let result = VerificationCycle::new(client, xavier_url, auth_token)
 //!     .verify_save("projects/manteniapp/overview", "test content")
 //!     .await?;
 //! assert!(result.is_healthy());
@@ -88,17 +88,17 @@ impl VerificationResult {
 /// The core standardized verification cycle
 pub struct VerificationCycle {
     client: Client,
-    xavier2_url: String,
+    xavier_url: String,
     auth_token: String,
     config: VerificationConfig,
 }
 
 impl VerificationCycle {
     /// Create a new VerificationCycle
-    pub fn new(client: Client, xavier2_url: impl Into<String>, auth_token: impl Into<String>) -> Self {
+    pub fn new(client: Client, xavier_url: impl Into<String>, auth_token: impl Into<String>) -> Self {
         Self {
             client,
-            xavier2_url: xavier2_url.into(),
+            xavier_url: xavier_url.into(),
             auth_token: auth_token.into(),
             config: VerificationConfig::default(),
         }
@@ -142,7 +142,7 @@ impl VerificationCycle {
 
             let save_resp = self
                 .client
-                .post(format!("{}/memory/add", self.xavier2_url))
+                .post(format!("{}/memory/add", self.xavier_url))
                 .header("Authorization", format!("Bearer {}", self.auth_token))
                 .timeout(self.config.timeout)
                 .json(&save_payload)
@@ -173,7 +173,7 @@ impl VerificationCycle {
 
             let retrieve_resp = self
                 .client
-                .post(format!("{}/memory/search", self.xavier2_url))
+                .post(format!("{}/memory/search", self.xavier_url))
                 .header("Authorization", format!("Bearer {}", self.auth_token))
                 .timeout(self.config.timeout)
                 .json(&retrieve_payload)
@@ -293,7 +293,7 @@ impl VerificationCycle {
         intersection as f32 / union as f32
     }
 
-    /// Save feedback to Xavier2 (step 5 of the cycle)
+    /// Save feedback to Xavier (step 5 of the cycle)
     pub async fn save_feedback(
         &self,
         system: &str,
@@ -312,7 +312,7 @@ impl VerificationCycle {
 
         let resp = self
             .client
-            .post(format!("{}/memory/add", self.xavier2_url))
+            .post(format!("{}/memory/add", self.xavier_url))
             .header("Authorization", format!("Bearer {}", self.auth_token))
             .timeout(self.config.timeout)
             .json(&feedback_payload)
@@ -331,19 +331,19 @@ impl VerificationCycle {
 
 /// Helper to build a VerificationCycle from environment variables
 impl VerificationCycle {
-    /// Create from XAVIER2_URL and XAVIER2_TOKEN env vars
+    /// Create from XAVIER_URL and XAVIER_TOKEN env vars
     pub fn from_env() -> Result<Self, String> {
-        let url_str = std::env::var("XAVIER2_URL")
-            .or_else(|_| std::env::var("XAVIER2_API_URL"))
-            .unwrap_or_else(|_| crate::settings::Xavier2Settings::current().client_base_url());
+        let url_str = std::env::var("XAVIER_URL")
+            .or_else(|_| std::env::var("XAVIER_API_URL"))
+            .unwrap_or_else(|_| crate::settings::XavierSettings::current().client_base_url());
 
         // Validate internal URL to prevent SSRF
         let validated_url = crate::security::url_validator::validate_internal_url(&url_str)
-            .map_err(|e| format!("XAVIER2_URL validation failed: {}", e))?;
+            .map_err(|e| format!("XAVIER_URL validation failed: {}", e))?;
 
-        let token = std::env::var("XAVIER2_TOKEN")
-            .or_else(|_| std::env::var("XAVIER2_AUTH_TOKEN"))
-            .map_err(|_| "XAVIER2_TOKEN not set")?;
+        let token = std::env::var("XAVIER_TOKEN")
+            .or_else(|_| std::env::var("XAVIER_AUTH_TOKEN"))
+            .map_err(|_| "XAVIER_TOKEN not set")?;
 
         Ok(Self::new(
             Client::new(),
@@ -356,13 +356,13 @@ impl VerificationCycle {
 /// Convenience wrapper for agents that already have a reqwest::Client
 pub async fn verify_and_report(
     client: &Client,
-    xavier2_url: &str,
+    xavier_url: &str,
     auth_token: &str,
     path: &str,
     content: &str,
     agent_name: &str,
 ) -> VerificationResult {
-    let cycle = VerificationCycle::new(client.clone(), xavier2_url, auth_token);
+    let cycle = VerificationCycle::new(client.clone(), xavier_url, auth_token);
     let result = cycle.verify_save(path, content).await.unwrap_or_else(|e| {
         VerificationResult {
             path: path.to_string(),
@@ -464,8 +464,8 @@ mod tests {
     #[tokio::test]
     async fn verification_cycle_from_env_not_set() {
         // Should fail when env vars are not set (cleared)
-        let original_url = std::env::var("XAVIER2_URL");
-        let original_token = std::env::var("XAVIER2_TOKEN");
+        let original_url = std::env::var("XAVIER_URL");
+        let original_token = std::env::var("XAVIER_TOKEN");
 
         // Var is not set in test environment
         if original_url.is_err() && original_token.is_err() {

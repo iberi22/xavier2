@@ -1,18 +1,18 @@
-# Xavier2 Docker Deployment - SKILL.md
+# Xavier Docker Deployment - SKILL.md
 
 ## Priority: HIGH 🔴
 
-Xavier2 en Docker es la base para todo el sistema de memoria. Sin esto, Synapse no tiene donde almacenar su entrenamiento continuo.
+Xavier en Docker es la base para todo el sistema de memoria. Sin esto, Synapse no tiene donde almacenar su entrenamiento continuo.
 
 ---
 
 ## Plan Completo
 
 ### Fase 1: Docker Container (PRIORIDAD AHORA)
-- [ ] Build Linux binary de Xavier2
+- [ ] Build Linux binary de Xavier
 - [ ] Crear Dockerfile optimizado
 - [ ] docker-compose.yml con healthcheck
-- [ ] Push a Docker Hub (iberi22/xavier2)
+- [ ] Push a Docker Hub (iberi22/xavier)
 
 ### Fase 2: Implementar Multi-Layer Memory (Part 3 que falló)
 - [ ] src/retrieval/gating.rs - Adaptive retrieval gating
@@ -34,15 +34,15 @@ Xavier2 en Docker es la base para todo el sistema de memoria. Sin esto, Synapse 
 
 ### Build Docker
 ```bash
-cd E:\scripts-python\xavier2
+cd E:\scripts-python\xavier
 bash scripts/build-docker.sh
 ```
 
 ### Run Docker
 ```bash
-cd E:\scripts-python\xavier2\docker
+cd E:\scripts-python\xavier\docker
 docker-compose up -d
-docker logs -f xavier2-memory
+docker logs -f xavier-memory
 ```
 
 ### Verify
@@ -61,7 +61,7 @@ FROM rust:1.77-slim
 ```
 
 ### docker-compose
-- Xavier2 en puerto 8006
+- Xavier en puerto 8006
 - Redis opcional para vector storage
 - Healthcheck configurado
 - Volumes persistentes
@@ -82,4 +82,4 @@ FROM rust:1.77-slim
 ---
 
 *Last updated: 2026-04-16*
-*Priority: Xavier2 Docker > Multi-Layer Memory > Synapse Fine-tune*
+*Priority: Xavier Docker > Multi-Layer Memory > Synapse Fine-tune*

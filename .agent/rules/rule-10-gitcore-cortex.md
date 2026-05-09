@@ -1,4 +1,4 @@
-# Git-Core + Xavier2 Workflow Rules
+# Git-Core + Xavier Workflow Rules
 
 ## Canonical Sources
 
@@ -9,7 +9,7 @@
 ## Memory Split
 
 - GitHub Issues: task state, progress, checklists, planning
-- Xavier2: reusable memory, research, architecture context, long-horizon recall
+- Xavier: reusable memory, research, architecture context, long-horizon recall
 
 ## Forbidden Patterns
 
@@ -19,7 +19,7 @@
 
 ## Required Behavior
 
-- Prefer Xavier2 MCP at `http://localhost:8003/mcp`
+- Prefer Xavier MCP at `http://localhost:8003/mcp`
 - Use environment variables for credentials
 - Keep changes atomic
 - If an issue conflicts with architecture, architecture wins

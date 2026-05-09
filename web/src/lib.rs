@@ -1,4 +1,4 @@
-//! Xavier2 Web - Standalone web UI (WASM)
+//! Xavier Web - Standalone web UI (WASM)
 
 #![allow(dead_code)]
 
@@ -84,7 +84,7 @@ impl Project {
 
 fn project_icon(name: &str) -> &'static str {
     match name.to_lowercase().as_str() {
-        "xavier2" => "🧠",
+        "xavier" => "🧠",
         "zeroclaw" => "⚡",
         "trading bot" => "📈",
         "manteniapp" => "🔧",
@@ -173,7 +173,7 @@ fn render_priority(ui: &mut Ui, priority: Priority) {
 // Main App
 // ============================================================================
 
-struct Xavier2WebApp {
+struct XavierWebApp {
     tasks: Vec<Task>,
     projects: Vec<Project>,
     selected_project: Option<String>,
@@ -181,7 +181,7 @@ struct Xavier2WebApp {
     is_dark_mode: bool,
 }
 
-impl Default for Xavier2WebApp {
+impl Default for XavierWebApp {
     fn default() -> Self {
         Self {
             tasks: Self::demo_tasks(),
@@ -193,10 +193,10 @@ impl Default for Xavier2WebApp {
     }
 }
 
-impl Xavier2WebApp {
+impl XavierWebApp {
     fn default_projects() -> Vec<Project> {
         vec![
-            Project::new("Xavier2"),
+            Project::new("Xavier"),
             Project::new("ZeroClaw"),
             Project::new("Trading Bot"),
             Project::new("ManteniApp"),
@@ -208,14 +208,14 @@ impl Xavier2WebApp {
     fn demo_tasks() -> Vec<Task> {
         vec![
             {
-                let mut t = Task::new("Integrar Planka con Xavier2", "Xavier2");
+                let mut t = Task::new("Integrar Planka con Xavier", "Xavier");
                 t.status = TaskStatus::InProgress;
                 t.priority = Priority::High;
                 t.labels = vec!["integration".to_string()];
                 t
             },
             {
-                let mut t = Task::new("Crear UI con egui", "Xavier2");
+                let mut t = Task::new("Crear UI con egui", "Xavier");
                 t.status = TaskStatus::Backlog;
                 t.priority = Priority::Medium;
                 t.labels = vec!["ui".to_string()];
@@ -231,7 +231,7 @@ impl Xavier2WebApp {
     }
 }
 
-impl eframe::App for Xavier2WebApp {
+impl eframe::App for XavierWebApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.is_dark_mode {
             ctx.set_visuals(Visuals::dark());
@@ -242,7 +242,7 @@ impl eframe::App for Xavier2WebApp {
         egui::SidePanel::left("sidebar")
             .default_width(200.0)
             .show(ctx, |ui| {
-                ui.heading("Xavier2 🧠");
+                ui.heading("Xavier 🧠");
                 ui.separator();
 
                 ui.horizontal(|ui| {
@@ -347,7 +347,7 @@ impl eframe::App for Xavier2WebApp {
 pub fn main() {
     console_error_panic_hook::set_once();
 
-    let app = Xavier2WebApp::default();
+    let app = XavierWebApp::default();
 
     // Start the web runner asynchronously
     spawn_local(async move {
@@ -365,6 +365,6 @@ pub fn main() {
             .await
             .expect("failed to start eframe");
 
-        web_sys::console::log_1(&"Xavier2 Web UI ready!".into());
+        web_sys::console::log_1(&"Xavier Web UI ready!".into());
     });
 }

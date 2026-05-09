@@ -21,7 +21,7 @@ HttpServer::serve() solo duerme 50ms y retorna.
 Agrega un tracing::warn!() diciendo "HttpServer::serve() is a stub - does not actually start a server"
 
 ## 5. Package name incorrecto en Cargo.toml
-Cambia name = "xavier2-1" a name = "xavier2"
+Cambia name = "xavier" a name = "xavier"
 
 Para cada cambio: compila con cargo build --lib y verifica que pase.
 No modifiques nada que no este en esta lista.

@@ -43,7 +43,7 @@ impl Default for FileIndexerConfig {
                 "target/**".to_string(),
                 ".venv/**".to_string(),
                 "venv/**".to_string(),
-                ".xavier2/**".to_string(),
+                ".xavier/**".to_string(),
                 "dist/**".to_string(),
                 "build/**".to_string(),
                 ".next/**".to_string(),
@@ -116,9 +116,9 @@ impl FileIndexer {
 
     /// Guarda el índice en un archivo JSON dentro del proyecto
     pub async fn save_index(&self, result: &IndexResult) -> Result<PathBuf> {
-        let index_path = self.config.root_path.join(".xavier2").join("index.json");
+        let index_path = self.config.root_path.join(".xavier").join("index.json");
 
-        // Create .xavier2 directory
+        // Create .xavier directory
         fs::create_dir_all(index_path.parent().unwrap()).await?;
 
         // Write index file
@@ -131,7 +131,7 @@ impl FileIndexer {
 
     /// Carga un índice existente desde el proyecto
     pub async fn load_index(&self) -> Result<Option<IndexResult>> {
-        let index_path = self.config.root_path.join(".xavier2").join("index.json");
+        let index_path = self.config.root_path.join(".xavier").join("index.json");
 
         if !index_path.exists() {
             return Ok(None);

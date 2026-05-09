@@ -1,5 +1,5 @@
 $headers = @{ Authorization = "Bearer $(gh auth token)"; Accept = "application/vnd.github+json" }
-$base = "https://api.github.com/repos/iberi22/xavier2/dependabot/alerts"
+$base = "https://api.github.com/repos/iberi22/xavier/dependabot/alerts"
 
 # Dismiss all open low-severity alerts
 $lowSeverity = @(26, 13)

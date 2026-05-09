@@ -1,18 +1,28 @@
-# Xavier2 Proactive Optimizer
-# Runs every 20 minutes to improve Xavier2 and sync context
+# Xavier Proactive Optimizer
+# Runs every 20 minutes to improve Xavier and sync context
 
 param(
     [int]$IntervalMinutes = 20
 )
 
-$XAVIER2 = "http://localhost:8006"
-$TOKEN = "dev-token"
+$XAVIER = "http://localhost:8006"
+function Get-XavierToken {
+    $token = $env:XAVIER_TOKEN
+    if (-not $token) { $token = $env:XAVIER_API_KEY }
+    if (-not $token) { $token = $env:XAVIER_TOKEN }
+    if (-not $token) {
+        throw "Missing Xavier token. Set XAVIER_TOKEN, XAVIER_API_KEY, or XAVIER_TOKEN."
+    }
+    return $token
+}
+
+$TOKEN = Get-XavierToken
 $headers = @{
-    "X-Xavier2-Token" = $TOKEN
+    "X-Xavier-Token" = $TOKEN
     "Content-Type" = "application/json"
 }
 
-$LogFile = "E:\scripts-python\xavier2\xavier2-optimizer.log"
+$LogFile = "E:\scripts-python\xavier\xavier-optimizer.log"
 
 function Write-Log {
     param([string]$Message, [string]$Level = "INFO")
@@ -21,16 +31,16 @@ function Write-Log {
     Write-Host "$ts [$Level] $Message"
 }
 
-function Test-Xavier2Health {
+function Test-XavierHealth {
     try {
-        $h = Invoke-RestMethod -Uri "$XAVIER2/health" -UseBasicParsing -TimeoutSec 5
+        $h = Invoke-RestMethod -Uri "$XAVIER/health" -UseBasicParsing -TimeoutSec 5
         return $h.status -eq "ok"
     } catch { return $false }
 }
 
-function Get-Xavier2Stats {
+function Get-XavierStats {
     try {
-        $build = Invoke-RestMethod -Uri "$XAVIER2/build" -Headers $headers -UseBasicParsing -TimeoutSec 10
+        $build = Invoke-RestMethod -Uri "$XAVIER/build" -Headers $headers -UseBasicParsing -TimeoutSec 10
         return $build
     } catch { return $null }
 }
@@ -38,11 +48,11 @@ function Get-Xavier2Stats {
 function Sync-WorkspaceContext {
     Write-Log "Syncing workspace context..."
 
-    # Check xavier2 memories
+    # Check xavier memories
     try {
-        $memories = Invoke-RestMethod -Uri "$XAVIER2/memory/list" -Headers $headers -UseBasicParsing -TimeoutSec 10
+        $memories = Invoke-RestMethod -Uri "$XAVIER/memory/list" -Headers $headers -UseBasicParsing -TimeoutSec 10
         $count = if ($memories.memories) { $memories.memories.Count } else { 0 }
-        Write-Log "Xavier2 memories: $count"
+        Write-Log "Xavier memories: $count"
     } catch {
         Write-Log "Could not list memories: $_" "WARN"
     }
@@ -53,7 +63,7 @@ function Run-Benchmark {
 
     # Reset
     try {
-        $null = Invoke-RestMethod -Uri "$XAVIER2/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}' -UseBasicParsing -TimeoutSec 10
+        $null = Invoke-RestMethod -Uri "$XAVIER/memory/reset" -Method POST -Headers $headers -ContentType "application/json" -Body '{}' -UseBasicParsing -TimeoutSec 10
     } catch {
         Write-Log "Reset failed: $_" "WARN"
         return
@@ -74,11 +84,11 @@ function Run-Benchmark {
     foreach ($mem in $testMemories) {
         try {
             $jsonBody = $mem | ConvertTo-Json -Compress
-            $null = Invoke-RestMethod -Uri "$XAVIER2/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $jsonBody -UseBasicParsing -TimeoutSec 10
+            $null = Invoke-RestMethod -Uri "$XAVIER/memory/add" -Method POST -Headers $headers -ContentType "application/json" -Body $jsonBody -UseBasicParsing -TimeoutSec 10
             Start-Sleep -Milliseconds 200
 
             $queryBody = @{query="What is my name and where do I live?"; limit=3; system3_mode="disabled"} | ConvertTo-Json -Compress
-            $agent = Invoke-RestMethod -Uri "$XAVIER2/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $queryBody -UseBasicParsing -TimeoutSec 30
+            $agent = Invoke-RestMethod -Uri "$XAVIER/agents/run" -Method POST -Headers $headers -ContentType "application/json" -Body $queryBody -UseBasicParsing -TimeoutSec 30
 
             $response = $agent.response.ToString().ToLower()
             $keywordsFound = 0
@@ -107,7 +117,7 @@ function Check-ProjectUpdates {
     Write-Log "Checking project updates..."
 
     $projects = @(
-        "E:\scripts-python\xavier2",
+        "E:\scripts-python\xavier",
         "E:\scripts-python\gestalt-rust",
         "E:\scripts-python\manteniapp"
     )
@@ -128,18 +138,18 @@ function Check-ProjectUpdates {
 }
 
 # MAIN
-Write-Log "=== Xavier2 Optimizer Started ===" "INFO"
+Write-Log "=== Xavier Optimizer Started ===" "INFO"
 
 # 1. Health Check
-Write-Log "Checking Xavier2 health..."
-if (Test-Xavier2Health) {
-    Write-Log "Xavier2 is healthy"
+Write-Log "Checking Xavier health..."
+if (Test-XavierHealth) {
+    Write-Log "Xavier is healthy"
 } else {
-    Write-Log "Xavier2 is DOWN!" "ERROR"
+    Write-Log "Xavier is DOWN!" "ERROR"
 }
 
 # 2. Get Stats
-$stats = Get-Xavier2Stats
+$stats = Get-XavierStats
 if ($stats) {
     Write-Log "Version: $($stats.version), Backend: $($stats.memory_store.selected_backend)"
 }

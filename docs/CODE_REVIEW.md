@@ -2,7 +2,7 @@
 
 ## Summary
 
-This branch addresses compiler errors and introduces several new capabilities across the Xavier2 codebase:
+This branch addresses compiler errors and introduces several new capabilities across the Xavier codebase:
 
 1. **New MCP Server** (`mcp_server.rs`): Full JSON-RPC 2.0 MCP server with 10 tools including Gestalt MemoryFragment-compatible operations
 2. **SQLite Vec Store Enhancements** (`sqlite_vec_store.rs`): Audit chain, timeline events, entity extraction, graph hops
@@ -26,7 +26,7 @@ None identified — the branch compiles cleanly.
    - Uses `relative.replace('\\', "/")` on Windows, then constructs Unix-style paths
    - On Unix systems this is a no-op; on Windows it converts backslashes
    - **Issue**: On Windows, `gitcore/project/AGENTS.md` becomes `gitcore/project/AGENTS.md` correctly, but if a file path has forward slashes already on Windows, the replace doesn't affect it
-   - **More importantly**: The `root.join(relative)` already handles OS-specific separators correctly via `PathBuf`; the `replace` after is unnecessary for `PathBuf` but necessary for the stored path in Xavier2 (which uses forward slashes regardless of OS)
+   - **More importantly**: The `root.join(relative)` already handles OS-specific separators correctly via `PathBuf`; the `replace` after is unnecessary for `PathBuf` but necessary for the stored path in Xavier (which uses forward slashes regardless of OS)
    - **Verdict**: Acceptable — the stored path convention uses Unix-style forward slashes regardless of OS, which is standard practice for content-addressable storage
 
 2. **`memoryfragment_recent` calls `list_memory_records()` without pagination** (`mcp_server.rs:641`)
@@ -48,7 +48,7 @@ None identified — the branch compiles cleanly.
 
 1. **Unused import warning** (`tools/kanban.rs:649`): `use super::*;`
    - One test warning exists across 399 tests
-   - **Verdict**: Trivial — fix with `cargo fix --lib -p xavier2 --tests`
+   - **Verdict**: Trivial — fix with `cargo fix --lib -p xavier --tests`
 
 2. **`QJL_MAGIC` as `b"QJL2"` byte literal** (`sqlite_vec_store.rs:37`)
    - Magic bytes are fine but `b"QJL2"` is 4 bytes matching the magic number length
@@ -117,7 +117,7 @@ The branch adds 4 Gestalt MemoryFragment tools but test coverage focuses on core
 | L27 | `sha2::Digest` import unused — `Sha256` is used via `sha2::Digest` trait |
 | L37 | `ulid::Ulid` — used for session ID generation, good entropy |
 | L239-241 | Session header empty check: `value.as_bytes().is_empty()` returns error — correct validation |
-| L245-250 | ULID generation for new sessions — `xavier2-{ulid}` format is fine |
+| L245-250 | ULID generation for new sessions — `xavier-{ulid}` format is fine |
 | L330-342 | `initialize` response uses `protocolVersion: "2025-03-26"` — verify this matches current MCP spec |
 | L470-477 | `sync_gitcore` file discovery loop: iterates `["AGENTS.md", ".gitcore/ARCHITECTURE.md", "README.md"]` — consider making this configurable via env var |
 | L477 | `relative.replace('\\', "/")` — necessary for cross-OS path normalization in storage |
