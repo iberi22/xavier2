@@ -1,0 +1,42 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}} | Xavier DevLog</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="top-bar">
+            <div class="logo">Ôû▓ Xavier2</div>
+            <a href="#">Chronicle</a>
+            <a href="#">Harvest</a>
+            <a href="#">Memory</a>
+            <a href="#">Settings</a>
+        </header>
+        <nav>
+            Logged in as <strong>system-admin</strong> | <span class="date-format">{{date}}</span> | {{location}}
+        </nav>
+        <main class="content">
+            <article>
+                <header class="post-header">
+                    <h1>{{title}}</h1>
+                    <div class="post-metadata">
+                        Date: <span class="date-format">{{date}}</span> | Author: {{author}} | Tags: {{tags}}
+                    </div>
+                </header>
+
+                <div class="markdown-body">
+                    {{content}}
+                </div>
+            </article>
+        </main>
+        <footer>
+            Xavier2 DevLog Theme v1.0.0-vanilla | &copy; 2026 Xavier Project
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
