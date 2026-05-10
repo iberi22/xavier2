@@ -61,7 +61,9 @@ pub async fn hybrid_search(
     let searcher = HybridSearcher {
         keyword_weight: request.keyword_weight,
         vector_weight: request.vector_weight,
-        rrf_k: request.rrf_k.unwrap_or(60),
+        rrf_k: request
+            .rrf_k
+            .unwrap_or_else(crate::search::hybrid::configured_rrf_k),
         hooks: crate::search::hooks::HookRegistry::new(),
     };
 

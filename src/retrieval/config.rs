@@ -5,6 +5,14 @@ pub const DEFAULT_EPISODIC_WEIGHT: f32 = 0.3;
 pub const DEFAULT_SEMANTIC_WEIGHT: f32 = 0.4;
 pub const DEFAULT_RELEVANCE_THRESHOLD: f32 = 0.5;
 pub const DEFAULT_RRF_K: u32 = 60;
+
+pub fn configured_rrf_k() -> u32 {
+    std::env::var("XAVIER_RRF_K")
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(DEFAULT_RRF_K)
+}
+
 pub const DEFAULT_MAX_RESULTS: usize = 20;
 pub const DEFAULT_SEARCH_LIMIT: usize = 10;
 pub const DEFAULT_KEYWORD_WEIGHT: f32 = 0.5;
