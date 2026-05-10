@@ -3,7 +3,7 @@
 use anyhow::{anyhow, Result};
 use axum::{
     body::Body,
-    extract::State,
+    extract::{Path as AxumPath, State},
     http::{HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -28,12 +28,15 @@ use xavier::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier::coordination::SimpleAgentRegistry;
 use xavier::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier::memory::schema::MemoryQueryFilters;
+use xavier::memory::session_store::{PanelMessage, SessionStore};
 use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier::memory::store::{MemoryRecord, MemoryStore};
 use xavier::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
 use xavier::ports::outbound::HealthCheckPort;
 use xavier::security::{ProcessResult, SecurityService};
-use xavier::server::panel::{panel_asset, panel_index};
+use xavier::server::panel::{
+    panel_asset, panel_index, CreateThreadRequest, PanelChatRequest, PanelChatResponse,
+};
 use xavier::session::event_mapper::PanelThreadEntry;
 use xavier::session::types::SessionEvent;
 use xavier::tasks::session_sync_task::SessionSyncTask;
@@ -54,6 +57,7 @@ pub struct CliState {
     pub security: Arc<SecurityService>,
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
+    pub panel_store: Arc<SessionStore>,
 }
 
 #[derive(Subcommand)]
@@ -295,6 +299,9 @@ async fn start_http_server(port: u16) -> Result<()> {
         workspace_dir.display()
     );
 
+    let panel_root = state_panel_root(&workspace_dir, &workspace_id);
+    let panel_store = Arc::new(SessionStore::new(panel_root).await?);
+
     let state = CliState {
         memory: memory_port,
         store,
@@ -306,6 +313,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         security: Arc::new(SecurityService::new()),
         _time_store: Some(time_store),
         agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
+        panel_store,
     };
 
     info!(
@@ -349,6 +357,15 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/xavier/sync/check", post(sync_check_handler))
         .route("/xavier/sync/check", get(sync_check_handler))
         .route("/xavier/verify/save", post(verify_save_handler))
+        .route(
+            "/panel/api/threads",
+            get(panel_list_threads).post(panel_create_thread),
+        )
+        .route(
+            "/panel/api/threads/{thread_id}",
+            get(panel_get_thread).delete(panel_delete_thread),
+        )
+        .route("/panel/api/chat", post(panel_process_chat))
         .layer(middleware::from_fn(auth_middleware));
 
     // Add enterprise plugin routes if feature is enabled
@@ -479,6 +496,18 @@ fn code_graph_db_path() -> PathBuf {
     std::env::var("XAVIER_CODE_GRAPH_DB_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("data").join("code_graph.db"))
+}
+
+fn state_panel_root(workspace_dir: &std::path::Path, workspace_id: &str) -> PathBuf {
+    std::env::var("XAVIER_PANEL_STORE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            workspace_dir
+                .join("data")
+                .join("workspaces")
+                .join(workspace_id)
+                .join("panel_threads")
+        })
 }
 
 // HTTP Handlers
@@ -710,6 +739,141 @@ fn secure_external_input(
     }
 
     Ok(result.effective_input().to_string())
+}
+
+async fn panel_list_threads(State(state): State<CliState>) -> Response {
+    json_response(
+        StatusCode::OK,
+        serde_json::json!(state.panel_store.list_threads().await),
+    )
+}
+
+async fn panel_create_thread(
+    State(state): State<CliState>,
+    Json(payload): Json<CreateThreadRequest>,
+) -> Response {
+    let title_hint = payload
+        .title
+        .or(payload.message)
+        .unwrap_or_else(|| "New Thread".to_string());
+
+    match state.panel_store.create_thread(&title_hint).await {
+        Ok(thread) => json_response(
+            StatusCode::OK,
+            serde_json::to_value(xavier::memory::session_store::ThreadSummary::from(&thread))
+                .unwrap_or_else(|_| serde_json::json!({})),
+        ),
+        Err(error) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": error.to_string() }),
+        ),
+    }
+}
+
+async fn panel_get_thread(
+    State(state): State<CliState>,
+    AxumPath(thread_id): AxumPath<String>,
+) -> Response {
+    match state.panel_store.get_thread(&thread_id).await {
+        Some(thread) => json_response(
+            StatusCode::OK,
+            serde_json::to_value(SessionStore::detail_from_thread(thread))
+                .unwrap_or_else(|_| serde_json::json!({})),
+        ),
+        None => json_response(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({ "error": "thread not found" }),
+        ),
+    }
+}
+
+async fn panel_delete_thread(
+    State(state): State<CliState>,
+    AxumPath(thread_id): AxumPath<String>,
+) -> Response {
+    match state.panel_store.delete_thread(&thread_id).await {
+        Ok(true) => json_response(StatusCode::OK, serde_json::json!({ "deleted": true })),
+        Ok(false) => json_response(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({ "error": "thread not found" }),
+        ),
+        Err(error) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": error.to_string() }),
+        ),
+    }
+}
+
+async fn panel_process_chat(
+    State(state): State<CliState>,
+    Json(payload): Json<PanelChatRequest>,
+) -> Response {
+    match panel_process_chat_inner(&state, payload).await {
+        Ok(response) => json_response(
+            StatusCode::OK,
+            serde_json::to_value(response).unwrap_or_else(|_| serde_json::json!({})),
+        ),
+        Err(error) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": error.to_string() }),
+        ),
+    }
+}
+
+async fn panel_process_chat_inner(
+    state: &CliState,
+    payload: PanelChatRequest,
+) -> Result<PanelChatResponse> {
+    let thread = match payload.thread_id.as_deref() {
+        Some(thread_id) => state
+            .panel_store
+            .get_thread(thread_id)
+            .await
+            .ok_or_else(|| anyhow!("thread {thread_id} not found"))?,
+        None => state.panel_store.create_thread(&payload.message).await?,
+    };
+
+    let user_message = PanelMessage {
+        id: ulid::Ulid::new().to_string(),
+        role: "user".to_string(),
+        plain_text: payload.message.clone(),
+        openui_lang: None,
+        created_at: chrono::Utc::now(),
+        metadata: serde_json::json!({}),
+    };
+    state
+        .panel_store
+        .append_message(&thread.id, user_message)
+        .await?;
+
+    let assistant_message = PanelMessage {
+        id: ulid::Ulid::new().to_string(),
+        role: "assistant".to_string(),
+        plain_text: format!(
+            "Structured Xavier response for: {}",
+            payload.message.trim()
+        ),
+        openui_lang: Some(format!(
+            "<SectionBlock title=\"Xavier\" description=\"{}\"><InfoCard title=\"Status\" value=\"Ready\" /></SectionBlock>",
+            payload.message.replace('"', "'")
+        )),
+        created_at: chrono::Utc::now(),
+        metadata: serde_json::json!({
+            "rules": ["deterministic", "ci-safe"],
+            "components": ["SectionBlock", "InfoCard"],
+            "timings": { "total_ms": 0 }
+        }),
+    };
+
+    let updated = state
+        .panel_store
+        .append_message(&thread.id, assistant_message)
+        .await?;
+
+    Ok(PanelChatResponse {
+        thread: xavier::memory::session_store::ThreadSummary::from(&updated),
+        messages: updated.messages,
+    })
 }
 
 async fn search_handler(
@@ -2645,7 +2809,10 @@ struct SwarmAgentConfig {
 }
 
 async fn run_swarm(config_path: PathBuf, parallel: usize) -> Result<()> {
-    println!("Loading swarm configuration from {}...", config_path.display());
+    println!(
+        "Loading swarm configuration from {}...",
+        config_path.display()
+    );
     let content = std::fs::read_to_string(&config_path)?;
     let swarm: SwarmConfig = if matches!(
         config_path.extension().and_then(|s| s.to_str()),
