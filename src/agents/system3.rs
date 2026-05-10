@@ -44,13 +44,26 @@ pub struct LlmClient {
 
 impl Default for LlmClient {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(None, None)
     }
 }
 
 impl LlmClient {
-    pub fn new(model_override: Option<String>) -> Self {
-        let provider = ModelProviderClient::from_model_override(model_override);
+    pub fn new(model_override: Option<String>, provider_override: Option<String>) -> Self {
+        let provider = if let Some(p) = provider_override {
+            ModelProviderClient::for_provider(&p, model_override)
+        } else {
+            ModelProviderClient::from_model_override(model_override)
+        };
+        let status = provider.status();
+        Self {
+            provider: Arc::new(provider),
+            model_label: Some(status.model),
+        }
+    }
+
+    pub fn with_config(config: crate::agents::provider::ModelProviderConfig) -> Self {
+        let provider = ModelProviderClient::new(config);
         let status = provider.status();
         Self {
             provider: Arc::new(provider),
@@ -2037,6 +2050,7 @@ pub struct ActorConfig {
     pub max_actions: usize,
     pub semantic_cache: Option<Arc<SemanticCache>>,
     pub model_override: Option<String>,
+    pub provider_override: Option<String>,
 }
 
 impl Default for ActorConfig {
@@ -2046,6 +2060,7 @@ impl Default for ActorConfig {
             max_actions: 5,
             semantic_cache: None,
             model_override: None,
+            provider_override: None,
         }
     }
 }
@@ -2058,7 +2073,15 @@ pub struct System3Actor {
 
 impl System3Actor {
     pub fn new(config: ActorConfig) -> Self {
-        let llm_client = LlmClient::new(config.model_override.clone());
+        let llm_client = LlmClient::new(
+            config.model_override.clone(),
+            config.provider_override.clone(),
+        );
+        Self { config, llm_client }
+    }
+
+    pub fn with_config(config: ActorConfig, provider_config: crate::agents::provider::ModelProviderConfig) -> Self {
+        let llm_client = LlmClient::with_config(provider_config);
         Self { config, llm_client }
     }
 
