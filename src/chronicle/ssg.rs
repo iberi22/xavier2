@@ -14,15 +14,17 @@ pub struct PostMetadata {
 pub struct DevLogSSG {
     input_dir: PathBuf,
     output_dir: PathBuf,
+    theme_dir: PathBuf,
 }
 
-const HTML_TEMPLATE: &str = r#"<!DOCTYPE html>
+/// Default fallback template (used when theme file is missing)
+const FALLBACK_HTML_TEMPLATE: &str = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{title}} - Xavier DevLog</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <header>
@@ -45,7 +47,8 @@ const HTML_TEMPLATE: &str = r#"<!DOCTYPE html>
 </body>
 </html>"#;
 
-const CSS_ASSET: &str = r#"
+/// Default fallback CSS (used when theme file is missing)
+const FALLBACK_CSS: &str = r#"
 :root {
     --bg-color: #0a0a0a;
     --text-color: #e0e0e0;
@@ -53,112 +56,87 @@ const CSS_ASSET: &str = r#"
     --header-bg: #121212;
     --border-color: #333;
 }
-
-body {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.6;
-    margin: 0;
-    padding: 0;
-}
-
-.container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 0 20px;
-}
-
-header {
-    background-color: var(--header-bg);
-    border-bottom: 1px solid var(--accent-color);
-    padding: 40px 0;
-    margin-bottom: 40px;
-}
-
-header h1 {
-    margin: 0;
-    color: var(--accent-color);
-    font-size: 2.5rem;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-}
-
-header h1 a {
-    color: inherit;
-    text-decoration: none;
-}
-
-.tagline {
-    margin-top: 10px;
-    opacity: 0.8;
-}
-
-.post-list {
-    list-style: none;
-    padding: 0;
-}
-
-.post-list li {
-    margin-bottom: 15px;
-    font-size: 1.2rem;
-}
-
-.post-list .date {
-    display: inline-block;
-    width: 120px;
-    font-family: monospace;
-    font-size: 0.9rem;
-    opacity: 0.7;
-}
-
-article {
-    background: #111;
-    padding: 40px;
-    border-radius: 4px;
-    border-left: 3px solid var(--accent-color);
-}
-
-h1, h2, h3 {
-    color: var(--accent-color);
-}
-
-a {
-    color: var(--accent-color);
-}
-
-pre {
-    background: #000;
-    padding: 15px;
-    border-radius: 4px;
-    overflow-x: auto;
-    border: 1px solid var(--border-color);
-}
-
-code {
-    font-family: 'Fira Code', 'Courier New', Courier, monospace;
-}
-
-footer {
-    margin-top: 80px;
-    padding: 40px 0;
-    border-top: 1px solid var(--border-color);
-    text-align: center;
-    font-size: 0.9rem;
-    opacity: 0.6;
-}
+body { background-color: var(--bg-color); color: var(--text-color); font-family: 'Inter', sans-serif; line-height: 1.6; margin: 0; padding: 0; }
+.container { max-width: 800px; margin: 0 auto; padding: 0 20px; }
+header { background-color: var(--header-bg); border-bottom: 1px solid var(--accent-color); padding: 40px 0; margin-bottom: 40px; }
+header h1 { margin: 0; color: var(--accent-color); font-size: 2.5rem; text-transform: uppercase; letter-spacing: 2px; }
+header h1 a { color: inherit; text-decoration: none; }
+.tagline { margin-top: 10px; opacity: 0.8; }
+.post-list { list-style: none; padding: 0; }
+.post-list li { margin-bottom: 15px; font-size: 1.2rem; }
+.post-list .date { display: inline-block; width: 120px; font-family: monospace; font-size: 0.9rem; opacity: 0.7; }
+article { background: #111; padding: 40px; border-radius: 4px; border-left: 3px solid var(--accent-color); }
+h1, h2, h3 { color: var(--accent-color); }
+a { color: var(--accent-color); }
+pre { background: #000; padding: 15px; border-radius: 4px; overflow-x: auto; border: 1px solid var(--border-color); }
+code { font-family: 'Fira Code', monospace; }
+footer { margin-top: 80px; padding: 40px 0; border-top: 1px solid var(--border-color); text-align: center; font-size: 0.9rem; opacity: 0.6; }
 "#;
 
-const JS_ASSET: &str = r#"
-console.log("Xavier DevLog loaded.");
-"#;
+/// Default fallback JS (used when theme file is missing)
+const FALLBACK_JS: &str = r#"console.log("Xavier DevLog loaded.");"#;
 
 impl DevLogSSG {
     pub fn new() -> Self {
         Self {
             input_dir: PathBuf::from("docs/devlog"),
             output_dir: PathBuf::from("public/devlog"),
+            theme_dir: PathBuf::from("web/chronicle/theme"),
         }
+    }
+
+    pub fn output_dir(&self) -> &Path {
+        &self.output_dir
+    }
+
+    /// Start a local HTTP server to preview the DevLog
+    pub async fn serve(&self, port: u16) -> Result<()> {
+        use axum::{
+            Router,
+            extract::{Path, State},
+            http::{StatusCode, header},
+            response::IntoResponse,
+            routing::get,
+        };
+        use std::sync::Arc;
+
+        let serve_dir = Arc::new(self.output_dir.clone());
+
+        async fn serve_file(
+            Path(file): Path<String>,
+            State(dir): State<Arc<PathBuf>>,
+        ) -> impl IntoResponse {
+            let file = if file.is_empty() { "index.html".to_string() } else { file };
+            let path = dir.join(&file);
+            // Prevent directory traversal
+            if !path.starts_with(dir.as_path()) {
+                return (StatusCode::FORBIDDEN, "Forbidden").into_response();
+            }
+            match tokio::fs::read_to_string(&path).await {
+                Ok(content) => {
+                    let content_type = match file.rsplit('.').next() {
+                        Some("html") => "text/html",
+                        Some("css") => "text/css",
+                        Some("js") => "application/javascript",
+                        Some("svg") => "image/svg+xml",
+                        Some("png") => "image/png",
+                        _ => "text/plain",
+                    };
+                    ([(header::CONTENT_TYPE, content_type)], content).into_response()
+                }
+                Err(_) => (StatusCode::NOT_FOUND, "Not Found").into_response(),
+            }
+        }
+
+        let app = Router::new()
+            .route("/{*file}", get(serve_file))
+            .with_state(serve_dir);
+
+        let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        println!("DevLog preview: http://{}/index.html", addr);
+        axum::serve(listener, app).await?;
+        Ok(())
     }
 
     pub fn build(&self) -> Result<()> {
@@ -174,15 +152,17 @@ impl DevLogSSG {
             println!("Created output directory: {}", self.output_dir.display());
         }
 
-        // Write assets
-        fs::write(self.output_dir.join("style.css"), CSS_ASSET)?;
-        fs::write(self.output_dir.join("main.js"), JS_ASSET)?;
+        // Load theme assets (from files or fallbacks)
+        let css = self.load_theme_file("styles.css", FALLBACK_CSS);
+        let js = self.load_theme_file("script.js", FALLBACK_JS);
+
+        fs::write(self.output_dir.join("styles.css"), &css)?;
+        fs::write(self.output_dir.join("main.js"), &js)?;
 
         let post_paths = self.discover_posts()?;
         println!("Found {} posts", post_paths.len());
 
         let mut posts_metadata = Vec::new();
-
         for path in post_paths {
             let metadata = self.process_post(&path)?;
             posts_metadata.push(metadata);
@@ -190,6 +170,7 @@ impl DevLogSSG {
 
         self.generate_index(&posts_metadata)?;
 
+        println!("DevLog built successfully in {}", self.output_dir.display());
         Ok(())
     }
 
@@ -199,13 +180,11 @@ impl DevLogSSG {
 
         let filename = path.file_stem().unwrap().to_str().unwrap();
 
-        // Simple extraction of title from first # header or filename
         let title = content.lines()
             .find(|l| l.starts_with("# "))
             .map(|l| l.trim_start_matches("# ").trim().to_string())
             .unwrap_or_else(|| filename.to_string());
 
-        // Simple extraction of date from filename (expecting YYYY-MM-DD-...)
         let date = if filename.len() >= 10 && &filename[4..5] == "-" && &filename[7..8] == "-" {
             filename[0..10].to_string()
         } else {
@@ -213,14 +192,14 @@ impl DevLogSSG {
         };
 
         let html_content = self.render_markdown(&content);
+        let template = self.load_theme_file("template.html", FALLBACK_HTML_TEMPLATE);
 
-        let full_html = HTML_TEMPLATE
+        let full_html = template
             .replace("{{title}}", &title)
             .replace("{{content}}", &html_content);
 
         let output_filename = format!("{}.html", filename);
         let output_path = self.output_dir.join(output_filename);
-
         fs::write(&output_path, full_html)
             .with_context(|| format!("Failed to write HTML: {}", output_path.display()))?;
 
@@ -234,7 +213,6 @@ impl DevLogSSG {
     fn generate_index(&self, posts: &[PostMetadata]) -> Result<()> {
         let mut posts_list = String::from("<ul class=\"post-list\">\n");
 
-        // Sort posts by date descending
         let mut sorted_posts = posts.to_vec();
         sorted_posts.sort_by(|a, b| b.date.cmp(&a.date));
 
@@ -246,7 +224,8 @@ impl DevLogSSG {
         }
         posts_list.push_str("</ul>");
 
-        let index_html = HTML_TEMPLATE
+        let template = self.load_theme_file("template.html", FALLBACK_HTML_TEMPLATE);
+        let index_html = template
             .replace("{{title}}", "Home")
             .replace("{{content}}", &format!("<h1>Technical Logs</h1>\n{}", posts_list));
 
@@ -283,6 +262,25 @@ impl DevLogSSG {
         posts.sort();
         Ok(posts)
     }
+
+    /// Load a theme file. Returns the file contents if it exists,
+    /// otherwise returns the provided fallback.
+    fn load_theme_file(&self, filename: &str, fallback: &str) -> String {
+        let path = self.theme_dir.join(filename);
+        match fs::read_to_string(&path) {
+            Ok(content) => {
+                println!("Using theme file: {}", path.display());
+                content
+            }
+            Err(_) => {
+                eprintln!(
+                    "Warning: theme file {} not found, using built-in fallback",
+                    path.display()
+                );
+                fallback.to_string()
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -302,10 +300,17 @@ mod tests {
     fn test_ssg_build() -> Result<()> {
         let input_dir = tempdir()?;
         let output_dir = tempdir()?;
+        let theme_dir = tempdir()?;
+
+        // Write theme files for test
+        fs::write(theme_dir.path().join("template.html"), FALLBACK_HTML_TEMPLATE)?;
+        fs::write(theme_dir.path().join("styles.css"), "/* test */")?;
+        fs::write(theme_dir.path().join("script.js"), "// test")?;
 
         let ssg = DevLogSSG {
             input_dir: input_dir.path().to_path_buf(),
             output_dir: output_dir.path().to_path_buf(),
+            theme_dir: theme_dir.path().to_path_buf(),
         };
 
         fs::write(input_dir.path().join("2024-05-20-test.md"), "# Test\nContent")?;
@@ -314,12 +319,37 @@ mod tests {
 
         assert!(output_dir.path().join("index.html").exists());
         assert!(output_dir.path().join("2024-05-20-test.html").exists());
-        assert!(output_dir.path().join("style.css").exists());
+        assert!(output_dir.path().join("styles.css").exists());
         assert!(output_dir.path().join("main.js").exists());
 
         let index_content = fs::read_to_string(output_dir.path().join("index.html"))?;
         assert!(index_content.contains("Test"));
         assert!(index_content.contains("2024-05-20"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_fallback_when_theme_missing() -> Result<()> {
+        let input_dir = tempdir()?;
+        let output_dir = tempdir()?;
+        let theme_dir = tempdir()?; // empty dir, no theme files
+
+        let ssg = DevLogSSG {
+            input_dir: input_dir.path().to_path_buf(),
+            output_dir: output_dir.path().to_path_buf(),
+            theme_dir: theme_dir.path().to_path_buf(),
+        };
+
+        fs::write(input_dir.path().join("2025-01-01-fallback.md"), "# Fallback\nTest fallback")?;
+
+        ssg.build()?;
+
+        assert!(output_dir.path().join("styles.css").exists());
+        assert!(output_dir.path().join("main.js").exists());
+
+        let css = fs::read_to_string(output_dir.path().join("styles.css"))?;
+        assert!(css.contains("--bg-color")); // fallback CSS used
 
         Ok(())
     }

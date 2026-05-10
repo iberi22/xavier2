@@ -54,6 +54,12 @@ pub enum ChronicleCommand {
     },
     /// Generates the static blog from docs/devlog/*.md
     Build,
+    /// Starts a local preview server for the DevLog
+    Serve {
+        /// Port to listen on (default: 8080)
+        #[arg(short, long, default_value = "8080")]
+        port: u16,
+    },
 }
 
 pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
@@ -123,8 +129,14 @@ pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
             println!("Chronicle published to {}", result.destination);
         }
         ChronicleCommand::Build => {
-            DevLogSSG::new().build()?;
-            println!("DevLog static blog built successfully in public/devlog/");
+            let ssg = DevLogSSG::new();
+            ssg.build()?;
+            println!("DevLog static blog built successfully in {}", ssg.output_dir().display());
+        }
+        ChronicleCommand::Serve { port } => {
+            let ssg = DevLogSSG::new();
+            println!("Serving DevLog on http://localhost:{}", port);
+            ssg.serve(port).await?;
         }
     }
     Ok(())
