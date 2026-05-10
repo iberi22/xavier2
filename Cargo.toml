@@ -46,7 +46,7 @@ enterprise = []
 [dependencies]
 code-graph = { path = "./code-graph" }
 anyhow = "1.0.102"
-git2 = "0.19"
+git2 = "0.20"
 async-trait = "0.1"
 reqwest = { version = "0.13", features = ["json"] }
 gllm = { version = "0.10.6", default-features = false, features = ["cpu"], optional = true }
