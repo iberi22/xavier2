@@ -1,7 +1,7 @@
 # Xavier — Project Tasks
 
 **Project:** iberi22/xavier
-**Last Updated:** 2026-05-09
+**Last Updated:** 2026-05-10
 **Status:** Active Development
 
 ---
@@ -12,6 +12,10 @@
 - [ ] **Stability testing** — Long-running stress tests
 - [ ] **Performance benchmarks** — Formalize performance targets
 - [ ] **Monitoring** — Prometheus metrics endpoint
+
+### Dependency Maintenance
+- [x] **Crypto stack fix** — Removed direct `generic-array` dep, use `aes_gcm::Nonce` (df37fe4). Unblocks #177.
+- [ ] **Tauri upgrade** — Monitor Dependabot for new tauri bump PR (2.11.1 was superseded; #183 auto-closed).
 
 ### Agent Integration
 - [ ] **ADK integration** — Deep integration with agent development kits
