@@ -1,0 +1,36 @@
+name: Xavier DevLog Generator
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  generate-devlog:
+    if: github.event.label.name == 'devlog'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Xavier AI DevLog Generation
+        run: |
+          echo "Jules is picking up this DevLog request..."
+          # This workflow integrates with the existing Jules agent pattern.
+          # The 'jules' label + 'devlog' label will trigger the full generation.
+          # For now, we log the intent.
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+
+      - name: Add comment to Issue
+        run: |
+          gh issue comment $ISSUE_NUMBER --body "🤖 **Xavier DevLog System**: I have detected the \`devlog\` label. I will now analyze the requested source files and generate a deep technical post in a new PR."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}

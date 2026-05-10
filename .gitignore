@@ -1,5 +1,4 @@
 target/
-Cargo.lock
 *.rlib
 *.rmeta
 *.db
@@ -33,7 +32,49 @@ target_verify/
 data/
 logs/
 scripts/__pycache__/
+
+# Agent prompt files (never commit)
 PROMPT_*.md
+
+# Temp/junk files (never commit)
 test_payload.json
 file_35---*.txt
+*---*.txt
+*_original.rs
+*_backup.rs
+closed_issues.json
+issues_output.json
+optimization-result.json
+
+# Runtime state
 state/auth-profiles.json
+state/*.json
+
+# Notebooks output
+notebooks/.ipynb_checkpoints/
+
+# Python cache
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Root-level scripts that belong in scripts/ (prevent accidental re-creation)
+/run_*.ps1
+/run_*.py
+/check_alerts.ps1
+/debug_alerts.ps1
+/dismiss_alerts*.ps1
+/verify_xavier.js
+
+# Root-level docker variants that belong in docker/
+/docker-compose-*.yml
+/docker-compose.*.yml
+/Dockerfile.*
+/render-*.yaml
+
+# Root-level docs that belong in docs/
+/ARCHITECTURE_ANALYSIS.md
+/CHANGELOG-*.md
+/HEARTBEAT.md
+/IDENTITY.md
+/TOOLS.md

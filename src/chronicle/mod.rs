@@ -10,5 +10,6 @@ pub mod patterns;
 pub mod prompts;
 pub mod publish;
 pub mod redact;
+pub mod ssg;
 
 pub use redact::{process_output, redact, verify};
