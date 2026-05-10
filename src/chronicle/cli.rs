@@ -51,6 +51,15 @@ pub enum ChronicleCommand {
         #[arg(long)]
         to: Option<String>,
     },
+    /// Ejecuta el flujo completo: harvest, generate y publish (por defecto en public/devlog/)
+    Build {
+        /// Recolectar desde esta fecha
+        #[arg(long)]
+        since: Option<String>,
+        /// Ruta de destino del archivo markdown
+        #[arg(long)]
+        to: Option<String>,
+    },
 }
 
 pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
@@ -66,29 +75,35 @@ pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
         }
         ChronicleCommand::Generate { since, output } => {
             let workspace_path = resolve_workspace_path(None);
-            let harvest_path = resolve_harvest_path(&workspace_path, since.as_deref())?;
-            let harvest = read_harvest(&harvest_path)?;
-            let raw_json = fs::read_to_string(&harvest_path)
-                .with_context(|| format!("failed to read {}", harvest_path.display()))?;
-            let redacted = process_output(&raw_json)?;
-            let input = ChronicleInput {
-                date: harvest.date.clone(),
-                active_projects: count_active_projects(&harvest),
-                commits: harvest.commits.len(),
-                files_modified: count_modified_files(&harvest),
-                sessions: harvest.sessions.len(),
-                raw_data: redacted,
-            };
-            let markdown = ChronicleGenerator::new().generate(input).await?;
-            let output_path = output
-                .map(PathBuf::from)
-                .unwrap_or_else(|| chronicle_dir(&workspace_path).join(format!("daily-{}.md", harvest.date)));
-            if let Some(parent) = output_path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(&output_path, markdown)
-                .with_context(|| format!("failed to write {}", output_path.display()))?;
+            let output_path = generate_internal(&workspace_path, since.as_deref(), output.map(PathBuf::from)).await?;
             println!("Chronicle post written to {}", output_path.display());
+        }
+        ChronicleCommand::Build { since, to } => {
+            let workspace_path = resolve_workspace_path(None);
+            let since_dt = parse_since_arg(since.as_deref())?;
+            let memory = load_memory_from_env().await?;
+            let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&resolve_code_graph_db_path())?);
+            let harvester = Harvester::new(workspace_path.clone(), memory, code_db);
+            let harvest_path = harvester.run(since_dt).await?;
+            println!("Chronicle harvest written to {}", harvest_path.display());
+
+            let harvest = read_harvest(&harvest_path)?;
+            let post_path = generate_internal(&workspace_path, since.as_deref(), None).await?;
+            println!("Chronicle post generated: {}", post_path.display());
+
+            let markdown = fs::read_to_string(&post_path)
+                .with_context(|| format!("failed to read {}", post_path.display()))?;
+
+            let post = ChroniclePost {
+                date: harvest.date,
+                title: extract_title(&markdown).unwrap_or_else(|| "Daily Chronicle".to_string()),
+                markdown,
+                metadata: HashMap::new(),
+            };
+
+            let destination = to.unwrap_or_else(|| "public/devlog/".to_string());
+            let result = FilePublishHook::new(destination).publish(&post)?;
+            println!("Chronicle built and published to {}", result.destination);
         }
         ChronicleCommand::Preview { file } => {
             let workspace_path = resolve_workspace_path(None);
@@ -157,6 +172,33 @@ fn resolve_code_graph_db_path() -> PathBuf {
     std::env::var("XAVIER_CODE_GRAPH_DB_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(settings.server.code_graph_db_path))
+}
+
+async fn generate_internal(workspace_path: &Path, since: Option<&str>, output: Option<PathBuf>) -> Result<PathBuf> {
+    let harvest_path = resolve_harvest_path(workspace_path, since)?;
+    let harvest = read_harvest(&harvest_path)?;
+    let raw_json = fs::read_to_string(&harvest_path)
+        .with_context(|| format!("failed to read {}", harvest_path.display()))?;
+    let redacted = process_output(&raw_json)?;
+    let input = ChronicleInput {
+        date: harvest.date.clone(),
+        active_projects: count_active_projects(&harvest),
+        commits: harvest.commits.len(),
+        files_modified: count_modified_files(&harvest),
+        sessions: harvest.sessions.len(),
+        raw_data: redacted,
+    };
+    let markdown = ChronicleGenerator::new().generate(input).await?;
+    let output_path = output
+        .unwrap_or_else(|| chronicle_dir(workspace_path).join(format!("daily-{}.md", harvest.date)));
+
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&output_path, markdown)
+        .with_context(|| format!("failed to write {}", output_path.display()))?;
+
+    Ok(output_path)
 }
 
 async fn load_memory_from_env() -> Result<Arc<QmdMemory>> {
@@ -300,6 +342,20 @@ mod tests {
                 assert_eq!(output, Some("post.md".to_string()));
             }
             _ => panic!("Expected Generate command"),
+        }
+    }
+
+    #[test]
+    fn test_chronicle_build_parsing() {
+        let args = vec!["xavier", "build", "--since", "2026-05-01", "--to", "public/devlog/"];
+        let cli = TestCli::parse_from(args);
+
+        match cli.cmd {
+            ChronicleCommand::Build { since, to } => {
+                assert_eq!(since, Some("2026-05-01".to_string()));
+                assert_eq!(to, Some("public/devlog/".to_string()));
+            }
+            _ => panic!("Expected Build command"),
         }
     }
 
