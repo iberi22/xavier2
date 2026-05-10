@@ -211,8 +211,6 @@ pub async fn start_signal_handler(state: ShutdownState) {
         #[cfg(windows)]
         use tokio::signal::windows::ctrl_c;
 
-        let mut shutdown_reason: Option<&'static str> = None;
-
         // Unix signals (SIGTERM / SIGINT)
         #[cfg(unix)]
         {
@@ -233,8 +231,8 @@ pub async fn start_signal_handler(state: ShutdownState) {
             };
 
             tokio::select! {
-                _ = sigterm.recv() => shutdown_reason = Some("SIGTERM"),
-                _ = sigint.recv() => shutdown_reason = Some("SIGINT"),
+                _ = sigterm.recv() => state.request_shutdown("SIGTERM"),
+                _ = sigint.recv() => state.request_shutdown("SIGINT"),
             }
         }
 
@@ -253,12 +251,8 @@ pub async fn start_signal_handler(state: ShutdownState) {
 
             let reason = ctrl_events.await;
             if let Some(()) = reason {
-                shutdown_reason = Some("Ctrl+C / console close");
+                state.request_shutdown("Ctrl+C / console close");
             }
-        }
-
-        if let Some(reason) = shutdown_reason {
-            state.request_shutdown(reason);
         }
     });
 }

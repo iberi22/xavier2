@@ -113,6 +113,20 @@ Reset the current in-memory document set for the workspace.
 
 Returns nodes and relations from the belief graph.
 
+## Panel
+
+Panel APIs are authenticated with the same Xavier token middleware as the rest of the protected HTTP surface.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/panel/api/threads` | List saved panel threads |
+| POST | `/panel/api/threads` | Create a panel thread from an optional title/message |
+| GET | `/panel/api/threads/{thread_id}` | Fetch one thread and its messages |
+| DELETE | `/panel/api/threads/{thread_id}` | Delete a saved thread |
+| POST | `/panel/api/chat` | Append a user message and return deterministic structured assistant output for panel rendering |
+
+By default panel thread data is stored under the workspace data directory. Set `XAVIER_PANEL_STORE_DIR` to override the storage path for tests or deployments.
+
 ## Beta Notes
 
 - The current release line is `0.6 beta usable`, not `1.0`.

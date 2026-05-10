@@ -4,10 +4,10 @@ use std::sync::Arc;
 use tempfile::TempDir;
 use tokio::sync::RwLock as AsyncRwLock;
 
-use xavier::chronicle::harvest::Harvester;
-use xavier::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use code_graph::db::CodeGraphDB;
 use code_graph::types::{Language, Symbol, SymbolKind};
+use xavier::chronicle::harvest::Harvester;
+use xavier::memory::qmd_memory::{MemoryDocument, QmdMemory};
 
 #[tokio::test]
 async fn test_full_harvest_workflow() {
@@ -25,8 +25,9 @@ async fn test_full_harvest_workflow() {
     index.add_path(std::path::Path::new("src/main.rs")).unwrap();
     let id = index.write_tree().unwrap();
     let tree = repo.find_tree(id).unwrap();
-    let sig = repo.signature().unwrap();
-    repo.commit(Some("HEAD"), &sig, &sig, "initial commit", &tree, &[]).unwrap();
+    let sig = git2::Signature::now("Xavier CI", "xavier-ci@example.invalid").unwrap();
+    repo.commit(Some("HEAD"), &sig, &sig, "initial commit", &tree, &[])
+        .unwrap();
 
     // 2. Setup QmdMemory
     let memory = Arc::new(QmdMemory::new(Arc::new(AsyncRwLock::new(vec![
@@ -42,19 +43,21 @@ async fn test_full_harvest_workflow() {
 
     // 3. Setup CodeGraphDB
     let code_db = Arc::new(CodeGraphDB::in_memory().unwrap());
-    code_db.insert_symbol(&Symbol {
-        id: None,
-        name: "main".into(),
-        kind: SymbolKind::Function,
-        lang: Language::Rust,
-        file_path: "src/main.rs".into(),
-        start_line: 1,
-        end_line: 1,
-        start_col: 0,
-        end_col: 10,
-        signature: Some("fn main()".into()),
-        parent: None,
-    }).unwrap();
+    code_db
+        .insert_symbol(&Symbol {
+            id: None,
+            name: "main".into(),
+            kind: SymbolKind::Function,
+            lang: Language::Rust,
+            file_path: "src/main.rs".into(),
+            start_line: 1,
+            end_line: 1,
+            start_col: 0,
+            end_col: 10,
+            signature: Some("fn main()".into()),
+            parent: None,
+        })
+        .unwrap();
 
     // 4. Run Harvester
     let harvester = Harvester::new(workspace_path.to_path_buf(), memory, code_db);
