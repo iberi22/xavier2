@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock as AsyncRwLock;
 
 use crate::chronicle::generate::{ChronicleGenerator, ChronicleInput};
+use crate::chronicle::ssg::DevLogSSG;
 use crate::chronicle::harvest::{HarvestOutput, Harvester};
 use crate::chronicle::publish::{
     ChroniclePost, ChroniclePublishHook, FilePublishHook, StdoutPublishHook,
@@ -51,6 +52,8 @@ pub enum ChronicleCommand {
         #[arg(long)]
         to: Option<String>,
     },
+    /// Generates the static blog from docs/devlog/*.md
+    Build,
 }
 
 pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
@@ -118,6 +121,10 @@ pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
             };
 
             println!("Chronicle published to {}", result.destination);
+        }
+        ChronicleCommand::Build => {
+            DevLogSSG::new().build()?;
+            println!("DevLog static blog built successfully in public/devlog/");
         }
     }
     Ok(())
