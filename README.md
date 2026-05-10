@@ -30,6 +30,51 @@ xavier chronicle generate
 xavier chronicle preview
 ```
 
+## Installer
+
+Xavier2 ships with an interactive **TUI setup wizard** that configures everything in 6 steps — no manual config editing needed.
+
+### One-liner install
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/iberi22/xavier/main/install.ps1 | iex
+```
+
+**Linux/macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/iberi22/xavier/main/install.sh | bash
+```
+
+The wizard walks you through authentication token, server bind, storage path, and embedding provider selection.
+
+### Setup Wizard Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/welcome.png" width="32%" alt="Welcome">
+  <img src="docs/screenshots/token.png" width="32%" alt="Token Setup">
+  <img src="docs/screenshots/server.png" width="32%" alt="Server Config">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/storage.png" width="32%" alt="Storage Config">
+  <img src="docs/screenshots/embeddings.png" width="32%" alt="Embeddings Provider">
+  <img src="docs/screenshots/review.png" width="32%" alt="Review &amp; Save">
+</p>
+
+### Manual install
+
+```bash
+# From source
+cargo install xavier
+
+# Run the setup wizard
+xavier-installer
+
+# Or skip wizard and configure manually
+cp config/xavier.config.example.json config/xavier.config.json
+```
+
 ## Features
 
 - **HTTP API** — JSON REST endpoints for memory CRUD with token-based auth
@@ -38,6 +83,7 @@ xavier chronicle preview
 - **SQLite-backed** — Persistent, zero-infrastructure storage with vector search support
 - **Public dataset export** — Generate read-optimized NDJSON datasets for agent bootstrap (see [Public Export](#public-dataset-export))
 - **Hybrid retrieval** — Building blocks for combining keyword and semantic search
+- **TUI installer** — Interactive terminal wizard (6 steps) for painless setup on Windows, Linux, and macOS
 - **Agent runtime modules** — Ready-to-use runtime components for agent memory workflows
 - **Chronicle workflow** — `xavier chronicle` can harvest project activity, generate daily technical posts, preview them, and publish Markdown outputs
 - **Plugin system** — Extensible enterprise integrations (Cortex, PgHeart)
@@ -190,9 +236,11 @@ Runtime configuration lives in [config/xavier.config.json](config/xavier.config.
 
 ## Documentation
 
+- [Installer &amp; Setup](docs/screenshots/) — TUI wizard screenshots and install guide
 - [Feature Status](docs/FEATURE_STATUS.md) — Current verified surface and 1.0 gaps
 - [CLI Reference](docs/guides/CLI_REFERENCE.md) — Full command documentation
 - [API Reference](docs/site/src/content/docs/reference/api.md) — HTTP endpoint details
+- [Architecture](docs/ARCHITECTURE.md) — System design and hexagonal architecture
 - [Public Release Roadmap](docs/PUBLIC_RELEASE_ROADMAP.md) — Upcoming milestones
 
 ## Status
