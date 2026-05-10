@@ -117,7 +117,7 @@ unicode-normalization = "0.1"
 
 # E2E Encryption for cloud tier
 aes-gcm = "0.10"
-generic-array = "0.14.7"
+generic-array = "1.4.1"
 argon2 = "0.5"
 rand = "0.8"
 
