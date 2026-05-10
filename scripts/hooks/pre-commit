@@ -176,6 +176,120 @@ ensure_no_forbidden_paths() {
     done <<< "$files"
 }
 
+# ---------------------------------------------------------------------------
+# Root directory sanitization
+# Enforces that only canonical files live at the repo root.
+# ---------------------------------------------------------------------------
+
+# Files that are explicitly allowed at the root level
+ROOT_ALLOWED_FILES=(
+    "README.md"
+    "CHANGELOG.md"
+    "CONTRIBUTING.md"
+    "SECURITY.md"
+    "LICENSE"
+    "LICENSE.enterprise"
+    "SOUL.md"
+    "USER.md"
+    "AGENTS.md"
+    "Cargo.toml"
+    "Cargo.lock"
+    "package.json"
+    "package-lock.json"
+    "Dockerfile"
+    "docker-compose.yml"
+    "prometheus.yml"
+    ".gitignore"
+    ".gitattributes"
+    ".cursorrules"
+    ".windsurfrules"
+    ".env.example"
+    ".dockerignore"
+    ".eslintrc.json"
+    ".git-atomize.yml"
+    ".git-core-protocol-version"
+    "biome.json"
+    "rust-toolchain.toml"
+    "rust-toolchain"
+    "clippy.toml"
+    ".clippy.toml"
+    "deny.toml"
+    "release.toml"
+    "lefthook.yml"
+)
+
+is_root_allowed() {
+    local file="$1"
+    # Allow anything not at root (has a directory component)
+    if [[ "$file" == */* ]]; then
+        return 0
+    fi
+    # Allow hidden files/dirs at root (dot-files are config)
+    if [[ "$file" == .* ]]; then
+        return 0
+    fi
+    # Check explicit allowlist
+    for allowed in "${ROOT_ALLOWED_FILES[@]}"; do
+        if [[ "$file" == "$allowed" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+ensure_root_cleanliness() {
+    local files="$1"
+    local violations=()
+
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        if ! is_root_allowed "$file"; then
+            violations+=("$file")
+        fi
+    done <<< "$files"
+
+    if [ ${#violations[@]} -gt 0 ]; then
+        echo -e "\n${RED}Root directory violation:${NC} The following files must not be committed to the repo root:"
+        for v in "${violations[@]}"; do
+            echo -e "  ${YELLOW}$v${NC}"
+        done
+        echo ""
+        echo -e "${CYAN}Allowed locations:${NC}"
+        echo "  Scripts       → scripts/"
+        echo "  Docker files  → docker/"
+        echo "  Docs/analysis → docs/"
+        echo "  Agent prompts → (never commit PROMPT_*.md)"
+        echo "  Temp/JSON     → (never commit temp files)"
+        echo ""
+        echo "Move the file(s) or add to ROOT_ALLOWED_FILES in scripts/hooks/pre-commit if intentional."
+        exit 1
+    fi
+}
+
+# Patterns that must never appear in committed files (security/secrets)
+ensure_no_hardcoded_secrets() {
+    local files="$1"
+    # Patterns: hardcoded tokens, IPs, passwords
+    local secret_patterns='(dev-token|swaladmin|admin@swal\.ai|192\.168\.[0-9]+\.[0-9]+:[0-9]+|localhost:[0-9]{4,5}.*hardcoded|password\s*=\s*["\x27][^"\x27]{4,})'
+
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        # Skip .env.example (it's allowed to show key names)
+        [[ "$file" == ".env.example" ]] && continue
+        # Skip test files
+        [[ "$file" == tests/* ]] && continue
+        [[ "$file" == benches/* ]] && continue
+
+        case "$file" in
+            src/*|scripts/*|panel-ui/src/*)
+                if added_lines_for "$file" | grep -Eiq "$secret_patterns"; then
+                    die "staged content in '$file' contains hardcoded secrets or insecure defaults"
+                fi
+                ;;
+        esac
+    done <<< "$files"
+}
+
 ensure_no_forbidden_content() {
     local files="$1"
     local patterns='dev-token|swaladmin2026|admin@swal\.ai|192\.168\.1\.8:3000'
@@ -319,7 +433,9 @@ main() {
 
     validate_atomicity
     ensure_no_forbidden_paths "$staged_files"
+    ensure_root_cleanliness "$staged_files"
     ensure_no_forbidden_content "$staged_files"
+    ensure_no_hardcoded_secrets "$staged_files"
     ensure_no_placeholder_regressions "$staged_files"
     ensure_env_example_is_secrets_only "$staged_files"
     ensure_runtime_config_is_canonical "$staged_files"

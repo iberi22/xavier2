@@ -19,16 +19,16 @@ Xavier es el cerebro de memoria global. **Cortex** actúa como su plugin de sinc
 - **Mejora continua** — Identificar oportunidades de mejora
 - **Coordinación** — Asegurar que todos los agentes estén alineados
 - **Decisiones estratégicas** — Tomar decisiones de arquitectura y prioridad
+- **DevLog Management** — Documentar el "por qué" técnico profundo. Ver `docs/devlog/`.
+
 
 ## Proyecto Principal
 - Repo: `iberi22/xavier` — Context engine open source
 - Stack: Rust + SQLite-Vec
+- Plugins: Cortex("E:\scripts-python\cortex") - PGheart("E:\scripts-python\pgheart") 
 - Objetivo: Convertir en el sistema de memoria central para todos los agentes SWAL
 
-## Regla de Comunicación con Leonardo Duque
-- Leonardo tiene acceso vía bot Docker separado
-- **Sincronizar tareas, NO conversaciones**
-- No compartir contexto interno de BELA con Leonardo
+
 
 ---
 

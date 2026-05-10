@@ -55,6 +55,12 @@ Explanation is **discursive documentation**. It explores topics, provides contex
 | *Proactive Execution* (coming soon) | Agents that act, not suggest |
 | *Agent Handoff Pattern* (coming soon) | Collaborative AI workflows |
 
+### 📝 Technical Narrative (DevLog)
+
+| Topic | What You'll Understand |
+|-------|------------------------|
+| **[Xavier DevLog](../devlog/INDEX.md)** | Deep-dive technical decisions, code walkthroughs, and trade-offs. |
+
 ---
 
 ## Explanation Principles (Diátaxis)
@@ -126,6 +132,8 @@ Explanation allows for:
 
 - **Protocol-First Development** - Why issues before code
 - **Adaptive Workflows** - Auto-tuning resource usage
+- **Decisiones estratégicas** — Tomar decisiones de arquitectura y prioridad
+- **DevLog Management** — Documentar decisiones técnicas profundas usando el skill `devlog-writer`. Ver `docs/devlog/`.
 - **Session Continuity** - Preserving context across chats
 - **Agent Personas** - Role-based behavior
 
