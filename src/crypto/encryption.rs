@@ -5,9 +5,8 @@
 
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm,
+    Aes256Gcm, Nonce,
 };
-use generic_array::GenericArray;
 use rand::RngCore;
 
 use crate::crypto::NONCE_SIZE;
@@ -126,8 +125,8 @@ pub fn encrypt_data(
 
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| EncryptionError::InvalidKey)?;
 
-    // Create nonce as GenericArray<u8, U12>
-    let nonce_arr = GenericArray::from_slice(nonce.as_bytes());
+    // Create nonce as Nonce<Aes256Gcm> (GenericArray<u8, U12>)
+    let nonce_arr = Nonce::from_slice(nonce.as_bytes());
 
     let ciphertext = cipher
         .encrypt(nonce_arr, plaintext)
@@ -163,7 +162,7 @@ pub fn decrypt_data(
 
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| EncryptionError::InvalidKey)?;
 
-    let nonce_arr = GenericArray::from_slice(nonce);
+    let nonce_arr = Nonce::from_slice(nonce);
 
     cipher
         .decrypt(nonce_arr, ciphertext)

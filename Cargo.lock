@@ -9488,7 +9488,6 @@ dependencies = [
  "egui_extras",
  "flate2",
  "futures-util",
- "generic-array",
  "git2",
  "gllm",
  "hex",
