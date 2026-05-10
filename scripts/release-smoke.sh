@@ -40,7 +40,7 @@ import sys
 
 payload = json.loads(sys.argv[1])
 expression = sys.argv[2]
-if not eval(expression, {"__builtins__": {}}, {"payload": payload, "len": len, "bool": bool, "isinstance": isinstance, "list": list}):
+if not eval(expression, {"__builtins__": {}}, {"payload": payload, "len": len, "bool": bool, "isinstance": isinstance, "list": list, "any": any}):
     raise SystemExit(f"assertion failed: {expression}")
 PY
 }
