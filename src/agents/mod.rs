@@ -25,9 +25,11 @@ pub struct AgentConfig {
     pub name: String,
     pub provider: Option<String>,
     pub model: Option<String>,
+    pub task: Option<String>,
     pub tools: Vec<String>,
     pub context: HashMap<String, String>,
     pub skills: Vec<String>,
+    pub provider_config: Option<crate::agents::provider::ModelProviderConfig>,
 }
 
 impl AgentConfig {
@@ -36,9 +38,11 @@ impl AgentConfig {
             name,
             provider: None,
             model: None,
+            task: None,
             tools: Vec::new(),
             context: HashMap::new(),
             skills: Vec::new(),
+            provider_config: None,
         }
     }
 
@@ -66,6 +70,16 @@ impl AgentConfig {
         self.skills = skills;
         self
     }
+
+    pub fn with_task(mut self, task: String) -> Self {
+        self.task = Some(task);
+        self
+    }
+
+    pub fn with_provider_config(mut self, config: crate::agents::provider::ModelProviderConfig) -> Self {
+        self.provider_config = Some(config);
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -73,9 +87,11 @@ pub struct Agent {
     pub name: String,
     pub provider: Option<String>,
     pub model: Option<String>,
+    pub task: Option<String>,
     pub tools: Vec<String>,
     pub context: HashMap<String, String>,
     pub skills: Vec<String>,
+    pub provider_config: Option<crate::agents::provider::ModelProviderConfig>,
     pub status: AgentStatus,
 }
 
@@ -85,9 +101,11 @@ impl Agent {
             name: config.name,
             provider: config.provider,
             model: config.model,
+            task: config.task,
             tools: config.tools,
             context: config.context,
             skills: config.skills,
+            provider_config: config.provider_config,
             status: AgentStatus::Idle,
         }
     }
@@ -102,6 +120,43 @@ impl Agent {
 
     pub async fn execute(&self, prompt: String) -> anyhow::Result<String> {
         Ok(format!("{}:{}", self.name, prompt))
+    }
+
+    pub async fn run(
+        &mut self,
+        memory: std::sync::Arc<crate::memory::qmd_memory::QmdMemory>,
+    ) -> anyhow::Result<crate::agents::runtime::AgentResponse> {
+        self.start();
+        let task = self
+            .task
+            .clone()
+            .unwrap_or_else(|| "What is my current status?".to_string());
+
+        let mut runtime_config = crate::agents::runtime::RuntimeConfig::default();
+        if let Some(ref p) = self.provider {
+            runtime_config.model_provider = Some(p.clone());
+        }
+        if let Some(ref m) = self.model {
+            runtime_config.model_url = Some(m.clone()); // Using model_url as a hint if needed, but AgentRuntime uses it differently
+        }
+
+        let mut runtime = crate::agents::runtime::AgentRuntime::new(memory, None, runtime_config)?;
+
+        if let Some(provider_config) = self.provider_config.clone() {
+            runtime = runtime.with_provider_config(provider_config);
+        } else if let Some(ref p) = self.provider {
+            // Convert provider label to config to ensure System 2 also uses it
+            let mut p_config = crate::agents::provider::ModelProviderConfig::from_label(p);
+            if let Some(ref m) = self.model {
+                p_config = p_config.with_model_override(Some(m.clone()));
+            }
+            runtime = runtime.with_provider_config(p_config);
+        }
+
+        let response = runtime.run(&task, None, None).await?;
+
+        self.stop();
+        Ok(response)
     }
 }
 

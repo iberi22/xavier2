@@ -3,7 +3,7 @@
 use anyhow::{anyhow, Result};
 use axum::{
     body::Body,
-    extract::State,
+    extract::{Path as AxumPath, State},
     http::{HeaderMap, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -28,12 +28,15 @@ use xavier::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier::coordination::SimpleAgentRegistry;
 use xavier::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier::memory::schema::MemoryQueryFilters;
+use xavier::memory::session_store::{PanelMessage, SessionStore};
 use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier::memory::store::{MemoryRecord, MemoryStore};
 use xavier::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
 use xavier::ports::outbound::HealthCheckPort;
 use xavier::security::{ProcessResult, SecurityService};
-use xavier::server::panel::{panel_asset, panel_index};
+use xavier::server::panel::{
+    panel_asset, panel_index, CreateThreadRequest, PanelChatRequest, PanelChatResponse,
+};
 use xavier::session::event_mapper::PanelThreadEntry;
 use xavier::session::types::SessionEvent;
 use xavier::tasks::session_sync_task::SessionSyncTask;
@@ -54,6 +57,7 @@ pub struct CliState {
     pub security: Arc<SecurityService>,
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
+    pub panel_store: Arc<SessionStore>,
 }
 
 #[derive(Subcommand)]
@@ -90,10 +94,39 @@ pub enum Command {
         provider: Vec<String>,
         #[arg(short, long)]
         model: Vec<String>,
-        #[arg(short, long)]
+        #[arg(short, long = "skill")]
         skills: Vec<String>,
         #[arg(short = 'x', long)]
         context: Vec<String>,
+        #[arg(short, long)]
+        task: Option<String>,
+    },
+    /// Launch parallel agents with a swarm configuration file
+    Swarm {
+        #[arg(short, long)]
+        config: PathBuf,
+        #[arg(short, long, default_value_t = 4)]
+        parallel: usize,
+    },
+    /// Batch spawn agents with provider/model routing
+    MultiSpawn {
+        #[arg(long, default_value_t = 10)]
+        agents: usize,
+        #[arg(long, default_value_t = 4)]
+        batch: usize,
+        #[arg(short, long)]
+        provider: Vec<String>,
+        #[arg(short, long)]
+        model: Vec<String>,
+        #[arg(short, long)]
+        skills: Vec<String>,
+        #[arg(short, long)]
+        task: Option<String>,
+    },
+    /// Subcomando para gestionar Chronicle
+    Chronicle {
+        #[command(subcommand)]
+        cmd: xavier::chronicle::cli::ChronicleCommand,
     },
 }
 
@@ -143,7 +176,40 @@ impl Cli {
                 model,
                 skills,
                 context,
-            } => spawn_agents(*count, provider.clone(), model.clone(), skills, context).await,
+                task,
+            } => {
+                spawn_agents(
+                    *count,
+                    provider.clone(),
+                    model.clone(),
+                    skills,
+                    context,
+                    task.as_deref(),
+                )
+                .await
+            }
+            Command::MultiSpawn {
+                agents,
+                batch,
+                provider,
+                model,
+                skills,
+                task,
+            } => {
+                multi_spawn_agents(
+                    *agents,
+                    *batch,
+                    provider.clone(),
+                    model.clone(),
+                    skills.clone(),
+                    task.as_deref(),
+                )
+                .await
+            }
+            Command::Swarm { config, parallel } => run_swarm(config.clone(), *parallel).await,
+            Command::Chronicle { cmd } => {
+                xavier::chronicle::cli::handle_chronicle_command(cmd.clone()).await
+            }
         }
     }
 }
@@ -233,6 +299,9 @@ async fn start_http_server(port: u16) -> Result<()> {
         workspace_dir.display()
     );
 
+    let panel_root = state_panel_root(&workspace_dir, &workspace_id);
+    let panel_store = Arc::new(SessionStore::new(panel_root).await?);
+
     let state = CliState {
         memory: memory_port,
         store,
@@ -244,6 +313,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         security: Arc::new(SecurityService::new()),
         _time_store: Some(time_store),
         agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
+        panel_store,
     };
 
     info!(
@@ -287,6 +357,15 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/xavier/sync/check", post(sync_check_handler))
         .route("/xavier/sync/check", get(sync_check_handler))
         .route("/xavier/verify/save", post(verify_save_handler))
+        .route(
+            "/panel/api/threads",
+            get(panel_list_threads).post(panel_create_thread),
+        )
+        .route(
+            "/panel/api/threads/{thread_id}",
+            get(panel_get_thread).delete(panel_delete_thread),
+        )
+        .route("/panel/api/chat", post(panel_process_chat))
         .layer(middleware::from_fn(auth_middleware));
 
     // Add enterprise plugin routes if feature is enabled
@@ -417,6 +496,18 @@ fn code_graph_db_path() -> PathBuf {
     std::env::var("XAVIER_CODE_GRAPH_DB_PATH")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("data").join("code_graph.db"))
+}
+
+fn state_panel_root(workspace_dir: &std::path::Path, workspace_id: &str) -> PathBuf {
+    std::env::var("XAVIER_PANEL_STORE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            workspace_dir
+                .join("data")
+                .join("workspaces")
+                .join(workspace_id)
+                .join("panel_threads")
+        })
 }
 
 // HTTP Handlers
@@ -648,6 +739,141 @@ fn secure_external_input(
     }
 
     Ok(result.effective_input().to_string())
+}
+
+async fn panel_list_threads(State(state): State<CliState>) -> Response {
+    json_response(
+        StatusCode::OK,
+        serde_json::json!(state.panel_store.list_threads().await),
+    )
+}
+
+async fn panel_create_thread(
+    State(state): State<CliState>,
+    Json(payload): Json<CreateThreadRequest>,
+) -> Response {
+    let title_hint = payload
+        .title
+        .or(payload.message)
+        .unwrap_or_else(|| "New Thread".to_string());
+
+    match state.panel_store.create_thread(&title_hint).await {
+        Ok(thread) => json_response(
+            StatusCode::OK,
+            serde_json::to_value(xavier::memory::session_store::ThreadSummary::from(&thread))
+                .unwrap_or_else(|_| serde_json::json!({})),
+        ),
+        Err(error) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": error.to_string() }),
+        ),
+    }
+}
+
+async fn panel_get_thread(
+    State(state): State<CliState>,
+    AxumPath(thread_id): AxumPath<String>,
+) -> Response {
+    match state.panel_store.get_thread(&thread_id).await {
+        Some(thread) => json_response(
+            StatusCode::OK,
+            serde_json::to_value(SessionStore::detail_from_thread(thread))
+                .unwrap_or_else(|_| serde_json::json!({})),
+        ),
+        None => json_response(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({ "error": "thread not found" }),
+        ),
+    }
+}
+
+async fn panel_delete_thread(
+    State(state): State<CliState>,
+    AxumPath(thread_id): AxumPath<String>,
+) -> Response {
+    match state.panel_store.delete_thread(&thread_id).await {
+        Ok(true) => json_response(StatusCode::OK, serde_json::json!({ "deleted": true })),
+        Ok(false) => json_response(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({ "error": "thread not found" }),
+        ),
+        Err(error) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": error.to_string() }),
+        ),
+    }
+}
+
+async fn panel_process_chat(
+    State(state): State<CliState>,
+    Json(payload): Json<PanelChatRequest>,
+) -> Response {
+    match panel_process_chat_inner(&state, payload).await {
+        Ok(response) => json_response(
+            StatusCode::OK,
+            serde_json::to_value(response).unwrap_or_else(|_| serde_json::json!({})),
+        ),
+        Err(error) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": error.to_string() }),
+        ),
+    }
+}
+
+async fn panel_process_chat_inner(
+    state: &CliState,
+    payload: PanelChatRequest,
+) -> Result<PanelChatResponse> {
+    let thread = match payload.thread_id.as_deref() {
+        Some(thread_id) => state
+            .panel_store
+            .get_thread(thread_id)
+            .await
+            .ok_or_else(|| anyhow!("thread {thread_id} not found"))?,
+        None => state.panel_store.create_thread(&payload.message).await?,
+    };
+
+    let user_message = PanelMessage {
+        id: ulid::Ulid::new().to_string(),
+        role: "user".to_string(),
+        plain_text: payload.message.clone(),
+        openui_lang: None,
+        created_at: chrono::Utc::now(),
+        metadata: serde_json::json!({}),
+    };
+    state
+        .panel_store
+        .append_message(&thread.id, user_message)
+        .await?;
+
+    let assistant_message = PanelMessage {
+        id: ulid::Ulid::new().to_string(),
+        role: "assistant".to_string(),
+        plain_text: format!(
+            "Structured Xavier response for: {}",
+            payload.message.trim()
+        ),
+        openui_lang: Some(format!(
+            "<SectionBlock title=\"Xavier\" description=\"{}\"><InfoCard title=\"Status\" value=\"Ready\" /></SectionBlock>",
+            payload.message.replace('"', "'")
+        )),
+        created_at: chrono::Utc::now(),
+        metadata: serde_json::json!({
+            "rules": ["deterministic", "ci-safe"],
+            "components": ["SectionBlock", "InfoCard"],
+            "timings": { "total_ms": 0 }
+        }),
+    };
+
+    let updated = state
+        .panel_store
+        .append_message(&thread.id, assistant_message)
+        .await?;
+
+    Ok(PanelChatResponse {
+        thread: xavier::memory::session_store::ThreadSummary::from(&updated),
+        messages: updated.messages,
+    })
 }
 
 async fn search_handler(
@@ -2420,98 +2646,252 @@ async fn spawn_agents(
     models: Vec<String>,
     skills: &[String],
     custom_context: &[String],
+    task: Option<&str>,
 ) -> Result<()> {
-    println!("🚀 Spawning {} agents...", count);
+    println!("Spawning {} agents...", count);
 
-    // Get available providers if none specified
     let available_providers = if providers.is_empty() {
-        vec!["openclaw".to_string()]
+        vec!["local".to_string()]
     } else {
-        providers.clone()
+        providers
     };
 
-    if available_providers.is_empty() {
-        println!(
-            "⚠️ No providers specified and none found in environment. Using default routing pool."
-        );
-    }
-
-    let mut agents = Vec::new();
+    let mut agents = Vec::with_capacity(count);
     for i in 0..count {
         let name = format!("agent-{}", i + 1);
-        let mut config = AgentConfig::new(name.clone());
+        let provider_name = available_providers
+            .get(i % available_providers.len())
+            .cloned();
+        let model_name = models.get(i % models.len().max(1)).cloned();
 
-        // Provider routing (Issue #96, #98)
-        let provider_name = if !available_providers.is_empty() {
-            Some(available_providers[i % available_providers.len()].clone())
-        } else {
-            None
-        };
-
-        if let Some(ref p) = provider_name {
-            config = config.with_provider(p.clone());
-        }
-
-        // Model routing
-        let model_name = if !models.is_empty() {
-            Some(models[i % models.len()].clone())
-        } else {
-            None
-        };
-
-        if let Some(ref m) = model_name {
-            config = config.with_model(m.clone());
-        }
-
-        // Load skills and context (Issue #97)
-        let mut loaded_skills = Vec::new();
         let mut context = HashMap::new();
-
-        // Add spawn context
         context.insert("agent_index".to_string(), i.to_string());
         context.insert("total_agents".to_string(), count.to_string());
-        if let Some(ref p) = provider_name {
-            context.insert("spawn_provider".to_string(), p.clone());
+        if let Some(ref provider_name) = provider_name {
+            context.insert("spawn_provider".to_string(), provider_name.clone());
         }
 
-        for skill_name in skills {
+        for kv in custom_context {
+            if let Some((key, value)) = kv.split_once('=') {
+                context.insert(key.to_string(), value.to_string());
+            }
+        }
+
+        let mut effective_skills = skills.to_vec();
+        if let Some(ref provider_name) = provider_name {
+            let provider_key = provider_name.to_lowercase();
+            if provider_key.contains("minimax")
+                && !effective_skills.iter().any(|skill| skill == "coding-agent")
+            {
+                effective_skills.push("coding-agent".to_string());
+            }
+            if provider_key.contains("deepseek")
+                && !effective_skills.iter().any(|skill| skill == "research")
+            {
+                effective_skills.push("research".to_string());
+            }
+        }
+
+        let mut loaded_skills = Vec::new();
+        for skill_name in &effective_skills {
             if let Some(content) = load_skill(skill_name) {
-                // Add skill content to context as requested by Issue #97
-                context.insert(format!("skill_{}", skill_name), content.clone());
+                context.insert(format!("skill_{}", skill_name), content);
                 loaded_skills.push(skill_name.clone());
             } else {
-                println!("⚠️ Warning: Skill {} not found", skill_name);
+                println!("Warning: skill '{}' not found", skill_name);
             }
         }
 
-        // Add custom context (Issue #96)
-        for kv in custom_context {
-            if let Some((k, v)) = kv.split_once('=') {
-                context.insert(k.to_string(), v.to_string());
-            }
+        let mut config = AgentConfig::new(name.clone())
+            .with_skills(loaded_skills)
+            .with_context(context);
+        if let Some(ref provider_name) = provider_name {
+            config = config.with_provider(provider_name.clone());
+        }
+        if let Some(ref model_name) = model_name {
+            config = config.with_model(model_name.clone());
+        }
+        if let Some(task) = task {
+            config = config.with_task(task.to_string());
         }
 
-        config = config.with_skills(loaded_skills).with_context(context);
-
-        let agent = Agent::new(config);
-        agents.push(agent);
         println!(
-            "  ✅ {} spawned [provider: {}, model: {}]",
+            "  spawned {} [provider: {}, model: {}]",
             name,
             provider_name.as_deref().unwrap_or("auto"),
-            model_name.as_deref().unwrap_or("default")
+            model_name.as_deref().unwrap_or("default"),
         );
+        agents.push(Agent::new(config));
     }
 
-    println!(
-        "\n✨ Successfully spawned {} agents simultaneously.",
-        agents.len()
-    );
+    if let Some(task) = task {
+        println!("Executing task across spawned agents: {}", task);
+        let memory = load_spawn_memory().await?;
+        let mut futures = Vec::with_capacity(agents.len());
+        for mut agent in agents {
+            let memory = Arc::clone(&memory);
+            futures.push(tokio::spawn(async move {
+                let name = agent.name.clone();
+                match agent.run(memory).await {
+                    Ok(resp) => println!("  {} completed: {}", name, resp.response),
+                    Err(error) => println!("  {} failed: {}", name, error),
+                }
+            }));
+        }
+
+        for future in futures {
+            let _ = future.await;
+        }
+    }
+
     Ok(())
 }
 
+async fn multi_spawn_agents(
+    agents_count: usize,
+    batch_size: usize,
+    providers: Vec<String>,
+    models: Vec<String>,
+    skills: Vec<String>,
+    task: Option<&str>,
+) -> Result<()> {
+    println!(
+        "Batch spawning {} agents in groups of {}...",
+        agents_count, batch_size
+    );
+
+    let providers = if providers.is_empty() {
+        vec!["local".to_string()]
+    } else {
+        providers
+    };
+
+    for offset in (0..agents_count).step_by(batch_size.max(1)) {
+        let current_batch = std::cmp::min(batch_size.max(1), agents_count - offset);
+        let batch_providers = (0..current_batch)
+            .map(|i| providers[(offset + i) % providers.len()].clone())
+            .collect::<Vec<_>>();
+        let batch_models = if models.is_empty() {
+            Vec::new()
+        } else {
+            (0..current_batch)
+                .map(|i| models[(offset + i) % models.len()].clone())
+                .collect::<Vec<_>>()
+        };
+
+        spawn_agents(
+            current_batch,
+            batch_providers,
+            batch_models,
+            &skills,
+            &[],
+            task,
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct SwarmConfig {
+    agents: Vec<SwarmAgentConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SwarmAgentConfig {
+    name: String,
+    provider: String,
+    model: Option<String>,
+    skills: Option<Vec<String>>,
+    context: Option<HashMap<String, String>>,
+    task: String,
+}
+
+async fn run_swarm(config_path: PathBuf, parallel: usize) -> Result<()> {
+    println!(
+        "Loading swarm configuration from {}...",
+        config_path.display()
+    );
+    let content = std::fs::read_to_string(&config_path)?;
+    let swarm: SwarmConfig = if matches!(
+        config_path.extension().and_then(|s| s.to_str()),
+        Some("yaml" | "yml")
+    ) {
+        serde_yaml::from_str(&content)?
+    } else {
+        serde_json::from_str(&content)?
+    };
+
+    println!(
+        "Launching swarm with {} agents (parallelism: {})...",
+        swarm.agents.len(),
+        parallel
+    );
+    let memory = load_spawn_memory().await?;
+
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(parallel));
+    let mut futures = Vec::new();
+
+    for agent_cfg in swarm.agents {
+        let memory = Arc::clone(&memory);
+        let semaphore = Arc::clone(&semaphore);
+
+        futures.push(tokio::spawn(async move {
+            let _permit = semaphore.acquire().await.unwrap();
+
+            let mut config = AgentConfig::new(agent_cfg.name.clone())
+                .with_provider(agent_cfg.provider.clone())
+                .with_task(agent_cfg.task.clone());
+
+            if let Some(model) = agent_cfg.model {
+                config = config.with_model(model);
+            }
+
+            if let Some(skills) = agent_cfg.skills {
+                config = config.with_skills(skills);
+            }
+
+            if let Some(context) = agent_cfg.context {
+                config = config.with_context(context);
+            }
+
+            let mut agent = Agent::new(config);
+            println!("  starting {}", agent.name);
+            match agent.run(memory).await {
+                Ok(resp) => println!("  {} finished: {}", agent.name, resp.response),
+                Err(error) => println!("  {} failed: {}", agent.name, error),
+            }
+        }));
+    }
+
+    for f in futures {
+        let _ = f.await;
+    }
+
+    println!("Swarm execution completed.");
+    Ok(())
+}
+
+async fn load_spawn_memory() -> Result<Arc<QmdMemory>> {
+    let store = VecSqliteMemoryStore::from_env().await?;
+    let workspace_id =
+        std::env::var("XAVIER_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+    let durable_state = store.load_workspace_state(&workspace_id).await?;
+    let docs = Arc::new(RwLock::new(
+        durable_state
+            .memories
+            .iter()
+            .map(MemoryRecord::to_document)
+            .collect::<Vec<MemoryDocument>>(),
+    ));
+    let memory = Arc::new(QmdMemory::new_with_workspace(docs, workspace_id));
+    memory.set_store(Arc::new(store)).await;
+    memory.init().await?;
+    Ok(memory)
+}
+
 fn load_skill(skill_name: &str) -> Option<String> {
-    // Try multiple paths (M97)
     let paths = [
         format!("skills/{}/SKILL.md", skill_name),
         format!("skills/{}.md", skill_name),

@@ -14,7 +14,7 @@ This matrix is the operational truth for the repository as of the latest Xavier 
 | CLI add/search/stats | Beta usable | These commands currently act as HTTP clients. They require a running server and use `XAVIER_URL` as the canonical client endpoint, falling back to the JSON config server address. |
 | Public Dataset Export | Planned | `xavier export --public` is now a core planned feature. It should generate `xavier-dataset/` with manifest, memory, graph, timeline, git, code symbol, code relation, and CK metrics NDJSON files for public agent context. |
 | MCP stdio | Beta usable | `initialize`, `tools/list`, `tools/call create_memory`, `tools/call search_memory`, and legacy aliases `add`/`search` work. |
-| Panel shell/API | Experimental | Panel routes exist, but the shell requires built frontend assets and is not consistently release-ready in the current repo state. |
+| Panel shell/API | Experimental | The CLI server exposes authenticated `/panel/api/threads` and `/panel/api/chat` routes backed by the panel thread store. The shell still requires built frontend assets and is not yet marked release-ready. |
 | Release smoke scripts | Unstable | Current smoke scripts still assume endpoints and defaults that do not always match the running server. |
 | Workspace/storage isolation | Needs hardening | Local usage review showed memory results bleeding into the default workspace instead of staying fully isolated under the intended temporary test setup. |
 | Public docs consistency | Needs hardening | README, CLI docs, smoke scripts, and server behavior are not fully aligned yet. |

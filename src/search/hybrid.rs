@@ -19,7 +19,7 @@ pub enum SearchError {
     Hook(String),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct HybridSearcher {
     pub keyword_weight: f32,
     pub vector_weight: f32,
@@ -27,14 +27,24 @@ pub struct HybridSearcher {
     pub hooks: HookRegistry,
 }
 
-impl HybridSearcher {
-    pub fn new() -> Self {
+impl Default for HybridSearcher {
+    fn default() -> Self {
         Self {
             keyword_weight: 0.5,
             vector_weight: 0.5,
-            rrf_k: 60,
+            rrf_k: configured_rrf_k(),
             hooks: HookRegistry::new(),
         }
+    }
+}
+
+pub fn configured_rrf_k() -> u32 {
+    crate::retrieval::config::configured_rrf_k()
+}
+
+impl HybridSearcher {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub async fn search(
@@ -239,5 +249,13 @@ mod tests {
         let results = searcher.search(&memory, "fast", 10, None).await.unwrap();
         assert!(!results.is_empty());
         assert_eq!(results[0].path, "doc1");
+    }
+
+    #[test]
+    fn test_configured_rrf_k_from_env() {
+        std::env::set_var("XAVIER_RRF_K", "100");
+        assert_eq!(configured_rrf_k(), 100);
+        std::env::remove_var("XAVIER_RRF_K");
+        assert_eq!(configured_rrf_k(), 60);
     }
 }

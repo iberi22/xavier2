@@ -248,6 +248,12 @@ impl AgentRuntime {
         &self.config
     }
 
+    pub fn with_provider_config(mut self, provider_config: crate::agents::provider::ModelProviderConfig) -> Self {
+        let provider = crate::agents::provider::ModelProviderClient::new(provider_config);
+        self.system2 = System2Reasoner::with_provider(ReasonerConfig::default(), provider);
+        self
+    }
+
     /// Ejecuta el ciclo completo: System 1 → System 2 → System 3
     pub async fn run(
         &self,
@@ -496,10 +502,12 @@ impl AgentRuntime {
             let selected_model_override = self
                 .router
                 .resolve_model_override(route.category, &retrieval_result, &reasoning_result)
-                .or(route.model_override.clone());
+                .or(route.model_override.clone())
+                .or(self.config.model_url.clone());
             let system3 = System3Actor::new(ActorConfig {
                 semantic_cache: Some(Arc::clone(&self.semantic_cache)),
                 model_override: selected_model_override,
+                provider_override: self.config.model_provider.clone(),
                 ..ActorConfig::default()
             });
             let s3_start = std::time::Instant::now();
