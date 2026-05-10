@@ -124,6 +124,7 @@ pub enum Command {
         task: Option<String>,
     },
     /// Subcomando para gestionar Chronicle
+    #[command(alias = "devlog")]
     Chronicle {
         #[command(subcommand)]
         cmd: xavier::chronicle::cli::ChronicleCommand,
