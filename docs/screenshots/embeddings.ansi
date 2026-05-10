@@ -1,0 +1,25 @@
+[39m                                                                                
+    [36m┌──────────────────────────────────────────────────────────────────────┐[39m    
+    [36m│█ [1;37m Embeddings Provider[39m                                                [36m│[39m    
+    [36m│[32m●[39m · [32m●[39m · [32m●[39m · [32m●[39m · [36m●[39m · [90m○[39m                                                 [36m│[39m    
+    [36m│[90mChoose your embedding provider. Xavier2 uses embeddings for semantic s[36m│[39m    
+    [36m│[90m↑↓ to select · Enter to confirm.                                      [36m│[39m    
+    [36m│[1;30;46m ▶ BM25 (keyword-only, no GPU needed)[39m                                 [36m│[39m    
+    [36m│ℹ [90mFast keyword search. No embeddings model needed. Good for small[39m     [36m│[39m    
+    [36m│[90mcollections.[37mt-native, GPU-capable)[39m                                    [36m│[39m    
+    [36m│[37m ▶ tract-ONNX (pure Rust CPU inference)[39m                               [36m│[39m    
+    [36m│[37m ▶ OpenAI / Compatible API (cloud)[39m                                    [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[39m                                                                      [36m│[39m    
+    [36m│[90m↑↓ select provider · Tab/Shift+Tab switch field · Enter to confirm · E[36m│[39m    
+    [36m└──────────────────────────────────────────────────────────────────────┘[39m    
+                                                                                
+[0m

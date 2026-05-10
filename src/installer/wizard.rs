@@ -334,6 +334,11 @@ fn render_input_field(
     cursor_pos: usize,
     masked: bool,
 ) {
+    // Helper: convert char-position cursor to byte offset for slicing
+    let char_to_byte = |s: &str, cp: usize| -> usize {
+        s.char_indices().nth(cp).map(|(i, _)| i).unwrap_or(s.len())
+    };
+
     let display_value = if masked && !value.is_empty() {
         "•".repeat(value.len())
     } else {
@@ -352,18 +357,20 @@ fn render_input_field(
 
     if focused {
         // Show cursor
-        if cursor_pos < display_value.len() {
+        let byte_cursor = char_to_byte(&display_value, cursor_pos);
+        if byte_cursor < display_value.len() {
             spans.push(Span::styled(
-                display_value[..cursor_pos].to_string(),
+                display_value[..byte_cursor].to_string(),
                 Style::default().fg(Color::White),
             ));
             spans.push(Span::styled(
                 display_value.chars().nth(cursor_pos).unwrap_or(' ').to_string(),
                 Style::default().fg(Color::Black).bg(ACCENT),
             ));
-            if cursor_pos + 1 < display_value.len() {
+            let byte_cursor_next = char_to_byte(&display_value, cursor_pos + 1);
+            if byte_cursor_next < display_value.len() {
                 spans.push(Span::styled(
-                    display_value[cursor_pos + 1..].to_string(),
+                    display_value[byte_cursor_next..].to_string(),
                     Style::default().fg(Color::White),
                 ));
             }
@@ -801,4 +808,141 @@ fn standard_step_layout(area: Rect) -> std::rc::Rc<[Rect]> {
             Constraint::Length(1),  // footer
         ])
         .split(area)
+}
+
+// ─── Screenshot / documentation rendering ─────────────────────
+
+/// Render a single wizard step to styled ANSI text.
+/// Uses ratatui's TestBackend to render into a buffer,
+/// then converts buffer cells to ANSI SGR escape codes.
+#[cfg(feature = "cli-interactive")]
+pub fn render_step_ansi(step: super::WizardStep, state: &super::InstallerState) -> Result<String> {
+    use ratatui::backend::TestBackend;
+    use ratatui::buffer::Cell;
+
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend)?;
+    let mut s = state.clone();
+    s.current_step = step;
+
+    // Pre-fill for visual interest
+    if step == super::WizardStep::TokenSetup {
+        s.input_buffer = s.token.clone();
+    }
+    if step == super::WizardStep::ServerConfig {
+        s.focused_field = 1;
+    }
+
+    terminal.draw(|f| render(f, &s))?;
+
+    let buf = terminal.backend().buffer();
+    let area = *buf.area();
+    let mut out = String::new();
+    let mut last_fg = Color::Reset;
+    let mut last_bg = Color::Reset;
+    let mut last_bold = false;
+
+    for row in 0..area.height {
+        for col in 0..area.width {
+            let cell: &Cell = &buf[(col, row)];
+            let ch = cell.symbol();
+            let cur_fg = cell.fg;
+            let cur_bg = cell.bg;
+            let cur_bold = cell.modifier.contains(Modifier::BOLD);
+
+            // Emit SGR when style changes
+            if cur_fg != last_fg || cur_bg != last_bg || cur_bold != last_bold {
+                let mut codes = Vec::new();
+                if cur_bold {
+                    codes.push("1".to_string());
+                }
+                codes.push(color_to_ansi_fg(cur_fg));
+                if cur_bg != Color::Reset && cur_bg != BG && cur_bg != CARD_BG {
+                    codes.push(color_to_ansi_bg(cur_bg));
+                }
+                out.push_str(&format!("\u{1b}[{}m", codes.join(";")));
+                last_fg = cur_fg;
+                last_bg = cur_bg;
+                last_bold = cur_bold;
+            }
+
+            out.push_str(ch);
+        }
+        out.push('\n');
+    }
+    out.push_str("\u{1b}[0m");
+
+    Ok(out)
+}
+
+fn color_to_ansi_fg(color: Color) -> String {
+    match color {
+        Color::Reset => "39".into(),
+        Color::Black => "30".into(),
+        Color::Red => "31".into(),
+        Color::Green => "32".into(),
+        Color::Yellow => "33".into(),
+        Color::Blue => "34".into(),
+        Color::Magenta => "35".into(),
+        Color::Cyan => "36".into(),
+        Color::White | Color::Gray => "37".into(),
+        Color::DarkGray => "90".into(),
+        Color::LightRed => "91".into(),
+        Color::LightGreen => "92".into(),
+        Color::LightYellow => "93".into(),
+        Color::LightBlue => "94".into(),
+        Color::LightMagenta => "95".into(),
+        Color::LightCyan => "96".into(),
+        Color::Rgb(r, g, b) => format!("38;2;{};{};{}", r, g, b),
+        _ => "39".into(),
+    }
+}
+
+fn color_to_ansi_bg(color: Color) -> String {
+    match color {
+        Color::Reset => "49".into(),
+        Color::Black => "40".into(),
+        Color::Red => "41".into(),
+        Color::Green => "42".into(),
+        Color::Yellow => "43".into(),
+        Color::Blue => "44".into(),
+        Color::Magenta => "45".into(),
+        Color::Cyan => "46".into(),
+        Color::White | Color::Gray => "47".into(),
+        Color::DarkGray => "100".into(),
+        Color::Rgb(r, g, b) => format!("48;2;{};{};{}", r, g, b),
+        _ => "49".into(),
+    }
+}
+
+/// Render all wizard steps to `.ansi` files for documentation.
+#[cfg(feature = "cli-interactive")]
+pub fn render_all_steps_ansi(out_dir: &str) -> Result<Vec<String>> {
+    use std::fs;
+    use std::io::Write;
+
+    fs::create_dir_all(out_dir)?;
+
+    let steps = [
+        super::WizardStep::Welcome,
+        super::WizardStep::TokenSetup,
+        super::WizardStep::ServerConfig,
+        super::WizardStep::StorageConfig,
+        super::WizardStep::EmbeddingsConfig,
+        super::WizardStep::Review,
+    ];
+    let names = ["welcome", "token", "server", "storage", "embeddings", "review"];
+
+    let state = super::InstallerState::default();
+    let mut files = Vec::new();
+
+    for (&step, name) in steps.iter().zip(names.iter()) {
+        let ansi = render_step_ansi(step, &state)?;
+        let path = std::path::Path::new(out_dir).join(format!("{}.ansi", name));
+        let mut f = fs::File::create(&path)?;
+        f.write_all(ansi.as_bytes())?;
+        files.push(path.to_string_lossy().to_string());
+    }
+
+    Ok(files)
 }
