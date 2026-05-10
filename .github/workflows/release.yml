@@ -53,7 +53,7 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --all-targets --features ci-safe --exclude xavier-web
 
-  # ── Build Windows ──
+  # ── Build Windows (server + installer) ──
   build-windows:
     name: Build (Windows)
     runs-on: windows-latest
@@ -62,17 +62,27 @@ jobs:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Build xavier (release)
+
+      # Build main server (ci-safe, no GPU deps)
+      - name: Build xavier server
         run: cargo build --release --bin xavier --features ci-safe
+
+      # Build installer (cli-interactive TUI, no gllm to avoid GPU issues)
+      - name: Build xavier-installer
+        run: cargo build --release --bin xavier-installer --features cli-interactive --no-default-features
+
       - name: Package artifact
         run: |
           $version = "${{ needs.version.outputs.version }}"
           $dest = "xavier-v$version-x86_64-pc-windows-msvc"
           New-Item -ItemType Directory -Path $dest | Out-Null
           Copy-Item target/release/xavier.exe $dest/
+          Copy-Item target/release/xavier-installer.exe $dest/
+          Copy-Item install.ps1 $dest/
           Copy-Item README.md $dest/
           Copy-Item LICENSE $dest/
           Compress-Archive -Path $dest -DestinationPath "$dest.zip"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
@@ -80,7 +90,7 @@ jobs:
           path: xavier-v*.zip
           retention-days: 30
 
-  # ── Build Linux (musl static) ──
+  # ── Build Linux (musl static, server + installer) ──
   build-linux:
     name: Build (Linux musl)
     runs-on: ubuntu-latest
@@ -93,16 +103,27 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install musl-tools
         run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - name: Build xavier (release, musl)
+
+      # Build main server (ci-safe)
+      - name: Build xavier server (musl)
         run: cargo build --release --bin xavier --features ci-safe --target x86_64-unknown-linux-musl
+
+      # Build installer (cli-interactive TUI, no gllm)
+      - name: Build xavier-installer (musl)
+        run: cargo build --release --bin xavier-installer --features cli-interactive --no-default-features --target x86_64-unknown-linux-musl
+
       - name: Package artifact
         run: |
           version="${{ needs.version.outputs.version }}"
           dest="xavier-v${version}-x86_64-unknown-linux-musl"
           mkdir -p "$dest"
           cp target/x86_64-unknown-linux-musl/release/xavier "$dest/"
+          cp target/x86_64-unknown-linux-musl/release/xavier-installer "$dest/"
+          cp install.sh "$dest/"
           cp README.md LICENSE "$dest/"
+          chmod +x "$dest/xavier" "$dest/xavier-installer" "$dest/install.sh"
           tar czf "${dest}.tar.gz" "$dest"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
@@ -130,18 +151,50 @@ jobs:
         with:
           name: "v${{ needs.version.outputs.version }}"
           body: |
-            ## Xavier v${{ needs.version.outputs.version }}
+            ## Xavier2 v${{ needs.version.outputs.version }}
 
-            ### Download
-            - **Windows**: `xavier-v${{ needs.version.outputs.version }}-x86_64-pc-windows-msvc.zip`
-            - **Linux (static)**: `xavier-v${{ needs.version.outputs.version }}-x86_64-unknown-linux-musl.tar.gz`
+            Cognitive Memory Runtime for AI Agents — open source.
 
-            ### Quick Install
+            ### 📦 Downloads
+
+            | Platform | File |
+            |----------|------|
+            | **Windows** | `xavier-v${{ needs.version.outputs.version }}-x86_64-pc-windows-msvc.zip` |
+            | **Linux (static)** | `xavier-v${{ needs.version.outputs.version }}-x86_64-unknown-linux-musl.tar.gz` |
+
+            ### ⚡ One-liner Install
+
+            **Linux / macOS:**
             ```bash
-            # Linux one-liner
-            curl -fsSL https://github.com/iberi22/xavier/releases/download/v${{ needs.version.outputs.version }}/xavier-v${{ needs.version.outputs.version }}-x86_64-unknown-linux-musl.tar.gz | tar xz
-            sudo mv xavier-v${{ needs.version.outputs.version }}-x86_64-unknown-linux-musl/xavier /usr/local/bin/
+            curl -fsSL https://raw.githubusercontent.com/iberi22/xavier/main/install.sh | bash
             ```
+
+            **Windows (PowerShell):**
+            ```powershell
+            irm https://raw.githubusercontent.com/iberi22/xavier/main/install.ps1 | iex
+            ```
+
+            ### 📋 What's Included
+
+            - `xavier` — Memory server binary
+            - `xavier-installer` — Interactive TUI setup wizard
+            - `install.sh` / `install.ps1` — Platform install scripts
+            - README + LICENSE
+
+            ### 🚀 After Install
+
+            ```bash
+            xavier-installer     # Run setup wizard (interactive TUI)
+            xavier serve         # Start the memory server
+            xavier tui           # Launch the dashboard
+            xavier save -k episodic "memory text"  # Save a memory
+            ```
+
+            ### 🔗 Links
+
+            - [Documentation](https://github.com/iberi22/xavier)
+            - [Issue Tracker](https://github.com/iberi22/xavier/issues)
+            - [MIT License](https://github.com/iberi22/xavier/blob/main/LICENSE)
           draft: false
           prerelease: ${{ contains(needs.version.outputs.version, 'beta') || contains(needs.version.outputs.version, 'alpha') }}
           files: |

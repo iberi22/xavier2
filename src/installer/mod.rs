@@ -4,6 +4,7 @@
 //! Steps: Welcome → Token → Server → Storage → Embeddings → Review → Write.
 
 pub mod config_gen;
+#[cfg(feature = "cli-interactive")]
 pub mod wizard;
 
 use serde::{Deserialize, Serialize};
