@@ -325,7 +325,7 @@ const ALL_STEPS: &[WizardStep] = &[
 ];
 
 /// Render a text input field with label, value, and cursor.
-fn render_input_field(
+pub(crate) fn render_input_field(
     f: &mut Frame,
     area: Rect,
     label: &str,
@@ -340,10 +340,12 @@ fn render_input_field(
     };
 
     let display_value = if masked && !value.is_empty() {
-        "•".repeat(value.len())
+        "•".repeat(value.chars().count())
     } else {
         value.to_string()
     };
+
+    let label_text = format!("{}: ", label);
 
     let label_style = if focused {
         Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
@@ -352,7 +354,7 @@ fn render_input_field(
     };
 
     let mut spans = vec![
-        Span::styled(format!("{}: ", label), label_style),
+        Span::styled(label_text, label_style),
     ];
 
     if focused {
@@ -852,12 +854,13 @@ pub fn render_step_ansi(step: super::WizardStep, state: &super::InstallerState) 
 
             // Emit SGR when style changes
             if cur_fg != last_fg || cur_bg != last_bg || cur_bold != last_bold {
+                out.push_str("\u{1b}[0m");
                 let mut codes = Vec::new();
                 if cur_bold {
                     codes.push("1".to_string());
                 }
                 codes.push(color_to_ansi_fg(cur_fg));
-                if cur_bg != Color::Reset && cur_bg != BG && cur_bg != CARD_BG {
+                if cur_bg != Color::Reset {
                     codes.push(color_to_ansi_bg(cur_bg));
                 }
                 out.push_str(&format!("\u{1b}[{}m", codes.join(";")));

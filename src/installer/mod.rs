@@ -6,6 +6,8 @@
 pub mod config_gen;
 #[cfg(feature = "cli-interactive")]
 pub mod wizard;
+#[cfg(test)]
+mod wizard_test;
 
 use serde::{Deserialize, Serialize};
 
