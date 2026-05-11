@@ -98,27 +98,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-musl
       - uses: Swatinem/rust-cache@v2
-      - name: Install musl-tools
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-
-      # Build main server (ci-safe)
-      - name: Build xavier server (musl)
-        run: cargo build --release --bin xavier --features ci-safe --target x86_64-unknown-linux-musl
+      # Build main server (ci-safe) — use native glibc, sqlite-vec doesn't support musl
+      - name: Build xavier server (linux)
+        run: cargo build --release --bin xavier --features ci-safe
 
       # Build installer (cli-interactive TUI, no gllm)
-      - name: Build xavier-installer (musl)
-        run: cargo build --release --bin xavier-installer --features cli-interactive --no-default-features --target x86_64-unknown-linux-musl
+      - name: Build xavier-installer (linux)
+        run: cargo build --release --bin xavier-installer --features cli-interactive --no-default-features
 
       - name: Package artifact
         run: |
           version="${{ needs.version.outputs.version }}"
-          dest="xavier-v${version}-x86_64-unknown-linux-musl"
+          dest="xavier-v${version}-x86_64-unknown-linux-gnu"
           mkdir -p "$dest"
-          cp target/x86_64-unknown-linux-musl/release/xavier "$dest/"
-          cp target/x86_64-unknown-linux-musl/release/xavier-installer "$dest/"
+          cp target/release/xavier "$dest/"
+          cp target/release/xavier-installer "$dest/"
           cp install.sh "$dest/"
           cp README.md LICENSE "$dest/"
           chmod +x "$dest/xavier" "$dest/xavier-installer" "$dest/install.sh"

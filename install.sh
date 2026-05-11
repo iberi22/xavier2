@@ -86,14 +86,14 @@ case "$OS" in
     Linux)  PLATFORM="linux" ;;
     Darwin) PLATFORM="darwin" ;;
     *)
-        error "Unsupported OS: $OS. Xavier2 currently supports Linux (musl) only."
+        error "Unsupported OS: $OS. Xavier2 currently supports Linux and macOS."
         exit 1 ;;
 esac
 
 case "$ARCH" in
     x86_64|amd64) ARCH="x86_64" ;;
     aarch64|arm64)
-        warn "ARM64 support is experimental. The musl binary may not work on ARM."
+        warn "ARM64 support is experimental."
         ARCH="aarch64" ;;
     *)
         error "Unsupported architecture: $ARCH"
@@ -102,7 +102,7 @@ esac
 
 # Binary archive name pattern from GitHub Releases
 if [ "$PLATFORM" = "linux" ]; then
-    TARGET_TRIPLE="${ARCH}-unknown-linux-musl"
+    TARGET_TRIPLE="${ARCH}-unknown-linux-gnu"
     BINARY_EXT=""
 else
     TARGET_TRIPLE="${ARCH}-apple-darwin"
