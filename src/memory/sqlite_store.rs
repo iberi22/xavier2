@@ -197,8 +197,11 @@ impl SqliteMemoryStore {
             primary: row.get::<_, i32>(9)? != 0,
             parent_id: row.get(10)?,
             cluster_id: row.get(11)?,
-            level: crate::memory::schema::MemoryLevel::parse(&row.get::<_, String>(12)?).unwrap_or(crate::memory::schema::MemoryLevel::Raw),
-            relation: row.get::<_, Option<String>>(13)?.and_then(|s| crate::memory::schema::RelationKind::parse(&s)),
+            level: crate::memory::schema::MemoryLevel::parse(&row.get::<_, String>(12)?)
+                .unwrap_or(crate::memory::schema::MemoryLevel::Raw),
+            relation: row
+                .get::<_, Option<String>>(13)?
+                .and_then(|s| crate::memory::schema::RelationKind::parse(&s)),
             revisions: serde_json::from_str(&revisions_str).unwrap_or_default(),
         })
     }

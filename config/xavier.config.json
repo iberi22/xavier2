@@ -22,7 +22,8 @@
     "workspace_dir": "data/workspaces",
     "file_path": "data/workspaces/default/memory-store.json",
     "sqlite_path": "data/memory-store.sqlite3",
-    "vec_path": "data/vec-store.sqlite3"
+    "vec_path": "data/vec-store.sqlite3",
+    "libsql_path": "data/memory-store.libsql"
   },
   "models": {
     "provider": "local",

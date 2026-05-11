@@ -156,6 +156,22 @@ impl MemoryStore for MockMemoryStore {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
+    async fn export(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn export_tree(
+        &self,
+        _workspace_id: &str,
+        _path: &std::path::Path,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn import(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 fn make_session_record(seconds_ago: i64) -> MemoryRecord {
@@ -181,6 +197,9 @@ fn make_session_record(seconds_ago: i64) -> MemoryRecord {
         revision: 1,
         primary: true,
         parent_id: None,
+        cluster_id: None,
+        level: xavier::memory::schema::MemoryLevel::Raw,
+        relation: None,
         revisions: vec![],
     }
 }

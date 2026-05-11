@@ -71,9 +71,8 @@ impl Harvester {
         let bugs = self.harvest_memories("bugs/*").await?;
         let sessions = self.harvest_sessions().await?;
 
-        let modified_files: HashSet<String> = commits.iter()
-            .flat_map(|c| c.files.clone())
-            .collect();
+        let modified_files: HashSet<String> =
+            commits.iter().flat_map(|c| c.files.clone()).collect();
 
         let code_changes = self.harvest_code_changes(modified_files)?;
 
@@ -119,19 +118,21 @@ impl Harvester {
 
                 // Get diff to find modified files
                 if let Ok(parent) = commit.parent(0) {
-                    let diff = repo.diff_tree_to_tree(
-                        Some(&parent.tree()?),
-                        Some(&commit.tree()?),
-                        None
-                    )?;
-                    diff.foreach(&mut |delta, _| {
-                        if let Some(new_file) = delta.new_file().path() {
-                            if let Some(path_str) = new_file.to_str() {
-                                files.push(path_str.to_string());
+                    let diff =
+                        repo.diff_tree_to_tree(Some(&parent.tree()?), Some(&commit.tree()?), None)?;
+                    diff.foreach(
+                        &mut |delta, _| {
+                            if let Some(new_file) = delta.new_file().path() {
+                                if let Some(path_str) = new_file.to_str() {
+                                    files.push(path_str.to_string());
+                                }
                             }
-                        }
-                        true
-                    }, None, None, None)?;
+                            true
+                        },
+                        None,
+                        None,
+                        None,
+                    )?;
                 } else {
                     // Initial commit
                     let tree = commit.tree()?;
@@ -166,7 +167,11 @@ impl Harvester {
                 entries.push(MemoryEntry {
                     path: doc.path.clone(),
                     content: doc.content.clone(),
-                    status: doc.metadata.get("status").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                    status: doc
+                        .metadata
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string()),
                 });
             }
         }
@@ -182,8 +187,16 @@ impl Harvester {
             if doc.path.starts_with("sessions/") {
                 // Heuristic: only pick summaries or direct session docs, avoiding every single turn
                 if doc.path.contains("/summary") || !doc.path.contains("/turns/") {
-                    let duration_ms = doc.metadata.get("duration_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-                    let tokens = doc.metadata.get("tokens").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                    let duration_ms = doc
+                        .metadata
+                        .get("duration_ms")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    let tokens = doc
+                        .metadata
+                        .get("tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0) as usize;
 
                     sessions.push(SessionInfo {
                         id: doc.path.clone(),
@@ -215,7 +228,9 @@ impl Harvester {
     }
 
     fn find_symbols_in_file(&self, file_path: &str) -> Result<Vec<Symbol>> {
-        self.code_db.find_by_file(file_path).map_err(|e| anyhow!("DB error: {}", e))
+        self.code_db
+            .find_by_file(file_path)
+            .map_err(|e| anyhow!("DB error: {}", e))
     }
 }
 
