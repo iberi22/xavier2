@@ -1,24 +1,18 @@
 #[cfg(test)]
 mod tests {
     use crate::installer::wizard::render_input_field;
-    use ratatui::{backend::TestBackend, Terminal, layout::Rect};
+    use ratatui::{backend::TestBackend, layout::Rect, Terminal};
 
     #[test]
     fn test_render_input_field_masked_multibyte() {
         let backend = TestBackend::new(40, 3);
         let mut terminal = Terminal::new(backend).unwrap();
 
-        terminal.draw(|f| {
-            render_input_field(
-                f,
-                Rect::new(0, 0, 40, 1),
-                "Label",
-                "value",
-                false,
-                0,
-                true,
-            );
-        }).unwrap();
+        terminal
+            .draw(|f| {
+                render_input_field(f, Rect::new(0, 0, 40, 1), "Label", "value", false, 0, true);
+            })
+            .unwrap();
 
         let buf = terminal.backend().buffer();
         // "Label: " is 7 chars. "value" is 5 chars.
@@ -29,7 +23,6 @@ mod tests {
             rendered.push(buf[(i, 0)].symbol().chars().next().unwrap());
         }
         assert_eq!(rendered, "Label: •••••");
-
     }
 
     #[test]
@@ -37,17 +30,11 @@ mod tests {
         let backend = TestBackend::new(40, 3);
         let mut terminal = Terminal::new(backend).unwrap();
 
-        terminal.draw(|f| {
-            render_input_field(
-                f,
-                Rect::new(0, 0, 40, 1),
-                "Label",
-                "Value",
-                false,
-                0,
-                false,
-            );
-        }).unwrap();
+        terminal
+            .draw(|f| {
+                render_input_field(f, Rect::new(0, 0, 40, 1), "Label", "🦀Rust", false, 0, false);
+            })
+            .unwrap();
 
         let buf = terminal.backend().buffer();
 
@@ -58,21 +45,20 @@ mod tests {
         }
         assert_eq!(label, "Label: ");
 
-
         // Check emoji
-        assert_eq!(buf[(6, 0)].symbol(), "🦀");
+        assert_eq!(buf[(7, 0)].symbol(), "🦀");
 
         // The emoji 🦀 is width 2. Ratatui renders it in one cell and
         // usually leaves the next cell empty or with a generic filler.
-        // In this environment, it seems cell 7 is a space.
-        let rust_start = if buf[(7, 0)].symbol() == " " || buf[(7, 0)].symbol() == "" {
-            8
+        // In this environment, it seems cell 8 is a space.
+        let rust_start = if buf[(8, 0)].symbol() == " " || buf[(8, 0)].symbol() == "" {
+            9
         } else {
-            7
+            8
         };
 
         let mut rust = String::new();
-        for i in rust_start..rust_start+4 {
+        for i in rust_start..rust_start + 4 {
             rust.push_str(buf[(i, 0)].symbol());
         }
         assert_eq!(rust, "Rust");
@@ -83,17 +69,19 @@ mod tests {
         let backend = TestBackend::new(40, 3);
         let mut terminal = Terminal::new(backend).unwrap();
 
-        terminal.draw(|f| {
-            render_input_field(
-                f,
-                Rect::new(0, 0, 40, 1),
-                "Input",
-                "A🦀C",
-                true,
-                1, // cursor at 🦀
-                false,
-            );
-        }).unwrap();
+        terminal
+            .draw(|f| {
+                render_input_field(
+                    f,
+                    Rect::new(0, 0, 40, 1),
+                    "Input",
+                    "A🦀C",
+                    true,
+                    1, // cursor at 🦀
+                    false,
+                );
+            })
+            .unwrap();
 
         let buf = terminal.backend().buffer();
         // "Input: " (7) + "A" (1) + "🦀" (1) + "C" (1) = 10

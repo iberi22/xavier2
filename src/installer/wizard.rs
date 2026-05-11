@@ -62,7 +62,11 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<Inst
                 continue;
             }
             match key.code {
-                KeyCode::Char('c') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                KeyCode::Char('c')
+                    if key
+                        .modifiers
+                        .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                {
                     state.current_step = WizardStep::Done;
                     break;
                 }
@@ -240,10 +244,7 @@ fn render(f: &mut Frame, state: &InstallerState) {
     let area = f.area();
 
     // Full background
-    f.render_widget(
-        Paragraph::new("").style(Style::default().bg(BG)),
-        area,
-    );
+    f.render_widget(Paragraph::new("").style(Style::default().bg(BG)), area);
 
     // Main layout: centered card
     let card_w = (area.width.min(72)).max(40);
@@ -278,7 +279,12 @@ fn render(f: &mut Frame, state: &InstallerState) {
 fn title_line<'a>(text: &'a str) -> Line<'a> {
     Line::from(vec![
         Span::styled("█ ", Style::default().fg(ACCENT)),
-        Span::styled(text, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            text,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ),
     ])
 }
 
@@ -293,7 +299,7 @@ fn progress_bar(steps: &[WizardStep], current: WizardStep) -> Line<'_> {
             spans.push(Span::raw(" · "));
         }
         if *step == current {
-            spans.push(Span::styled(format!("●"), Style::default().fg(ACCENT)));
+            spans.push(Span::styled("●".to_string(), Style::default().fg(ACCENT)));
         } else if step_order(*step) < step_order(current) {
             spans.push(Span::styled("●", Style::default().fg(SUCCESS)));
         } else {
@@ -353,9 +359,7 @@ pub(crate) fn render_input_field(
         Style::default().fg(Color::Gray)
     };
 
-    let mut spans = vec![
-        Span::styled(label_text, label_style),
-    ];
+    let mut spans = vec![Span::styled(label_text, label_style)];
 
     if focused {
         // Show cursor
@@ -366,7 +370,11 @@ pub(crate) fn render_input_field(
                 Style::default().fg(Color::White),
             ));
             spans.push(Span::styled(
-                display_value.chars().nth(cursor_pos).unwrap_or(' ').to_string(),
+                display_value
+                    .chars()
+                    .nth(cursor_pos)
+                    .unwrap_or(' ')
+                    .to_string(),
                 Style::default().fg(Color::Black).bg(ACCENT),
             ));
             let byte_cursor_next = char_to_byte(&display_value, cursor_pos + 1);
@@ -388,8 +396,16 @@ pub(crate) fn render_input_field(
         }
     } else {
         spans.push(Span::styled(
-            if display_value.is_empty() { "(empty)" } else { &display_value },
-            Style::default().fg(if display_value.is_empty() { DIM } else { Color::White }),
+            if display_value.is_empty() {
+                "(empty)"
+            } else {
+                &display_value
+            },
+            Style::default().fg(if display_value.is_empty() {
+                DIM
+            } else {
+                Color::White
+            }),
         ));
     }
 
@@ -469,8 +485,14 @@ fn render_welcome(f: &mut Frame, area: Rect, _state: &InstallerState) {
 fn render_token_setup(f: &mut Frame, area: Rect, state: &InstallerState) {
     let chunks = standard_step_layout(area);
 
-    f.render_widget(Paragraph::new(title_line(state.current_step.title())), chunks[0]);
-    f.render_widget(Paragraph::new(progress_bar(ALL_STEPS, state.current_step)), chunks[1]);
+    f.render_widget(
+        Paragraph::new(title_line(state.current_step.title())),
+        chunks[0],
+    );
+    f.render_widget(
+        Paragraph::new(progress_bar(ALL_STEPS, state.current_step)),
+        chunks[1],
+    );
 
     f.render_widget(
         Paragraph::new("Set a local token for API authentication.\nThis token is required when calling Xavier2 endpoints.")
@@ -504,8 +526,10 @@ fn render_token_setup(f: &mut Frame, area: Rect, state: &InstallerState) {
     }
 
     f.render_widget(
-        Paragraph::new(footer_hint("Type to edit · Enter to confirm · Tab to change field · Esc to go back"))
-            .alignment(Alignment::Left),
+        Paragraph::new(footer_hint(
+            "Type to edit · Enter to confirm · Tab to change field · Esc to go back",
+        ))
+        .alignment(Alignment::Left),
         chunks[7],
     );
 }
@@ -513,8 +537,14 @@ fn render_token_setup(f: &mut Frame, area: Rect, state: &InstallerState) {
 fn render_server_config(f: &mut Frame, area: Rect, state: &InstallerState) {
     let chunks = standard_step_layout(area);
 
-    f.render_widget(Paragraph::new(title_line(state.current_step.title())), chunks[0]);
-    f.render_widget(Paragraph::new(progress_bar(ALL_STEPS, state.current_step)), chunks[1]);
+    f.render_widget(
+        Paragraph::new(title_line(state.current_step.title())),
+        chunks[0],
+    );
+    f.render_widget(
+        Paragraph::new(progress_bar(ALL_STEPS, state.current_step)),
+        chunks[1],
+    );
 
     f.render_widget(
         Paragraph::new("Configure the server binding.\nHost localhost = local only · 0.0.0.0 = accessible on network")
@@ -530,7 +560,11 @@ fn render_server_config(f: &mut Frame, area: Rect, state: &InstallerState) {
         state.field_label(0),
         &state.host,
         state.focused_field == 0,
-        if state.focused_field == 0 { state.cursor_pos } else { 0 },
+        if state.focused_field == 0 {
+            state.cursor_pos
+        } else {
+            0
+        },
         false,
     );
 
@@ -542,7 +576,11 @@ fn render_server_config(f: &mut Frame, area: Rect, state: &InstallerState) {
         state.field_label(1),
         &state.port,
         state.focused_field == 1,
-        if state.focused_field == 1 { state.cursor_pos } else { 0 },
+        if state.focused_field == 1 {
+            state.cursor_pos
+        } else {
+            0
+        },
         false,
     );
 
@@ -554,8 +592,10 @@ fn render_server_config(f: &mut Frame, area: Rect, state: &InstallerState) {
     }
 
     f.render_widget(
-        Paragraph::new(footer_hint("Type to edit · Enter to confirm · Tab/Shift+Tab to switch field · Esc to go back"))
-            .alignment(Alignment::Left),
+        Paragraph::new(footer_hint(
+            "Type to edit · Enter to confirm · Tab/Shift+Tab to switch field · Esc to go back",
+        ))
+        .alignment(Alignment::Left),
         chunks[7],
     );
 }
@@ -563,8 +603,14 @@ fn render_server_config(f: &mut Frame, area: Rect, state: &InstallerState) {
 fn render_storage_config(f: &mut Frame, area: Rect, state: &InstallerState) {
     let chunks = standard_step_layout(area);
 
-    f.render_widget(Paragraph::new(title_line(state.current_step.title())), chunks[0]);
-    f.render_widget(Paragraph::new(progress_bar(ALL_STEPS, state.current_step)), chunks[1]);
+    f.render_widget(
+        Paragraph::new(title_line(state.current_step.title())),
+        chunks[0],
+    );
+    f.render_widget(
+        Paragraph::new(progress_bar(ALL_STEPS, state.current_step)),
+        chunks[1],
+    );
 
     f.render_widget(
         Paragraph::new("Where should Xavier2 store its data?\nMemory, vector indexes, and workspace files live here.\nDefault: data/")
@@ -579,7 +625,11 @@ fn render_storage_config(f: &mut Frame, area: Rect, state: &InstallerState) {
         state.field_label(0),
         &state.data_dir,
         state.focused_field == 0,
-        if state.focused_field == 0 { state.cursor_pos } else { 0 },
+        if state.focused_field == 0 {
+            state.cursor_pos
+        } else {
+            0
+        },
         false,
     );
 
@@ -594,8 +644,10 @@ fn render_storage_config(f: &mut Frame, area: Rect, state: &InstallerState) {
     );
 
     f.render_widget(
-        Paragraph::new(footer_hint("Type to edit · Enter to confirm · Esc to go back"))
-            .alignment(Alignment::Left),
+        Paragraph::new(footer_hint(
+            "Type to edit · Enter to confirm · Esc to go back",
+        ))
+        .alignment(Alignment::Left),
         chunks[7],
     );
 }
@@ -603,8 +655,14 @@ fn render_storage_config(f: &mut Frame, area: Rect, state: &InstallerState) {
 fn render_embeddings_config(f: &mut Frame, area: Rect, state: &InstallerState) {
     let chunks = standard_step_layout(area);
 
-    f.render_widget(Paragraph::new(title_line(state.current_step.title())), chunks[0]);
-    f.render_widget(Paragraph::new(progress_bar(ALL_STEPS, state.current_step)), chunks[1]);
+    f.render_widget(
+        Paragraph::new(title_line(state.current_step.title())),
+        chunks[0],
+    );
+    f.render_widget(
+        Paragraph::new(progress_bar(ALL_STEPS, state.current_step)),
+        chunks[1],
+    );
 
     f.render_widget(
         Paragraph::new("Choose your embedding provider. Xavier2 uses embeddings for semantic search.\n↑↓ to select · Enter to confirm.")
@@ -618,7 +676,10 @@ fn render_embeddings_config(f: &mut Frame, area: Rect, state: &InstallerState) {
         .enumerate()
         .map(|(i, p)| {
             let style = if i == state.provider_index {
-                Style::default().fg(Color::Black).bg(ACCENT).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(ACCENT)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::Gray)
             };
@@ -650,39 +711,74 @@ fn render_embeddings_config(f: &mut Frame, area: Rect, state: &InstallerState) {
         EmbeddingProvider::Ollama => {
             let model_area = Rect::new(base.x, base.y, base.width.min(50), 1);
             render_input_field(
-                f, model_area, "Model Name", &state.embedding_model,
+                f,
+                model_area,
+                "Model Name",
+                &state.embedding_model,
                 state.focused_field == 1,
-                if state.focused_field == 1 { state.cursor_pos } else { 0 },
+                if state.focused_field == 1 {
+                    state.cursor_pos
+                } else {
+                    0
+                },
                 false,
             );
             let url_area = Rect::new(base.x, base.y + 2, base.width.min(50), 1);
             render_input_field(
-                f, url_area, "API URL", &state.embedding_url,
+                f,
+                url_area,
+                "API URL",
+                &state.embedding_url,
                 state.focused_field == 2,
-                if state.focused_field == 2 { state.cursor_pos } else { 0 },
+                if state.focused_field == 2 {
+                    state.cursor_pos
+                } else {
+                    0
+                },
                 false,
             );
         }
         EmbeddingProvider::OpenAI => {
             let model_area = Rect::new(base.x, base.y, base.width.min(50), 1);
             render_input_field(
-                f, model_area, "Model Name", &state.embedding_model,
+                f,
+                model_area,
+                "Model Name",
+                &state.embedding_model,
                 state.focused_field == 1,
-                if state.focused_field == 1 { state.cursor_pos } else { 0 },
+                if state.focused_field == 1 {
+                    state.cursor_pos
+                } else {
+                    0
+                },
                 false,
             );
             let url_area = Rect::new(base.x, base.y + 2, base.width.min(50), 1);
             render_input_field(
-                f, url_area, "API URL", &state.embedding_url,
+                f,
+                url_area,
+                "API URL",
+                &state.embedding_url,
                 state.focused_field == 2,
-                if state.focused_field == 2 { state.cursor_pos } else { 0 },
+                if state.focused_field == 2 {
+                    state.cursor_pos
+                } else {
+                    0
+                },
                 false,
             );
             let key_area = Rect::new(base.x, base.y + 4, base.width.min(50), 1);
             render_input_field(
-                f, key_area, "API Key", &state.api_key,
+                f,
+                key_area,
+                "API Key",
+                &state.api_key,
                 state.focused_field == 3,
-                if state.focused_field == 3 { state.cursor_pos } else { 0 },
+                if state.focused_field == 3 {
+                    state.cursor_pos
+                } else {
+                    0
+                },
                 true,
             );
         }
@@ -690,8 +786,10 @@ fn render_embeddings_config(f: &mut Frame, area: Rect, state: &InstallerState) {
     }
 
     f.render_widget(
-        Paragraph::new(footer_hint("↑↓ select provider · Tab/Shift+Tab switch field · Enter to confirm · Esc to go back"))
-            .alignment(Alignment::Left),
+        Paragraph::new(footer_hint(
+            "↑↓ select provider · Tab/Shift+Tab switch field · Enter to confirm · Esc to go back",
+        ))
+        .alignment(Alignment::Left),
         chunks[7],
     );
 }
@@ -699,8 +797,14 @@ fn render_embeddings_config(f: &mut Frame, area: Rect, state: &InstallerState) {
 fn render_review(f: &mut Frame, area: Rect, state: &InstallerState) {
     let chunks = standard_step_layout(area);
 
-    f.render_widget(Paragraph::new(title_line(state.current_step.title())), chunks[0]);
-    f.render_widget(Paragraph::new(progress_bar(ALL_STEPS, state.current_step)), chunks[1]);
+    f.render_widget(
+        Paragraph::new(title_line(state.current_step.title())),
+        chunks[0],
+    );
+    f.render_widget(
+        Paragraph::new(progress_bar(ALL_STEPS, state.current_step)),
+        chunks[1],
+    );
 
     let config = super::config_gen::generate_config(state);
     let json = serde_json::to_string_pretty(&config).unwrap_or_default();
@@ -710,14 +814,17 @@ fn render_review(f: &mut Frame, area: Rect, state: &InstallerState) {
     let preview = preview_lines.join("\n");
 
     f.render_widget(
-        Paragraph::new("Configuration to be written:\n")
-            .style(Style::default().fg(Color::White)),
+        Paragraph::new("Configuration to be written:\n").style(Style::default().fg(Color::White)),
         chunks[2],
     );
 
     f.render_widget(
-        Paragraph::new(format!("{}\n  ... ({} total lines)", preview, json.lines().count()))
-            .style(Style::default().fg(DIM)),
+        Paragraph::new(format!(
+            "{}\n  ... ({} total lines)",
+            preview,
+            json.lines().count()
+        ))
+        .style(Style::default().fg(DIM)),
         chunks[3],
     );
 
@@ -757,8 +864,7 @@ fn render_done(f: &mut Frame, area: Rect, _state: &InstallerState) {
         .split(area);
 
     f.render_widget(
-        Paragraph::new(title_line(" Setup Complete!"))
-            .style(Style::default().fg(SUCCESS)),
+        Paragraph::new(title_line(" Setup Complete!")).style(Style::default().fg(SUCCESS)),
         chunks[0],
     );
 
@@ -772,24 +878,44 @@ fn render_done(f: &mut Frame, area: Rect, _state: &InstallerState) {
     f.render_widget(
         Paragraph::new(vec![
             Line::from(""),
-            Line::from(Span::styled("Next steps:", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))),
+            Line::from(Span::styled(
+                "Next steps:",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            )),
             Line::from(""),
-            Line::from(Span::styled("  xavier serve", Style::default().fg(Color::White))),
-            Line::from(Span::styled("    Start the Xavier2 memory server", Style::default().fg(DIM))),
+            Line::from(Span::styled(
+                "  xavier serve",
+                Style::default().fg(Color::White),
+            )),
+            Line::from(Span::styled(
+                "    Start the Xavier2 memory server",
+                Style::default().fg(DIM),
+            )),
             Line::from(""),
-            Line::from(Span::styled("  xavier tui", Style::default().fg(Color::White))),
-            Line::from(Span::styled("    Launch the monitoring dashboard", Style::default().fg(DIM))),
+            Line::from(Span::styled(
+                "  xavier tui",
+                Style::default().fg(Color::White),
+            )),
+            Line::from(Span::styled(
+                "    Launch the monitoring dashboard",
+                Style::default().fg(DIM),
+            )),
             Line::from(""),
-            Line::from(Span::styled("  xavier save --kind episodic \"memory text\"", Style::default().fg(Color::White))),
-            Line::from(Span::styled("    Save your first memory", Style::default().fg(DIM))),
+            Line::from(Span::styled(
+                "  xavier save --kind episodic \"memory text\"",
+                Style::default().fg(Color::White),
+            )),
+            Line::from(Span::styled(
+                "    Save your first memory",
+                Style::default().fg(DIM),
+            )),
         ])
         .alignment(Alignment::Left),
         chunks[3],
     );
 
     f.render_widget(
-        Paragraph::new(footer_hint("Press any key to exit"))
-            .alignment(Alignment::Center),
+        Paragraph::new(footer_hint("Press any key to exit")).alignment(Alignment::Center),
         chunks[5],
     );
 }
@@ -800,14 +926,14 @@ fn standard_step_layout(area: Rect) -> std::rc::Rc<[Rect]> {
     Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),  // title
-            Constraint::Length(1),  // progress dots
-            Constraint::Length(2),  // description
-            Constraint::Length(1),  // input field(s)
-            Constraint::Length(2),  // secondary info
-            Constraint::Length(1),  // status/message
-            Constraint::Min(1),     // spacer
-            Constraint::Length(1),  // footer
+            Constraint::Length(1), // title
+            Constraint::Length(1), // progress dots
+            Constraint::Length(2), // description
+            Constraint::Length(1), // input field(s)
+            Constraint::Length(2), // secondary info
+            Constraint::Length(1), // status/message
+            Constraint::Min(1),    // spacer
+            Constraint::Length(1), // footer
         ])
         .split(area)
 }
@@ -934,7 +1060,14 @@ pub fn render_all_steps_ansi(out_dir: &str) -> Result<Vec<String>> {
         super::WizardStep::EmbeddingsConfig,
         super::WizardStep::Review,
     ];
-    let names = ["welcome", "token", "server", "storage", "embeddings", "review"];
+    let names = [
+        "welcome",
+        "token",
+        "server",
+        "storage",
+        "embeddings",
+        "review",
+    ];
 
     let state = super::InstallerState::default();
     let mut files = Vec::new();

@@ -14,11 +14,11 @@ pub mod schema;
 pub mod semantic;
 pub mod semantic_cache;
 // TODO: Dead code - remove or wire session_store into session persistence.
+pub mod hce_engine;
 #[allow(dead_code)]
 pub mod session_store;
 pub mod sqlite_store;
 pub mod sqlite_vec_store;
 pub mod store;
 pub mod working;
-pub mod hce_engine;
 pub use store::*;

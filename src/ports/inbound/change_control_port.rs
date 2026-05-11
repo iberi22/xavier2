@@ -1,6 +1,4 @@
-use crate::domain::change_control::{
-    AgentTask, ChangeScope, ConflictReport, FileLease, LeaseMode,
-};
+use crate::domain::change_control::{AgentTask, ChangeScope, ConflictReport, FileLease, LeaseMode};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 

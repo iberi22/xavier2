@@ -97,11 +97,15 @@ impl EmbeddingProvider {
 
     pub fn description(&self) -> &'static str {
         match self {
-            Self::Bm25 => "Fast keyword search. No embeddings model needed. Good for small collections.",
+            Self::Bm25 => {
+                "Fast keyword search. No embeddings model needed. Good for small collections."
+            }
             Self::Ollama => "Runs locally via Ollama. Use embeddinggemma, nomic-embed-text, etc.",
             Self::Gllm => "Rust-native inference via gllm crate. GPU acceleration with CUDA/Metal.",
             Self::Tract => "Pure Rust ONNX inference. Universal CPU support. ~600ms per encode.",
-            Self::OpenAI => "Cloud API (OpenAI, MiniMax, etc). Fastest, requires internet + API key.",
+            Self::OpenAI => {
+                "Cloud API (OpenAI, MiniMax, etc). Fastest, requires internet + API key."
+            }
         }
     }
 }
@@ -183,7 +187,9 @@ impl InstallerState {
                 // provider selector + conditional fields
                 let base = 1; // provider list
                 match self.embedding_provider {
-                    EmbeddingProvider::Bm25 | EmbeddingProvider::Gllm | EmbeddingProvider::Tract => base,
+                    EmbeddingProvider::Bm25
+                    | EmbeddingProvider::Gllm
+                    | EmbeddingProvider::Tract => base,
                     EmbeddingProvider::Ollama => base + 2, // model + url
                     EmbeddingProvider::OpenAI => base + 3, // model + url + api key
                 }

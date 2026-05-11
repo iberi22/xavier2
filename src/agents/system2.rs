@@ -72,7 +72,10 @@ impl System2Reasoner {
         }
     }
 
-    pub fn with_provider(config: ReasonerConfig, provider: crate::agents::provider::ModelProviderClient) -> Self {
+    pub fn with_provider(
+        config: ReasonerConfig,
+        provider: crate::agents::provider::ModelProviderClient,
+    ) -> Self {
         Self { config, provider }
     }
 

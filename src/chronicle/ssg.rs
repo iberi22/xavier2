@@ -1,8 +1,8 @@
+use anyhow::{Context, Result};
+use pulldown_cmark::{html, Options, Parser};
 use std::fs;
 use std::path::{Path, PathBuf};
-use anyhow::{Context, Result};
 use walkdir::WalkDir;
-use pulldown_cmark::{Parser, Options, html};
 
 #[derive(Clone)]
 pub struct PostMetadata {
@@ -76,6 +76,12 @@ footer { margin-top: 80px; padding: 40px 0; border-top: 1px solid var(--border-c
 /// Default fallback JS (used when theme file is missing)
 const FALLBACK_JS: &str = r#"console.log("Xavier DevLog loaded.");"#;
 
+impl Default for DevLogSSG {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DevLogSSG {
     pub fn new() -> Self {
         Self {
@@ -92,11 +98,11 @@ impl DevLogSSG {
     /// Start a local HTTP server to preview the DevLog
     pub async fn serve(&self, port: u16) -> Result<()> {
         use axum::{
-            Router,
             extract::{Path, State},
-            http::{StatusCode, header},
+            http::{header, StatusCode},
             response::IntoResponse,
             routing::get,
+            Router,
         };
         use std::sync::Arc;
 
@@ -106,7 +112,11 @@ impl DevLogSSG {
             Path(file): Path<String>,
             State(dir): State<Arc<PathBuf>>,
         ) -> impl IntoResponse {
-            let file = if file.is_empty() { "index.html".to_string() } else { file };
+            let file = if file.is_empty() {
+                "index.html".to_string()
+            } else {
+                file
+            };
             let path = dir.join(&file);
             // Prevent directory traversal
             if !path.starts_with(dir.as_path()) {
@@ -180,7 +190,8 @@ impl DevLogSSG {
 
         let filename = path.file_stem().unwrap().to_str().unwrap();
 
-        let title = content.lines()
+        let title = content
+            .lines()
             .find(|l| l.starts_with("# "))
             .map(|l| l.trim_start_matches("# ").trim().to_string())
             .unwrap_or_else(|| filename.to_string());
@@ -225,9 +236,10 @@ impl DevLogSSG {
         posts_list.push_str("</ul>");
 
         let template = self.load_theme_file("template.html", FALLBACK_HTML_TEMPLATE);
-        let index_html = template
-            .replace("{{title}}", "Home")
-            .replace("{{content}}", &format!("<h1>Technical Logs</h1>\n{}", posts_list));
+        let index_html = template.replace("{{title}}", "Home").replace(
+            "{{content}}",
+            &format!("<h1>Technical Logs</h1>\n{}", posts_list),
+        );
 
         let output_path = self.output_dir.join("index.html");
         fs::write(&output_path, index_html)
@@ -255,7 +267,7 @@ impl DevLogSSG {
         for entry in WalkDir::new(&self.input_dir).max_depth(1) {
             let entry = entry?;
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
                 posts.push(path.to_path_buf());
             }
         }
@@ -303,7 +315,10 @@ mod tests {
         let theme_dir = tempdir()?;
 
         // Write theme files for test
-        fs::write(theme_dir.path().join("template.html"), FALLBACK_HTML_TEMPLATE)?;
+        fs::write(
+            theme_dir.path().join("template.html"),
+            FALLBACK_HTML_TEMPLATE,
+        )?;
         fs::write(theme_dir.path().join("styles.css"), "/* test */")?;
         fs::write(theme_dir.path().join("script.js"), "// test")?;
 
@@ -313,7 +328,10 @@ mod tests {
             theme_dir: theme_dir.path().to_path_buf(),
         };
 
-        fs::write(input_dir.path().join("2024-05-20-test.md"), "# Test\nContent")?;
+        fs::write(
+            input_dir.path().join("2024-05-20-test.md"),
+            "# Test\nContent",
+        )?;
 
         ssg.build()?;
 
@@ -341,7 +359,10 @@ mod tests {
             theme_dir: theme_dir.path().to_path_buf(),
         };
 
-        fs::write(input_dir.path().join("2025-01-01-fallback.md"), "# Fallback\nTest fallback")?;
+        fs::write(
+            input_dir.path().join("2025-01-01-fallback.md"),
+            "# Fallback\nTest fallback",
+        )?;
 
         ssg.build()?;
 
