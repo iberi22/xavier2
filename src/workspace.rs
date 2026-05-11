@@ -618,6 +618,18 @@ impl WorkspaceState {
                 .await?;
                 (store, migration.migrated, migration.detail)
             }
+            MemoryBackend::Libsql => {
+                let store: Arc<dyn MemoryStore> =
+                    Arc::new(crate::memory::libsql_store::LibsqlMemoryStore::from_env().await?);
+                let migration = migrate_file_store_if_needed(
+                    &config.id,
+                    &file_store_path,
+                    &migration_marker_path,
+                    Arc::clone(&store),
+                )
+                .await?;
+                (store, migration.migrated, migration.detail)
+            }
         };
         let durable_state = store.load_workspace_state(&config.id).await?;
         let docs = Arc::new(RwLock::new(

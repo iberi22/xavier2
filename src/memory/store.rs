@@ -30,6 +30,7 @@ pub enum MemoryBackend {
     Memory,
     Sqlite,
     Vec, // SQLite + sqlite-vec vector search
+    Libsql,
 }
 
 impl MemoryBackend {
@@ -38,6 +39,7 @@ impl MemoryBackend {
             "memory" => Self::Memory,
             "sqlite" => Self::Sqlite,
             "vec" | "sqlite-vec" => Self::Vec,
+            "libsql" => Self::Libsql,
             "file" => Self::File,
             _ => Self::File,
         }
@@ -49,6 +51,7 @@ impl MemoryBackend {
             Self::Memory => "memory",
             Self::Sqlite => "sqlite",
             Self::Vec => "vec",
+            Self::Libsql => "libsql",
         }
     }
 }
@@ -262,6 +265,27 @@ impl MemoryRecord {
             metadata,
             content_vector: Some(self.embedding.clone()),
             embedding: self.embedding.clone(),
+        }
+    }
+
+    pub fn new_fact(path: String, content: String) -> Self {
+        let now = Utc::now();
+        Self {
+            id: stable_key("memory", &["default", &path]),
+            workspace_id: "default".to_string(),
+            path: path.clone(),
+            content: content.clone(),
+            metadata: serde_json::json!({}),
+            embedding: Vec::new(),
+            created_at: now,
+            updated_at: now,
+            revision: 1,
+            primary: true,
+            parent_id: None,
+            cluster_id: None,
+            level: MemoryLevel::Raw,
+            relation: None,
+            revisions: Vec::new(),
         }
     }
 

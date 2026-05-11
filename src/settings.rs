@@ -76,6 +76,7 @@ pub struct MemorySettings {
     pub file_path: String,
     pub sqlite_path: String,
     pub vec_path: String,
+    pub libsql_path: String,
 }
 
 impl Default for MemorySettings {
@@ -88,6 +89,7 @@ impl Default for MemorySettings {
             file_path: "data/workspaces/default/memory-store.json".to_string(),
             sqlite_path: "data/memory-store.sqlite3".to_string(),
             vec_path: "data/vec-store.sqlite3".to_string(),
+            libsql_path: "data/memory-store.libsql".to_string(),
         }
     }
 }
@@ -218,6 +220,7 @@ impl XavierSettings {
         set_if_absent("XAVIER_MEMORY_FILE_PATH", &self.memory.file_path);
         set_if_absent("XAVIER_MEMORY_SQLITE_PATH", &self.memory.sqlite_path);
         set_if_absent("XAVIER_MEMORY_VEC_PATH", &self.memory.vec_path);
+        set_if_absent("XAVIER_MEMORY_LIBSQL_PATH", &self.memory.libsql_path);
 
         set_if_absent("XAVIER_MODEL_PROVIDER", &self.models.provider);
         set_if_absent("XAVIER_API_FLAVOR", &self.models.api_flavor);

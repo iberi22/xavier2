@@ -85,6 +85,7 @@ cron = "0.15"
 # State management
 parking_lot = "0.12"
 rusqlite = { version = "0.32.0", features = ["bundled", "load_extension"] }
+libsql = "0.9.30"
 sqlite-vec = "0.1"
 zerocopy = "0.8"
 
