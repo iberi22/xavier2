@@ -94,11 +94,12 @@ impl Coordinator {
     }
 }
 
+use crate::app::change_control_service::{ChangeControlService, ClaimResult};
+
 pub struct DistributedLock {
-    // TODO: Dead code - remove or expose the resource id in lock state reporting.
-    #[allow(dead_code)]
     resource_id: String,
     owner: RwLock<Option<String>>,
+    policy_engine: Option<Arc<ChangeControlService>>,
 }
 
 impl DistributedLock {
@@ -106,10 +107,34 @@ impl DistributedLock {
         Self {
             resource_id,
             owner: RwLock::new(None),
+            policy_engine: None,
+        }
+    }
+
+    pub fn with_policy(resource_id: String, policy_engine: Arc<ChangeControlService>) -> Self {
+        Self {
+            resource_id,
+            owner: RwLock::new(None),
+            policy_engine: Some(policy_engine),
         }
     }
 
     pub async fn try_acquire(&self, owner: &str) -> bool {
+        // If policy engine exists, validate the claim first
+        if let Some(ref engine) = self.policy_engine {
+            match engine.validate_claim(owner, &self.resource_id) {
+                ClaimResult::Approved => {}
+                ClaimResult::ApprovalRequired(reason) => {
+                    tracing::warn!("Acquisition of '{}' requires approval: {}", self.resource_id, reason);
+                    return false;
+                }
+                ClaimResult::Rejected(reason) => {
+                    tracing::warn!("Acquisition of '{}' rejected: {}", self.resource_id, reason);
+                    return false;
+                }
+            }
+        }
+
         let mut current = self.owner.write().await;
         if current.is_none() {
             *current = Some(owner.to_string());

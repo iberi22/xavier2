@@ -7,14 +7,9 @@ pub mod security_port;
 pub mod session_port;
 pub mod session_sync_port;
 pub mod time_metrics_port;
-pub mod change_control_port;
 pub mod verification_port;
 
 pub use agent_lifecycle_port::AgentLifecyclePort;
-pub use change_control_port::{
-    BlockedTask as ChangeBlockedTask, ChangeControlPort, LeaseResponse as ChangeLeaseResponse,
-    MergePlan as ChangeMergePlan, TaskCompletionResult, ValidationResult,
-};
 pub use health_port::{HealthPort, HealthStatus as InboundHealthStatus};
 pub use input_security_port::InputSecurityPort;
 pub use memory_port::MemoryQueryPort;
