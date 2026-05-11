@@ -21,6 +21,11 @@ use tracing::{info, warn};
 use uuid::Uuid;
 use chrono::Utc;
 
+use xavier::adapters::inbound::http::handlers::change_control::{
+    active_leases_handler, check_conflicts_handler, claim_lease_handler, complete_task_handler,
+    create_task_handler, get_task_handler, merge_plan_handler, release_lease_handler,
+    validate_handler,
+};
 use xavier::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
@@ -33,7 +38,9 @@ use xavier::memory::schema::MemoryQueryFilters;
 use xavier::memory::session_store::{PanelMessage, SessionStore};
 use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier::memory::store::{MemoryRecord, MemoryStore};
-use xavier::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
+use xavier::ports::inbound::{
+    AgentLifecyclePort, ChangeControlPort, MemoryQueryPort, TimeMetricsPort,
+};
 use xavier::ports::outbound::HealthCheckPort;
 use xavier::security::{ProcessResult, SecurityService};
 use xavier::server::panel::{
@@ -59,6 +66,7 @@ pub struct CliState {
     pub security: Arc<SecurityService>,
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
+    pub change_control: Arc<dyn ChangeControlPort>,
     pub panel_store: Arc<SessionStore>,
 }
 
@@ -340,6 +348,9 @@ async fn start_http_server(port: u16) -> Result<()> {
     let panel_root = state_panel_root(&workspace_dir, &workspace_id);
     let panel_store = Arc::new(SessionStore::new(panel_root).await?);
 
+    let change_control = Arc::new(xavier::app::change_control_service::ChangeControlService::new())
+        as Arc<dyn ChangeControlPort>;
+
     let state = CliState {
         memory: memory_port,
         store,
@@ -351,6 +362,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         security: Arc::new(SecurityService::new()),
         _time_store: Some(time_store),
         agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
+        change_control,
         panel_store,
     };
 
@@ -405,6 +417,20 @@ async fn start_http_server(port: u16) -> Result<()> {
             get(panel_get_thread).delete(panel_delete_thread),
         )
         .route("/panel/api/chat", post(panel_process_chat))
+        .nest(
+            "/change",
+            Router::new()
+                .route("/tasks", post(create_task_handler))
+                .route("/tasks/{id}", get(get_task_handler))
+                .route("/leases/claim", post(claim_lease_handler))
+                .route("/leases/release", post(release_lease_handler))
+                .route("/leases/active", get(active_leases_handler))
+                .route("/conflicts/check", post(check_conflicts_handler))
+                .route("/validate", post(validate_handler))
+                .route("/complete", post(complete_task_handler))
+                .route("/merge-plan", get(merge_plan_handler))
+                .with_state(state.clone()),
+        )
         .layer(middleware::from_fn(auth_middleware));
 
     // Add enterprise plugin routes if feature is enabled

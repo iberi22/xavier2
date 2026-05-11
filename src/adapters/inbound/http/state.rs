@@ -19,6 +19,7 @@ pub struct AppState {
     pub verification: Arc<dyn VerificationPort>,
     pub session_sync: Arc<dyn SessionSyncPort>,
     pub session: Arc<dyn SessionPort>,
+    pub change_control: Arc<dyn crate::ports::inbound::ChangeControlPort>,
     pub workspace_id: String,
     pub auth_token: String,
 
