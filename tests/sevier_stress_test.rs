@@ -15,6 +15,7 @@ use rusqlite::Connection;
 use std::sync::Arc;
 use tower::ServiceExt;
 
+use xavier::adapters::inbound::http::state::AppState;
 use xavier::adapters::inbound::http::dto::TimeMetricDto;
 use xavier::adapters::inbound::http::routes::create_router;
 use xavier::adapters::inbound::http::routes::create_router_with_agent_registry;
@@ -25,7 +26,70 @@ use xavier::time::TimeMetricsStore;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn build_router() -> axum::Router {
-    create_router()
+    let registry = SimpleAgentRegistry::new();
+    let state = AppState {
+        memory: Arc::new(xavier::app::qmd_memory_adapter::QmdMemoryAdapter::new(
+            Arc::new(xavier::memory::qmd_memory::QmdMemory::new(Arc::new(
+                tokio::sync::RwLock::new(Vec::new()),
+            ))),
+        )),
+        security: Arc::new(xavier::app::security_service::SecurityService::new()),
+        security_scan: Arc::new(xavier::app::security_service::SecurityService::new()),
+        time_metrics: Arc::new(
+            xavier::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter::new(
+                Arc::new(xavier::time::TimeMetricsStore::new(Arc::new(
+                    parking_lot::Mutex::new(rusqlite::Connection::open_in_memory().unwrap()),
+                ))),
+            ),
+        ),
+        agent_lifecycle: registry,
+        health: Arc::new(xavier::app::health_service::HealthService::new()),
+        verification: Arc::new(xavier::app::verification_service::VerificationService::new()),
+        session_sync: Arc::new(SessionSyncMock),
+        session: Arc::new(SessionMock),
+        workspace_id: "test".to_string(),
+        auth_token: "test-token".to_string(),
+        code_db: Arc::new(code_graph::db::CodeGraphDB::in_memory().unwrap()),
+        code_indexer: Arc::new(code_graph::indexer::Indexer::new(Arc::new(
+            code_graph::db::CodeGraphDB::in_memory().unwrap(),
+        ))),
+        code_query: Arc::new(code_graph::query::QueryEngine::new(Arc::new(
+            code_graph::db::CodeGraphDB::in_memory().unwrap(),
+        ))),
+    };
+    create_router(state)
+}
+
+struct SessionSyncMock;
+
+#[async_trait::async_trait]
+impl xavier::ports::inbound::SessionSyncPort for SessionSyncMock {
+    async fn check(&self) -> anyhow::Result<xavier::tasks::session_sync_task::SyncCheckResult> {
+        Ok(Default::default())
+    }
+    async fn last_result(&self) -> xavier::tasks::session_sync_task::SyncCheckResult {
+        Default::default()
+    }
+}
+
+struct SessionMock;
+
+#[async_trait::async_trait]
+impl xavier::ports::inbound::SessionPort for SessionMock {
+    async fn handle_event(&self, _event: xavier::session::types::SessionEvent) -> bool {
+        true
+    }
+    async fn handle_and_index_event(
+        &self,
+        event: xavier::session::types::SessionEvent,
+    ) -> anyhow::Result<xavier::ports::inbound::session_port::SessionEventResult> {
+        Ok(xavier::ports::inbound::session_port::SessionEventResult {
+            status: "ok".to_string(),
+            session_id: event.session_id,
+            memory_id: None,
+            mapped: true,
+        })
+    }
 }
 
 /// Create an in-memory SQLite DB with the time_metrics schema initialized.

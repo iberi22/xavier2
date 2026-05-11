@@ -22,9 +22,7 @@ use uuid::Uuid;
 use chrono::Utc;
 
 use xavier::adapters::inbound::http::handlers::change_control;
-use xavier::adapters::inbound::http::routes::{
-    sync_check_handler, time_metric_handler, verify_save_handler,
-};
+use xavier::adapters::inbound::http::dto::TimeMetricDto;
 use xavier::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier::agents::{Agent, AgentConfig};
 use xavier::app::change_control_service::ChangeControlService;
@@ -62,7 +60,7 @@ pub struct CliState {
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
     pub security: Arc<dyn InputSecurityPort>,
-    pub _time_store: Option<Arc<TimeMetricsStore>>,
+    pub time_metrics: Arc<dyn TimeMetricsPort>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
     pub change_control: Arc<ChangeControlService>,
@@ -314,14 +312,11 @@ async fn start_http_server(port: u16) -> Result<()> {
         }
     }
     // Register global time metrics port for HTTP handler (wrap in adapter)
-    use xavier::adapters::inbound::http::routes::{init_health_port, init_time_store};
     use xavier::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
     let health_adapter = Arc::new(HttpHealthAdapter::new(resolve_base_url_for_port(port)))
         as Arc<dyn HealthCheckPort>;
     let time_adapter =
         Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
-    init_time_store(time_adapter);
-    init_health_port(health_adapter.clone());
 
     let code_db_path = code_graph_db_path();
     if let Some(parent) = code_db_path.parent() {
@@ -351,6 +346,9 @@ async fn start_http_server(port: u16) -> Result<()> {
 
     let security_service = Arc::new(xavier::app::security_service::SecurityService::new());
 
+    let time_adapter =
+        Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
+
     let state = CliState {
         memory: memory_port,
         store,
@@ -360,7 +358,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         code_indexer,
         code_query,
         security: security_service,
-        _time_store: Some(time_store),
+        time_metrics: time_adapter,
         agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
         panel_store,
         change_control,
@@ -1125,7 +1123,7 @@ async fn add_handler(
                 "security": {
                     "scanned": true,
                     "sanitized": sec_result.sanitized_input.is_some(),
-                    "attack_type": sec_result.detection.attack_type.as_str(),
+                    "attack_type": sec_result.attack_type,
                 }
             }))
         }
@@ -1708,18 +1706,16 @@ fn estimate_tokens(text: &str) -> usize {
     (text.len() / 4).max(1)
 }
 
-fn secure_optional_request_field(
-    security: &SecurityService,
-    _field: &str,
+async fn secure_optional_request_field(
+    security: &dyn InputSecurityPort,
+    label: &str,
     value: Option<&str>,
-) -> std::result::Result<Option<String>, ProcessResult> {
+) -> std::result::Result<Option<String>, serde_json::Value> {
     match value {
         Some(value) if !value.trim().is_empty() => {
-            let result = security.process_input(value);
-            if result.allowed {
-                Ok(Some(result.effective_input().to_string()))
-            } else {
-                Err(result)
+            match secure_external_input(security, label, value).await {
+                Ok(content) => Ok(Some(content)),
+                Err(response) => Err(response),
             }
         }
         _ => Ok(None),
@@ -1854,6 +1850,106 @@ fn filter_symbols_by_query(symbols: &mut Vec<code_graph::types::Symbol>, query: 
 // Session Event Webhook Handler (SEVIER M1)
 // Receives session events from OpenClaw and indexes them into Xavier
 // ─────────────────────────────────────────────────────────────────────────────
+
+async fn time_metric_handler(
+    State(state): State<CliState>,
+    Json(payload): Json<TimeMetricDto>,
+) -> impl IntoResponse {
+    let workspace_id = &state.workspace_id;
+
+    let domain_metric: xavier::domain::memory::TimeMetric = payload.clone().into();
+    let result = state
+        .time_metrics
+        .save_time_metric(&domain_metric, workspace_id)
+        .await;
+    match result {
+        Ok(()) => {
+            return Json(serde_json::json!({
+                "status": "saved",
+                "metric_type": payload.metric_type,
+                "agent_id": payload.agent_id,
+            }));
+        }
+        Err(e) => {
+            tracing::warn!("TimeMetricsStore save error: {}", e);
+        }
+    }
+
+    Json(serde_json::json!({
+        "status": "ok",
+        "metric_type": payload.metric_type,
+        "agent_id": payload.agent_id,
+    }))
+}
+
+async fn sync_check_handler() -> impl IntoResponse {
+    let result = xavier::tasks::session_sync_task::get_last_sync_result();
+
+    Json(serde_json::json!({
+        "status": result.status,
+        "lag_ms": result.lag_ms,
+        "save_ok_rate": result.save_ok_rate,
+        "match_score": result.match_score,
+        "active_agents": result.active_agents,
+        "timestamp_ms": result.timestamp_ms,
+        "alerts": result.alerts,
+    }))
+}
+
+async fn verify_save_handler(
+    Json(payload): Json<xavier::adapters::inbound::http::routes::VerifySaveRequest>,
+) -> impl IntoResponse {
+    let start = std::time::Instant::now();
+
+    let xavier_url = std::env::var("XAVIER_URL")
+        .unwrap_or_else(|_| XavierSettings::current().client_base_url());
+
+    if let Err(e) = xavier::security::url_validator::validate_internal_url(&xavier_url) {
+        tracing::error!("Internal URL validation failed: {}", e);
+        return Json(serde_json::json!({
+            "save_ok": false,
+            "latency_ms": start.elapsed().as_millis() as u64,
+            "match_score": 0.0,
+        }));
+    }
+
+    let auth_token = match std::env::var("XAVIER_TOKEN") {
+        Ok(token) => token,
+        Err(_) => {
+            tracing::error!("XAVIER_TOKEN is required for verification requests");
+            return Json(serde_json::json!({
+                "save_ok": false,
+                "latency_ms": start.elapsed().as_millis() as u64,
+                "match_score": 0.0,
+            }));
+        }
+    };
+
+    let client = reqwest::Client::new();
+    let result = xavier::verification::auto_verifier::AutoVerifier::verify_save(
+        &client,
+        &xavier_url,
+        &auth_token,
+        &payload.path,
+        &payload.content,
+    )
+    .await;
+
+    let elapsed = start.elapsed().as_millis() as u64;
+
+    match result {
+        Ok(vr) => Json(serde_json::json!({
+            "save_ok": vr.save_ok,
+            "latency_ms": elapsed,
+            "match_score": vr.match_score,
+        })),
+        Err(_) => Json(serde_json::json!({
+            "save_ok": false,
+            "latency_ms": elapsed,
+            "match_score": 0.0,
+        })),
+    }
+}
 
 async fn session_event_handler(
     State(state): State<CliState>,

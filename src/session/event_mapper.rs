@@ -22,6 +22,7 @@ pub fn map_to_panel_thread(event: SessionEvent) -> Option<PanelThreadEntry> {
         SessionEventType::SessionStart => return None,
         SessionEventType::SessionEnd => return None,
         SessionEventType::Error => "system",
+        SessionEventType::Unknown => "unknown",
     };
 
     let content = event.content.clone().unwrap_or_default();
@@ -54,6 +55,7 @@ impl PanelThreadEntry {
             SessionEventType::SessionStart => return None,
             SessionEventType::SessionEnd => return None,
             SessionEventType::Error => "system",
+            SessionEventType::Unknown => "unknown",
         };
 
         let content = event.content.clone().unwrap_or_default();

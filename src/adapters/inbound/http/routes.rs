@@ -17,11 +17,80 @@ use crate::session::event_mapper::PanelThreadEntry;
 use crate::session::types::SessionEvent;
 use crate::settings::XavierSettings;
 use crate::tasks::session_sync_task::get_last_sync_result;
-use crate::verification::auto_verifier::AutoVerifier;
 
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 pub fn create_router(state: AppState) -> Router {
+    create_router_with_state(state)
+}
+
+pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecyclePort>) -> Router {
+    let state = AppState {
+        memory: Arc::new(crate::app::qmd_memory_adapter::QmdMemoryAdapter::new(
+            Arc::new(crate::memory::qmd_memory::QmdMemory::new(Arc::new(
+                tokio::sync::RwLock::new(Vec::new()),
+            ))),
+        )),
+        security: Arc::new(crate::app::security_service::SecurityService::new()),
+        security_scan: Arc::new(crate::app::security_service::SecurityService::new()),
+        time_metrics: Arc::new(
+            crate::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter::new(
+                Arc::new(crate::time::TimeMetricsStore::new(Arc::new(
+                    parking_lot::Mutex::new(rusqlite::Connection::open_in_memory().unwrap()),
+                ))),
+            ),
+        ),
+        agent_lifecycle: agent_registry,
+        health: Arc::new(crate::app::health_service::HealthService::new()),
+        verification: Arc::new(crate::app::verification_service::VerificationService::new()),
+        session_sync: Arc::new(SessionSyncMock),
+        session: Arc::new(SessionMock),
+        workspace_id: "test".to_string(),
+        auth_token: "test-token".to_string(),
+        code_db: Arc::new(code_graph::db::CodeGraphDB::in_memory().unwrap()),
+        code_indexer: Arc::new(code_graph::indexer::Indexer::new(Arc::new(
+            code_graph::db::CodeGraphDB::in_memory().unwrap(),
+        ))),
+        code_query: Arc::new(code_graph::query::QueryEngine::new(Arc::new(
+            code_graph::db::CodeGraphDB::in_memory().unwrap(),
+        ))),
+    };
+    create_router_with_state(state)
+}
+
+struct SessionSyncMock;
+
+#[async_trait::async_trait]
+impl crate::ports::inbound::SessionSyncPort for SessionSyncMock {
+    async fn check(&self) -> anyhow::Result<crate::tasks::session_sync_task::SyncCheckResult> {
+        Ok(Default::default())
+    }
+    async fn last_result(&self) -> crate::tasks::session_sync_task::SyncCheckResult {
+        Default::default()
+    }
+}
+
+struct SessionMock;
+
+#[async_trait::async_trait]
+impl crate::ports::inbound::SessionPort for SessionMock {
+    async fn handle_event(&self, _event: crate::session::types::SessionEvent) -> bool {
+        true
+    }
+    async fn handle_and_index_event(
+        &self,
+        event: crate::session::types::SessionEvent,
+    ) -> anyhow::Result<crate::ports::inbound::session_port::SessionEventResult> {
+        Ok(crate::ports::inbound::session_port::SessionEventResult {
+            status: "ok".to_string(),
+            session_id: event.session_id,
+            memory_id: None,
+            mapped: true,
+        })
+    }
+}
+
+fn create_router_with_state(state: AppState) -> Router {
     let router = Router::new()
         .route("/health", get(health_handler))
         .route(
@@ -31,7 +100,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/xavier/verify/save", post(verify_save_handler))
         .route("/xavier/time/metric", post(time_metric_handler))
         .route("/xavier/events/session", post(session_event_handler))
-        .route("/xavier/sync/check", post(sync_check_handler));
+        .route(
+            "/xavier/sync/check",
+            get(sync_check_handler).post(sync_check_handler),
+        );
 
     // Add enterprise plugin routes if feature is enabled
     #[cfg(feature = "enterprise")]
@@ -108,6 +180,7 @@ pub struct VerifySaveResponse {
 }
 
 pub async fn verify_save_handler(
+    axum::extract::State(state): axum::extract::State<AppState>,
     Json(payload): Json<VerifySaveRequest>,
 ) -> Json<VerifySaveResponse> {
     let start = Instant::now();
@@ -137,15 +210,10 @@ pub async fn verify_save_handler(
         }
     };
 
-    let client = reqwest::Client::new();
-    let result = AutoVerifier::verify_save(
-        &client,
-        &xavier_url,
-        &auth_token,
-        &payload.path,
-        &payload.content,
-    )
-    .await;
+    let result = state
+        .verification
+        .verify_save(&xavier_url, &auth_token, &payload.path, &payload.content)
+        .await;
 
     let elapsed = start.elapsed().as_millis() as u64;
 

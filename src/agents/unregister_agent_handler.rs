@@ -28,6 +28,7 @@ pub async fn unregister_agent_handler(
 #[cfg(test)]
 mod tests {
     use super::unregister_agent_handler;
+    use crate::adapters::inbound::http::state::AppState;
     use crate::coordination::SimpleAgentRegistry;
     use crate::ports::inbound::AgentLifecyclePort;
     use axum::{
@@ -36,6 +37,38 @@ mod tests {
     };
     use serde_json::json;
     use std::sync::Arc;
+
+    struct SessionSyncMock;
+
+    #[async_trait::async_trait]
+    impl crate::ports::inbound::SessionSyncPort for SessionSyncMock {
+        async fn check(&self) -> anyhow::Result<crate::tasks::session_sync_task::SyncCheckResult> {
+            Ok(Default::default())
+        }
+        async fn last_result(&self) -> crate::tasks::session_sync_task::SyncCheckResult {
+            Default::default()
+        }
+    }
+
+    struct SessionMock;
+
+    #[async_trait::async_trait]
+    impl crate::ports::inbound::SessionPort for SessionMock {
+        async fn handle_event(&self, _event: crate::session::types::SessionEvent) -> bool {
+            true
+        }
+        async fn handle_and_index_event(
+            &self,
+            event: crate::session::types::SessionEvent,
+        ) -> anyhow::Result<crate::ports::inbound::session_port::SessionEventResult> {
+            Ok(crate::ports::inbound::session_port::SessionEventResult {
+                status: "ok".to_string(),
+                session_id: event.session_id,
+                memory_id: None,
+                mapped: true,
+            })
+        }
+    }
 
     #[tokio::test]
     async fn unregister_existing_agent_returns_success_payload() {
@@ -48,11 +81,39 @@ mod tests {
             )
             .await;
 
-        let Json(payload) = unregister_agent_handler(
-            State(registry.clone() as Arc<dyn AgentLifecyclePort>),
-            Path("agent-delete-1".to_string()),
-        )
-        .await;
+        let state = AppState {
+            memory: Arc::new(crate::app::qmd_memory_adapter::QmdMemoryAdapter::new(
+                Arc::new(crate::memory::qmd_memory::QmdMemory::new(Arc::new(
+                    tokio::sync::RwLock::new(Vec::new()),
+                ))),
+            )),
+            security: Arc::new(crate::app::security_service::SecurityService::new()),
+            security_scan: Arc::new(crate::app::security_service::SecurityService::new()),
+            time_metrics: Arc::new(
+                crate::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter::new(
+                    Arc::new(crate::time::TimeMetricsStore::new(Arc::new(
+                        parking_lot::Mutex::new(rusqlite::Connection::open_in_memory().unwrap()),
+                    ))),
+                ),
+            ),
+            agent_lifecycle: registry.clone(),
+            health: Arc::new(crate::app::health_service::HealthService::new()),
+            verification: Arc::new(crate::app::verification_service::VerificationService::new()),
+            session_sync: Arc::new(SessionSyncMock),
+            session: Arc::new(SessionMock),
+            workspace_id: "test".to_string(),
+            auth_token: "test-token".to_string(),
+            code_db: Arc::new(code_graph::db::CodeGraphDB::in_memory().unwrap()),
+            code_indexer: Arc::new(code_graph::indexer::Indexer::new(Arc::new(
+                code_graph::db::CodeGraphDB::in_memory().unwrap(),
+            ))),
+            code_query: Arc::new(code_graph::query::QueryEngine::new(Arc::new(
+                code_graph::db::CodeGraphDB::in_memory().unwrap(),
+            ))),
+        };
+
+        let Json(payload) = unregister_agent_handler(State(state), Path("agent-delete-1".to_string()))
+            .await;
 
         assert_eq!(
             payload,
@@ -67,11 +128,40 @@ mod tests {
 
     #[tokio::test]
     async fn unregister_missing_agent_returns_error_payload() {
-        let Json(payload) = unregister_agent_handler(
-            State(SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>),
-            Path("missing-agent".to_string()),
-        )
-        .await;
+        let registry = SimpleAgentRegistry::new();
+        let state = AppState {
+            memory: Arc::new(crate::app::qmd_memory_adapter::QmdMemoryAdapter::new(
+                Arc::new(crate::memory::qmd_memory::QmdMemory::new(Arc::new(
+                    tokio::sync::RwLock::new(Vec::new()),
+                ))),
+            )),
+            security: Arc::new(crate::app::security_service::SecurityService::new()),
+            security_scan: Arc::new(crate::app::security_service::SecurityService::new()),
+            time_metrics: Arc::new(
+                crate::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter::new(
+                    Arc::new(crate::time::TimeMetricsStore::new(Arc::new(
+                        parking_lot::Mutex::new(rusqlite::Connection::open_in_memory().unwrap()),
+                    ))),
+                ),
+            ),
+            agent_lifecycle: registry.clone(),
+            health: Arc::new(crate::app::health_service::HealthService::new()),
+            verification: Arc::new(crate::app::verification_service::VerificationService::new()),
+            session_sync: Arc::new(SessionSyncMock),
+            session: Arc::new(SessionMock),
+            workspace_id: "test".to_string(),
+            auth_token: "test-token".to_string(),
+            code_db: Arc::new(code_graph::db::CodeGraphDB::in_memory().unwrap()),
+            code_indexer: Arc::new(code_graph::indexer::Indexer::new(Arc::new(
+                code_graph::db::CodeGraphDB::in_memory().unwrap(),
+            ))),
+            code_query: Arc::new(code_graph::query::QueryEngine::new(Arc::new(
+                code_graph::db::CodeGraphDB::in_memory().unwrap(),
+            ))),
+        };
+
+        let Json(payload) = unregister_agent_handler(State(state), Path("missing-agent".to_string()))
+            .await;
 
         assert_eq!(
             payload,

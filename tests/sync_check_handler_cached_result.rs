@@ -145,6 +145,18 @@ impl MemoryStore for MockMemoryStore {
         Ok(())
     }
 
+    async fn export(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn export_tree(&self, _workspace_id: &str, _path: &std::path::Path) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn import(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn backend(&self) -> xavier::memory::store::MemoryBackend {
         xavier::memory::store::MemoryBackend::Memory
     }
@@ -181,6 +193,9 @@ fn make_session_record(seconds_ago: i64) -> MemoryRecord {
         revision: 1,
         primary: true,
         parent_id: None,
+        cluster_id: None,
+        level: xavier::memory::schema::MemoryLevel::Raw,
+        relation: None,
         revisions: vec![],
     }
 }
@@ -191,9 +206,15 @@ async fn sync_check_handler_returns_cached_result_from_session_sync_task() {
 
     let storage = Arc::new(MockMemoryStore {
         records: vec![make_session_record(45)],
-    }) as Arc<dyn MemoryStore>;
+    });
+    let memory_port = Arc::new(xavier::app::qmd_memory_adapter::QmdMemoryAdapter::new(
+        Arc::new(xavier::memory::qmd_memory::QmdMemory::new_with_workspace(
+            Arc::new(tokio::sync::RwLock::new(storage.records.iter().map(|r| r.to_document()).collect())),
+            "default".to_string()
+        ))
+    ));
     let health = Arc::new(MockHealthPort) as Arc<dyn HealthCheckPort>;
-    let task = SessionSyncTask::with_storage(health, Some(storage));
+    let task = SessionSyncTask::with_port(health, Some(memory_port));
 
     let sync_result = task.run_sync_check().await;
     let axum::Json(response) = sync_check_handler().await;

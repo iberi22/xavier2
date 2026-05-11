@@ -18,7 +18,7 @@ use tokio::time::{interval, sleep, timeout};
 use tracing::{info, warn};
 
 use crate::memory::schema::{MemoryKind, MemoryQueryFilters};
-use crate::memory::store::MemoryStore;
+use crate::ports::inbound::MemoryQueryPort;
 use crate::ports::outbound::HealthCheckPort;
 
 /// Interval in milliseconds between sync checks.
@@ -112,8 +112,8 @@ pub struct SessionSyncTask {
     interval_ms: u64,
     /// Health check port for Xavier
     health_port: Arc<dyn HealthCheckPort>,
-    /// Memory store for querying memory records (optional, falls back if None)
-    memory_store: Option<Arc<dyn MemoryStore>>,
+    /// Memory query port for querying memory records (optional, falls back if None)
+    memory_port: Option<Arc<dyn MemoryQueryPort>>,
     /// Last successful check timestamp
     last_check: Arc<TokioRwLock<Instant>>,
     /// Lag threshold in ms (configurable via XAVIER_SYNC_LAG_THRESHOLD_MS or SEVIER_LAG_THRESHOLD_MS)
@@ -133,13 +133,13 @@ pub struct SessionSyncTask {
 impl SessionSyncTask {
     /// Create a new SessionSyncTask with the given health check port.
     pub fn new(health_port: Arc<dyn HealthCheckPort>) -> Self {
-        Self::with_storage(health_port, None)
+        Self::with_port(health_port, None)
     }
 
-    /// Create a new SessionSyncTask with the given health and optional memory store.
-    pub fn with_storage(
+    /// Create a new SessionSyncTask with the given health and optional memory query port.
+    pub fn with_port(
         health_port: Arc<dyn HealthCheckPort>,
-        memory_store: Option<Arc<dyn MemoryStore>>,
+        memory_port: Option<Arc<dyn MemoryQueryPort>>,
     ) -> Self {
         let interval_ms = read_env_or_legacy("XAVIER_SYNC_INTERVAL_MS", "SEVIER_SYNC_INTERVAL_MS")
             .and_then(|v| v.parse().ok())
@@ -177,7 +177,7 @@ impl SessionSyncTask {
         Self {
             interval_ms,
             health_port,
-            memory_store,
+            memory_port,
             last_check: Arc::new(TokioRwLock::new(Instant::now())),
             lag_threshold_ms,
             save_ok_rate_threshold,
@@ -418,18 +418,16 @@ impl SessionSyncTask {
     /// Estimate index lag by querying indexed session records and comparing
     /// the original event timestamp with the timestamp at which the record was indexed.
     async fn estimate_index_lag(&self) -> u64 {
-        if let Some(ref storage) = self.memory_store {
-            let workspace_id = std::env::var("XAVIER_DEFAULT_WORKSPACE_ID")
-                .unwrap_or_else(|_| "default".to_string());
+        if let Some(ref port) = self.memory_port {
             let filters = MemoryQueryFilters {
                 kinds: Some(vec![MemoryKind::Session]),
                 ..MemoryQueryFilters::default()
             };
 
-            let records = match storage.list_filtered(&workspace_id, &filters, 100).await {
+            let records = match port.search("", Some(filters)).await {
                 Ok(recs) => recs,
                 Err(e) => {
-                    tracing::warn!(error = %e, "Failed to list session records for lag estimation");
+                    tracing::warn!(error = %e, "Failed to search session records for lag estimation");
                     return 0;
                 }
             };
@@ -524,7 +522,7 @@ impl Default for SessionSyncTask {
 
                 crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(final_url)
             }),
-            memory_store: None,
+            memory_port: None,
             last_check: Arc::new(TokioRwLock::new(Instant::now())),
             shutdown_tx,
         }

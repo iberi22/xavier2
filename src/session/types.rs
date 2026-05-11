@@ -11,6 +11,8 @@ pub enum SessionEventType {
     ToolCall,
     ToolResult,
     Error,
+    #[serde(other)]
+    Unknown,
 }
 
 /// Raw session event payload from OpenClaw
