@@ -15,6 +15,7 @@ pub mod context;
 pub mod coordination;
 pub mod crypto;
 pub mod embedding;
+pub mod installer;
 pub mod memory;
 pub mod retrieval;
 pub mod scheduler;

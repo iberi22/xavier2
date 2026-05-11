@@ -83,7 +83,7 @@ impl Default for MemorySettings {
         Self {
             backend: "vec".to_string(),
             data_dir: "data".to_string(),
-            embedding_dimensions: 768,
+            embedding_dimensions: 384,
             workspace_dir: "data/workspaces".to_string(),
             file_path: "data/workspaces/default/memory-store.json".to_string(),
             sqlite_path: "data/memory-store.sqlite3".to_string(),
