@@ -176,11 +176,17 @@ fn is_lease_expired(lease: &FileLease) -> bool {
 #[async_trait]
 impl ChangeControlPort for ChangeControlService {
     async fn create_task(&self, mut task: AgentTask) -> anyhow::Result<String> {
-        let id = Ulid::new().to_string();
+        let id = if task.id.is_empty() {
+            Ulid::new().to_string()
+        } else {
+            task.id.clone()
+        };
         let now = Utc::now().timestamp();
         task.id = id.clone();
         task.status = AgentTaskStatus::Draft;
-        task.created_at = now;
+        if task.created_at == 0 {
+            task.created_at = now;
+        }
         task.updated_at = now;
 
         let mut tasks = self.tasks.write().await;
@@ -387,13 +393,11 @@ impl ChangeControlPort for ChangeControlService {
         })
     }
 
-    async fn merge_plan(&self) -> anyhow::Result<MergePlan> {
+    async fn plan_merge(&self) -> anyhow::Result<MergePlan> {
         let tasks = self.tasks.read().await;
-        let leases = self.leases.read().await;
-        let _ = leases; // keep lease info available for future conflict analysis
 
-        // Collect active (non-completed, non-failed, non-cancelled) tasks
-        let active_tasks: Vec<&AgentTask> = tasks
+        // Collect all non-terminal tasks (Draft, Claimed, Active)
+        let mut active_tasks: Vec<&AgentTask> = tasks
             .values()
             .filter(|t| {
                 t.status != AgentTaskStatus::Completed
@@ -402,70 +406,88 @@ impl ChangeControlPort for ChangeControlService {
             })
             .collect();
 
-        // Phase 1: Find safe parallel groups (tasks with no conflicting scopes)
-        let mut safe_parallel_groups: Vec<Vec<String>> = Vec::new();
-        let mut assigned: std::collections::HashSet<String> = std::collections::HashSet::new();
+        // Sort by priority (RiskLevel descending, then created_at ascending)
+        active_tasks.sort_by(|a, b| {
+            b.risk_level
+                .cmp(&a.risk_level)
+                .then_with(|| a.created_at.cmp(&b.created_at))
+        });
 
-        for (i, task_a) in active_tasks.iter().enumerate() {
-            if assigned.contains(&task_a.id) {
+        let mut safe_parallel_groups: Vec<Vec<String>> = Vec::new();
+        let mut sequential: Vec<String> = Vec::new();
+        let mut blocked: Vec<BlockedTask> = Vec::new();
+
+        let mut scheduled_tasks: Vec<&AgentTask> = Vec::new();
+
+        for task in active_tasks {
+            // Check for unmet dependencies
+            let unmet_deps: Vec<String> = task
+                .dependencies
+                .iter()
+                .filter(|dep_id| {
+                    tasks
+                        .get(*dep_id)
+                        .map_or(true, |dep| dep.status != AgentTaskStatus::Completed)
+                })
+                .cloned()
+                .collect();
+
+            if !unmet_deps.is_empty() {
+                blocked.push(BlockedTask {
+                    task: task.id.clone(),
+                    reason: format!("Unmet dependencies: {}", unmet_deps.join(", ")),
+                    blocked_by: unmet_deps,
+                });
                 continue;
             }
 
-            let mut group = vec![task_a.id.clone()];
-            assigned.insert(task_a.id.clone());
-
-            for task_b in active_tasks.iter().skip(i + 1) {
-                if assigned.contains(&task_b.id) {
-                    continue;
-                }
-
-                // Check if task_a and task_b conflict
-                let conflict = Self::scopes_conflict(&task_a.scope, &task_b.scope);
-                if !conflict {
-                    group.push(task_b.id.clone());
-                    assigned.insert(task_b.id.clone());
+            // Check for scope conflicts with higher-priority tasks
+            let mut conflict_found = None;
+            for scheduled in &scheduled_tasks {
+                if let Some(reason) = Self::get_scope_conflict_reason(&task.scope, &scheduled.scope) {
+                    conflict_found = Some((scheduled.id.clone(), reason));
+                    break;
                 }
             }
 
-            safe_parallel_groups.push(group);
+            if let Some((conflicting_id, reason)) = conflict_found {
+                blocked.push(BlockedTask {
+                    task: task.id.clone(),
+                    reason: format!("conflicts with {} on {}", conflicting_id, reason),
+                    blocked_by: vec![conflicting_id],
+                });
+                continue;
+            }
+
+            // Task is ready to be scheduled
+            scheduled_tasks.push(task);
+
+            if task.risk_level >= RiskLevel::High {
+                sequential.push(task.id.clone());
+            } else {
+                // Try to fit into existing parallel groups
+                let mut added = false;
+                for group in &mut safe_parallel_groups {
+                    let mut group_conflict = false;
+                    for member_id in group.iter() {
+                        if let Some(member) = tasks.get(member_id) {
+                            if Self::scopes_conflict(&task.scope, &member.scope) {
+                                group_conflict = true;
+                                break;
+                            }
+                        }
+                    }
+                    if !group_conflict {
+                        group.push(task.id.clone());
+                        added = true;
+                        break;
+                    }
+                }
+                if !added {
+                    safe_parallel_groups.push(vec![task.id.clone()]);
+                }
+            }
         }
-
-        // Phase 2: Find sequential tasks (those with explicit dependencies)
-        let sequential: Vec<String> = active_tasks
-            .iter()
-            .filter(|t| !t.dependencies.is_empty())
-            .map(|t| t.id.clone())
-            .collect();
-
-        // Phase 3: Find blocked tasks (unmet dependencies)
-        let blocked: Vec<BlockedTask> = active_tasks
-            .iter()
-            .filter(|t| {
-                t.dependencies.iter().any(|dep_id| {
-                    // Blocked if dependency is missing or not yet completed
-                    tasks.get(dep_id).map_or(true, |dep| {
-                        dep.status != AgentTaskStatus::Completed
-                    })
-                })
-            })
-            .map(|t| BlockedTask {
-                task: t.id.clone(),
-                reason: format!(
-                    "Dependencies not met: {}",
-                    t.dependencies
-                        .iter()
-                        .filter(|dep_id| {
-                            tasks.get(*dep_id).map_or(true, |dep| {
-                                dep.status != AgentTaskStatus::Completed
-                            })
-                        })
-                        .cloned()
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                ),
-                blocked_by: t.dependencies.clone(),
-            })
-            .collect();
 
         Ok(MergePlan {
             safe_parallel_groups,
@@ -476,59 +498,206 @@ impl ChangeControlPort for ChangeControlService {
 }
 
 impl ChangeControlService {
-    /// Check if two ChangeScopes have conflicting write patterns.
+    /// Check if two ChangeScopes have any conflict.
     fn scopes_conflict(a: &ChangeScope, b: &ChangeScope) -> bool {
-        // If either has blocked patterns that the other writes to
+        Self::get_scope_conflict_reason(a, b).is_some()
+    }
+
+    /// Check if two ChangeScopes have conflicting write patterns, contracts, or layers.
+    /// Returns a descriptive reason if they conflict.
+    fn get_scope_conflict_reason(a: &ChangeScope, b: &ChangeScope) -> Option<String> {
+        // 1. Write-Write overlap
         for pattern_a in &a.allowed_write {
             for pattern_b in &b.allowed_write {
                 if Self::files_overlap(pattern_a, pattern_b) {
-                    return true;
+                    return Some(format!("overlapping write paths: {} and {}", pattern_a, pattern_b));
                 }
             }
         }
-        // Check blocked vs allowed_write (a's blocked patterns vs b's writes)
-        for blocked_a in &a.blocked {
-            for write_b in &b.allowed_write {
-                if Self::files_overlap(blocked_a, write_b) {
-                    return true;
+        // 2. Write-Blocked overlap (a writes to what b blocks, or vice versa)
+        for write_a in &a.allowed_write {
+            for blocked_b in &b.blocked {
+                if Self::files_overlap(write_a, blocked_b) {
+                    return Some(format!("write to blocked path: {}", write_a));
                 }
             }
         }
-        // Check blocked vs allowed_write (b's blocked patterns vs a's writes)
-        for blocked_b in &b.blocked {
-            for write_a in &a.allowed_write {
-                if Self::files_overlap(blocked_b, write_a) {
-                    return true;
+        for write_b in &b.allowed_write {
+            for blocked_a in &a.blocked {
+                if Self::files_overlap(write_b, blocked_a) {
+                    return Some(format!("higher priority task blocks path: {}", write_b));
                 }
             }
         }
-        false
+        // 3. Contracts overlap
+        for contract_a in &a.contracts_affected {
+            if b.contracts_affected.contains(contract_a) {
+                return Some(format!("shared contract: {}", contract_a));
+            }
+        }
+        // 4. Layers overlap
+        for layer_a in &a.layers_affected {
+            if b.layers_affected.contains(layer_a) {
+                return Some(format!("shared layer: {}", layer_a));
+            }
+        }
+        None
     }
 
     /// Check if two file patterns overlap (shared directory prefix).
-    fn files_overlap(a: &str, b: &str) -> bool {
-        let a_parts: Vec<&str> = a.split('/').collect();
-        let b_parts: Vec<&str> = b.split('/').collect();
+    pub(crate) fn files_overlap(a: &str, b: &str) -> bool {
+        if a == b {
+            return true;
+        }
 
-        // Remove wildcards and file extensions for comparison
-        let a_dir: Vec<&str> = a_parts
-            .iter()
-            .take_while(|p| !p.contains('.'))
-            .copied()
-            .collect();
-        let b_dir: Vec<&str> = b_parts
-            .iter()
-            .take_while(|p| !p.contains('.'))
-            .copied()
-            .collect();
+        let a_parts: Vec<&str> = a.split('/').filter(|p| !p.is_empty()).collect();
+        let b_parts: Vec<&str> = b.split('/').filter(|p| !p.is_empty()).collect();
 
-        // Check if they share a common directory prefix
-        let common = a_dir
+        let common = a_parts
             .iter()
-            .zip(b_dir.iter())
-            .take_while(|(a, b)| a == b)
+            .zip(b_parts.iter())
+            .take_while(|(ap, bp)| ap == bp)
             .count();
 
-        common > 0 && common >= a_dir.len().min(b_dir.len())
+        // Overlap if one is a prefix of the other (meaning one contains the other)
+        if (common == a_parts.len() && b_parts.len() > a_parts.len()) ||
+           (common == b_parts.len() && a_parts.len() > b_parts.len()) {
+            return true;
+        }
+
+        false
+    }
+}
+
+#[cfg(test)]
+mod merge_planner_tests {
+    use super::*;
+    use crate::domain::change_control::{AgentTaskStatus, ChangeScope, RiskLevel};
+    use crate::ports::inbound::change_control_port::ChangeControlPort;
+
+    fn mock_scope(write: Vec<&str>, blocked: Vec<&str>) -> ChangeScope {
+        ChangeScope {
+            allowed_write: write.into_iter().map(String::from).collect(),
+            read_only: vec![],
+            blocked: blocked.into_iter().map(String::from).collect(),
+            contracts_affected: vec![],
+            layers_affected: vec![],
+        }
+    }
+
+    fn mock_task(id: &str, title: &str, risk: RiskLevel, created_at: i64, scope: ChangeScope, deps: Vec<&str>) -> AgentTask {
+        AgentTask {
+            id: id.to_string(),
+            title: title.to_string(),
+            capability: "test".to_string(),
+            agent_id: "agent-1".to_string(),
+            status: AgentTaskStatus::Draft,
+            intent: "test".to_string(),
+            scope,
+            risk_level: risk,
+            dependencies: deps.into_iter().map(String::from).collect(),
+            memory_refs: vec![],
+            created_at,
+            updated_at: created_at,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_plan_merge_complex() {
+        let service = ChangeControlService::new();
+
+        // 1. Task A: High Risk, no deps, created at 100
+        let task_a = mock_task("task-a", "High Risk A", RiskLevel::High, 100,
+            mock_scope(vec!["src/core/"], vec![]), vec![]);
+        service.create_task(task_a).await.unwrap();
+
+        // 2. Task B: Low Risk, no deps, created at 110, conflicts with A
+        let task_b = mock_task("task-b", "Low Risk B (conflicts A)", RiskLevel::Low, 110,
+            mock_scope(vec!["src/core/utils.rs"], vec![]), vec![]);
+        service.create_task(task_b).await.unwrap();
+
+        // 3. Task C: Low Risk, no deps, created at 120, no conflicts
+        let task_c = mock_task("task-c", "Low Risk C (safe)", RiskLevel::Low, 120,
+            mock_scope(vec!["src/ui/"], vec![]), vec![]);
+        service.create_task(task_c).await.unwrap();
+
+        // 4. Task D: Medium Risk, deps on A, created at 130
+        let task_d = mock_task("task-d", "Medium Risk D (deps A)", RiskLevel::Medium, 130,
+            mock_scope(vec!["docs/"], vec![]), vec!["task-a"]);
+        service.create_task(task_d).await.unwrap();
+
+        // 5. Task E: Critical Risk, no deps, created at 140, conflicts with C
+        let task_e = mock_task("task-e", "Critical Risk E (conflicts C)", RiskLevel::Critical, 140,
+            mock_scope(vec!["src/ui/theme.rs"], vec![]), vec![]);
+        service.create_task(task_e).await.unwrap();
+
+        let plan = service.plan_merge().await.unwrap();
+
+        // EXPECTATIONS:
+        // Priority order: E (Critical), A (High), B (Low, 110), C (Low, 120), D (Medium, 130)
+        // 1. task-e (Critical) -> Ready. Scheduled as sequential.
+        // 2. task-a (High) -> Ready. Scheduled as sequential.
+        // 3. task-b (Low, 110) -> Conflicts with task-a (src/core/). -> Blocked by task-a.
+        // 4. task-c (Low, 120) -> Conflicts with task-e (src/ui/). -> Blocked by task-e.
+        // 5. task-d (Medium, 130) -> Unmet dependency on task-a. -> Blocked by task-a.
+
+        assert!(plan.sequential.contains(&"task-e".to_string()));
+        assert!(plan.sequential.contains(&"task-a".to_string()));
+        assert_eq!(plan.sequential.len(), 2);
+
+        assert!(plan.safe_parallel_groups.is_empty());
+
+        let blocked_ids: Vec<String> = plan.blocked.iter().map(|b| b.task.clone()).collect();
+        assert!(blocked_ids.contains(&"task-b".to_string()));
+        assert!(blocked_ids.contains(&"task-c".to_string()));
+        assert!(blocked_ids.contains(&"task-d".to_string()));
+        assert_eq!(plan.blocked.len(), 3);
+
+        // Verify reasons
+        let b_task = plan.blocked.iter().find(|b| b.task == "task-b").unwrap();
+        assert!(b_task.reason.contains("conflicts with task-a"));
+        assert_eq!(b_task.blocked_by, vec!["task-a".to_string()]);
+
+        let c_task = plan.blocked.iter().find(|b| b.task == "task-c").unwrap();
+        assert!(c_task.reason.contains("conflicts with task-e"));
+        assert_eq!(c_task.blocked_by, vec!["task-e".to_string()]);
+
+        let d_task = plan.blocked.iter().find(|b| b.task == "task-d").unwrap();
+        assert!(d_task.reason.contains("Unmet dependencies: task-a"));
+        assert_eq!(d_task.blocked_by, vec!["task-a".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn test_plan_merge_parallel() {
+        let service = ChangeControlService::new();
+
+        // task-1: Low Risk, created at 100
+        service.create_task(mock_task("task-1", "P1", RiskLevel::Low, 100,
+            mock_scope(vec!["src/a.rs"], vec![]), vec![])).await.unwrap();
+
+        // task-2: Low Risk, created at 110, conflicts with task-1
+        service.create_task(mock_task("task-2", "P2", RiskLevel::Low, 110,
+            mock_scope(vec!["src/a.rs"], vec![]), vec![])).await.unwrap();
+
+        // task-3: Low Risk, created at 120, no conflicts
+        service.create_task(mock_task("task-3", "P3", RiskLevel::Low, 120,
+            mock_scope(vec!["src/b.rs"], vec![]), vec![])).await.unwrap();
+
+        let plan = service.plan_merge().await.unwrap();
+
+        // Expectation:
+        // task-1 and task-3 are safe to run. task-2 conflicts with task-1.
+        // BUT task-1 and task-3 don't conflict with each other.
+        // In my current implementation, task-2 is blocked by task-1 because task-1 has higher priority (earlier created_at).
+        // task-1 and task-3 should be in a parallel group.
+
+        assert_eq!(plan.safe_parallel_groups.len(), 1);
+        assert!(plan.safe_parallel_groups[0].contains(&"task-1".to_string()));
+        assert!(plan.safe_parallel_groups[0].contains(&"task-3".to_string()));
+        assert_eq!(plan.safe_parallel_groups[0].len(), 2);
+
+        assert_eq!(plan.blocked.len(), 1);
+        assert_eq!(plan.blocked[0].task, "task-2");
+        assert_eq!(plan.blocked[0].blocked_by, vec!["task-1".to_string()]);
     }
 }

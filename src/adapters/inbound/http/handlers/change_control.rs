@@ -274,7 +274,7 @@ pub async fn complete_task_handler(
 pub async fn merge_plan_handler(
     State(service): State<Arc<dyn ChangeControlPort>>,
 ) -> Result<Json<MergePlan>, (StatusCode, Json<serde_json::Value>)> {
-    match service.merge_plan().await {
+    match service.plan_merge().await {
         Ok(plan) => Ok(Json(plan)),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,

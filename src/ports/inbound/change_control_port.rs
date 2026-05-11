@@ -89,5 +89,5 @@ pub trait ChangeControlPort: Send + Sync {
     ) -> anyhow::Result<TaskCompletionResult>;
 
     /// Build a merge plan that groups tasks into safe parallel / sequential groups.
-    async fn merge_plan(&self) -> anyhow::Result<MergePlan>;
+    async fn plan_merge(&self) -> anyhow::Result<MergePlan>;
 }
