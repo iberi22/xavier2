@@ -75,6 +75,24 @@ xavier-installer
 cp config/xavier.config.example.json config/xavier.config.json
 ```
 
+### Run as a service (auto-start)
+
+**Linux (systemd):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/iberi22/xavier/main/install.sh | bash
+# systemd service is auto-created. Enable and start:
+systemctl --user enable --now xavier2
+```
+
+**Windows (Scheduled Task):**
+```powershell
+irm https://raw.githubusercontent.com/iberi22/xavier/main/install.ps1 | iex -args "-AsService"
+# Xavier2 auto-starts at logon. Manage with:
+schtasks /run  /tn Xavier2MemoryRuntime     # Start now
+schtasks /end  /tn Xavier2MemoryRuntime     # Stop
+schtasks /query /tn Xavier2MemoryRuntime    # Status
+```
+
 ## Features
 
 - **HTTP API** — JSON REST endpoints for memory CRUD with token-based auth
@@ -84,6 +102,7 @@ cp config/xavier.config.example.json config/xavier.config.json
 - **Public dataset export** — Generate read-optimized NDJSON datasets for agent bootstrap (see [Public Export](#public-dataset-export))
 - **Hybrid retrieval** — Building blocks for combining keyword and semantic search
 - **TUI installer** — Interactive terminal wizard (6 steps) for painless setup on Windows, Linux, and macOS
+- **Service/daemon support** — systemd (Linux) + scheduled task (Windows) for auto-start at boot/logon
 - **Agent runtime modules** — Ready-to-use runtime components for agent memory workflows
 - **Chronicle workflow** — `xavier chronicle` can harvest project activity, generate daily technical posts, preview them, and publish Markdown outputs
 - **Plugin system** — Extensible enterprise integrations (Cortex, PgHeart)

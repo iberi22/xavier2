@@ -15,6 +15,8 @@
     Add installation directory to user PATH.
 .PARAMETER NoWizard
     Skip running the interactive setup wizard after install.
+.PARAMETER AsService
+    Register Xavier2 as a Windows scheduled task (auto-start at logon, restart on failure).
 .EXAMPLE
     irm https://raw.githubusercontent.com/iberi22/xavier/main/install.ps1 | iex
     irm https://raw.githubusercontent.com/iberi22/xavier/main/install.ps1 | iex -args "-Version v0.6.0"
@@ -30,7 +32,8 @@ param(
     [string]$ConfigDir = "$env:APPDATA\xavier2",
     [string]$DataDir = "$env:LOCALAPPDATA\xavier2-data",
     [switch]$AddToPath,
-    [switch]$NoWizard
+    [switch]$NoWizard,
+    [switch]$AsService
 )
 
 # ── Configuration ──────────────────────────────────────────────
@@ -177,6 +180,90 @@ if (-not $NoWizard) {
         & $InstallerPath
     } else {
         Write-Info "No installer binary found. Configure manually in $ConfigDir\xavier2.config.json"
+    }
+}
+
+# ── Windows Service (scheduled task at startup) ──────────────
+if ($AsService) {
+    Write-Header "Setting up Windows Service..."
+    $ServiceName = "Xavier2MemoryRuntime"
+    $XavierPath = Join-Path $InstallDir "xavier.exe"
+
+    if (-not (Test-Path $XavierPath)) {
+        Write-ErrorMsg "xavier.exe not found in $InstallDir"
+        Write-ErrorMsg "Install without -AsService first, then re-run with -AsService"
+        exit 1
+    }
+
+    # Remove existing task if present
+    schtasks /delete /tn $ServiceName /f 2>$null | Out-Null
+
+    # Create scheduled task: runs at user logon, restarts on failure
+    $taskXml = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Xavier2 Cognitive Memory Runtime — auto-starts at logon</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <Delay>PT30S</Delay>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>`"$XavierPath`"</Command>
+      <Arguments>serve</Arguments>
+      <WorkingDirectory>$InstallDir</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+"@
+
+    $taskFile = Join-Path $env:TEMP "xavier2-task.xml"
+    $taskXml | Out-File -FilePath $taskFile -Encoding Unicode -Force
+
+    try {
+        schtasks /create /tn $ServiceName /xml $taskFile /f 2>&1 | Out-Null
+        Write-Success "Windows Service created: $ServiceName"
+        Write-Info ""
+        Write-Info "Xavier2 will auto-start at logon (30s delay)"
+        Write-Info ""
+        Write-Info "Manage the service:"
+        Write-Info "  schtasks /run  /tn $ServiceName    # Start now"
+        Write-Info "  schtasks /end  /tn $ServiceName    # Stop"
+        Write-Info "  schtasks /query /tn $ServiceName    # Status"
+        Write-Info "  schtasks /delete /tn $ServiceName /f  # Remove"
+    } catch {
+        Write-ErrorMsg "Failed to create scheduled task"
+        Write-Info "Run as Administrator if PERMISSION DENIED"
+        Write-Info "Or use Task Scheduler GUI to create manually"
+    } finally {
+        Remove-Item $taskFile -ErrorAction SilentlyContinue
     }
 }
 
