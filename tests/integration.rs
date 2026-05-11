@@ -16,6 +16,8 @@ mod cli;
 mod coordination_test;
 #[path = "integration/hierarchical_curation_test.rs"]
 mod hierarchical_curation_test;
+#[path = "integration/impact_analysis_test.rs"]
+mod impact_analysis_test;
 #[path = "integration/http_api.rs"]
 mod http_api;
 #[path = "integration/internal_benchmark_test.rs"]
