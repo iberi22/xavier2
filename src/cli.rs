@@ -36,7 +36,9 @@ use xavier::memory::session_store::{PanelMessage, SessionStore};
 use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier::memory::store::{MemoryRecord, MemoryStore};
 use xavier::ports::inbound::change_control_port::ChangeControlPort;
-use xavier::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
+use xavier::ports::inbound::{
+    AgentLifecyclePort, InputSecurityPort, MemoryQueryPort, TimeMetricsPort,
+};
 use xavier::ports::outbound::HealthCheckPort;
 use xavier::security::{ProcessResult, SecurityService};
 use xavier::server::panel::{
@@ -59,7 +61,7 @@ pub struct CliState {
     pub code_db: Arc<code_graph::db::CodeGraphDB>,
     pub code_indexer: Arc<code_graph::indexer::Indexer>,
     pub code_query: Arc<code_graph::query::QueryEngine>,
-    pub security: Arc<SecurityService>,
+    pub security: Arc<dyn InputSecurityPort>,
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
@@ -347,6 +349,8 @@ async fn start_http_server(port: u16) -> Result<()> {
     let change_control = Arc::new(ChangeControlService::new());
     let change_control_port: Arc<dyn ChangeControlPort> = change_control.clone();
 
+    let security_service = Arc::new(xavier::app::security_service::SecurityService::new());
+
     let state = CliState {
         memory: memory_port,
         store,
@@ -355,7 +359,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         code_db,
         code_indexer,
         code_query,
-        security: Arc::new(SecurityService::new()),
+        security: security_service,
         _time_store: Some(time_store),
         agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
         panel_store,
@@ -787,32 +791,33 @@ fn default_limit() -> usize {
     10
 }
 
-fn blocked_external_input_response(label: &str, result: &ProcessResult) -> serde_json::Value {
-    serde_json::json!({
-        "status": "blocked",
-        "blocked": true,
-        "reason": "security_policy_violation",
-        "message": format!("{label} blocked by security policy"),
-        "detection": {
-            "is_injection": result.detection.is_injection,
-            "confidence": result.detection.confidence,
-            "attack_type": result.detection.attack_type.as_str(),
-            "message": result.detection.message,
-        }
-    })
-}
-
-fn secure_external_input(
-    security: &SecurityService,
+async fn secure_external_input(
+    security: &dyn InputSecurityPort,
     label: &str,
     input: &str,
 ) -> std::result::Result<String, serde_json::Value> {
-    let result = security.process_input(input);
+    let result = security.process_input(input).await.map_err(|e| {
+        serde_json::json!({
+            "status": "error",
+            "message": format!("Security service error: {}", e),
+        })
+    })?;
+
     if !result.allowed {
-        return Err(blocked_external_input_response(label, &result));
+        return Err(serde_json::json!({
+            "status": "blocked",
+            "blocked": true,
+            "reason": "security_policy_violation",
+            "message": format!("{label} blocked by security policy"),
+            "detection": {
+                "is_injection": result.is_injection,
+                "confidence": result.detection_confidence,
+                "attack_type": result.attack_type,
+            }
+        }));
     }
 
-    Ok(result.effective_input().to_string())
+    Ok(result.sanitized_input.unwrap_or_else(|| result.original_input))
 }
 
 async fn panel_list_threads(State(state): State<CliState>) -> Response {
@@ -955,11 +960,19 @@ async fn search_handler(
     axum::Json(payload): axum::Json<SearchPayload>,
 ) -> impl axum::response::IntoResponse {
     // Security scan on query before searching
-    let sec_result = state.security.process_input(&payload.query);
+    let sec_result = match state.security.process_input(&payload.query).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security service error: {}", e),
+            }));
+        }
+    };
     if !sec_result.allowed {
         info!(
             "Search blocked by security: injection detected (confidence={})",
-            sec_result.detection.confidence
+            sec_result.detection_confidence
         );
         return axum::Json(serde_json::json!({
             "results": <Vec<serde_json::Value>>::new(),
@@ -968,15 +981,18 @@ async fn search_handler(
             "blocked": true,
             "reason": "security_policy_violation",
             "detection": {
-                "is_injection": sec_result.detection.is_injection,
-                "confidence": sec_result.detection.confidence,
-                "attack_type": sec_result.detection.attack_type.as_str(),
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
             },
             "workspace_id": state.workspace_id,
         }));
     }
 
-    let effective_query = sec_result.effective_input();
+    let effective_query = sec_result
+        .sanitized_input
+        .as_deref()
+        .unwrap_or(&sec_result.original_input);
     let limit = payload.limit.clamp(1, 100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
@@ -1033,25 +1049,35 @@ async fn add_handler(
     axum::Json(payload): axum::Json<AddPayload>,
 ) -> impl axum::response::IntoResponse {
     // Security scan on content before adding
-    let sec_result = state.security.process_input(&payload.content);
+    let sec_result = match state.security.process_input(&payload.content).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security service error: {}", e),
+            }));
+        }
+    };
     if !sec_result.allowed {
         info!(
             "Add blocked by security: injection detected (confidence={})",
-            sec_result.detection.confidence
+            sec_result.detection_confidence
         );
         return axum::Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "detection": {
-                "is_injection": sec_result.detection.is_injection,
-                "confidence": sec_result.detection.confidence,
-                "attack_type": sec_result.detection.attack_type.as_str(),
-                "message": sec_result.detection.message,
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
             }
         }));
     }
 
-    let effective_content = sec_result.effective_input();
+    let effective_content = sec_result
+        .sanitized_input
+        .as_deref()
+        .unwrap_or(&sec_result.original_input);
 
     let path = payload
         .path
@@ -1294,15 +1320,22 @@ async fn security_scan_handler(
     State(state): State<CliState>,
     axum::Json(payload): axum::Json<SecurityScanPayload>,
 ) -> impl axum::response::IntoResponse {
-    let result = state.security.process_input(&payload.input);
+    let result = match state.security.process_input(&payload.input).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security service error: {}", e),
+            }));
+        }
+    };
     axum::Json(serde_json::json!({
         "status": if result.allowed { "allowed" } else { "blocked" },
         "allowed": result.allowed,
         "detection": {
-            "is_injection": result.detection.is_injection,
-            "confidence": result.detection.confidence,
-            "attack_type": result.detection.attack_type.as_str(),
-            "message": result.detection.message,
+            "is_injection": result.is_injection,
+            "confidence": result.detection_confidence,
+            "attack_type": result.attack_type,
         },
         "sanitized_input": result.sanitized_input,
         "original_input": result.original_input,
@@ -1323,15 +1356,23 @@ async fn memory_query_handler(
     axum::Json(payload): axum::Json<MemoryQueryPayload>,
 ) -> impl axum::response::IntoResponse {
     // Security scan on query
-    let sec_result = state.security.process_input(&payload.query);
+    let sec_result = match state.security.process_input(&payload.query).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security service error: {}", e),
+            }));
+        }
+    };
     if !sec_result.allowed {
         return axum::Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "detection": {
-                "is_injection": sec_result.detection.is_injection,
-                "confidence": sec_result.detection.confidence,
-                "attack_type": sec_result.detection.attack_type.as_str(),
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
             }
         }));
     }
@@ -1382,19 +1423,27 @@ async fn code_scan_handler(
     let requested_path = payload.path.unwrap_or_else(|| ".".to_string());
 
     // Security scan on path
-    let sec_result = state.security.process_input(&requested_path);
+    let sec_result = match state.security.process_input(&requested_path).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security service error: {}", e),
+            }));
+        }
+    };
     if !sec_result.allowed {
         info!(
             "code/scan blocked by security: injection detected (confidence={})",
-            sec_result.detection.confidence
+            sec_result.detection_confidence
         );
         return axum::Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "detection": {
-                "is_injection": sec_result.detection.is_injection,
-                "confidence": sec_result.detection.confidence,
-                "attack_type": sec_result.detection.attack_type.as_str(),
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
             }
         }));
     }
@@ -1451,71 +1500,57 @@ async fn code_find_handler(
     axum::Json(payload): axum::Json<CodeFindPayload>,
 ) -> impl axum::response::IntoResponse {
     // Security scan on query
-    let sec_result = state.security.process_input(&payload.query);
+    let sec_result = match state.security.process_input(&payload.query).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security service error: {}", e),
+            }));
+        }
+    };
     if !sec_result.allowed {
         info!(
             "code/find blocked by security: injection detected (confidence={})",
-            sec_result.detection.confidence
+            sec_result.detection_confidence
         );
         return axum::Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "blocked": true,
             "detection": {
-                "is_injection": sec_result.detection.is_injection,
-                "confidence": sec_result.detection.confidence,
-                "attack_type": sec_result.detection.attack_type.as_str(),
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
             }
         }));
     }
 
-    let query = sec_result.effective_input().to_string();
+    let query = sec_result
+        .sanitized_input
+        .unwrap_or(sec_result.original_input);
     let pattern = match secure_optional_request_field(
-        &state.security,
+        state.security.as_ref(),
         "code/find pattern",
         payload.pattern.as_deref(),
-    ) {
+    )
+    .await
+    {
         Ok(pattern) => pattern,
-        Err(sec_result) => {
-            info!(
-                "code/find blocked by security: pattern rejected (confidence={})",
-                sec_result.detection.confidence
-            );
-            return axum::Json(serde_json::json!({
-                "status": "blocked",
-                "reason": "security_policy_violation",
-                "blocked": true,
-                "field": "pattern",
-                "detection": {
-                    "is_injection": sec_result.detection.is_injection,
-                    "confidence": sec_result.detection.confidence,
-                    "attack_type": sec_result.detection.attack_type.as_str(),
-                }
-            }));
+        Err(response) => {
+            return axum::Json(response);
         }
     };
     let kind = match secure_optional_request_field(
-        &state.security,
+        state.security.as_ref(),
         "code/find kind",
         payload.kind.as_deref(),
-    ) {
+    )
+    .await
+    {
         Ok(kind) => kind,
-        Err(sec_result) => {
-            info!(
-                "code/find blocked by security: kind rejected (confidence={})",
-                sec_result.detection.confidence
-            );
-            return axum::Json(serde_json::json!({
-                "status": "blocked",
-                "reason": "security_policy_violation",
-                "blocked": true,
-                "field": "kind",
-                "detection": {
-                    "is_injection": sec_result.detection.is_injection,
-                    "confidence": sec_result.detection.confidence,
-                    "attack_type": sec_result.detection.attack_type.as_str(),
-                }
-            }));
+        Err(response) => {
+            return axum::Json(response);
         }
     };
     let limit = payload.limit.clamp(1, 100);
@@ -1581,20 +1616,28 @@ async fn code_context_handler(
     axum::Json(payload): axum::Json<CodeContextPayload>,
 ) -> impl axum::response::IntoResponse {
     // Security scan on query
-    let sec_result = state.security.process_input(&payload.query);
+    let sec_result = match state.security.process_input(&payload.query).await {
+        Ok(res) => res,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security service error: {}", e),
+            }));
+        }
+    };
     if !sec_result.allowed {
         info!(
             "code/context blocked by security: injection detected (confidence={})",
-            sec_result.detection.confidence
+            sec_result.detection_confidence
         );
         return axum::Json(serde_json::json!({
             "status": "blocked",
             "reason": "security_policy_violation",
             "blocked": true,
             "detection": {
-                "is_injection": sec_result.detection.is_injection,
-                "confidence": sec_result.detection.confidence,
-                "attack_type": sec_result.detection.attack_type.as_str(),
+                "is_injection": sec_result.is_injection,
+                "confidence": sec_result.detection_confidence,
+                "attack_type": sec_result.attack_type,
             }
         }));
     }
@@ -1828,7 +1871,7 @@ async fn session_event_handler(
     };
 
     let entry_content =
-        match secure_external_input(&state.security, "session event content", &entry.content) {
+        match secure_external_input(state.security.as_ref(), "session event content", &entry.content).await {
             Ok(content) => content,
             Err(response) => return axum::Json(response),
         };
@@ -2155,7 +2198,7 @@ async fn agent_push_context_handler(
         }));
     }
 
-    let context = match secure_external_input(&state.security, "agent context", &payload.context) {
+    let context = match secure_external_input(state.security.as_ref(), "agent context", &payload.context).await {
         Ok(context) => context,
         Err(response) => return axum::Json(response),
     };
@@ -2573,7 +2616,7 @@ async fn session_load(ctx: &str) -> Result<String> {
 }
 
 async fn search_memories(query: &str, limit: usize) -> Result<()> {
-    let query = secure_cli_input("search query", query, 4_096)?;
+    let query = secure_cli_input("search query", query, 4_096).await?;
     let limit = limit.clamp(1, 100);
     let token = xavier_token();
     let base_url = resolve_base_url();
@@ -2611,10 +2654,12 @@ async fn search_memories(query: &str, limit: usize) -> Result<()> {
 }
 
 async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> Result<()> {
-    let content = secure_cli_input("memory content", content, 1_000_000)?;
-    let title = title
-        .map(|title| secure_cli_input("memory title", title, 512))
-        .transpose()?;
+    let content = secure_cli_input("memory content", content, 1_000_000).await?;
+    let title = if let Some(t) = title {
+        Some(secure_cli_input("memory title", t, 512).await?)
+    } else {
+        None
+    };
     let token = xavier_token();
     let base_url = resolve_base_url();
     let url = format!("{}/memory/add", base_url);
@@ -2710,7 +2755,7 @@ async fn recall_memories(query: &str, limit: usize) -> Result<()> {
     Ok(())
 }
 
-fn secure_cli_input(label: &str, input: &str, max_chars: usize) -> Result<String> {
+async fn secure_cli_input(label: &str, input: &str, max_chars: usize) -> Result<String> {
     let char_count = input.chars().count();
     if char_count > max_chars {
         return Err(anyhow!(
@@ -2720,14 +2765,17 @@ fn secure_cli_input(label: &str, input: &str, max_chars: usize) -> Result<String
         ));
     }
 
-    let security = SecurityService::new();
-    let result = security.process_input(input);
+    let security = xavier::app::security_service::SecurityService::new();
+    let result = security
+        .process_input(input)
+        .await
+        .map_err(|e| anyhow!("Security check failed: {}", e))?;
     if !result.allowed {
         return Err(anyhow!(
             "{} blocked by security policy: attack_type={}, confidence={:.2}",
             label,
-            result.detection.attack_type.as_str(),
-            result.detection.confidence
+            result.attack_type,
+            result.detection_confidence
         ));
     }
 
@@ -2735,7 +2783,7 @@ fn secure_cli_input(label: &str, input: &str, max_chars: usize) -> Result<String
         println!("{} sanitized by security policy before submission.", label);
     }
 
-    Ok(result.effective_input().to_string())
+    Ok(result.sanitized_input.unwrap_or_else(|| result.original_input))
 }
 
 async fn show_stats() -> Result<()> {
@@ -2775,7 +2823,7 @@ async fn show_stats() -> Result<()> {
 /// Path: context/<session_id>/save
 /// Content: current context
 async fn session_save(session_id: &str, content: &str) -> Result<()> {
-    let content = secure_cli_input("session content", content, 10_000_000)?;
+    let content = secure_cli_input("session content", content, 10_000_000).await?;
     let token = require_xavier_token()?;
     let base_url = resolve_base_url();
     let url = format!("{}/memory/add", base_url);

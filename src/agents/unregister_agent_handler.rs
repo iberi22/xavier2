@@ -5,13 +5,14 @@ use axum::{
     Json,
 };
 
+use crate::adapters::inbound::http::state::AppState;
 use crate::ports::inbound::AgentLifecyclePort;
 
 pub async fn unregister_agent_handler(
-    State(registry): State<Arc<dyn AgentLifecyclePort>>,
+    State(state): State<AppState>,
     Path(agent_id): Path<String>,
 ) -> Json<serde_json::Value> {
-    let success = registry.unregister(&agent_id).await;
+    let success = state.agent_lifecycle.unregister(&agent_id).await;
 
     Json(serde_json::json!({
         "status": if success { "ok" } else { "error" },

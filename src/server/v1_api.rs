@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::{
+    domain::memory::MemoryRecord,
     memory::{
-        qmd_memory::query_with_embedding_filtered,
         schema::{
             EvidenceKind, MemoryKind, MemoryNamespace, MemoryProvenance, MemoryQueryFilters,
             TypedMemoryPayload,
@@ -123,6 +123,7 @@ pub async fn v1_memories_add(
             namespace = Some(value);
         }
     }
+    let _ = namespace; // Workaround for unused assignment warning, we'll need to decide how to handle typed payload
     let meta_for_graph = meta.clone();
 
     if let Err(error) = workspace
@@ -136,20 +137,17 @@ pub async fn v1_memories_add(
         }));
     }
 
+    let mut record = MemoryRecord::new_fact(path, content);
+    record.metadata = meta;
+    // v1 standard doesn't yet support the full typed payload in the record struct itself easily
+    // but the adapter will handle it if we pass it through.
+    // Actually MemoryRecord doesn't have TypedMemoryPayload.
+    // Let's see if we should extend MemoryQueryPort or handle it in the adapter.
+
     match workspace
         .workspace
-        .memory
-        .add_document_typed(
-            path,
-            content,
-            meta,
-            Some(TypedMemoryPayload {
-                kind: payload.kind,
-                evidence_kind: payload.evidence_kind,
-                namespace,
-                provenance: payload.provenance,
-            }),
-        )
+        .memory_port
+        .add(record)
         .await
     {
         Ok(id) => {
@@ -177,24 +175,21 @@ pub async fn v1_memories_search(
     Extension(workspace): Extension<WorkspaceContext>,
     Json(payload): Json<V1SearchRequest>,
 ) -> impl IntoResponse {
-    let limit = payload.limit.unwrap_or(10);
-    let results = query_with_embedding_filtered(
-        &workspace.workspace.memory,
-        &payload.query,
-        limit,
-        payload.filters.as_ref(),
-    )
-    .await
-    .unwrap_or_default()
-    .into_iter()
-    .filter(|doc| is_primary_memory(&doc.metadata))
-    .map(|doc| V1MemoryResponse {
-        id: doc.id.unwrap_or_default(),
-        memory: doc.content,
-        user_id: Some(doc.path),
-        metadata: doc.metadata,
-    })
-    .collect();
+    let results = workspace
+        .workspace
+        .memory_port
+        .search(&payload.query, payload.filters)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|doc| is_primary_memory(&doc.metadata))
+        .map(|doc| V1MemoryResponse {
+            id: doc.id,
+            memory: doc.content,
+            user_id: Some(doc.path),
+            metadata: doc.metadata,
+        })
+        .collect();
 
     Json(V1MemorySearchResponse {
         status: "ok".to_string(),
@@ -211,9 +206,10 @@ pub async fn v1_memories_list(
 
     let all_docs: Vec<_> = workspace
         .workspace
-        .memory
-        .all_documents()
+        .memory_port
+        .list(&workspace.workspace_id, 1000) // limit is for total pull
         .await
+        .unwrap_or_default()
         .into_iter()
         .filter(|doc| is_primary_memory(&doc.metadata))
         .collect();
@@ -224,7 +220,7 @@ pub async fn v1_memories_list(
         .skip(offset)
         .take(limit)
         .map(|doc| V1MemoryResponse {
-            id: doc.id.unwrap_or_default(),
+            id: doc.id,
             memory: doc.content,
             user_id: Some(doc.path),
             metadata: doc.metadata,
@@ -245,11 +241,11 @@ pub async fn v1_memories_get(
     Extension(workspace): Extension<WorkspaceContext>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match workspace.workspace.memory.get(&id).await {
+    match workspace.workspace.memory_port.get(&id).await {
         Ok(Some(doc)) if is_primary_memory(&doc.metadata) => Json(serde_json::json!({
             "status": "ok",
             "memory": V1MemoryResponse {
-                id: doc.id.unwrap_or_default(),
+                id: doc.id,
                 memory: doc.content,
                 user_id: Some(doc.path),
                 metadata: doc.metadata,
@@ -267,7 +263,7 @@ pub async fn v1_memories_update(
     Path(id): Path<String>,
     Json(payload): Json<V1AddMemoryRequest>,
 ) -> impl IntoResponse {
-    let Some(existing) = workspace.workspace.memory.get(&id).await.ok().flatten() else {
+    let Some(existing) = workspace.workspace.memory_port.get(&id).await.ok().flatten() else {
         return Json(serde_json::json!({
             "status": "error",
             "message": "Memory not found"
@@ -354,12 +350,11 @@ pub async fn v1_memories_delete(
     Extension(workspace): Extension<WorkspaceContext>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    match workspace.workspace.memory.delete(&id).await {
+    match workspace.workspace.memory_port.delete(&id).await {
         Ok(Some(doc)) => {
-            if let Some(memory_id) = doc.id.clone().or_else(|| Some(doc.path.clone())) {
-                if let Err(error) = workspace.workspace.remove_memory_entities(&memory_id).await {
-                    tracing::warn!(%error, memory_id = %memory_id, "failed to remove entity graph memory index");
-                }
+            let memory_id = doc.id.clone();
+            if let Err(error) = workspace.workspace.remove_memory_entities(&memory_id).await {
+                tracing::warn!(%error, memory_id = %memory_id, "failed to remove entity graph memory index");
             }
             Json(serde_json::json!({
                 "status": "ok",

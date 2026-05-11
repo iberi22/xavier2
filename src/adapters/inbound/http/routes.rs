@@ -8,44 +8,20 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::adapters::inbound::http::dto::TimeMetricDto;
+use crate::adapters::inbound::http::state::AppState;
 use crate::agents::unregister_agent_handler;
 use crate::coordination::SimpleAgentRegistry;
-use crate::ports::inbound::{AgentLifecyclePort, TimeMetricsPort};
+use crate::ports::inbound::{AgentLifecyclePort, InputSecurityPort, TimeMetricsPort};
 use crate::ports::outbound::HealthCheckPort;
-use crate::security::SecurityService;
 use crate::session::event_mapper::PanelThreadEntry;
 use crate::session::types::SessionEvent;
 use crate::settings::XavierSettings;
 use crate::tasks::session_sync_task::get_last_sync_result;
 use crate::verification::auto_verifier::AutoVerifier;
 
-// ─── Module-level TimeMetricsPort (initialized by CLI) ────────────────────────
-static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> = std::sync::OnceLock::new();
-
-/// Module-level HealthCheckPort (initialized by CLI)
-static HEALTH_PORT: std::sync::OnceLock<Arc<dyn HealthCheckPort>> = std::sync::OnceLock::new();
-
-/// Initialize the global time metrics port (call once at startup)
-pub fn init_time_store(port: Arc<dyn TimeMetricsPort>) {
-    if TIME_STORE.set(port).is_err() {
-        tracing::error!("TIME_STORE global already initialized (called init_time_store twice)");
-    }
-}
-
-/// Initialize the global health check port (call once at startup)
-pub fn init_health_port(port: Arc<dyn HealthCheckPort>) {
-    if HEALTH_PORT.set(port).is_err() {
-        tracing::error!("HEALTH_PORT global already initialized (called init_health_port twice)");
-    }
-}
-
 // ─── Router ─────────────────────────────────────────────────────────────────
 
-pub fn create_router() -> Router {
-    create_router_with_agent_registry(SimpleAgentRegistry::new())
-}
-
-pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecyclePort>) -> Router {
+pub fn create_router(state: AppState) -> Router {
     let router = Router::new()
         .route("/health", get(health_handler))
         .route(
@@ -63,14 +39,17 @@ pub fn create_router_with_agent_registry(agent_registry: Arc<dyn AgentLifecycleP
         .route("/plugins/health", get(plugins_health_handler))
         .route("/plugins/sync", post(plugins_sync_handler));
 
-    router.with_state(agent_registry)
+    router.with_state(state)
 }
 
 async fn health_handler() -> &'static str {
     "ok"
 }
 
-pub async fn session_event_handler(Json(event): Json<SessionEvent>) -> Json<serde_json::Value> {
+pub async fn session_event_handler(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(event): Json<SessionEvent>,
+) -> Json<serde_json::Value> {
     let Some(entry) = PanelThreadEntry::from_session_event(&event) else {
         return Json(serde_json::json!({
             "status": "ok",
@@ -79,8 +58,16 @@ pub async fn session_event_handler(Json(event): Json<SessionEvent>) -> Json<serd
         }));
     };
 
-    let security = SecurityService::new();
-    let result = security.process_input(&entry.content);
+    let result = match state.security.process_input(&entry.content).await {
+        Ok(res) => res,
+        Err(e) => {
+            return Json(serde_json::json!({
+                "status": "error",
+                "message": format!("Security scan error: {}", e),
+                "session_id": event.session_id,
+            }));
+        }
+    };
 
     if !result.allowed {
         return Json(serde_json::json!({
@@ -90,9 +77,9 @@ pub async fn session_event_handler(Json(event): Json<SessionEvent>) -> Json<serd
             "session_id": event.session_id,
             "mapped": false,
             "detection": {
-                "is_injection": result.detection.is_injection,
-                "confidence": result.detection.confidence,
-                "attack_type": format!("{:?}", result.detection.attack_type),
+                "is_injection": result.is_injection,
+                "confidence": result.detection_confidence,
+                "attack_type": result.attack_type,
             },
         }));
     }
@@ -185,27 +172,27 @@ pub struct TimeMetricResponse {
     pub agent_id: String,
 }
 
-pub async fn time_metric_handler(Json(payload): Json<TimeMetricDto>) -> Json<TimeMetricResponse> {
-    let workspace_id =
-        std::env::var("XAVIER_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
+pub async fn time_metric_handler(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    Json(payload): Json<TimeMetricDto>,
+) -> Json<TimeMetricResponse> {
+    let workspace_id = &state.workspace_id;
 
-    // Try to save via TimeMetricsStore if available
-    if let Some(time_store) = TIME_STORE.get() {
-        let domain_metric: crate::domain::memory::TimeMetric = payload.clone().into();
-        let result = time_store
-            .save_time_metric(&domain_metric, &workspace_id)
-            .await;
-        match result {
-            Ok(()) => {
-                return Json(TimeMetricResponse {
-                    status: "saved".to_string(),
-                    metric_type: payload.metric_type,
-                    agent_id: payload.agent_id,
-                });
-            }
-            Err(e) => {
-                tracing::warn!("TimeMetricsStore save error: {}", e);
-            }
+    let domain_metric: crate::domain::memory::TimeMetric = payload.clone().into();
+    let result = state
+        .time_metrics
+        .save_time_metric(&domain_metric, workspace_id)
+        .await;
+    match result {
+        Ok(()) => {
+            return Json(TimeMetricResponse {
+                status: "saved".to_string(),
+                metric_type: payload.metric_type,
+                agent_id: payload.agent_id,
+            });
+        }
+        Err(e) => {
+            tracing::warn!("TimeMetricsStore save error: {}", e);
         }
     }
 

@@ -164,6 +164,27 @@ pub(crate) struct DurableStoreFile {
 // ---------------------------------------------------------------------------
 
 impl MemoryRecord {
+    pub fn new_fact(path: String, content: String) -> Self {
+        let now = Utc::now();
+        Self {
+            id: String::new(),
+            workspace_id: String::new(),
+            path,
+            content,
+            metadata: serde_json::json!({}),
+            embedding: Vec::new(),
+            created_at: now,
+            updated_at: now,
+            revision: 1,
+            primary: true,
+            parent_id: None,
+            cluster_id: None,
+            level: MemoryLevel::Raw,
+            relation: None,
+            revisions: Vec::new(),
+        }
+    }
+
     pub fn from_document(
         workspace_id: &str,
         document: &MemoryDocument,

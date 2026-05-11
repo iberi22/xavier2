@@ -32,6 +32,8 @@ use crate::{
             SessionTokenRecord,
         },
     },
+    ports::inbound::MemoryQueryPort,
+    app::qmd_memory_adapter::QmdMemoryAdapter,
     settings::XavierSettings,
 };
 use chrono::{DateTime, Duration, Utc};
@@ -543,6 +545,7 @@ impl UsageMetrics {
 pub struct WorkspaceState {
     config: WorkspaceConfig,
     pub memory: Arc<QmdMemory>,
+    pub memory_port: Arc<dyn MemoryQueryPort>,
     pub runtime: Arc<AgentRuntime>,
     pub belief_graph: SharedBeliefGraph,
     pub entity_graph: SharedEntityGraph,
@@ -660,6 +663,8 @@ impl WorkspaceState {
             Arc::clone(&store),
         ));
 
+        let memory_port = Arc::new(QmdMemoryAdapter::new(Arc::clone(&memory)));
+
         let state = Self {
             runtime: Arc::new(
                 AgentRuntime::new(
@@ -669,6 +674,7 @@ impl WorkspaceState {
                 )?
                 .with_checkpoint_manager(Arc::clone(&checkpoint_manager)),
             ),
+            memory_port,
             belief_graph,
             entity_graph,
             semantic_memory,
