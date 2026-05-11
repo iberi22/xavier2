@@ -42,12 +42,34 @@ use xavier::security::{ProcessResult, SecurityService};
 use xavier::server::panel::{
     panel_asset, panel_index, CreateThreadRequest, PanelChatRequest, PanelChatResponse,
 };
+use xavier::server::v1_api::{
+    v1_memories_add, v1_memories_context, v1_memories_delete, v1_memories_get, v1_memories_list,
+    v1_memories_recent, v1_memories_search, v1_memories_update, v1_timeline_events,
+};
+use xavier::workspace::WorkspaceContext;
 use xavier::session::event_mapper::PanelThreadEntry;
 use xavier::session::types::SessionEvent;
 use xavier::tasks::session_sync_task::SessionSyncTask;
 use xavier::time::TimeMetricsStore;
 
 use crate::settings::XavierSettings;
+
+impl From<CliState> for xavier::AppState {
+    fn from(cli: CliState) -> Self {
+        Self {
+            workspace_registry: Arc::new(xavier::workspace::WorkspaceRegistry::new()), // Simplified
+            indexer: xavier::memory::file_indexer::FileIndexer::new(
+                xavier::memory::file_indexer::FileIndexerConfig::default(),
+                Some(cli.code_indexer.clone()),
+            ),
+            code_indexer: cli.code_indexer,
+            code_query: cli.code_query,
+            code_db: cli.code_db,
+            pattern_adapter: Arc::new(xavier::adapters::outbound::vec::pattern_adapter::PatternAdapter::new()),
+            security_service: Arc::new(xavier::app::security_service::SecurityService::new()),
+        }
+    }
+}
 
 /// CLI-specific application state with direct memory store access
 #[derive(Clone)]
@@ -257,6 +279,7 @@ impl Cli {
 }
 
 async fn start_http_server(port: u16) -> Result<()> {
+    use xavier::agents::RuntimeConfig;
     std::env::set_var("XAVIER_PORT", port.to_string());
 
     // Set default router model assignments (user can override via env)
@@ -404,6 +427,17 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/xavier/sync/check", post(sync_check_handler))
         .route("/xavier/sync/check", get(sync_check_handler))
         .route("/xavier/verify/save", post(verify_save_handler))
+        .route("/v1/memories", post(v1_memories_add).get(v1_memories_list))
+        .route(
+            "/v1/memories/{id}",
+            get(v1_memories_get)
+                .put(v1_memories_update)
+                .delete(v1_memories_delete),
+        )
+        .route("/v1/memories/search", post(v1_memories_search))
+        .route("/v1/memories/recent", get(v1_memories_recent))
+        .route("/v1/memories/context", post(v1_memories_context))
+        .route("/v1/timeline/events", get(v1_timeline_events))
         .route(
             "/panel/api/threads",
             get(panel_list_threads).post(panel_create_thread),
@@ -445,8 +479,28 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/readiness", get(readiness_handler))
         .route("/panel", get(panel_index))
         .route("/panel/assets/{*path}", get(panel_asset))
+        .route("/v1/events", get(move |s, w| xavier::server::http::ws_events_handler(w, s)).with_state(xavier::AppState::from(state.clone())))
         .merge(change_control_routes)
         .merge(protected_routes)
+        .layer(axum::Extension(WorkspaceContext {
+            workspace_id: state.workspace_id.clone(),
+            workspace: Arc::new(xavier::workspace::WorkspaceState::new(
+                xavier::workspace::WorkspaceConfig {
+                    id: state.workspace_id.clone(),
+                    token: token.clone(),
+                    plan: xavier::workspace::PlanTier::Pro,
+                    memory_backend: xavier::memory::store::MemoryBackend::Vec,
+                    storage_limit_bytes: None,
+                    request_limit: None,
+                    request_unit_limit: None,
+                    embedding_provider_mode: xavier::workspace::EmbeddingProviderMode::BringYourOwn,
+                    managed_google_embeddings: false,
+                    sync_policy: xavier::workspace::SyncPolicy::LocalOnly,
+                },
+                RuntimeConfig::default(),
+                state.workspace_dir.clone(),
+            ).await?),
+        }))
         .with_state(state.clone());
 
     let listener = TcpListener::bind(&bind_addr).await?;

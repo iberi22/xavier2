@@ -226,6 +226,7 @@ pub struct MemoryProvenance {
     pub recorded_at: Option<String>,
     pub topic_key: Option<String>,
     pub tool_name: Option<String>,
+    pub chunk_id: Option<String>,
     // Hierarchy fields
     pub level: Option<MemoryLevel>,
     pub parent_id: Option<String>,
@@ -260,6 +261,7 @@ pub struct MemoryQueryFilters {
     pub url: Option<String>,
     pub message_id: Option<String>,
     pub topic_key: Option<String>,
+    pub chunk_id: Option<String>,
     pub observed_after: Option<String>,
     pub observed_before: Option<String>,
     pub recorded_after: Option<String>,
@@ -474,6 +476,12 @@ pub fn matches_filters(
     ) {
         return false;
     }
+    if !matches_string_filter(
+        filters.chunk_id.as_deref(),
+        resolved.provenance.chunk_id.as_deref(),
+    ) {
+        return false;
+    }
 
     if !matches_time_window(
         resolved.provenance.observed_at.as_deref(),
@@ -636,6 +644,10 @@ fn overlay_provenance(provenance: &mut MemoryProvenance, metadata: &Value, path:
         .tool_name
         .take()
         .or_else(|| string_value(metadata, "tool_name"));
+    provenance.chunk_id = provenance
+        .chunk_id
+        .take()
+        .or_else(|| string_value(metadata, "chunk_id"));
 
     // Hierarchy overlays
     provenance.level = provenance

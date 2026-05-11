@@ -5,6 +5,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -35,6 +36,7 @@ pub struct V1AddMemoryRequest {
     pub evidence_kind: Option<EvidenceKind>,
     pub namespace: Option<MemoryNamespace>,
     pub provenance: Option<MemoryProvenance>,
+    pub importance: Option<f32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -107,6 +109,19 @@ pub async fn v1_memories_add(
         .clone()
         .unwrap_or_else(|| "default".to_string());
     let mut meta = payload.metadata.unwrap_or(serde_json::json!({}));
+
+    if let Some(importance) = payload.importance {
+        let priority = match importance {
+            i if i >= 0.9 => "critical",
+            i if i >= 0.7 => "high",
+            i if i >= 0.4 => "medium",
+            i if i >= 0.1 => "low",
+            _ => "ephemeral",
+        };
+        meta["memory_priority"] = serde_json::json!(priority);
+        meta["importance"] = serde_json::json!(importance);
+    }
+
     let mut namespace = payload.namespace;
     if let Some(uid) = payload.user_id {
         meta["user_id"] = serde_json::json!(uid);
@@ -346,6 +361,127 @@ pub async fn v1_memories_update(
         Err(error) => Json(serde_json::json!({
             "status": "error",
             "message": error.to_string()
+        })),
+    }
+}
+
+pub async fn v1_memories_recent(
+    Extension(workspace): Extension<WorkspaceContext>,
+    Query(params): Query<V1PaginationParams>,
+) -> impl IntoResponse {
+    let limit = params.limit.unwrap_or(10);
+
+    let mut all_docs = workspace.workspace.memory.all_documents().await;
+    all_docs.sort_by(|a, b| {
+        let get_ts = |doc: &crate::memory::qmd_memory::MemoryDocument| {
+            doc.metadata
+                .get("updated_at")
+                .and_then(|v| v.as_str())
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                .map(|dt| dt.with_timezone(&Utc))
+                .unwrap_or_else(Utc::now)
+        };
+        get_ts(b).cmp(&get_ts(a))
+    });
+
+    let memories: Vec<_> = all_docs
+        .into_iter()
+        .filter(|doc| is_primary_memory(&doc.metadata))
+        .take(limit)
+        .map(|doc| V1MemoryResponse {
+            id: doc.id.unwrap_or_default(),
+            memory: doc.content,
+            user_id: Some(doc.path),
+            metadata: doc.metadata,
+        })
+        .collect();
+
+    Json(serde_json::json!({
+        "status": "ok",
+        "memories": memories,
+    }))
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct V1ContextRequest {
+    pub query: String,
+    pub limit: Option<usize>,
+    pub max_chars: Option<usize>,
+    pub filters: Option<MemoryQueryFilters>,
+}
+
+pub async fn v1_memories_context(
+    Extension(workspace): Extension<WorkspaceContext>,
+    Json(payload): Json<V1ContextRequest>,
+) -> impl IntoResponse {
+    let limit = payload.limit.unwrap_or(10);
+    let max_chars = payload.max_chars.unwrap_or(4000);
+
+    let results = query_with_embedding_filtered(
+        &workspace.workspace.memory,
+        &payload.query,
+        limit,
+        payload.filters.as_ref(),
+    )
+    .await
+    .unwrap_or_default();
+
+    let mut context_parts = Vec::new();
+    let mut current_chars = 0;
+
+    for doc in results {
+        if !is_primary_memory(&doc.metadata) {
+            continue;
+        }
+
+        let part = format!("[{}] {}\n", doc.path, doc.content);
+        if current_chars + part.len() > max_chars && !context_parts.is_empty() {
+            break;
+        }
+        current_chars += part.len();
+        context_parts.push(part);
+    }
+
+    let context_string = context_parts.join("\n---\n");
+
+    Json(serde_json::json!({
+        "status": "ok",
+        "context": context_string,
+        "tokens_estimate": current_chars / 4,
+    }))
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct V1TimelineEventsParams {
+    pub since: Option<String>,
+    pub limit: Option<usize>,
+}
+
+pub async fn v1_timeline_events(
+    Extension(workspace): Extension<WorkspaceContext>,
+    Query(params): Query<V1TimelineEventsParams>,
+) -> impl IntoResponse {
+    let since = params.since.clone().unwrap_or_else(|| {
+        (Utc::now() - chrono::Duration::hours(24)).to_rfc3339()
+    });
+
+    match workspace
+        .workspace
+        .durable_store()
+        .list_timeline_events(&workspace.workspace_id, &since)
+        .await
+    {
+        Ok(events) => {
+            let limit = params.limit.unwrap_or(100);
+            let results: Vec<_> = events.into_iter().take(limit).collect();
+            Json(serde_json::json!({
+                "status": "ok",
+                "events": results,
+            }))
+        }
+        Err(e) => Json(serde_json::json!({
+            "status": "error",
+            "message": e.to_string(),
         })),
     }
 }
