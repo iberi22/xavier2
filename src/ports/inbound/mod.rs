@@ -8,6 +8,7 @@ pub mod session_port;
 pub mod session_sync_port;
 pub mod time_metrics_port;
 pub mod verification_port;
+mod change_control_port;
 
 pub use agent_lifecycle_port::AgentLifecyclePort;
 pub use health_port::{HealthPort, HealthStatus as InboundHealthStatus};
@@ -19,3 +20,4 @@ pub use session_port::SessionPort;
 pub use session_sync_port::SessionSyncPort;
 pub use time_metrics_port::TimeMetricsPort;
 pub use verification_port::VerificationPort;
+pub use change_control_port::ChangeControlPort;

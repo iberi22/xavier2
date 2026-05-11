@@ -54,3 +54,22 @@ pub enum Severity {
     Medium,
     Low,
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[serde(rename_all = "lowercase")]
+pub enum RiskLevel {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImpactReport {
+    pub score: f32, // 0.0 (safe) to 1.0 (critical)
+    pub symbols_affected: usize,
+    pub dependent_files: Vec<String>,
+    pub contracts_affected: Vec<String>,
+    pub risk_level: RiskLevel,
+    pub recommendation: String,
+}

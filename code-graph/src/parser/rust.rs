@@ -96,6 +96,24 @@ impl RustParser {
                     );
                 }
             }
+            "use_declaration" => {
+                // Simplified import extraction
+                let start = node.start_position();
+                let end = node.end_position();
+                symbols.push(Symbol {
+                    id: None,
+                    name: node.utf8_text(source.as_bytes()).unwrap_or("?").to_string(),
+                    kind: SymbolKind::Import,
+                    lang: Language::Rust,
+                    file_path: file_path.to_string(),
+                    start_line: (start.row + 1) as u32,
+                    end_line: (end.row + 1) as u32,
+                    start_col: start.column as u32,
+                    end_col: end.column as u32,
+                    signature: Some(node.utf8_text(source.as_bytes()).unwrap_or("").to_string()),
+                    parent: None,
+                });
+            }
             _ => {}
         }
 

@@ -108,3 +108,62 @@ mod distributed_lock_tests {
         todo!("Test with actual timeout");
     }
 }
+
+#[cfg(test)]
+mod coordination_service_impact_tests {
+    use std::sync::Arc;
+    use xavier::coordination::{CoordinationService, MessageBus};
+    use xavier::security::ChangeControlService;
+    use code_graph::db::CodeGraphDB;
+    use code_graph::query::QueryEngine;
+    use code_graph::types::{Symbol, SymbolKind, Language};
+
+    #[tokio::test]
+    async fn test_claim_lease_with_low_impact() {
+        let bus = MessageBus::new();
+        let db = CodeGraphDB::in_memory().unwrap();
+        let engine = Arc::new(QueryEngine::new(Arc::new(db)));
+        let change_control = Arc::new(ChangeControlService::new(engine));
+        let service = CoordinationService::with_change_control(bus, change_control);
+
+        let result = service.claim_lease("resource1", "agent1", &["src/utils.rs".to_string()]).await;
+
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_claim_lease_blocks_critical_impact() {
+        let bus = MessageBus::new();
+        let db = Arc::new(CodeGraphDB::in_memory().unwrap());
+
+        // Mock a critical scenario: many symbols affected in a critical file
+        for i in 0..20 {
+            db.insert_symbol(&Symbol {
+                id: None,
+                name: format!("func_{}", i),
+                kind: SymbolKind::Function,
+                lang: Language::Rust,
+                file_path: "src/lib.rs".to_string(),
+                start_line: i * 10,
+                end_line: i * 10 + 5,
+                start_col: 0,
+                end_col: 10,
+                signature: None,
+                parent: None,
+            }).unwrap();
+        }
+
+        let engine = Arc::new(QueryEngine::new(db));
+        let change_control = Arc::new(ChangeControlService::new(engine));
+        let service = CoordinationService::with_change_control(bus, change_control);
+
+        let result = service.claim_lease("resource1", "agent1", &["src/lib.rs".to_string()]).await;
+
+        assert!(result.is_ok());
+        // Should be blocked because score will be > 0.8
+        // 20 symbols * 0.05 = 1.0
+        // + 0.2 for critical file = 1.2 -> 1.0
+        assert!(!result.unwrap());
+    }
+}

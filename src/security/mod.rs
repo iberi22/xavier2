@@ -5,6 +5,7 @@
 
 pub mod anticipator;
 pub mod auth;
+pub mod change_control;
 pub mod detections;
 pub mod layers;
 pub mod prompt_guard;
@@ -12,6 +13,7 @@ pub mod scanner;
 pub mod url_validator;
 
 pub use anticipator::{Anticipator, AnticipatorConfig};
+pub use change_control::ChangeControlService;
 pub use detections::{ScanResult as AnticipatorScanResult, Severity, Threat, ThreatCategory};
 pub use prompt_guard::{AttackType, DetectionResult, PromptInjectionDetector};
 pub use scanner::entropy::{

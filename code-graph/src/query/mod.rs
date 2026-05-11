@@ -4,7 +4,7 @@ pub mod tests;
 
 use crate::db::CodeGraphDB;
 use crate::error::Result;
-use crate::types::{QueryResult, Symbol, SymbolKind};
+use crate::types::{Import, QueryResult, Symbol, SymbolKind};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -152,11 +152,24 @@ impl QueryEngine {
         self.db.find_by_kind(SymbolKind::Enum, limit)
     }
 
-    /// Find by file
+    /// Find symbols in a specific file
+    pub fn find_symbols_in_file(&self, file_path: &str) -> Result<Vec<Symbol>> {
+        self.db.find_by_file(file_path)
+    }
+
+    /// Find files that import symbols from this file
+    pub fn find_reverse_dependencies(&self, file_path: &str) -> Result<Vec<String>> {
+        self.db.find_reverse_dependencies(file_path)
+    }
+
+    /// Find what this file imports
+    pub fn find_imports_from(&self, file_path: &str) -> Result<Vec<Import>> {
+        self.db.find_imports_from(file_path)
+    }
+
+    /// Find by file (legacy)
     pub fn in_file(&self, file_path: &str) -> Result<Vec<Symbol>> {
-        // This would need a new db method
-        // For now, use search with file path
-        self.db.find_symbols(file_path, 1000).map(|r| r.symbols)
+        self.find_symbols_in_file(file_path)
     }
 
     /// Get all symbols of a specific language

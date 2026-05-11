@@ -12,6 +12,7 @@ pub mod message_bus;
 
 pub use agent_registry::SimpleAgentRegistry;
 pub use message_bus::*;
+use crate::ports::inbound::ChangeControlPort;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -378,11 +379,17 @@ pub struct CoordinationService {
     /// Message bus
     bus: Arc<MessageBus>,
 
+    /// Change control service
+    change_control: Option<Arc<dyn ChangeControlPort>>,
+
     /// Active tasks
     tasks: RwLock<HashMap<String, CoordinationTask>>,
 
     /// Task queue
     task_queue: RwLock<Vec<String>>,
+
+    /// Distributed locks (leases)
+    locks: RwLock<HashMap<String, Arc<DistributedLock>>>,
 }
 
 /// Coordination task
@@ -419,8 +426,27 @@ impl CoordinationService {
         Arc::new(Self {
             registry,
             bus,
+            change_control: None,
             tasks: RwLock::new(HashMap::new()),
             task_queue: RwLock::new(Vec::new()),
+            locks: RwLock::new(HashMap::new()),
+        })
+    }
+
+    /// Create with change control
+    pub fn with_change_control(
+        bus: Arc<MessageBus>,
+        change_control: Arc<dyn ChangeControlPort>,
+    ) -> Arc<Self> {
+        let registry = AgentRegistry::new(bus.clone());
+
+        Arc::new(Self {
+            registry,
+            bus,
+            change_control: Some(change_control),
+            tasks: RwLock::new(HashMap::new()),
+            task_queue: RwLock::new(Vec::new()),
+            locks: RwLock::new(HashMap::new()),
         })
     }
 
@@ -662,6 +688,52 @@ impl CoordinationService {
         }
 
         status
+    }
+
+    /// Claim a lease (distributed lock) with impact analysis
+    pub async fn claim_lease(
+        &self,
+        resource_id: &str,
+        owner: &str,
+        affected_files: &[String],
+    ) -> Result<bool, MessageBusError> {
+        // 1. Calculate impact if service is available
+        if let Some(ref change_control) = self.change_control {
+            let report = change_control
+                .calculate_impact(affected_files)
+                .await
+                .map_err(|e| MessageBusError::SendFailed(e.to_string()))?;
+
+            tracing::info!(
+                resource = resource_id,
+                owner = owner,
+                risk = ?report.risk_level,
+                score = report.score,
+                "Impact analysis for lease claim"
+            );
+
+            // Block if risk is critical
+            if report.risk_level == crate::domain::security::RiskLevel::Critical {
+                tracing::warn!("Lease claim blocked due to critical risk level");
+                return Ok(false);
+            }
+        }
+
+        // 2. Try to acquire lock
+        let mut locks = self.locks.write().await;
+        let lock = locks
+            .entry(resource_id.to_string())
+            .or_insert_with(|| Arc::new(DistributedLock::new(resource_id.to_string())));
+
+        Ok(lock.try_acquire(owner).await)
+    }
+
+    /// Release a lease
+    pub async fn release_lease(&self, resource_id: &str, owner: &str) {
+        let locks = self.locks.read().await;
+        if let Some(lock) = locks.get(resource_id) {
+            lock.release(owner).await;
+        }
     }
 
     /// Get service metrics

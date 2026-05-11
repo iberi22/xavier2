@@ -3,7 +3,7 @@
 pub mod benchmarks;
 
 use crate::error::{GraphError, Result};
-use crate::types::{IndexStats, Language, LanguageCount, QueryResult, Symbol, SymbolKind};
+use crate::types::{Import, IndexStats, Language, LanguageCount, QueryResult, Symbol, SymbolKind};
 use rusqlite::{params, Connection};
 use std::path::Path;
 use std::sync::Mutex;
@@ -150,6 +150,34 @@ impl CodeGraphDB {
 
         info!("Database schema initialized");
         Ok(())
+    }
+
+    /// Insert an import
+    pub fn insert_import(&self, import: &Import) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+
+        conn.execute(
+            r#"INSERT INTO imports (from_path, to_path, file_path, line)
+               VALUES (?1, ?2, ?3, ?4)"#,
+            params![import.from, import.to, import.file_path, import.line,],
+        )
+        .map_err(|e| GraphError::Database(e.to_string()))?;
+
+        Ok(conn.last_insert_rowid())
+    }
+
+    /// Insert a reference
+    pub fn insert_ref(&self, symbol_id: i64, file_path: &str, line: u32, col: u32, context: &str) -> Result<i64> {
+        let conn = self.conn.lock().unwrap();
+
+        conn.execute(
+            r#"INSERT INTO refs (symbol_id, file_path, line, col, context)
+               VALUES (?1, ?2, ?3, ?4, ?5)"#,
+            params![symbol_id, file_path, line, col, context,],
+        )
+        .map_err(|e| GraphError::Database(e.to_string()))?;
+
+        Ok(conn.last_insert_rowid())
     }
 
     /// Insert a symbol
@@ -386,6 +414,89 @@ impl CodeGraphDB {
         Ok(symbols)
     }
 
+    /// Find reverse dependencies (which files import symbols from this file)
+    pub fn find_reverse_dependencies(&self, file_path: &str) -> Result<Vec<String>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn
+            .prepare("SELECT DISTINCT file_path FROM imports WHERE to_path = ?1")
+            .map_err(|e| GraphError::Database(e.to_string()))?;
+
+        let files = stmt
+            .query_map(params![file_path], |row| row.get(0))
+            .map_err(|e| GraphError::Database(e.to_string()))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(files)
+    }
+
+    /// Find what this file imports
+    pub fn find_imports_from(&self, file_path: &str) -> Result<Vec<Import>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn
+            .prepare("SELECT from_path, to_path, file_path, line FROM imports WHERE file_path = ?1")
+            .map_err(|e| GraphError::Database(e.to_string()))?;
+
+        let imports = stmt
+            .query_map(params![file_path], |row| {
+                Ok(Import {
+                    from: row.get(0)?,
+                    to: row.get(1)?,
+                    file_path: row.get(2)?,
+                    line: row.get(3)?,
+                })
+            })
+            .map_err(|e| GraphError::Database(e.to_string()))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(imports)
+    }
+
+    /// Find callers (symbols that reference this file's symbols)
+    pub fn find_callers(&self, file_path: &str) -> Result<Vec<Symbol>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn
+            .prepare(
+                r#"SELECT DISTINCT s_caller.id, s_caller.name, s_caller.kind, s_caller.lang, s_caller.file_path,
+                          s_caller.start_line, s_caller.end_line, s_caller.start_col, s_caller.end_col,
+                          s_caller.signature, s_caller.parent
+                   FROM symbols s_target
+                   JOIN refs r ON s_target.id = r.symbol_id
+                   JOIN symbols s_caller ON r.file_path = s_caller.file_path
+                     AND r.line >= s_caller.start_line
+                     AND r.line <= s_caller.end_line
+                   WHERE s_target.file_path = ?1
+                     AND s_caller.kind NOT IN ('File', 'Module')"#,
+            )
+            .map_err(|e| GraphError::Database(e.to_string()))?;
+
+        let symbols = stmt
+            .query_map(params![file_path], |row| {
+                Ok(Symbol {
+                    id: Some(row.get(0)?),
+                    name: row.get(1)?,
+                    kind: parse_symbol_kind(&row.get::<_, String>(2)?),
+                    lang: parse_language(&row.get::<_, String>(3)?),
+                    file_path: row.get(4)?,
+                    start_line: row.get(5)?,
+                    end_line: row.get(6)?,
+                    start_col: row.get(7)?,
+                    end_col: row.get(8)?,
+                    signature: row.get(9)?,
+                    parent: row.get(10)?,
+                })
+            })
+            .map_err(|e| GraphError::Database(e.to_string()))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(symbols)
+    }
+
     /// Get statistics
     pub fn stats(&self) -> Result<IndexStats> {
         let conn = self.conn.lock().unwrap();
@@ -464,5 +575,37 @@ mod tests {
         assert_eq!(parse_symbol_kind("Struct"), SymbolKind::Struct);
         assert_eq!(parse_symbol_kind("Function"), SymbolKind::Function);
         assert_eq!(parse_symbol_kind("unknown-value"), SymbolKind::Symbol);
+    }
+
+    #[test]
+    fn test_reverse_dependencies() {
+        let db = CodeGraphDB::in_memory().unwrap();
+        db.insert_import(&Import {
+            from: "mod_a".to_string(),
+            to: "file_b.rs".to_string(),
+            file_path: "file_a.rs".to_string(),
+            line: 1,
+        })
+        .unwrap();
+
+        let deps = db.find_reverse_dependencies("file_b.rs").unwrap();
+        assert_eq!(deps.len(), 1);
+        assert_eq!(deps[0], "file_a.rs");
+    }
+
+    #[test]
+    fn test_imports_from() {
+        let db = CodeGraphDB::in_memory().unwrap();
+        db.insert_import(&Import {
+            from: "mod_a".to_string(),
+            to: "file_b.rs".to_string(),
+            file_path: "file_a.rs".to_string(),
+            line: 1,
+        })
+        .unwrap();
+
+        let imports = db.find_imports_from("file_a.rs").unwrap();
+        assert_eq!(imports.len(), 1);
+        assert_eq!(imports[0].to, "file_b.rs");
     }
 }

@@ -78,6 +78,21 @@ impl Indexer {
                             if let Err(e) = db.insert_symbols(&symbols) {
                                 error!("Failed to insert symbols: {}", e);
                             }
+
+                            // Track imports
+                            for symbol in &symbols {
+                                if symbol.kind == crate::types::SymbolKind::Import {
+                                    let import = crate::types::Import {
+                                        from: symbol.name.clone(),
+                                        to: "".to_string(), // TODO: Resolve target file
+                                        file_path: relative_path.clone(),
+                                        line: symbol.start_line,
+                                    };
+                                    if let Err(e) = db.insert_import(&import) {
+                                        error!("Failed to insert import: {}", e);
+                                    }
+                                }
+                            }
                         }
                     }
                     Err(e) => {
