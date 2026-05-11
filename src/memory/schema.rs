@@ -29,6 +29,7 @@ pub enum MemoryKind {
     ContentProject,
     VideoAsset,
     Document,
+    AgentChangeSummary,
 }
 
 impl MemoryKind {
@@ -57,6 +58,7 @@ impl MemoryKind {
             "content_project" | "content-project" | "content project" => Some(Self::ContentProject),
             "video_asset" | "video-asset" | "video asset" => Some(Self::VideoAsset),
             "document" | "memory" | "note" => Some(Self::Document),
+            "agent_change_summary" | "agent-change-summary" => Some(Self::AgentChangeSummary),
             _ => None,
         }
     }
@@ -86,6 +88,7 @@ impl MemoryKind {
             Self::ContentProject => "content_project",
             Self::VideoAsset => "video_asset",
             Self::Document => "document",
+            Self::AgentChangeSummary => "agent_change_summary",
         }
     }
 }
