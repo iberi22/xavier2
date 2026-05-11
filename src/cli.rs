@@ -63,7 +63,7 @@ pub struct CliState {
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
-    pub change_control: Arc<ChangeControlService>,
+    pub change_control: Arc<dyn ChangeControlPort>,
 }
 
 #[derive(Subcommand)]
@@ -436,7 +436,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/change/validate", post(change_control::validate_handler))
         .route("/change/complete", post(change_control::complete_task_handler))
         .route("/change/merge-plan", get(change_control::merge_plan_handler))
-        .with_state(change_control_port);
+        .layer(middleware::from_fn(auth_middleware)).layer(middleware::from_fn(auth_middleware)).with_state(change_control_port);
 
     let app = Router::new()
         .route("/health", get(health_handler))

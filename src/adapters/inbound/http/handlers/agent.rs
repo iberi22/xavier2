@@ -1,7 +1,7 @@
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use crate::adapters::inbound::http::AppState;
-use xavier::coordination::agent_registry::AgentMetadata;
+use crate::coordination::agent_registry::AgentMetadata;
 
 #[derive(Debug, Deserialize)]
 pub struct AgentRegisterPayload {
@@ -10,6 +10,7 @@ pub struct AgentRegisterPayload {
     pub name: Option<String>,
     pub capabilities: Option<Vec<String>>,
     pub role: Option<String>,
+    pub endpoint: Option<String>,
 }
 
 pub async fn agent_register_handler(
@@ -20,6 +21,7 @@ pub async fn agent_register_handler(
         name: payload.name,
         capabilities: payload.capabilities.unwrap_or_default(),
         role: payload.role,
+        endpoint: payload.endpoint,
     };
 
     let success = state
