@@ -430,52 +430,6 @@ impl CodeGraphDB {
         })
     }
 
-    /// Find files that depend on symbols from the given file path
-    pub fn find_reverse_dependencies(&self, file_path: &str) -> Result<Vec<String>> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn
-            .prepare(
-                "SELECT DISTINCT file_path FROM symbols WHERE name IN (SELECT name FROM symbols WHERE file_path = ?1) AND file_path != ?1"
-            )
-            .map_err(|e| GraphError::Database(e.to_string()))?;
-        let files = stmt
-            .query_map(params![file_path], |row| row.get::<_, String>(0))
-            .map_err(|e| GraphError::Database(e.to_string()))?
-            .filter_map(|r| r.ok())
-            .collect();
-        Ok(files)
-    }
-
-    /// Find all symbols in a file
-    pub fn find_symbols_in_file(&self, file_path: &str) -> Result<Vec<Symbol>> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn
-            .prepare(
-                "SELECT name, kind, lang, file_path, start_line, end_line, start_col, end_col, signature, parent FROM symbols WHERE file_path = ?1"
-            )
-            .map_err(|e| GraphError::Database(e.to_string()))?;
-        let symbols = stmt
-            .query_map(params![file_path], |row| {
-                Ok(Symbol {
-                    id: None,
-                    name: row.get(0)?,
-                    kind: parse_symbol_kind(&row.get::<_, String>(1)?),
-                    lang: parse_language(&row.get::<_, String>(2)?),
-                    file_path: row.get(3)?,
-                    start_line: row.get(4)?,
-                    end_line: row.get(5)?,
-                    start_col: row.get(6)?,
-                    end_col: row.get(7)?,
-                    signature: row.get(8)?,
-                    parent: row.get(9)?,
-                })
-            })
-            .map_err(|e| GraphError::Database(e.to_string()))?
-            .filter_map(|r| r.ok())
-            .collect();
-        Ok(symbols)
-    }
-
     /// Clear all data
     pub fn clear(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();

@@ -11,7 +11,6 @@ This matrix is the operational truth for the repository as of the latest Xavier 
 | HTTP health/readiness | Beta | `/health` works. `/readiness` responds, but current output still exposes backend noise that should be cleaned before 1.0. |
 | HTTP memory add/search/stats | Beta usable | Authenticated memory write and search work in the current server. |
 | Canonical runtime config | In progress | `config/xavier.config.json` is now the intended source of non-secret runtime configuration, with `.env` reserved for credentials and secrets. |
-| TUI Installer | Beta | Interactive wizard (6 steps) generates `config/xavier2.config.json`. Screenshots at `docs/screenshots/`. |
 | CLI add/search/stats | Beta usable | These commands currently act as HTTP clients. They require a running server and use `XAVIER_URL` as the canonical client endpoint, falling back to the JSON config server address. |
 | Public Dataset Export | Planned | `xavier export --public` is now a core planned feature. It should generate `xavier-dataset/` with manifest, memory, graph, timeline, git, code symbol, code relation, and CK metrics NDJSON files for public agent context. |
 | MCP stdio | Beta usable | `initialize`, `tools/list`, `tools/call create_memory`, `tools/call search_memory`, and legacy aliases `add`/`search` work. |

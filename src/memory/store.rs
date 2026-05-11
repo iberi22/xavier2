@@ -16,7 +16,7 @@ use tokio::{fs, sync::RwLock};
 use crate::checkpoint::Checkpoint;
 use crate::memory::belief_graph::BeliefRelation;
 use crate::memory::qmd_memory::MemoryDocument;
-use crate::memory::schema::{resolve_metadata, MemoryLevel, MemoryQueryFilters, RelationKind};
+use crate::memory::schema::{resolve_metadata, MemoryQueryFilters};
 use crate::utils::crypto::hex_encode;
 
 // ---------------------------------------------------------------------------
@@ -79,17 +79,8 @@ pub struct MemoryRecord {
     pub revision: u64,
     pub primary: bool,
     pub parent_id: Option<String>,
-    pub cluster_id: Option<String>,
-    pub level: MemoryLevel,
-    pub relation: Option<RelationKind>,
     #[serde(default)]
     pub revisions: Vec<MemoryRevision>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContextNode {
-    pub record: MemoryRecord,
-    pub children: Vec<ContextNode>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -196,12 +187,6 @@ impl MemoryRecord {
             .clone()
             .unwrap_or_else(|| stable_key("memory", &[workspace_id, &document.path]));
 
-        let resolved = resolve_metadata(&document.path, &document.metadata, workspace_id, None).ok();
-        let level = resolved.as_ref().map(|r| r.level).unwrap_or(MemoryLevel::Raw);
-        let cluster_id = resolved.as_ref().and_then(|r| r.provenance.cluster_id.clone());
-        let relation = resolved.as_ref().and_then(|r| r.provenance.relation);
-        let parent_id = parent_id.or_else(|| resolved.as_ref().and_then(|r| r.provenance.parent_id.clone()));
-
         Self {
             id,
             workspace_id: workspace_id.to_string(),
@@ -217,9 +202,6 @@ impl MemoryRecord {
             revision,
             primary,
             parent_id,
-            cluster_id,
-            level,
-            relation,
             revisions: vec![MemoryRevision {
                 revision,
                 recorded_at: updated_at,
@@ -243,15 +225,8 @@ impl MemoryRecord {
                 serde_json::json!(self.updated_at.to_rfc3339()),
             );
             object.insert("primary".to_string(), serde_json::json!(self.primary));
-            object.insert("level".to_string(), serde_json::json!(self.level.as_str()));
             if let Some(parent_id) = &self.parent_id {
                 object.insert("parent_id".to_string(), serde_json::json!(parent_id));
-            }
-            if let Some(cluster_id) = &self.cluster_id {
-                object.insert("cluster_id".to_string(), serde_json::json!(cluster_id));
-            }
-            if let Some(relation) = self.relation {
-                object.insert("relation".to_string(), serde_json::json!(relation.as_str()));
             }
         }
 
@@ -292,9 +267,6 @@ pub trait MemoryStore: Send + Sync {
     async fn update(&self, record: MemoryRecord) -> Result<()>;
     async fn delete(&self, workspace_id: &str, id_or_path: &str) -> Result<Option<MemoryRecord>>;
     async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>>;
-    async fn export(&self, path: &std::path::Path) -> Result<()>;
-    async fn export_tree(&self, workspace_id: &str, path: &std::path::Path) -> Result<()>;
-    async fn import(&self, path: &std::path::Path) -> Result<()>;
     async fn list_filtered(
         &self,
         workspace_id: &str,
@@ -511,32 +483,6 @@ impl MemoryStore for FileMemoryStore {
             .unwrap_or_default())
     }
 
-    async fn export(&self, path: &std::path::Path) -> Result<()>{
-        let payload = {
-            let state = self.state.read().await;
-            serde_json::to_vec_pretty(&*state)?
-        };
-        tokio::fs::write(path, payload).await?;
-        Ok(())
-    }
-
-    async fn export_tree(&self, workspace_id: &str, path: &std::path::Path) -> Result<()> {
-        let records = self.list(workspace_id).await?;
-        let tree = build_context_tree(records);
-        let json = serde_json::to_string_pretty(&tree)?;
-        tokio::fs::write(path, json).await?;
-        Ok(())
-    }
-
-    async fn import(&self, path: &std::path::Path) -> Result<()> {
-        let payload = tokio::fs::read_to_string(path).await?;
-        let state: DurableStoreFile = serde_json::from_str(&payload)?;
-        let mut current_state = self.state.write().await;
-        *current_state = state;
-        self.persist().await?;
-        Ok(())
-    }
-
     async fn search(
         &self,
         workspace_id: &str,
@@ -740,22 +686,6 @@ impl MemoryStore for InMemoryMemoryStore {
         filter_records(records, workspace_id, query, filters)
     }
 
-    async fn export(&self, _path: &std::path::Path) -> Result<()> {
-        anyhow::bail!("export not supported for in-memory store")
-    }
-
-    async fn export_tree(&self, workspace_id: &str, path: &std::path::Path) -> Result<()> {
-        let records = self.list(workspace_id).await?;
-        let tree = build_context_tree(records);
-        let json = serde_json::to_string_pretty(&tree)?;
-        tokio::fs::write(path, json).await?;
-        Ok(())
-    }
-
-    async fn import(&self, _path: &std::path::Path) -> Result<()> {
-        anyhow::bail!("import not supported for in-memory store")
-    }
-
     async fn load_workspace_state(&self, workspace_id: &str) -> Result<DurableWorkspaceState> {
         let state = self.state.read().await;
         Ok(state
@@ -881,40 +811,6 @@ pub(crate) fn revisioned_record(existing: MemoryRecord, mut next: MemoryRecord) 
         metadata: next.metadata.clone(),
     });
     next
-}
-
-pub fn build_context_tree(records: Vec<MemoryRecord>) -> Vec<ContextNode> {
-    let mut nodes: HashMap<String, ContextNode> = records
-        .into_iter()
-        .map(|r| {
-            (
-                r.id.clone(),
-                ContextNode {
-                    record: r,
-                    children: vec![],
-                },
-            )
-        })
-        .collect();
-
-    let mut child_ids = vec![];
-    for node in nodes.values() {
-        if let Some(parent_id) = &node.record.parent_id {
-            child_ids.push((parent_id.clone(), node.record.id.clone()));
-        }
-    }
-
-    for (parent_id, child_id) in child_ids {
-        if let Some(child_node) = nodes.remove(&child_id) {
-            if let Some(parent_node) = nodes.get_mut(&parent_id) {
-                parent_node.children.push(child_node);
-            } else {
-                nodes.insert(child_id, child_node);
-            }
-        }
-    }
-
-    nodes.into_values().collect()
 }
 
 pub(crate) fn filter_records(

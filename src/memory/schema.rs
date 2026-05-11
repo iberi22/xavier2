@@ -29,7 +29,6 @@ pub enum MemoryKind {
     ContentProject,
     VideoAsset,
     Document,
-    AgentChangeSummary,
 }
 
 impl MemoryKind {
@@ -57,7 +56,6 @@ impl MemoryKind {
             "meeting" => Some(Self::Meeting),
             "content_project" | "content-project" | "content project" => Some(Self::ContentProject),
             "video_asset" | "video-asset" | "video asset" => Some(Self::VideoAsset),
-            "agent_change_summary" | "agent-change-summary" | "change_summary" => Some(Self::AgentChangeSummary),
             "document" | "memory" | "note" => Some(Self::Document),
             _ => None,
         }
@@ -88,7 +86,6 @@ impl MemoryKind {
             Self::ContentProject => "content_project",
             Self::VideoAsset => "video_asset",
             Self::Document => "document",
-            Self::AgentChangeSummary => "agent_change_summary",
         }
     }
 }
@@ -135,72 +132,6 @@ impl EvidenceKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MemoryLevel {
-    Raw,        // Chunks, events, facts
-    Section,    // Summaries of files or topics
-    Global,     // Workspace/Project summaries
-}
-
-impl MemoryLevel {
-    pub fn parse(value: &str) -> Option<Self> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "raw" => Some(Self::Raw),
-            "section" | "topic" | "summary" => Some(Self::Section),
-            "global" | "workspace" | "project" => Some(Self::Global),
-            _ => None,
-        }
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Raw => "raw",
-            Self::Section => "section",
-            Self::Global => "global",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RelationKind {
-    DependsOn,
-    Calls,
-    Implements,
-    PartOf,
-    RefersTo,
-    SynthesizedFrom,
-    Contains,
-}
-
-impl RelationKind {
-    pub fn parse(value: &str) -> Option<Self> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "depends_on" | "dependency" => Some(Self::DependsOn),
-            "calls" | "invokes" => Some(Self::Calls),
-            "implements" => Some(Self::Implements),
-            "part_of" | "belongs_to" => Some(Self::PartOf),
-            "refers_to" | "references" => Some(Self::RefersTo),
-            "synthesized_from" | "summarizes" => Some(Self::SynthesizedFrom),
-            "contains" | "has" => Some(Self::Contains),
-            _ => None,
-        }
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::DependsOn => "depends_on",
-            Self::Calls => "calls",
-            Self::Implements => "implements",
-            Self::PartOf => "part_of",
-            Self::RefersTo => "refers_to",
-            Self::SynthesizedFrom => "synthesized_from",
-            Self::Contains => "contains",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemoryNamespace {
     pub org_id: Option<String>,
@@ -226,11 +157,6 @@ pub struct MemoryProvenance {
     pub recorded_at: Option<String>,
     pub topic_key: Option<String>,
     pub tool_name: Option<String>,
-    // Hierarchy fields
-    pub level: Option<MemoryLevel>,
-    pub parent_id: Option<String>,
-    pub cluster_id: Option<String>,
-    pub relation: Option<RelationKind>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,7 +198,6 @@ pub struct ResolvedMemoryMetadata {
     pub evidence_kind: Option<EvidenceKind>,
     pub namespace: MemoryNamespace,
     pub provenance: MemoryProvenance,
-    pub level: MemoryLevel,
 }
 
 pub fn normalize_metadata(
@@ -336,26 +261,12 @@ pub fn resolve_metadata(
         .or_else(|| infer_kind_from_path(path))
         .unwrap_or(MemoryKind::Document);
 
-    let level = provenance
-        .level
-        .or_else(|| infer_level_from_kind(kind))
-        .unwrap_or(MemoryLevel::Raw);
-
     Ok(ResolvedMemoryMetadata {
         kind,
         evidence_kind,
         namespace,
         provenance,
-        level,
     })
-}
-
-fn infer_level_from_kind(kind: MemoryKind) -> Option<MemoryLevel> {
-    match kind {
-        MemoryKind::Repo | MemoryKind::Workspace | MemoryKind::Org => Some(MemoryLevel::Global),
-        MemoryKind::ContentProject | MemoryKind::Document => Some(MemoryLevel::Section),
-        _ => None,
-    }
 }
 
 pub fn matches_filters(
@@ -636,24 +547,6 @@ fn overlay_provenance(provenance: &mut MemoryProvenance, metadata: &Value, path:
         .tool_name
         .take()
         .or_else(|| string_value(metadata, "tool_name"));
-
-    // Hierarchy overlays
-    provenance.level = provenance
-        .level
-        .take()
-        .or_else(|| string_value(metadata, "level").and_then(|s| MemoryLevel::parse(&s)));
-    provenance.parent_id = provenance
-        .parent_id
-        .take()
-        .or_else(|| string_value(metadata, "parent_id"));
-    provenance.cluster_id = provenance
-        .cluster_id
-        .take()
-        .or_else(|| string_value(metadata, "cluster_id"));
-    provenance.relation = provenance
-        .relation
-        .take()
-        .or_else(|| string_value(metadata, "relation").and_then(|s| RelationKind::parse(&s)));
 }
 
 /// Attempt to parse a timestamp string into a fixed ISO8601 string.
