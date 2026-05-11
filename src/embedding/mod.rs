@@ -303,8 +303,8 @@ fn build_backend(config: EmbedderBackendConfig) -> Result<Arc<dyn Embedder>, Emb
 }
 
 fn gllm_config() -> GllmConfig {
-    let raw_model = std::env::var("XAVIER_GLLM_MODEL")
-        .unwrap_or_else(|_| gllm::DEFAULT_GLLM_MODEL.to_string());
+    let raw_model =
+        std::env::var("XAVIER_GLLM_MODEL").unwrap_or_else(|_| gllm::DEFAULT_GLLM_MODEL.to_string());
     let model = gllm::normalize_model_name(&raw_model);
     let dimension = std::env::var("XAVIER_GLLM_DIMENSION")
         .ok()

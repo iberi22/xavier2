@@ -8,12 +8,12 @@ use std::sync::Arc;
 use tokio::sync::RwLock as AsyncRwLock;
 
 use crate::chronicle::generate::{ChronicleGenerator, ChronicleInput};
-use crate::chronicle::ssg::DevLogSSG;
 use crate::chronicle::harvest::{HarvestOutput, Harvester};
 use crate::chronicle::publish::{
     ChroniclePost, ChroniclePublishHook, FilePublishHook, StdoutPublishHook,
 };
 use crate::chronicle::redact::process_output;
+use crate::chronicle::ssg::DevLogSSG;
 use crate::memory::qmd_memory::QmdMemory;
 use crate::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use crate::memory::store::{MemoryRecord, MemoryStore};
@@ -62,7 +62,9 @@ pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
             let workspace_path = resolve_workspace_path(workspace);
             let since = parse_since_arg(since.as_deref())?;
             let memory = load_memory_from_env().await?;
-            let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&resolve_code_graph_db_path())?);
+            let code_db = Arc::new(code_graph::db::CodeGraphDB::new(
+                &resolve_code_graph_db_path(),
+            )?);
             let harvester = Harvester::new(workspace_path, memory, code_db);
             let output_path = harvester.run(since).await?;
             println!("Chronicle harvest written to {}", output_path.display());
@@ -83,9 +85,9 @@ pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
                 raw_data: redacted,
             };
             let markdown = ChronicleGenerator::new().generate(input).await?;
-            let output_path = output
-                .map(PathBuf::from)
-                .unwrap_or_else(|| chronicle_dir(&workspace_path).join(format!("daily-{}.md", harvest.date)));
+            let output_path = output.map(PathBuf::from).unwrap_or_else(|| {
+                chronicle_dir(&workspace_path).join(format!("daily-{}.md", harvest.date))
+            });
             if let Some(parent) = output_path.parent() {
                 fs::create_dir_all(parent)?;
             }
@@ -98,8 +100,8 @@ pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
             let path = file
                 .map(PathBuf::from)
                 .unwrap_or(resolve_latest_daily_path(&workspace_path)?);
-            let content =
-                fs::read_to_string(&path).with_context(|| format!("failed to read {}", path.display()))?;
+            let content = fs::read_to_string(&path)
+                .with_context(|| format!("failed to read {}", path.display()))?;
             println!("{content}");
         }
         ChronicleCommand::Publish { to } => {
@@ -108,7 +110,8 @@ pub async fn handle_chronicle_command(cmd: ChronicleCommand) -> Result<()> {
             let markdown = fs::read_to_string(&post_path)
                 .with_context(|| format!("failed to read {}", post_path.display()))?;
             let post = ChroniclePost {
-                date: extract_date_from_filename(&post_path).unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string()),
+                date: extract_date_from_filename(&post_path)
+                    .unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string()),
                 title: extract_title(&markdown).unwrap_or_else(|| "Daily Chronicle".to_string()),
                 markdown,
                 metadata: HashMap::new(),
@@ -138,8 +141,9 @@ fn parse_since_arg(value: Option<&str>) -> Result<DateTime<Utc>> {
                 return Ok(date_time.with_timezone(&Utc));
             }
 
-            let date = NaiveDate::parse_from_str(raw, "%Y-%m-%d")
-                .with_context(|| format!("invalid --since value '{raw}', expected YYYY-MM-DD or RFC3339"))?;
+            let date = NaiveDate::parse_from_str(raw, "%Y-%m-%d").with_context(|| {
+                format!("invalid --since value '{raw}', expected YYYY-MM-DD or RFC3339")
+            })?;
             let naive = date
                 .and_hms_opt(0, 0, 0)
                 .ok_or_else(|| anyhow!("failed to build timestamp for '{raw}'"))?;
@@ -151,7 +155,11 @@ fn parse_since_arg(value: Option<&str>) -> Result<DateTime<Utc>> {
 fn resolve_workspace_path(workspace: Option<String>) -> PathBuf {
     workspace
         .map(PathBuf::from)
-        .or_else(|| std::env::var("XAVIER_WORKSPACE_DIR").ok().map(PathBuf::from))
+        .or_else(|| {
+            std::env::var("XAVIER_WORKSPACE_DIR")
+                .ok()
+                .map(PathBuf::from)
+        })
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
 }
 
@@ -196,7 +204,9 @@ fn resolve_harvest_path(workspace_path: &Path, since: Option<&str>) -> Result<Pa
             date_time.format("%Y-%m-%d").to_string()
         } else {
             NaiveDate::parse_from_str(raw, "%Y-%m-%d")
-                .with_context(|| format!("invalid --since value '{raw}', expected YYYY-MM-DD or RFC3339"))?
+                .with_context(|| {
+                    format!("invalid --since value '{raw}', expected YYYY-MM-DD or RFC3339")
+                })?
                 .format("%Y-%m-%d")
                 .to_string()
         };
@@ -204,7 +214,10 @@ fn resolve_harvest_path(workspace_path: &Path, since: Option<&str>) -> Result<Pa
         if path.exists() {
             return Ok(path);
         }
-        return Err(anyhow!("harvest file not found for date {date}: {}", path.display()));
+        return Err(anyhow!(
+            "harvest file not found for date {date}: {}",
+            path.display()
+        ));
     }
 
     latest_file_with_prefix(&chronicle_dir(workspace_path), "harvest-", "json")
@@ -266,9 +279,10 @@ fn extract_date_from_filename(path: &Path) -> Option<String> {
 }
 
 fn extract_title(markdown: &str) -> Option<String> {
-    markdown
-        .lines()
-        .find_map(|line| line.strip_prefix("# ").map(|value| value.trim().to_string()))
+    markdown.lines().find_map(|line| {
+        line.strip_prefix("# ")
+            .map(|value| value.trim().to_string())
+    })
 }
 
 #[cfg(test)]
@@ -284,7 +298,14 @@ mod tests {
 
     #[test]
     fn test_chronicle_harvest_parsing() {
-        let args = vec!["xavier", "harvest", "--since", "2026-05-01", "--workspace", "/path/to/ws"];
+        let args = vec![
+            "xavier",
+            "harvest",
+            "--since",
+            "2026-05-01",
+            "--workspace",
+            "/path/to/ws",
+        ];
         let cli = TestCli::parse_from(args);
 
         match cli.cmd {
@@ -298,7 +319,14 @@ mod tests {
 
     #[test]
     fn test_chronicle_generate_parsing() {
-        let args = vec!["xavier", "generate", "--since", "2026-05-01", "--output", "post.md"];
+        let args = vec![
+            "xavier",
+            "generate",
+            "--since",
+            "2026-05-01",
+            "--output",
+            "post.md",
+        ];
         let cli = TestCli::parse_from(args);
 
         match cli.cmd {

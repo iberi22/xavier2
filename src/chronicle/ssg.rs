@@ -1,8 +1,8 @@
+use anyhow::{Context, Result};
+use pulldown_cmark::{html, Options, Parser};
 use std::fs;
 use std::path::{Path, PathBuf};
-use anyhow::{Context, Result};
 use walkdir::WalkDir;
-use pulldown_cmark::{Parser, Options, html};
 
 #[derive(Clone)]
 pub struct PostMetadata {
@@ -153,6 +153,12 @@ const JS_ASSET: &str = r#"
 console.log("Xavier DevLog loaded.");
 "#;
 
+impl Default for DevLogSSG {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DevLogSSG {
     pub fn new() -> Self {
         Self {
@@ -200,7 +206,8 @@ impl DevLogSSG {
         let filename = path.file_stem().unwrap().to_str().unwrap();
 
         // Simple extraction of title from first # header or filename
-        let title = content.lines()
+        let title = content
+            .lines()
             .find(|l| l.starts_with("# "))
             .map(|l| l.trim_start_matches("# ").trim().to_string())
             .unwrap_or_else(|| filename.to_string());
@@ -246,9 +253,10 @@ impl DevLogSSG {
         }
         posts_list.push_str("</ul>");
 
-        let index_html = HTML_TEMPLATE
-            .replace("{{title}}", "Home")
-            .replace("{{content}}", &format!("<h1>Technical Logs</h1>\n{}", posts_list));
+        let index_html = HTML_TEMPLATE.replace("{{title}}", "Home").replace(
+            "{{content}}",
+            &format!("<h1>Technical Logs</h1>\n{}", posts_list),
+        );
 
         let output_path = self.output_dir.join("index.html");
         fs::write(&output_path, index_html)
@@ -276,7 +284,7 @@ impl DevLogSSG {
         for entry in WalkDir::new(&self.input_dir).max_depth(1) {
             let entry = entry?;
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
                 posts.push(path.to_path_buf());
             }
         }
@@ -308,7 +316,10 @@ mod tests {
             output_dir: output_dir.path().to_path_buf(),
         };
 
-        fs::write(input_dir.path().join("2024-05-20-test.md"), "# Test\nContent")?;
+        fs::write(
+            input_dir.path().join("2024-05-20-test.md"),
+            "# Test\nContent",
+        )?;
 
         ssg.build()?;
 
