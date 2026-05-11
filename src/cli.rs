@@ -12,12 +12,14 @@ use axum::{
 };
 use clap::{Parser, Subcommand};
 use rand::{rngs::OsRng, RngCore};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
+use uuid::Uuid;
+use chrono::Utc;
 
 use xavier::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
@@ -128,6 +130,32 @@ pub enum Command {
         #[command(subcommand)]
         cmd: xavier::chronicle::cli::ChronicleCommand,
     },
+    /// Initialize .xavier/ in current project
+    Init,
+    /// Standalone indexing of a project
+    Index {
+        #[arg(short, long)]
+        path: Option<PathBuf>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Export project context to a portable .db or .json file
+    Export {
+        #[arg(short, long)]
+        workspace: String,
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Export format: db, tree
+        #[arg(short, long, default_value = "db")]
+        format: String,
+    },
+    /// Import project context from a portable .db file
+    Import {
+        #[arg(short, long)]
+        file: PathBuf,
+        #[arg(short, long)]
+        workspace: Option<String>,
+    },
 }
 
 /// Xavier - Fast Vector Memory for AI Agents
@@ -209,6 +237,16 @@ impl Cli {
             Command::Swarm { config, parallel } => run_swarm(config.clone(), *parallel).await,
             Command::Chronicle { cmd } => {
                 xavier::chronicle::cli::handle_chronicle_command(cmd.clone()).await
+            }
+            Command::Init => handle_init().await,
+            Command::Index { path, output } => handle_index(path.clone(), output.clone()).await,
+            Command::Export {
+                workspace,
+                output,
+                format,
+            } => handle_export(workspace.clone(), output.clone(), format.clone()).await,
+            Command::Import { file, workspace } => {
+                handle_import(file.clone(), workspace.clone()).await
             }
         }
     }
@@ -330,6 +368,7 @@ async fn start_http_server(port: u16) -> Result<()> {
     #[allow(unused_mut)]
     let mut protected_routes = Router::new()
         .route("/memory/search", post(search_handler))
+        .route("/memory/context_tree", post(context_tree_handler))
         .route("/memory/add", post(add_handler))
         .route("/memory/delete", post(delete_handler))
         .route("/memory/stats", get(stats_handler))
@@ -387,7 +426,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/panel", get(panel_index))
         .route("/panel/assets/{*path}", get(panel_asset))
         .merge(protected_routes)
-        .with_state(state);
+        .with_state(state.clone());
 
     let listener = TcpListener::bind(&bind_addr).await?;
     let bound_addr = listener.local_addr()?;
@@ -412,6 +451,20 @@ async fn start_http_server(port: u16) -> Result<()> {
     } else {
         info!("SessionSyncTask cron already running; skipped duplicate start");
     }
+
+    // Start HCE Engine background process
+    let hce_store = state.store.clone();
+    let hce_workspace_id = state.workspace_id.clone();
+    tokio::spawn(async move {
+        let hce = xavier::memory::hce_engine::HceEngine::new(hce_store);
+        info!("HCE Engine background task started for workspace: {}", hce_workspace_id);
+        loop {
+            if let Err(e) = hce.process_workspace(&hce_workspace_id).await {
+                tracing::error!("HCE Engine error: {}", e);
+            }
+            tokio::time::sleep(Duration::from_secs(300)).await; // Process every 5 minutes
+        }
+    });
 
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
@@ -1009,6 +1062,9 @@ async fn add_handler(
         revision: 1,
         primary: true,
         parent_id: None,
+        cluster_id: None,
+        level: xavier::memory::schema::MemoryLevel::Raw,
+        relation: None,
         revisions: vec![],
     };
     match state.memory.add(record).await {
@@ -1115,6 +1171,96 @@ async fn stats_handler(State(state): State<CliState>) -> impl axum::response::In
         "workspace_id": state.workspace_id,
         "version": "0.4.1",
     }))
+}
+
+#[derive(Debug, Deserialize)]
+struct ContextTreePayload {
+    #[serde(default = "default_depth")]
+    depth: usize,
+    #[serde(default)]
+    focus_path: Option<String>,
+}
+
+fn default_depth() -> usize {
+    3
+}
+
+#[derive(Debug, Serialize)]
+struct ContextNodeDto {
+    id: String,
+    path: String,
+    level: String,
+    content: String,
+    children: Vec<ContextNodeDto>,
+}
+
+async fn context_tree_handler(
+    State(state): State<CliState>,
+    axum::Json(payload): axum::Json<ContextTreePayload>,
+) -> impl axum::response::IntoResponse {
+    info!(
+        "Context tree request: focus_path={:?}, depth={}",
+        payload.focus_path, payload.depth
+    );
+
+    // Fetch all memories for the workspace
+    // In a real scenario, we would filter by focus_path and depth
+    let all_memories = match state.store.list(&state.workspace_id).await {
+        Ok(memories) => memories,
+        Err(e) => {
+            return axum::Json(serde_json::json!({
+                "status": "error",
+                "message": e.to_string(),
+            }));
+        }
+    };
+
+    // Build the tree
+    // 1. Map by parent_id
+    let mut by_parent: HashMap<Option<String>, Vec<MemoryRecord>> = HashMap::new();
+    for m in all_memories {
+        by_parent.entry(m.parent_id.clone()).or_default().push(m);
+    }
+
+    // 2. Recursive build starting from roots (no parent)
+    let roots = by_parent.get(&None).cloned().unwrap_or_default();
+    let tree: Vec<ContextNodeDto> = roots
+        .into_iter()
+        .map(|r| build_node_recursive(r, &by_parent, payload.depth, 0))
+        .collect();
+
+    axum::Json(serde_json::json!({
+        "status": "ok",
+        "workspace_id": state.workspace_id,
+        "tree": tree,
+    }))
+}
+
+fn build_node_recursive(
+    record: MemoryRecord,
+    by_parent: &HashMap<Option<String>, Vec<MemoryRecord>>,
+    max_depth: usize,
+    current_depth: usize,
+) -> ContextNodeDto {
+    let children = if current_depth < max_depth {
+        by_parent
+            .get(&Some(record.id.clone()))
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|c| build_node_recursive(c, by_parent, max_depth, current_depth + 1))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    ContextNodeDto {
+        id: record.id,
+        path: record.path,
+        level: format!("{:?}", record.level),
+        content: record.content,
+        children,
+    }
 }
 
 // === Security Scan Handler ===
@@ -1692,6 +1838,9 @@ async fn session_event_handler(
         revision: 1,
         primary: true,
         parent_id: None,
+        cluster_id: None,
+        level: xavier::memory::schema::MemoryLevel::Raw,
+        relation: None,
         revisions: vec![],
     };
     match state.memory.add(record).await {
@@ -1842,6 +1991,9 @@ async fn session_compact_handler(
         revision: 1,
         primary: true,
         parent_id: None,
+        cluster_id: None,
+        level: xavier::memory::schema::MemoryLevel::Raw,
+        relation: None,
         revisions: vec![],
     };
     match state.memory.add(record).await {
@@ -2010,6 +2162,9 @@ async fn agent_push_context_handler(
         revision: 1,
         primary: true,
         parent_id: None,
+        cluster_id: None,
+        level: xavier::memory::schema::MemoryLevel::Raw,
+        relation: None,
         revisions: vec![],
     };
     match state.memory.add(record).await {
@@ -2905,6 +3060,124 @@ fn load_skill(skill_name: &str) -> Option<String> {
         }
     }
     None
+}
+
+async fn handle_init() -> Result<()> {
+    let xavier_dir = std::env::current_dir()?.join(".xavier");
+    if xavier_dir.exists() {
+        println!("Xavier already initialized in .xavier/");
+        return Ok(());
+    }
+    std::fs::create_dir_all(&xavier_dir)?;
+    println!("Initialized Xavier project in .xavier/");
+    Ok(())
+}
+
+async fn handle_index(path: Option<PathBuf>, output: Option<PathBuf>) -> Result<()> {
+    let scan_path = path.unwrap_or_else(|| {
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    });
+    let xavier_dir = scan_path.join(".xavier");
+    let db_path = output.unwrap_or_else(|| xavier_dir.join("memory.db"));
+
+    if !xavier_dir.exists() {
+        std::fs::create_dir_all(&xavier_dir)?;
+    }
+
+    println!("Indexing project at {}...", scan_path.display());
+    println!("Database output: {}", db_path.display());
+
+    // Initialize standalone store
+    let config = crate::memory::sqlite_vec_store::VecSqliteStoreConfig::new_at_path(db_path.clone());
+    let store = Arc::new(crate::memory::sqlite_vec_store::VecSqliteMemoryStore::new(config).await?);
+
+    let workspace_id = scan_path
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "standalone".to_string());
+
+    // 1. File Indexing
+    let indexer_config = crate::memory::file_indexer::FileIndexerConfig {
+        root_path: scan_path.clone(),
+        ..crate::memory::file_indexer::FileIndexerConfig::default()
+    };
+
+    let indexer = crate::memory::file_indexer::FileIndexer::new(indexer_config, None);
+    let result = indexer.index_all().await?;
+
+    println!(
+        "Found {} files. Persisting to memory store...",
+        result.total_files
+    );
+
+    for file in result.files {
+        let record = MemoryRecord {
+            id: format!("mem_{}", Uuid::new_v4()),
+            workspace_id: workspace_id.clone(),
+            path: file.path,
+            content: file.content,
+            metadata: serde_json::json!({
+                "size": file.size,
+                "last_modified": file.last_modified,
+            }),
+            embedding: Vec::new(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            revision: 1,
+            primary: true,
+            parent_id: None,
+            cluster_id: None,
+            level: crate::memory::schema::MemoryLevel::Raw,
+            relation: None,
+            revisions: Vec::new(),
+        };
+        store.put(record).await?;
+    }
+
+    // 2. Hierarchical Context Processing
+    println!("Building hierarchical context tree (HCE)...");
+    let hce = crate::memory::hce_engine::HceEngine::new(store.clone());
+    hce.process_workspace(&workspace_id).await?;
+
+    println!("Indexing complete!");
+    Ok(())
+}
+
+async fn handle_export(workspace_id: String, output: PathBuf, format: String) -> Result<()> {
+    println!(
+        "Exporting workspace {} to {} (format: {})...",
+        workspace_id,
+        output.display(),
+        format
+    );
+    let store = crate::memory::sqlite_vec_store::VecSqliteMemoryStore::from_env().await?;
+    match format.as_str() {
+        "db" => store.export(&output).await?,
+        "tree" => store.export_tree(&workspace_id, &output).await?,
+        _ => {
+            anyhow::bail!(
+                "Unsupported export format: {}. Use 'db' or 'tree'.",
+                format
+            )
+        }
+    }
+    println!("Export complete!");
+    Ok(())
+}
+
+async fn handle_import(file: PathBuf, workspace: Option<String>) -> Result<()> {
+    let target_workspace = workspace.as_deref();
+    println!(
+        "Importing context from {} into workspace {}...",
+        file.display(),
+        target_workspace.unwrap_or("original")
+    );
+
+    let store = crate::memory::sqlite_vec_store::VecSqliteMemoryStore::from_env().await?;
+    store.merge_from(&file, target_workspace).await?;
+
+    println!("Import complete! Xavier merged the context into the local database.");
+    Ok(())
 }
 
 #[cfg(test)]

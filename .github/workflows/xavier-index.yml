@@ -1,0 +1,40 @@
+name: Xavier Project Indexing
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Xavier CLI
+        run: |
+          # In a real scenario, we would download the binary from releases
+          # For now, we assume it's built or available in the path
+          echo "Downloading Xavier CLI..."
+          # curl -L https://github.com/iberi22/xavier/releases/latest/download/xavier-linux -o xavier
+          # chmod +x xavier
+
+      - name: Initialize Xavier Context
+        run: ./xavier init
+
+      - name: Index Project
+        run: ./xavier index --standalone --path . --output .xavier/memory.db
+
+      - name: Export Hierarchical Tree
+        run: |
+          # Use the directory name as workspace ID (matches handle_index logic)
+          WORKSPACE_ID=$(basename $PWD)
+          XAVIER_MEMORY_VEC_PATH=.xavier/memory.db ./xavier export --workspace "$WORKSPACE_ID" --format tree --output .xavier/context-tree.json
+
+      - name: Upload Context Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xavier-context
+          path: |
+            .xavier/memory.db
+            .xavier/context-tree.json
