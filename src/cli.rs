@@ -21,11 +21,13 @@ use tracing::{info, warn};
 use uuid::Uuid;
 use chrono::Utc;
 
+use xavier::adapters::inbound::http::handlers::change_control;
 use xavier::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
 use xavier::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier::agents::{Agent, AgentConfig};
+use xavier::app::change_control_service::ChangeControlService;
 use xavier::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier::coordination::SimpleAgentRegistry;
 use xavier::memory::qmd_memory::{MemoryDocument, QmdMemory};
@@ -33,6 +35,7 @@ use xavier::memory::schema::MemoryQueryFilters;
 use xavier::memory::session_store::{PanelMessage, SessionStore};
 use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier::memory::store::{MemoryRecord, MemoryStore};
+use xavier::ports::inbound::change_control_port::ChangeControlPort;
 use xavier::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
 use xavier::ports::outbound::HealthCheckPort;
 use xavier::security::{ProcessResult, SecurityService};
@@ -60,6 +63,7 @@ pub struct CliState {
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
+    pub change_control: Arc<ChangeControlService>,
 }
 
 #[derive(Subcommand)]
@@ -340,6 +344,9 @@ async fn start_http_server(port: u16) -> Result<()> {
     let panel_root = state_panel_root(&workspace_dir, &workspace_id);
     let panel_store = Arc::new(SessionStore::new(panel_root).await?);
 
+    let change_control = Arc::new(ChangeControlService::new());
+    let change_control_port: Arc<dyn ChangeControlPort> = change_control.clone();
+
     let state = CliState {
         memory: memory_port,
         store,
@@ -352,6 +359,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         _time_store: Some(time_store),
         agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
         panel_store,
+        change_control,
     };
 
     info!(
@@ -418,6 +426,18 @@ async fn start_http_server(port: u16) -> Result<()> {
             .route("/plugins/sync", post(plugins_sync_handler));
     }
 
+    let change_control_routes = Router::new()
+        .route("/change/tasks", post(change_control::create_task_handler))
+        .route("/change/tasks/{id}", get(change_control::get_task_handler))
+        .route("/change/leases/claim", post(change_control::claim_lease_handler))
+        .route("/change/leases/release", post(change_control::release_lease_handler))
+        .route("/change/leases/active", get(change_control::active_leases_handler))
+        .route("/change/conflicts/check", post(change_control::check_conflicts_handler))
+        .route("/change/validate", post(change_control::validate_handler))
+        .route("/change/complete", post(change_control::complete_task_handler))
+        .route("/change/merge-plan", get(change_control::merge_plan_handler))
+        .with_state(change_control_port);
+
     let app = Router::new()
         .route("/health", get(health_handler))
         .route("/build", get(build_handler))
@@ -425,6 +445,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/readiness", get(readiness_handler))
         .route("/panel", get(panel_index))
         .route("/panel/assets/{*path}", get(panel_asset))
+        .merge(change_control_routes)
         .merge(protected_routes)
         .with_state(state.clone());
 
