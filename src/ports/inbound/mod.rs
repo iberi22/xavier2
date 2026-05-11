@@ -1,4 +1,5 @@
 pub mod agent_lifecycle_port;
+pub mod change_control_port;
 pub mod health_port;
 pub mod input_security_port;
 pub mod memory_port;
@@ -10,6 +11,7 @@ pub mod time_metrics_port;
 pub mod verification_port;
 
 pub use agent_lifecycle_port::AgentLifecyclePort;
+pub use change_control_port::ChangeControlPort;
 pub use health_port::{HealthPort, HealthStatus as InboundHealthStatus};
 pub use input_security_port::InputSecurityPort;
 pub use memory_port::MemoryQueryPort;

@@ -9,8 +9,10 @@
 
 pub mod agent_registry;
 pub mod message_bus;
+pub mod lease_registry;
 
 pub use agent_registry::SimpleAgentRegistry;
+pub use lease_registry::LeaseRegistry;
 pub use message_bus::*;
 
 use std::collections::HashMap;
