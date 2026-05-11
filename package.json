@@ -18,6 +18,8 @@
   },
   "devDependencies": {
     "eslint": "^10.1.0",
-    "eslint-config-prettier": "^10.1.8"
+    "eslint-config-prettier": "^10.1.8",
+    "ansi-to-html": "^0.7.2",
+    "playwright": "^1.59.1"
   }
 }
