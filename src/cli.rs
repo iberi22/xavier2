@@ -2,11 +2,10 @@
 
 use anyhow::{anyhow, Result};
 use axum::{
-    body::Body,
     extract::{Path as AxumPath, State},
-    http::{HeaderMap, Request, StatusCode},
-    middleware::{self, Next},
-    response::{IntoResponse, Response},
+    http::{HeaderMap, StatusCode},
+    middleware,
+    response::Response,
     routing::{get, post},
     Json, Router,
 };
@@ -22,6 +21,7 @@ use uuid::Uuid;
 use chrono::Utc;
 
 use xavier::adapters::inbound::http::handlers::change_control;
+use xavier::adapters::inbound::http::middleware::{auth_middleware, json_response};
 use xavier::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
@@ -63,7 +63,7 @@ pub struct CliState {
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
-    pub change_control: Arc<ChangeControlService>,
+    pub _change_control: Arc<dyn ChangeControlPort>,
 }
 
 #[derive(Subcommand)]
@@ -436,7 +436,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         .route("/change/validate", post(change_control::validate_handler))
         .route("/change/complete", post(change_control::complete_task_handler))
         .route("/change/merge-plan", get(change_control::merge_plan_handler))
-        .with_state(change_control_port);
+        .layer(middleware::from_fn(auth_middleware)).layer(middleware::from_fn(auth_middleware)).with_state(change_control_port);
 
     let app = Router::new()
         .route("/health", get(health_handler))
@@ -696,48 +696,6 @@ async fn account_usage_handler(State(_state): State<CliState>, headers: HeaderMa
             },
         }),
     )
-}
-
-fn json_response(status: StatusCode, body: serde_json::Value) -> Response {
-    Response::builder()
-        .status(status)
-        .header("content-type", "application/json")
-        .header("x-request-id", uuid::Uuid::new_v4().to_string())
-        .body(axum::body::Body::from(body.to_string()))
-        .unwrap_or_else(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                serde_json::json!({"status":"error"}).to_string(),
-            )
-                .into_response()
-        })
-}
-
-/// Axum middleware that requires a valid X-Xavier-Token on all protected routes.
-async fn auth_middleware(req: Request<Body>, next: Next) -> Response {
-    let expected_token = match std::env::var("XAVIER_TOKEN") {
-        Ok(token) => token,
-        Err(_) => {
-            return json_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                serde_json::json!({"status":"error","message":"XAVIER_TOKEN is not configured"}),
-            );
-        }
-    };
-
-    let provided_token = req
-        .headers()
-        .get("X-Xavier-Token")
-        .and_then(|value| value.to_str().ok());
-
-    if provided_token != Some(expected_token.as_str()) {
-        return json_response(
-            StatusCode::UNAUTHORIZED,
-            serde_json::json!({"status":"error","message":"Unauthorized"}),
-        );
-    }
-
-    next.run(req).await
 }
 
 #[derive(Debug, Deserialize)]

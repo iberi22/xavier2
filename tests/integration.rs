@@ -34,6 +34,8 @@ mod server_test;
 mod sevier_stress_test;
 #[path = "integration/tasks_test.rs"]
 mod tasks_test;
+#[path = "integration/change_control_test.rs"]
+mod change_control_test;
 
 mod integration {
     use reqwest::Client;

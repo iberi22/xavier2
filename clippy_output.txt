@@ -1,0 +1,228 @@
+    Checking xavier v0.6.0-beta (/app)
+error: unused import: `Serialize`
+ --> src/adapters/inbound/http/handlers/agent.rs:2:26
+  |
+2 | use serde::{Deserialize, Serialize};
+  |                          ^^^^^^^^^
+  |
+  = note: `-D unused-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: unused import: `Serialize`
+ --> src/adapters/inbound/http/handlers/code.rs:6:26
+  |
+6 | use serde::{Deserialize, Serialize};
+  |                          ^^^^^^^^^
+
+error: unused import: `tracing::info`
+  --> src/adapters/inbound/http/handlers/code.rs:10:5
+   |
+10 | use tracing::info;
+   |     ^^^^^^^^^^^^^
+
+error: unused import: `Serialize`
+ --> src/adapters/inbound/http/handlers/memory.rs:6:26
+  |
+6 | use serde::{Deserialize, Serialize};
+  |                          ^^^^^^^^^
+
+error: unused import: `Serialize`
+ --> src/adapters/inbound/http/handlers/security.rs:2:26
+  |
+2 | use serde::{Deserialize, Serialize};
+  |                          ^^^^^^^^^
+
+error: unused import: `crate::ports::inbound::InputSecurityPort`
+ --> src/adapters/inbound/http/handlers/code.rs:9:5
+  |
+9 | use crate::ports::inbound::InputSecurityPort;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unused variable: `state`
+  --> src/adapters/inbound/http/handlers/agent.rs:88:11
+   |
+88 |     State(state): State<AppState>,
+   |           ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+   |
+   = note: `-D unused-variables` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_variables)]`
+
+error: unused variable: `limit`
+   --> src/adapters/inbound/http/handlers/memory.rs:190:9
+    |
+190 |     let limit = payload.limit.unwrap_or(10).max(1).min(100);
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_limit`
+
+error: you should consider adding a `Default` implementation for `DevLogSSG`
+  --> src/chronicle/ssg.rs:80:5
+   |
+80 | /     pub fn new() -> Self {
+81 | |         Self {
+82 | |             input_dir: PathBuf::from("docs/devlog"),
+83 | |             output_dir: PathBuf::from("public/devlog"),
+...  |
+86 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#new_without_default
+   = note: `-D clippy::new-without-default` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::new_without_default)]`
+help: try adding this
+   |
+79 + impl Default for DevLogSSG {
+80 +     fn default() -> Self {
+81 +         Self::new()
+82 +     }
+83 + }
+   |
+
+error: this `map_or` can be simplified
+   --> src/chronicle/ssg.rs:258:34
+    |
+258 | ...ile() && path.extension().map_or(false, |ext| ext == "md") {
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#unnecessary_map_or
+    = note: `-D clippy::unnecessary-map-or` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unnecessary_map_or)]`
+help: use is_some_and instead
+    |
+258 -             if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+258 +             if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
+    |
+
+error: you should consider adding a `Default` implementation for `Generator`
+  --> src/devlog/generator.rs:9:5
+   |
+ 9 | /     pub fn new() -> Self {
+10 | |         Self
+11 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#new_without_default
+help: try adding this
+   |
+ 8 + impl Default for Generator {
+ 9 +     fn default() -> Self {
+10 +         Self::new()
+11 +     }
+12 + }
+   |
+
+error: clamp-like pattern without using clamp function
+   --> src/installer/wizard.rs:249:18
+    |
+249 |     let card_w = (area.width.min(72)).max(40);
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with clamp: `area.width.clamp(40, 72)`
+    |
+    = note: clamp will panic if max < min
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_clamp
+    = note: `-D clippy::manual-clamp` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_clamp)]`
+
+error: clamp-like pattern without using clamp function
+   --> src/installer/wizard.rs:250:18
+    |
+250 |     let card_h = (area.height.min(22)).max(12);
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with clamp: `area.height.clamp(12, 22)`
+    |
+    = note: clamp will panic if max < min
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_clamp
+
+error: useless use of `format!`
+   --> src/installer/wizard.rs:296:37
+    |
+296 | ...pans.push(Span::styled(format!("●"), Style::default().fg(ACCENT)));
+    |                           ^^^^^^^^^^^^ help: consider using `.to_string()`: `"●".to_string()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#useless_format
+    = note: `-D clippy::useless-format` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::useless_format)]`
+
+error: clamp-like pattern without using clamp function
+   --> src/adapters/inbound/http/handlers/code.rs:126:17
+    |
+126 |     let limit = payload.limit.max(1).min(100);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with clamp: `payload.limit.clamp(1, 100)`
+    |
+    = note: clamp will panic if max < min
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_clamp
+
+error: clamp-like pattern without using clamp function
+   --> src/adapters/inbound/http/handlers/code.rs:204:17
+    |
+204 |     let limit = payload.limit.max(1).min(100);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with clamp: `payload.limit.clamp(1, 100)`
+    |
+    = note: clamp will panic if max < min
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_clamp
+
+error: clamp-like pattern without using clamp function
+   --> src/adapters/inbound/http/handlers/code.rs:206:25
+    |
+206 |     let budget_tokens = payload.budget_tokens.max(100).min(8000);
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with clamp: `payload.budget_tokens.clamp(100, 8000)`
+    |
+    = note: clamp will panic if max < min
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_clamp
+
+error: clamp-like pattern without using clamp function
+   --> src/adapters/inbound/http/handlers/code.rs:264:17
+    |
+264 |     let limit = limit.max(1).min(100);
+    |                 ^^^^^^^^^^^^^^^^^^^^^ help: replace with clamp: `limit.clamp(1, 100)`
+    |
+    = note: clamp will panic if max < min
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_clamp
+
+error: clamp-like pattern without using clamp function
+  --> src/adapters/inbound/http/handlers/memory.rs:81:17
+   |
+81 |     let limit = payload.limit.max(1).min(100);
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with clamp: `payload.limit.clamp(1, 100)`
+   |
+   = note: clamp will panic if max < min
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_clamp
+
+error: clamp-like pattern without using clamp function
+   --> src/adapters/inbound/http/handlers/memory.rs:190:17
+    |
+190 |     let limit = payload.limit.unwrap_or(10).max(1).min(100);
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with clamp: `payload.limit.unwrap_or(10).clamp(1, 100)`
+    |
+    = note: clamp will panic if max < min
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#manual_clamp
+
+error: this `map_or` can be simplified
+   --> src/app/change_control_service.rs:446:21
+    |
+446 | /                     tasks.get(dep_id).map_or(true, |dep| {
+447 | |                         dep.status != AgentTaskStatus::Completed
+448 | |                     })
+    | |______________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#unnecessary_map_or
+help: use is_none_or instead
+    |
+446 -                     tasks.get(dep_id).map_or(true, |dep| {
+446 +                     tasks.get(dep_id).is_none_or(|dep| {
+    |
+
+error: this `map_or` can be simplified
+   --> src/app/change_control_service.rs:458:29
+    |
+458 | / ...                   tasks.get(*dep_id).map_or(true, |dep| {
+459 | | ...                       dep.status != AgentTaskStatus::Completed
+460 | | ...                   })
+    | |________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.94.0/index.html#unnecessary_map_or
+help: use is_none_or instead
+    |
+458 -                             tasks.get(*dep_id).map_or(true, |dep| {
+458 +                             tasks.get(*dep_id).is_none_or(|dep| {
+    |
+
+error: could not compile `xavier` (lib) due to 22 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `xavier` (lib test) due to 22 previous errors

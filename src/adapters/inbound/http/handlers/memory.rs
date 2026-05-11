@@ -3,7 +3,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use crate::adapters::inbound::http::state::check_auth;
 use crate::adapters::inbound::http::AppState;
 use crate::domain::memory::{MemoryQueryFilters, MemoryRecord as DomainMemoryRecord};
@@ -78,7 +78,7 @@ pub async fn search_handler(
     }
 
     let effective_query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input);
-    let limit = payload.limit.max(1).min(100);
+    let limit = payload.limit.clamp(1, 100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
     match state.memory.search(effective_query, payload.filters).await {
@@ -118,8 +118,23 @@ pub async fn add_handler(
     Json(payload): Json<AddPayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     check_auth(&headers, &state)?;
-    let mut record = DomainMemoryRecord::new_fact(payload.path.clone(), payload.content);
-    // Note: domain metadata translation would go here if needed
+    let record = DomainMemoryRecord {
+        id: String::new(),
+        workspace_id: state.workspace_id.clone(),
+        path: payload.path.clone(),
+        content: payload.content.clone(),
+        metadata: payload.metadata.clone(),
+        embedding: vec![],
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        revision: 1,
+        primary: true,
+        parent_id: None,
+        cluster_id: None,
+        level: crate::memory::schema::MemoryLevel::Raw,
+        relation: None,
+        revisions: vec![],
+    };
 
     match state.memory.add(record).await {
         Ok(id) => Ok(Json(serde_json::json!({
@@ -172,7 +187,7 @@ pub async fn memory_query_handler(
         }));
     }
 
-    let limit = payload.limit.unwrap_or(10).max(1).min(100);
+    let _limit = payload.limit.unwrap_or(10).clamp(1, 100);
     let effective_query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input);
 
     match state.memory.search(effective_query, None).await {
