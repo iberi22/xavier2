@@ -159,3 +159,7 @@ required-features = ["cli-interactive"]
 [profile.release]
 opt-level = 3
 lto = "thin"
+
+# Vendored OpenSSL for musl (static) builds — needed by git2
+[target.'cfg(all(target_os = "linux", target_env = "musl"))'.dependencies]
+openssl-sys = { version = "0.9", features = ["vendored"] }
