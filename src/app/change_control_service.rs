@@ -361,21 +361,25 @@ impl ChangeControlPort for ChangeControlService {
         task_id: &str,
         result: serde_json::Value,
     ) -> anyhow::Result<TaskCompletionResult> {
-        let mut tasks = self.tasks.write().await;
+        // Clone the task under write lock, then drop it before generating summary.
+        // Holding a write lock while requesting a read lock on the same RwLock
+        // would deadlock (tokio::sync::RwLock panics on this pattern).
+        let task_clone = {
+            let mut tasks = self.tasks.write().await;
+            if let Some(task) = tasks.get_mut(task_id) {
+                task.status = AgentTaskStatus::Completed;
+                task.updated_at = Utc::now().timestamp();
+                Some(task.clone())
+            } else {
+                None
+            }
+        }; // write lock dropped here — safe to touch tasks again
 
-        if let Some(task) = tasks.get_mut(task_id) {
-            task.status = AgentTaskStatus::Completed;
-            task.updated_at = Utc::now().timestamp();
-        }
-
-        // Retrieve a snapshot of the completed task for summary generation
-        let tasks_snapshot = self.tasks.read().await;
-        let summary = if let Some(task) = tasks_snapshot.get(task_id) {
-            Self::generate_change_summary(task, &result)
+        let summary = if let Some(task) = task_clone {
+            Self::generate_change_summary(&task, &result)
         } else {
             format!("Task '{}' completed", task_id)
         };
-        drop(tasks_snapshot);
 
         Ok(TaskCompletionResult {
             task_id: task_id.to_string(),
