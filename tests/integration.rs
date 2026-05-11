@@ -8,6 +8,8 @@ mod a2a_test;
 mod agents_test;
 #[path = "integration/belief_graph_test.rs"]
 mod belief_graph_test;
+#[path = "integration/change_control_test.rs"]
+mod change_control_test;
 #[path = "integration/checkpoint_test.rs"]
 mod checkpoint_test;
 #[path = "integration/cli.rs"]

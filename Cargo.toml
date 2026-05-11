@@ -90,6 +90,7 @@ zerocopy = "0.8"
 
 # File traversal
 walkdir = "2"
+glob = "0.3"
 
 # egui - Native UI (optional, for web UI)
 egui = { version = "0.34.2", optional = true }

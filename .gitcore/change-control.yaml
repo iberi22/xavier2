@@ -1,0 +1,35 @@
+layers:
+  domain:
+    path: "src/domain/**"
+    risk: high
+    may_import: []
+
+  app:
+    path: "src/app/**"
+    risk: medium
+    may_import: [domain, ports]
+
+  ports:
+    path: "src/ports/**"
+    risk: high
+    may_import: [domain]
+
+  adapters:
+    path: "src/adapters/**"
+    risk: medium
+    may_import: [ports, app]
+
+critical_files:
+  - "src/memory/qmd_memory.rs"
+  - "src/domain/memory/**"
+  - "src/ports/inbound/memory_port.rs"
+  - ".gitcore/ARCHITECTURE.md"
+
+rules:
+  - id: domain_no_adapter_imports
+    description: "Domain cannot import adapters"
+    severity: error
+
+  - id: high_risk_requires_approval
+    description: "High-risk files require human or architect-agent approval"
+    severity: block

@@ -9518,6 +9518,7 @@ dependencies = [
  "futures-util",
  "git2",
  "gllm",
+ "glob",
  "hex",
  "hmac",
  "http-body-util",
