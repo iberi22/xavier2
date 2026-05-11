@@ -109,6 +109,9 @@ impl SqliteMemoryStore {
                 revision INTEGER NOT NULL DEFAULT 1,
                 primary_flag INTEGER NOT NULL DEFAULT 1,
                 parent_id TEXT,
+                cluster_id TEXT,
+                level TEXT NOT NULL DEFAULT 'raw',
+                relation TEXT,
                 revisions TEXT NOT NULL DEFAULT '[]'
             );
 
@@ -173,8 +176,8 @@ impl SqliteMemoryStore {
     }
 
     fn deserialize_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
-        let metadata_str: String = row.get(3)?;
-        let revisions_str: String = row.get(12)?;
+        let metadata_str: String = row.get(4)?;
+        let revisions_str: String = row.get(14)?;
         let embedding_blob: Vec<u8> = row.get(5)?;
 
         Ok(MemoryRecord {
@@ -193,6 +196,9 @@ impl SqliteMemoryStore {
             revision: row.get(8)?,
             primary: row.get::<_, i32>(9)? != 0,
             parent_id: row.get(10)?,
+            cluster_id: row.get(11)?,
+            level: crate::memory::schema::MemoryLevel::parse(&row.get::<_, String>(12)?).unwrap_or(crate::memory::schema::MemoryLevel::Raw),
+            relation: row.get::<_, Option<String>>(13)?.and_then(|s| crate::memory::schema::RelationKind::parse(&s)),
             revisions: serde_json::from_str(&revisions_str).unwrap_or_default(),
         })
     }
@@ -218,7 +224,7 @@ impl MemoryStore for SqliteMemoryStore {
         let conn = self.conn.lock();
         conn.execute(
             &format!(
-                "INSERT OR REPLACE INTO {} (id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                "INSERT OR REPLACE INTO {} (id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 TABLE_MEMORIES
             ),
             params![
@@ -233,6 +239,9 @@ impl MemoryStore for SqliteMemoryStore {
                 record.revision,
                 record.primary as i32,
                 record.parent_id,
+                record.cluster_id,
+                record.level.as_str(),
+                record.relation.map(|r| r.as_str()),
                 serde_json::to_string(&record.revisions).unwrap_or_default(),
             ],
         )?;
@@ -245,7 +254,7 @@ impl MemoryStore for SqliteMemoryStore {
         // Try by id first (O(1) lookup)
         let key = Self::row_key(workspace_id, id_or_path);
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE id = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE id = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -258,7 +267,7 @@ impl MemoryStore for SqliteMemoryStore {
 
         // Fallback: try by path
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ? AND path = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE workspace_id = ? AND path = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -306,7 +315,7 @@ impl MemoryStore for SqliteMemoryStore {
     async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE workspace_id = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -318,6 +327,24 @@ impl MemoryStore for SqliteMemoryStore {
             }
         }
         Ok(records)
+    }
+
+    async fn export(&self, path: &std::path::Path) -> Result<()> {
+        let conn = self.conn.lock();
+        conn.execute("VACUUM INTO ?", params![path.to_string_lossy()])?;
+        Ok(())
+    }
+
+    async fn export_tree(&self, workspace_id: &str, path: &std::path::Path) -> Result<()> {
+        let records = self.list(workspace_id).await?;
+        let tree = crate::memory::store::build_context_tree(records);
+        let json = serde_json::to_string_pretty(&tree)?;
+        tokio::fs::write(path, json).await?;
+        Ok(())
+    }
+
+    async fn import(&self, _path: &std::path::Path) -> Result<()> {
+        anyhow::bail!("Import into an active SQLite store is not yet supported. Use the CLI to load a context file.")
     }
 
     async fn list_filtered(
@@ -349,7 +376,7 @@ impl MemoryStore for SqliteMemoryStore {
         let mut memories = Vec::new();
         {
             let mut stmt = conn.prepare(&format!(
-                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ?",
+                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE workspace_id = ?",
                 TABLE_MEMORIES
             ))?;
             let mut rows = stmt.query([workspace_id])?;
