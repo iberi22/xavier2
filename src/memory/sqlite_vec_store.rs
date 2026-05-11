@@ -34,7 +34,7 @@ use crate::memory::store::{
 use crate::settings::XavierSettings;
 
 const DB_FILENAME: &str = "xavier_memory_vec.db";
-const DEFAULT_EMBEDDING_DIMENSIONS: usize = 768;
+const DEFAULT_EMBEDDING_DIMENSIONS: usize = 384;
 const DEFAULT_RRF_K: usize = 60;
 const DEFAULT_VECTOR_WEIGHT: f32 = 0.40;
 const DEFAULT_FTS_WEIGHT: f32 = 0.35;
