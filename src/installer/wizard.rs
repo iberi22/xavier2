@@ -246,8 +246,8 @@ fn render(f: &mut Frame, state: &InstallerState) {
     );
 
     // Main layout: centered card
-    let card_w = (area.width.min(72)).max(40);
-    let card_h = (area.height.min(22)).max(12);
+    let card_w = area.width.clamp(40, 72);
+    let card_h = area.height.clamp(12, 22);
     let card_x = (area.width.saturating_sub(card_w)) / 2;
     let card_y = (area.height.saturating_sub(card_h)) / 2;
     let card = Rect::new(card_x, card_y, card_w, card_h);
@@ -293,7 +293,7 @@ fn progress_bar(steps: &[WizardStep], current: WizardStep) -> Line<'_> {
             spans.push(Span::raw(" · "));
         }
         if *step == current {
-            spans.push(Span::styled(format!("●"), Style::default().fg(ACCENT)));
+            spans.push(Span::styled("●".to_string(), Style::default().fg(ACCENT)));
         } else if step_order(*step) < step_order(current) {
             spans.push(Span::styled("●", Style::default().fg(SUCCESS)));
         } else {

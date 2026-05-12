@@ -443,7 +443,7 @@ impl ChangeControlPort for ChangeControlService {
             .filter(|t| {
                 t.dependencies.iter().any(|dep_id| {
                     // Blocked if dependency is missing or not yet completed
-                    tasks.get(dep_id).map_or(true, |dep| {
+                    tasks.get(dep_id).is_none_or(|dep| {
                         dep.status != AgentTaskStatus::Completed
                     })
                 })
@@ -455,7 +455,7 @@ impl ChangeControlPort for ChangeControlService {
                     t.dependencies
                         .iter()
                         .filter(|dep_id| {
-                            tasks.get(*dep_id).map_or(true, |dep| {
+                            tasks.get(*dep_id).is_none_or(|dep| {
                                 dep.status != AgentTaskStatus::Completed
                             })
                         })

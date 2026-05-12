@@ -3,11 +3,9 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use crate::adapters::inbound::http::state::check_auth;
 use crate::adapters::inbound::http::AppState;
-use crate::ports::inbound::InputSecurityPort;
-use tracing::info;
 use std::path::Path;
 
 #[derive(Debug, Deserialize)]
@@ -54,10 +52,10 @@ pub async fn code_scan_handler(
     Json(payload): Json<CodeScanPayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     check_auth(&headers, &state)?;
-    let requested_path = payload.path.unwrap_or_else(|| ".".to_string());
+    let requested_path = payload.path.as_deref().unwrap_or(".");
 
     // Security scan on path
-    let sec_result = match state.security.process_input(&requested_path).await {
+    let sec_result = match state.security.process_input(requested_path).await {
         Ok(res) => res,
         Err(e) => return Ok(Json(serde_json::json!({ "status": "error", "message": e.to_string() }))),
     };
@@ -82,7 +80,9 @@ pub async fn code_scan_handler(
         })));
     }
 
-    match state.code_indexer.index(Path::new(&requested_path)).await {
+    let _limit = payload.path.is_none(); // placeholder to avoid clippy warning if any
+
+    match state.code_indexer.index(Path::new(requested_path)).await {
         Ok(stats) => Ok(Json(serde_json::json!({
             "status": "ok",
             "indexed_files": stats.total_files,
@@ -123,7 +123,7 @@ pub async fn code_find_handler(
     }
 
     let query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input).to_string();
-    let limit = payload.limit.max(1).min(100);
+    let limit = payload.limit.clamp(1, 100);
 
     let symbols = code_find_symbols(
         &state.code_query,
@@ -201,9 +201,9 @@ pub async fn code_context_handler(
         })));
     }
 
-    let limit = payload.limit.max(1).min(100);
+    let limit = payload.limit.clamp(1, 100);
     let kind_limit = if payload.query.trim().is_empty() { limit } else { 10_000 };
-    let budget_tokens = payload.budget_tokens.max(100).min(8000);
+    let budget_tokens = payload.budget_tokens.clamp(100, 8000);
 
     let mut symbols = if let Some(kind) = payload.kind.as_deref() {
         match kind.to_ascii_lowercase().as_str() {
@@ -261,7 +261,7 @@ fn code_find_symbols(
     pattern: Option<&str>,
     limit: usize,
 ) -> Vec<code_graph::types::Symbol> {
-    let limit = limit.max(1).min(100);
+    let limit = limit.clamp(1, 100);
     let broad_limit = if query.trim().is_empty() { limit } else { 10_000 };
 
     let mut symbols = if let Some(pattern) = pattern.filter(|p| !p.trim().is_empty()) {

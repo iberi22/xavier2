@@ -63,7 +63,7 @@ pub struct CliState {
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
-    pub change_control: Arc<ChangeControlService>,
+    pub _change_control: Arc<ChangeControlService>,
 }
 
 #[derive(Subcommand)]

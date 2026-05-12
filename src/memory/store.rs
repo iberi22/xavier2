@@ -12,6 +12,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{fs, sync::RwLock};
+use uuid::Uuid;
 
 use crate::checkpoint::Checkpoint;
 use crate::memory::belief_graph::BeliefRelation;
@@ -275,6 +276,27 @@ impl MemoryRecord {
                 .to_string()
                 .to_ascii_lowercase()
                 .contains(&lowered)
+    }
+
+    pub fn new_fact(path: String, content: String) -> Self {
+        let now = Utc::now();
+        Self {
+            id: Uuid::new_v4().to_string(),
+            workspace_id: "default".to_string(),
+            path,
+            content,
+            metadata: serde_json::json!({}),
+            embedding: vec![],
+            created_at: now,
+            updated_at: now,
+            revision: 1,
+            primary: true,
+            parent_id: None,
+            cluster_id: None,
+            level: MemoryLevel::Raw,
+            relation: Some(RelationKind::SynthesizedFrom),
+            revisions: vec![],
+        }
     }
 }
 
