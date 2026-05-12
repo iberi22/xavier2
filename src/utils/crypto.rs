@@ -12,6 +12,8 @@ pub fn hex_encode(data: &[u8]) -> String {
         result.push(HEX_CHARS[(byte >> 4) as usize]);
         result.push(HEX_CHARS[(byte & 0xf) as usize]);
     }
+    // SAFETY: `result` only contains bytes from HEX_CHARS ("0123456789abcdef"),
+    //         which are all valid ASCII and therefore valid UTF-8.
     unsafe { String::from_utf8_unchecked(result) }
 }
 

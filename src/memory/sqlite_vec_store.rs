@@ -205,7 +205,13 @@ impl VecSqliteMemoryStore {
 
     fn register_sqlite_vec_extension() -> Result<()> {
         SQLITE_VEC_EXTENSION_INIT
-            .get_or_init(|| unsafe {
+            .get_or_init(|| {
+                // SAFETY: sqlite3_vec_init is the well-known sqlite-vec extension entry point
+                //         with a standard SQLite C ABI signature. The transmute is required
+                //         because the function pointer type is opaque across the FFI boundary.
+                //         sqlite3_auto_extension is called once at init; SQLite manages the
+                //         extension lifetime internally.
+                unsafe {
                 type SqliteExtFn = unsafe extern "C" fn(
                     *mut rusqlite::ffi::sqlite3,
                     *mut *mut i8,
@@ -222,6 +228,7 @@ impl VecSqliteMemoryStore {
                 } else {
                     Ok(())
                 }
+            }
             })
             .clone()
             .map_err(anyhow::Error::msg)
