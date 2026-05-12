@@ -2335,15 +2335,15 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn sqlite_vec_extension_is_active_on_new_connections() {
-        VecSqliteMemoryStore::register_sqlite_vec_extension().unwrap();
+    fn sqlite_vec_extension_is_active_on_new_connections() -> Result<()> {
+        VecSqliteMemoryStore::register_sqlite_vec_extension()?;
 
-        let conn = Connection::open_in_memory().unwrap();
+        let conn = Connection::open_in_memory()?;
         let version: String = conn
-            .query_row("SELECT vec_version()", [], |row| row.get(0))
-            .unwrap();
+            .query_row("SELECT vec_version()", [], |row| row.get(0))?;
 
         assert!(version.starts_with('v'));
+        Ok(())
     }
 
     fn test_record(
@@ -2378,14 +2378,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn hybrid_search_rrf_fuses_vector_fts_and_belief_signals() {
-        let temp = tempdir().unwrap();
+    async fn hybrid_search_rrf_fuses_vector_fts_and_belief_signals() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("rrf.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-hybrid";
         let lexical_winner = test_record(
@@ -2401,8 +2400,8 @@ mod tests {
             vec![1.0, 0.0, 0.0],
         );
 
-        store.put(lexical_winner.clone()).await.unwrap();
-        store.put(semantic_distractor.clone()).await.unwrap();
+        store.put(lexical_winner.clone()).await?;
+        store.put(semantic_distractor.clone()).await?;
         store
             .save_beliefs(
                 workspace_id,
@@ -2421,8 +2420,7 @@ mod tests {
                     updated_at: chrono::Utc::now(),
                 }],
             )
-            .await
-            .unwrap();
+            .await?;
 
         let results = store
             .hybrid_search_with_embedding(
@@ -2433,8 +2431,7 @@ mod tests {
                 None,
                 5,
             )
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(
             results.first().map(|entry| entry.record.id.as_str()),
@@ -2442,17 +2439,17 @@ mod tests {
         );
         assert!(results.len() >= 2);
         assert!(results[0].score > results[1].score);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn graph_hops_returns_recursive_paths_for_memory() {
-        let temp = tempdir().unwrap();
+    async fn graph_hops_returns_recursive_paths_for_memory() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("graph-hops.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-graph";
         let source = test_record(
@@ -2468,28 +2465,24 @@ mod tests {
             vec![1.0, 0.0, 0.0],
         );
 
-        store.put(source.clone()).await.unwrap();
-        store.put(target).await.unwrap();
+        store.put(source.clone()).await?;
+        store.put(target).await?;
         store
             .add_entity(
                 &VecSqliteMemoryStore::memory_node_id(workspace_id, &source.id),
                 &source.path,
                 "memory",
             )
-            .await
-            .unwrap();
+            .await?;
         store
             .add_entity("acct", "ACCT-9F3A", "account")
-            .await
-            .unwrap();
+            .await?;
         store
             .add_entity("alice", "Alice Johnson", "person")
-            .await
-            .unwrap();
+            .await?;
         store
             .add_entity("finance", "Finance Committee", "team")
-            .await
-            .unwrap();
+            .await?;
         store
             .add_relation(
                 &ulid::Ulid::new().to_string(),
@@ -2497,8 +2490,7 @@ mod tests {
                 "acct",
                 "mentions",
             )
-            .await
-            .unwrap();
+            .await?;
         store
             .add_relation(
                 &ulid::Ulid::new().to_string(),
@@ -2506,8 +2498,7 @@ mod tests {
                 "alice",
                 "approved_by",
             )
-            .await
-            .unwrap();
+            .await?;
         store
             .add_relation(
                 &ulid::Ulid::new().to_string(),
@@ -2515,13 +2506,11 @@ mod tests {
                 "finance",
                 "briefed",
             )
-            .await
-            .unwrap();
+            .await?;
 
         let result = store
             .graph_hops(workspace_id, &source.path, 3, "ACCT-9F3A")
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(result.source.id, source.id);
         assert!(result
@@ -2532,17 +2521,17 @@ mod tests {
             .paths
             .iter()
             .any(|path| path.entity_path.contains("Finance Committee")));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn put_extracts_entities_and_links_memory_nodes() {
-        let temp = tempdir().unwrap();
+    async fn put_extracts_entities_and_links_memory_nodes() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("entities.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-entities";
         let record = test_record(
@@ -2552,7 +2541,7 @@ mod tests {
             vec![0.0, 1.0, 0.0],
         );
 
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
 
         let conn = store.conn.lock();
         let link_count: i64 = conn
@@ -2560,20 +2549,20 @@ mod tests {
                 "SELECT COUNT(*) FROM memory_entities WHERE workspace_id = ? AND memory_id = ?",
                 params![workspace_id, &record.id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
 
         assert!(link_count >= 4);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn new_rebuilds_stale_fts_schema_without_code_tokens() {
-        let temp = tempdir().unwrap();
+    async fn new_rebuilds_stale_fts_schema_without_code_tokens() -> Result<()> {
+        let temp = tempdir()?;
         let db_path = temp.path().join("stale-fts.db");
-        VecSqliteMemoryStore::register_sqlite_vec_extension().unwrap();
+        VecSqliteMemoryStore::register_sqlite_vec_extension()?;
 
         {
-            let conn = Connection::open(&db_path).unwrap();
+            let conn = Connection::open(&db_path)?;
             conn.execute_batch(
                 r#"
                 CREATE TABLE memory_records (
@@ -2596,16 +2585,14 @@ mod tests {
                     content
                 );
                 "#,
-            )
-            .unwrap();
+            )?;
         }
 
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: db_path,
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let record = test_record(
             "ws-stale",
@@ -2614,10 +2601,10 @@ mod tests {
             vec![1.0, 0.0, 0.0],
         );
 
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
 
         let conn = store.conn.lock();
-        let columns = VecSqliteMemoryStore::virtual_table_columns(&conn, "memory_fts").unwrap();
+        let columns = VecSqliteMemoryStore::virtual_table_columns(&conn, "memory_fts")?;
         assert!(columns.iter().any(|column| column == "code_tokens"));
 
         let indexed: i64 = conn
@@ -2625,20 +2612,19 @@ mod tests {
                 "SELECT COUNT(*) FROM memory_fts WHERE id = ?",
                 params![record.id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
         assert_eq!(indexed, 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn put_appends_auditable_timeline_events() {
-        let temp = tempdir().unwrap();
+    async fn put_appends_auditable_timeline_events() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("timeline.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-timeline";
         let mut record = test_record(
@@ -2654,10 +2640,10 @@ mod tests {
             }
         });
 
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
         record.path = "memory/audit-2".to_string();
         record.id = stable_key("memory", &[workspace_id, &record.path]);
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
 
         let conn = store.conn.lock();
         let event_count: i64 = conn
@@ -2665,29 +2651,27 @@ mod tests {
                 "SELECT COUNT(*) FROM timeline_events WHERE workspace_id = ?",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
         let chained_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM timeline_events WHERE workspace_id = ? AND prev_hash IS NOT NULL",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
 
         assert_eq!(event_count, 2);
         assert_eq!(chained_count, 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn timeline_chain_uses_sequence_not_timestamp_order() {
-        let temp = tempdir().unwrap();
+    async fn timeline_chain_uses_sequence_not_timestamp_order() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("timeline-sequence.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-timeline-sequence";
         let mut record = test_record(
@@ -2703,11 +2687,11 @@ mod tests {
             }
         });
 
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
         record.path = "memory/audit-b".to_string();
         record.id = stable_key("memory", &[workspace_id, &record.path]);
         record.content = "second auditable event".to_string();
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
 
         {
             let conn = store.conn.lock();
@@ -2718,14 +2702,13 @@ mod tests {
                  ELSE timestamp END \
                  WHERE workspace_id = ?",
                 params![workspace_id],
-            )
-            .unwrap();
+            )?;
         }
 
         record.path = "memory/audit-c".to_string();
         record.id = stable_key("memory", &[workspace_id, &record.path]);
         record.content = "third auditable event".to_string();
-        store.put(record).await.unwrap();
+        store.put(record).await?;
 
         let conn = store.conn.lock();
         let second_hash: String = conn
@@ -2733,36 +2716,33 @@ mod tests {
                 "SELECT curr_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 2",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
         let third_prev_hash: String = conn
             .query_row(
                 "SELECT prev_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 3",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
         let max_sequence: i64 = conn
             .query_row(
                 "SELECT MAX(sequence) FROM timeline_events WHERE workspace_id = ?",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
 
         assert_eq!(max_sequence, 3);
         assert_eq!(third_prev_hash, second_hash);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn delete_removes_memory_without_foreign_key_errors() {
-        let temp = tempdir().unwrap();
+    async fn delete_removes_memory_without_foreign_key_errors() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("delete-roundtrip.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-delete";
         let record = test_record(
@@ -2772,18 +2752,17 @@ mod tests {
             vec![0.0, 1.0, 0.0],
         );
 
-        store.put(record).await.unwrap();
+        store.put(record).await?;
         let deleted = store
             .delete(workspace_id, "manual/smoke")
-            .await
-            .unwrap_or_else(|error| panic!("{error:#}"));
+            .await?;
 
         assert!(deleted.is_some());
         assert!(store
             .get(workspace_id, "manual/smoke")
-            .await
-            .unwrap()
+            .await?
             .is_none());
+        Ok(())
     }
 
     #[test]

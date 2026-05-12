@@ -1352,14 +1352,14 @@ mod tests {
     fn unique_test_path(prefix: &str, suffix: &str) -> PathBuf {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("SystemTime before UNIX_EPOCH")
             .as_nanos();
         std::env::temp_dir().join(format!("{prefix}-{unique}-{suffix}"))
     }
 
     async fn test_state() -> (AppState, WorkspaceContext) {
         let db_path = unique_test_path("xavier-code-mcp", "code_graph.db");
-        let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).unwrap());
+        let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).expect("CodeGraphDB creation failed for test"));
         let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
         let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
         let workspace_registry = Arc::new(WorkspaceRegistry::new());
@@ -1380,9 +1380,9 @@ mod tests {
             unique_test_path("xavier-mcp-store", "threads"),
         )
         .await
-        .unwrap();
-        workspace_registry.insert(workspace).await.unwrap();
-        let workspace = workspace_registry.authenticate("test-token").await.unwrap();
+        .expect("WorkspaceState creation failed for test");
+        workspace_registry.insert(workspace).await.expect("insert workspace into registry failed");
+        let workspace = workspace_registry.authenticate("test-token").await.expect("authenticate failed for test workspace");
 
         (
             AppState {
@@ -1418,11 +1418,11 @@ mod tests {
                 .method(Method::POST)
                 .uri("/mcp")
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&body).unwrap()))
-                .unwrap(),
+                .body(Body::from(serde_json::to_vec(&body).expect("serialize json body failed")))
+                .expect("build POST request failed"),
         )
         .await
-        .unwrap()
+        .expect("POST request to MCP endpoint failed")
     }
 
     async fn post_json_with_headers(
@@ -1439,11 +1439,11 @@ mod tests {
         }
         app.oneshot(
             request
-                .body(Body::from(serde_json::to_vec(&body).unwrap()))
-                .unwrap(),
+                .body(Body::from(serde_json::to_vec(&body).expect("serialize json body failed")))
+                .expect("build POST request failed"),
         )
         .await
-        .unwrap()
+        .expect("POST-with-headers request to MCP endpoint failed")
     }
 
     #[tokio::test]
@@ -1469,10 +1469,10 @@ mod tests {
             .headers()
             .get(MCP_SESSION_HEADER)
             .and_then(|value| value.to_str().ok())
-            .unwrap();
+            .expect("MCP session header should be present");
         assert!(session_id.starts_with("xavier-"));
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
         assert_eq!(payload["result"]["protocolVersion"], "2025-03-26");
         assert_eq!(payload["result"]["serverInfo"]["name"], "xavier-memory");
     }
@@ -1498,7 +1498,7 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("xavier-session-test")
         );
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
         assert!(body.is_empty());
     }
 
@@ -1540,7 +1540,7 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::ACCEPTED);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
         assert!(body.is_empty());
     }
 
@@ -1558,9 +1558,9 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(payload["result"]["tools"].as_array().unwrap().len(), 14);
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
+        assert_eq!(payload["result"]["tools"].as_array().expect("tools array expected").len(), 14);
     }
 
     #[tokio::test]
@@ -1575,7 +1575,7 @@ mod tests {
                 json!({}),
             )
             .await
-            .unwrap();
+            .expect("add_document failed for test");
 
         let response = post_json(
             test_router(state, workspace),
@@ -1595,13 +1595,13 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
-        let content = payload["result"]["content"].as_array().unwrap();
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
+        let content = payload["result"]["content"].as_array().expect("content array expected");
         assert!(!content.is_empty());
         assert!(content[0]["text"]
             .as_str()
-            .unwrap()
+            .expect("text string expected")
             .contains("MCP transport verification"));
     }
 
@@ -1665,11 +1665,11 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
-        let content = payload["result"]["content"].as_array().unwrap();
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
+        let content = payload["result"]["content"].as_array().expect("content array expected");
         assert_eq!(content.len(), 1);
-        let text = content[0]["text"].as_str().unwrap();
+        let text = content[0]["text"].as_str().expect("text string expected");
         assert!(text.contains("Path: bridge/openclaw/task"));
         assert!(text.contains("openclaw-content"));
         assert!(text.contains("content/youtube-backlog"));
@@ -1717,7 +1717,7 @@ mod tests {
                 }),
             )
             .await
-            .unwrap();
+            .expect("add_document_typed failed for test");
 
         let get_response = post_json(
             app.clone(),
@@ -1735,11 +1735,11 @@ mod tests {
         assert_eq!(get_response.status(), StatusCode::OK);
         let body = to_bytes(get_response.into_body(), usize::MAX)
             .await
-            .unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
+            .expect("read get_response body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
         assert!(payload["result"]["content"][0]["text"]
             .as_str()
-            .unwrap()
+            .expect("text string expected")
             .contains("Revision: 1"));
 
         let list_projects = post_json(
@@ -1773,11 +1773,11 @@ mod tests {
         assert_eq!(project_context.status(), StatusCode::OK);
         let body = to_bytes(project_context.into_body(), usize::MAX)
             .await
-            .unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
+            .expect("read project_context response body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
         assert!(payload["result"]["content"][0]["text"]
             .as_str()
-            .unwrap()
+            .expect("text string expected")
             .contains("Xavier durable memory context"));
     }
 
@@ -1788,16 +1788,16 @@ mod tests {
         let root = unique_test_path("xavier-gitcore", "repo");
         tokio::fs::create_dir_all(root.join(".gitcore"))
             .await
-            .unwrap();
+            .expect("create .gitcore dir failed");
         tokio::fs::write(root.join("AGENTS.md"), "agent rules v1")
             .await
-            .unwrap();
+            .expect("write AGENTS.md failed");
         tokio::fs::write(root.join(".gitcore/ARCHITECTURE.md"), "architecture v1")
             .await
-            .unwrap();
+            .expect("write ARCHITECTURE.md failed");
         tokio::fs::write(root.join("README.md"), "readme v1")
             .await
-            .unwrap();
+            .expect("write README.md failed");
 
         let first = post_json(
             app.clone(),
@@ -1815,9 +1815,9 @@ mod tests {
         )
         .await;
         assert_eq!(first.status(), StatusCode::OK);
-        let body = to_bytes(first.into_body(), usize::MAX).await.unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
-        let text = payload["result"]["content"][0]["text"].as_str().unwrap();
+        let body = to_bytes(first.into_body(), usize::MAX).await.expect("read first body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse first JSON failed");
+        let text = payload["result"]["content"][0]["text"].as_str().expect("first text expected");
         assert!(text.contains("created=3"));
         assert!(text.contains("updated=0"));
         assert!(text.contains("unchanged=0"));
@@ -1838,16 +1838,16 @@ mod tests {
         )
         .await;
         assert_eq!(second.status(), StatusCode::OK);
-        let body = to_bytes(second.into_body(), usize::MAX).await.unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
-        let text = payload["result"]["content"][0]["text"].as_str().unwrap();
+        let body = to_bytes(second.into_body(), usize::MAX).await.expect("read second body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse second JSON failed");
+        let text = payload["result"]["content"][0]["text"].as_str().expect("second text expected");
         assert!(text.contains("created=0"));
         assert!(text.contains("updated=0"));
         assert!(text.contains("unchanged=3"));
 
         tokio::fs::write(root.join("README.md"), "readme v2")
             .await
-            .unwrap();
+            .expect("write README v2 failed");
         let third = post_json(
             app,
             json!({
@@ -1864,18 +1864,18 @@ mod tests {
         )
         .await;
         assert_eq!(third.status(), StatusCode::OK);
-        let body = to_bytes(third.into_body(), usize::MAX).await.unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
-        let text = payload["result"]["content"][0]["text"].as_str().unwrap();
+        let body = to_bytes(third.into_body(), usize::MAX).await.expect("read third body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse third JSON failed");
+        let text = payload["result"]["content"][0]["text"].as_str().expect("third text expected");
         assert!(text.contains("updated=1"));
 
-        let project = root.file_name().unwrap().to_str().unwrap();
+        let project = root.file_name().expect("root should have file_name").to_str().expect("root file_name should be valid UTF-8");
         let record = workspace
             .workspace
             .get_memory_record(&format!("gitcore/{project}/README.md"))
             .await
-            .unwrap()
-            .unwrap();
+            .expect("get_memory_record failed")
+            .expect("memory record should exist");
         assert_eq!(record.revision, 2);
         assert_eq!(record.content, "readme v2");
     }
@@ -1939,11 +1939,11 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let payload: Value = serde_json::from_slice(&body).unwrap();
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
 
         assert_eq!(payload["result"]["is_error"], true, "{payload:?}");
-        let text = payload["result"]["content"][0]["text"].as_str().unwrap();
+        let text = payload["result"]["content"][0]["text"].as_str().expect("text string expected");
         assert!(text.contains("security_policy_violation"));
     }
 
@@ -1957,10 +1957,10 @@ mod tests {
                     .uri("/mcp")
                     .header("content-type", "application/json")
                     .body(Body::from("{not json"))
-                    .unwrap(),
+                    .expect("build malformed JSON request failed"),
             )
             .await
-            .unwrap();
+            .expect("malformed JSON request failed");
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
@@ -1977,10 +1977,10 @@ mod tests {
                     .method(Method::GET)
                     .uri("/mcp")
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("build GET request failed"),
             )
             .await
-            .unwrap();
+            .expect("GET request failed");
         assert_eq!(get_response.status(), StatusCode::METHOD_NOT_ALLOWED);
 
         let delete_response = app
@@ -1989,10 +1989,10 @@ mod tests {
                     .method(Method::DELETE)
                     .uri("/mcp")
                     .body(Body::empty())
-                    .unwrap(),
+                    .expect("build DELETE request failed"),
             )
             .await
-            .unwrap();
+            .expect("DELETE request failed");
         assert_eq!(delete_response.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 }
