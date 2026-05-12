@@ -96,12 +96,64 @@ impl RustParser {
                     );
                 }
             }
+            "use_declaration" => {
+                self.extract_imports(node, source, file_path, symbols);
+            }
+            "mod_item" => {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    self.push_symbol(
+                        symbols,
+                        node,
+                        name_node,
+                        source,
+                        file_path,
+                        SymbolKind::Module,
+                    );
+                }
+            }
             _ => {}
         }
 
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             self.extract_symbols_from_node(child, source, file_path, symbols);
+        }
+    }
+
+    fn extract_imports(
+        &self,
+        node: Node,
+        source: &str,
+        file_path: &str,
+        symbols: &mut Vec<Symbol>,
+    ) {
+        let start = node.start_position();
+        let end = node.end_position();
+
+        // Very simple import extraction: just take the whole thing as one symbol for now
+        // to help with dependency tracking.
+        let name = node
+            .utf8_text(source.as_bytes())
+            .unwrap_or("")
+            .trim_end_matches(';')
+            .replace("use ", "")
+            .trim()
+            .to_string();
+
+        if !name.is_empty() {
+            symbols.push(Symbol {
+                id: None,
+                name,
+                kind: SymbolKind::Import,
+                lang: Language::Rust,
+                file_path: file_path.to_string(),
+                start_line: (start.row + 1) as u32,
+                end_line: (end.row + 1) as u32,
+                start_col: start.column as u32,
+                end_col: end.column as u32,
+                signature: Some(node.utf8_text(source.as_bytes()).unwrap_or("").to_string()),
+                parent: None,
+            });
         }
     }
 

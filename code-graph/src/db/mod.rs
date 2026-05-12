@@ -433,17 +433,61 @@ impl CodeGraphDB {
     /// Find files that depend on symbols from the given file path
     pub fn find_reverse_dependencies(&self, file_path: &str) -> Result<Vec<String>> {
         let conn = self.conn.lock().unwrap();
+
+        // 1. Find symbols defined in this file (excluding imports)
         let mut stmt = conn
-            .prepare(
-                "SELECT DISTINCT file_path FROM symbols WHERE name IN (SELECT name FROM symbols WHERE file_path = ?1) AND file_path != ?1"
-            )
+            .prepare("SELECT name FROM symbols WHERE file_path = ?1 AND kind != 'Import'")
             .map_err(|e| GraphError::Database(e.to_string()))?;
-        let files = stmt
+
+        let symbol_names: Vec<String> = stmt
             .query_map(params![file_path], |row| row.get::<_, String>(0))
             .map_err(|e| GraphError::Database(e.to_string()))?
             .filter_map(|r| r.ok())
             .collect();
-        Ok(files)
+
+        if symbol_names.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 2. Find other files that import or reference these symbols
+        let mut dependent_files = std::collections::HashSet::new();
+
+        for name in symbol_names {
+            // Search in imports
+            let mut stmt = conn
+                .prepare("SELECT DISTINCT file_path FROM symbols WHERE kind = 'Import' AND name LIKE ?1 AND file_path != ?2")
+                .map_err(|e| GraphError::Database(e.to_string()))?;
+
+            let pattern = format!("%{}%", name);
+            let files = stmt
+                .query_map(params![pattern, file_path], |row| row.get::<_, String>(0))
+                .map_err(|e| GraphError::Database(e.to_string()))?
+                .filter_map(|r| r.ok());
+
+            for f in files {
+                dependent_files.insert(f);
+            }
+
+            // Search in references (if any)
+            let mut stmt = conn
+                .prepare(
+                    "SELECT DISTINCT r.file_path FROM refs r
+                     JOIN symbols s ON r.symbol_id = s.id
+                     WHERE s.name = ?1 AND r.file_path != ?2"
+                )
+                .map_err(|e| GraphError::Database(e.to_string()))?;
+
+            let files = stmt
+                .query_map(params![name, file_path], |row| row.get::<_, String>(0))
+                .map_err(|e| GraphError::Database(e.to_string()))?
+                .filter_map(|r| r.ok());
+
+            for f in files {
+                dependent_files.insert(f);
+            }
+        }
+
+        Ok(dependent_files.into_iter().collect())
     }
 
     /// Find all symbols in a file

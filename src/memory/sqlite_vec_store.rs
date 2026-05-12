@@ -308,6 +308,18 @@ impl VecSqliteMemoryStore {
             TABLE_CHECKPOINTS
         ))?;
 
+        // Handle schema evolution for memory_records
+        let memory_columns = Self::virtual_table_columns(conn, TABLE_MEMORIES)?;
+        if !memory_columns.iter().any(|c| c == "cluster_id") {
+            conn.execute(&format!("ALTER TABLE {} ADD COLUMN cluster_id TEXT", TABLE_MEMORIES), [])?;
+        }
+        if !memory_columns.iter().any(|c| c == "level") {
+            conn.execute(&format!("ALTER TABLE {} ADD COLUMN level TEXT NOT NULL DEFAULT 'raw'", TABLE_MEMORIES), [])?;
+        }
+        if !memory_columns.iter().any(|c| c == "relation") {
+            conn.execute(&format!("ALTER TABLE {} ADD COLUMN relation TEXT", TABLE_MEMORIES), [])?;
+        }
+
         Self::ensure_vector_index(conn, embedding_dimensions)?;
         Self::ensure_fts_index(conn)?;
 

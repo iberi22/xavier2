@@ -1,7 +1,7 @@
 use axum::{extract::State, Json};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use crate::adapters::inbound::http::AppState;
-use xavier::coordination::agent_registry::AgentMetadata;
+use crate::domain::agent::AgentMetadata;
 
 #[derive(Debug, Deserialize)]
 pub struct AgentRegisterPayload {
@@ -20,6 +20,7 @@ pub async fn agent_register_handler(
         name: payload.name,
         capabilities: payload.capabilities.unwrap_or_default(),
         role: payload.role,
+        endpoint: None,
     };
 
     let success = state
@@ -52,8 +53,8 @@ pub async fn agent_heartbeat_handler(
     }))
 }
 
-pub async fn agent_active_handler(State(state): State<AppState>) -> Json<serde_json::Value> {
-    let active = state.agent_lifecycle.get_active_agents().await;
+pub async fn agent_active_handler(State(_state): State<AppState>) -> Json<serde_json::Value> {
+    let active = _state.agent_lifecycle.get_active_agents().await;
 
     Json(serde_json::json!({
         "status": "ok",
@@ -83,7 +84,7 @@ pub struct AgentPushContextPayload {
 }
 
 pub async fn agent_push_context_handler(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     axum::extract::Path(agent_id): axum::extract::Path<String>,
     Json(payload): Json<AgentPushContextPayload>,
 ) -> Json<serde_json::Value> {

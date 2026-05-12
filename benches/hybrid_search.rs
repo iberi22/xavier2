@@ -3,6 +3,7 @@ use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 use tokio::runtime::Runtime;
 use xavier::memory::belief_graph::BeliefRelation;
+use xavier::memory::schema::MemoryLevel;
 use xavier::memory::sqlite_vec_store::{VecSqliteMemoryStore, VecSqliteStoreConfig};
 use xavier::memory::{HybridSearchMode, MemoryRecord, MemoryStore};
 
@@ -78,6 +79,9 @@ fn bench_hybrid_search(c: &mut Criterion) {
                     revision: 1,
                     primary: true,
                     parent_id: None,
+                    cluster_id: None,
+                    level: MemoryLevel::Raw,
+                    relation: None,
                     revisions: Vec::new(),
                 })
                 .await

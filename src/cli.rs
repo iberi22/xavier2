@@ -63,6 +63,7 @@ pub struct CliState {
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
+    #[allow(dead_code)]
     pub change_control: Arc<ChangeControlService>,
 }
 
@@ -3417,7 +3418,7 @@ mod tests {
         // This test runs last and may be affected by env state from other tests.
         // If XAVIER_TOKEN is still set, we expect 401 (wrong token).
         // If unset, we expect 500 (not configured). Both are acceptable for this test.
-        let token_is_set = std::env::var("XAVIER_TOKEN").is_ok();
+        let _token_is_set = std::env::var("XAVIER_TOKEN").is_ok();
 
         let app = Router::new()
             .route("/protected", get(|| async { "ok" }))

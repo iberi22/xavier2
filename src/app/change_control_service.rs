@@ -8,7 +8,9 @@ use crate::ports::inbound::change_control_port::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
+use code_graph::db::CodeGraphDB;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 use ulid::Ulid;
 use anyhow::Result;
@@ -20,6 +22,7 @@ use anyhow::Result;
 pub struct ChangeControlService {
     tasks: RwLock<HashMap<String, AgentTask>>,
     leases: RwLock<HashMap<String, FileLease>>,
+    db: Option<Arc<CodeGraphDB>>,
 }
 
 impl ChangeControlService {
@@ -27,7 +30,13 @@ impl ChangeControlService {
         Self {
             tasks: RwLock::new(HashMap::new()),
             leases: RwLock::new(HashMap::new()),
+            db: None,
         }
+    }
+
+    pub fn with_db(mut self, db: Arc<CodeGraphDB>) -> Self {
+        self.db = Some(db);
+        self
     }
 
     /// Search for relevant architectural decisions affecting the given file patterns.
@@ -54,42 +63,58 @@ impl ChangeControlService {
     }
 
     /// Calculate the risk impact of touching the given file patterns.
-    /// Uses heuristics-based analysis. Phase 4 will use code-graph for real graph queries.
+    /// Uses code-graph for real graph queries when available.
     pub async fn calculate_impact(&self, patterns: &[String]) -> ImpactReport {
-        let mut score = 0.0f32;
-        let mut affected = Vec::new();
-        let mut contracts = Vec::new();
+        let mut total_symbols = 0;
+        let mut dependent_files = std::collections::HashSet::new();
+        let mut contracts_affected = std::collections::HashSet::new();
+        let mut base_score = 0.1f32;
 
-        for pattern in patterns {
-            // Critical files -> high risk
-            if pattern.contains("qmd_memory") || pattern.contains("memory/") {
-                score = score.max(0.9);
-                affected.push(pattern.clone());
-                contracts.push("MemoryQueryPort".to_string());
-            }
-            if pattern.contains("domain/memory") {
-                score = score.max(0.95);
-                contracts.push("MemoryDomain".to_string());
-            }
-            if pattern.contains("ports/inbound") {
-                score = score.max(0.8);
-                contracts.push("PortContract".to_string());
-            }
-            if pattern.contains("settings.rs") {
-                score = score.max(0.7);
-            }
+        if let Some(db) = &self.db {
+            for pattern in patterns {
+                // For simple file paths (no wildcards), we can do direct lookups
+                if !pattern.contains('*') {
+                    if let Ok(symbols) = db.find_symbols_in_file(pattern) {
+                        total_symbols += symbols.len();
+                        for sym in symbols {
+                            if sym.kind == code_graph::types::SymbolKind::Trait {
+                                contracts_affected.insert(sym.name);
+                            }
+                        }
+                    }
+                    if let Ok(deps) = db.find_reverse_dependencies(pattern) {
+                        for dep in deps {
+                            dependent_files.insert(dep);
+                        }
+                    }
+                }
 
-            // Directories with many dependents
-            if pattern.contains("src/memory/") {
-                score = score.max(0.6);
-                affected.push(pattern.clone());
+                // Heuristic boosts
+                if pattern.contains("domain/") {
+                    base_score = base_score.max(0.5);
+                }
+                if pattern.contains("ports/") {
+                    base_score = base_score.max(0.4);
+                }
+            }
+        } else {
+            // Fallback to simple heuristics if DB is not available
+            for pattern in patterns {
+                if pattern.contains("qmd_memory") || pattern.contains("memory/") {
+                    base_score = base_score.max(0.8);
+                    contracts_affected.insert("MemoryQueryPort".to_string());
+                }
+                if pattern.contains("domain/") {
+                    base_score = base_score.max(0.6);
+                }
             }
         }
 
-        // Fallback: if no heuristics matched, low risk
-        if score == 0.0 {
-            score = 0.2;
-        }
+        let dep_count = dependent_files.len();
+        let mut score = base_score + (dep_count as f32 * 0.05).min(0.4) + (total_symbols as f32 * 0.01).min(0.2);
+
+        // Cap score at 1.0
+        score = score.min(1.0);
 
         let risk_level = if score >= 0.9 {
             RiskLevel::Critical
@@ -103,18 +128,15 @@ impl ChangeControlService {
 
         ImpactReport {
             score,
-            symbols_affected: affected.len(),
-            dependent_files: affected,
-            contracts_affected: contracts,
+            symbols_affected: total_symbols,
+            dependent_files: dependent_files.into_iter().collect(),
+            contracts_affected: contracts_affected.into_iter().collect(),
             risk_level,
-            recommendation: if score >= 0.9 {
-                "Blocked — requires architect approval".to_string()
-            } else if score >= 0.7 {
-                "Consider splitting into smaller tasks".to_string()
-            } else if score >= 0.4 {
-                "Proceed with caution — run full test suite".to_string()
-            } else {
-                "Safe to proceed".to_string()
+            recommendation: match risk_level {
+                RiskLevel::Critical => "Blocked — requires architect approval".to_string(),
+                RiskLevel::High => "Consider splitting into smaller tasks".to_string(),
+                RiskLevel::Medium => "Proceed with caution — run full test suite".to_string(),
+                RiskLevel::Low => "Safe to proceed".to_string(),
             },
         }
     }
@@ -252,6 +274,14 @@ impl ChangeControlPort for ChangeControlService {
         // Search for relevant ADR decisions before moving patterns into the lease
         let memory_context = self.search_decisions(&patterns).await.unwrap_or_default();
 
+        // Calculate real impact
+        let impact = self.calculate_impact(&patterns).await;
+
+        let mut required_checks = vec!["cargo test --lib".to_string(), "cargo clippy".to_string()];
+        if impact.risk_level >= RiskLevel::High {
+            required_checks.push("cargo test --test '*'".to_string());
+        }
+
         // Create the lease (even if conflicts exist — caller decides)
         let lease_id = Ulid::new().to_string();
         let expires_at = now + ttl_seconds;
@@ -268,9 +298,12 @@ impl ChangeControlPort for ChangeControlService {
 
         let has_blocking = conflicts
             .iter()
-            .any(|c| c.severity == ConflictSeverity::Blocking || c.severity == ConflictSeverity::Critical);
+            .any(|c| c.severity == ConflictSeverity::Blocking || c.severity == ConflictSeverity::Critical)
+            || impact.risk_level == RiskLevel::Critical;
 
-        let status = if has_blocking {
+        let status = if impact.risk_level == RiskLevel::Critical {
+            "blocked".to_string()
+        } else if has_blocking {
             "conflict_detected".to_string()
         } else {
             "granted".to_string()
@@ -281,7 +314,7 @@ impl ChangeControlPort for ChangeControlService {
             lease_id,
             conflicts,
             memory_context,
-            required_checks: vec!["cargo test --lib".to_string(), "cargo clippy".to_string()],
+            required_checks,
         })
     }
 
@@ -443,7 +476,7 @@ impl ChangeControlPort for ChangeControlService {
             .filter(|t| {
                 t.dependencies.iter().any(|dep_id| {
                     // Blocked if dependency is missing or not yet completed
-                    tasks.get(dep_id).map_or(true, |dep| {
+                    tasks.get(dep_id).is_none_or(|dep| {
                         dep.status != AgentTaskStatus::Completed
                     })
                 })
@@ -455,7 +488,7 @@ impl ChangeControlPort for ChangeControlService {
                     t.dependencies
                         .iter()
                         .filter(|dep_id| {
-                            tasks.get(*dep_id).map_or(true, |dep| {
+                            tasks.get(*dep_id).is_none_or(|dep| {
                                 dep.status != AgentTaskStatus::Completed
                             })
                         })

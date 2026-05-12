@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 
 use xavier::adapters::inbound::http::routes::sync_check_handler;
-use xavier::memory::schema::MemoryQueryFilters;
+use xavier::memory::schema::{MemoryQueryFilters, MemoryLevel};
 use xavier::memory::store::{DurableWorkspaceState, MemoryRecord, MemoryStore, SessionTokenRecord};
 use xavier::ports::outbound::health_check_port::HealthStatus;
 use xavier::ports::outbound::HealthCheckPort;
@@ -156,6 +156,18 @@ impl MemoryStore for MockMemoryStore {
     fn as_any(&self) -> &dyn std::any::Any {
         self
     }
+
+    async fn export(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn export_tree(&self, _workspace_id: &str, _path: &std::path::Path) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn import(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 fn make_session_record(seconds_ago: i64) -> MemoryRecord {
@@ -181,6 +193,9 @@ fn make_session_record(seconds_ago: i64) -> MemoryRecord {
         revision: 1,
         primary: true,
         parent_id: None,
+        cluster_id: None,
+        level: MemoryLevel::Raw,
+        relation: None,
         revisions: vec![],
     }
 }
