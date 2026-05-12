@@ -12,13 +12,13 @@ mod secret_tests {
             value in "[a-zA-Z0-9]{10,100}",
             grant_id_noise in "[a-zA-Z0-9]{10,20}"
         ) {
-            let rt = tokio::runtime::Runtime::new().unwrap();
+            let rt = tokio::runtime::Runtime::new().expect("test assertion");
             rt.block_on(async {
                 let store = Box::new(LocalSecretStore::new());
                 let mut daemon = SecretDaemon::new(store);
 
                 // Set secret
-                daemon.set_secret(&key, &value).await.unwrap();
+                daemon.set_secret(&key, &value).await.expect("test assertion");
 
                 // Issue grant
                 let mut perms = HashSet::new();
@@ -26,7 +26,7 @@ mod secret_tests {
                 let grant_id = daemon.issue_grant(&key, perms, 3600);
 
                 // Valid access
-                let retrieved = daemon.get_secret(&key, &grant_id).await.unwrap();
+                let retrieved = daemon.get_secret(&key, &grant_id).await.expect("test assertion");
                 assert_eq!(retrieved, value);
 
                 // Invalid access with noise

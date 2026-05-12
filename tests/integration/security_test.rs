@@ -16,11 +16,11 @@ mod security_tests {
     fn test_encode_decode() {
         let security = SecurityManager::new();
 
-        let encoded = security.encode("secret data").unwrap();
+        let encoded = security.encode("secret data").expect("test assertion");
         assert_ne!(encoded, "secret data");
         assert!(encoded.starts_with("hex:"));
 
-        let decoded = security.decode(&encoded).unwrap();
+        let decoded = security.decode(&encoded).expect("test assertion");
         assert_eq!(decoded, "secret data");
     }
 
@@ -28,9 +28,9 @@ mod security_tests {
     fn test_hash_password() {
         let security = SecurityManager::new();
 
-        let hash = security.hash_password("test_password").unwrap();
-        assert!(security.verify_password("test_password", &hash).unwrap());
-        assert!(!security.verify_password("wrong_password", &hash).unwrap());
+        let hash = security.hash_password("test_password").expect("test assertion");
+        assert!(security.verify_password("test_password", &hash).expect("test assertion"));
+        assert!(!security.verify_password("wrong_password", &hash).expect("test assertion"));
     }
 
     #[test]
@@ -39,7 +39,7 @@ mod security_tests {
         std::env::set_var("XAVIER_TOKEN_SECRET", "test-secret-key-for-testing");
         let security = SecurityManager::new();
 
-        let token = security.generate_token("user123").unwrap();
+        let token = security.generate_token("user123").expect("test assertion");
         assert!(!token.is_empty());
 
         let validated = security.validate_token(&token);
@@ -63,7 +63,7 @@ mod secrets_tests {
 
         manager
             .store("api_key".to_string(), "secret_value".to_string())
-            .unwrap();
+            .expect("test assertion");
 
         assert!(manager.exists("api_key"));
     }
@@ -74,9 +74,9 @@ mod secrets_tests {
 
         manager
             .store("test_key".to_string(), "test_value".to_string())
-            .unwrap();
+            .expect("test assertion");
 
-        let retrieved = manager.get("test_key").unwrap();
+        let retrieved = manager.get("test_key").expect("test assertion");
         assert_eq!(retrieved, "test_value");
     }
 
@@ -86,8 +86,8 @@ mod secrets_tests {
 
         manager
             .store("to_delete".to_string(), "value".to_string())
-            .unwrap();
-        manager.delete("to_delete").unwrap();
+            .expect("test assertion");
+        manager.delete("to_delete").expect("test assertion");
 
         assert!(!manager.exists("to_delete"));
     }

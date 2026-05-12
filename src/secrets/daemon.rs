@@ -39,7 +39,7 @@ impl SecretDaemon {
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("test assertion")
             .as_secs();
 
         if now > grant.expires_at {
@@ -70,7 +70,7 @@ impl SecretDaemon {
         let id = ulid::Ulid::new().to_string();
         let expires_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("test assertion")
             .as_secs()
             + ttl_secs;
 

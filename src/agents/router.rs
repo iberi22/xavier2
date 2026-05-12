@@ -477,7 +477,7 @@ mod tests {
 
     #[test]
     fn selects_quality_model_for_high_priority_memories() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = env_lock().lock().expect("test assertion");
         std::env::set_var("XAVIER_ROUTER_FAST_MODEL", "fast-model");
         std::env::set_var("XAVIER_ROUTER_QUALITY_MODEL", "quality-model");
         std::env::remove_var("XAVIER_ROUTER_POLICY_PATH");
@@ -506,7 +506,7 @@ mod tests {
 
     #[test]
     fn selects_fast_model_for_strong_medium_priority_retrieval() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = env_lock().lock().expect("test assertion");
         std::env::set_var("XAVIER_ROUTER_FAST_MODEL", "fast-model");
         std::env::set_var("XAVIER_ROUTER_QUALITY_MODEL", "quality-model");
         std::env::remove_var("XAVIER_ROUTER_POLICY_PATH");

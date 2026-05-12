@@ -234,7 +234,7 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .expect("test assertion");
 
         assert_eq!(runs.load(Ordering::SeqCst), 1);
         assert_eq!(recovered, vec!["job-1".to_string()]);

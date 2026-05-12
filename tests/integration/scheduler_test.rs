@@ -15,7 +15,7 @@ mod scheduler_tests {
         let job = Job::new(
             "test_job".to_string(),
             "test command".to_string(),
-            CronSchedule::parse("0 * * * *").unwrap(), // Every hour
+            CronSchedule::parse("0 * * * *").expect("test assertion"), // Every hour
         );
 
         assert_eq!(job.name, "test_job");
@@ -28,7 +28,7 @@ mod scheduler_tests {
         let mut job = Job::new(
             "test".to_string(),
             "cmd".to_string(),
-            CronSchedule::parse("0 * * * *").unwrap(),
+            CronSchedule::parse("0 * * * *").expect("test assertion"),
         );
 
         // Pending -> Running
@@ -45,7 +45,7 @@ mod scheduler_tests {
         let mut job = Job::new(
             "test".to_string(),
             "cmd".to_string(),
-            CronSchedule::parse("0 * * * *").unwrap(),
+            CronSchedule::parse("0 * * * *").expect("test assertion"),
         );
 
         job.cancel();
@@ -59,7 +59,7 @@ mod scheduler_tests {
         let job = Job::new(
             "scheduled_job".to_string(),
             "echo hello".to_string(),
-            CronSchedule::parse("0 * * * *").unwrap(),
+            CronSchedule::parse("0 * * * *").expect("test assertion"),
         );
 
         scheduler.add_job(job).await;
@@ -73,7 +73,7 @@ mod scheduler_tests {
         let job = Job::new(
             "to_remove".to_string(),
             "cmd".to_string(),
-            CronSchedule::parse("0 * * * *").unwrap(),
+            CronSchedule::parse("0 * * * *").expect("test assertion"),
         );
 
         let job_id = job.id.clone();
@@ -91,7 +91,7 @@ mod scheduler_tests {
         let job = Job::new(
             "next_job".to_string(),
             "cmd".to_string(),
-            CronSchedule::parse("* * * * *").unwrap(), // Every minute
+            CronSchedule::parse("* * * * *").expect("test assertion"), // Every minute
         );
 
         scheduler.add_job(job).await;
@@ -107,13 +107,13 @@ mod cron_schedule_tests {
 
     #[test]
     fn test_cron_parsing() {
-        let schedule = CronSchedule::parse("0 * * * *").unwrap();
+        let schedule = CronSchedule::parse("0 * * * *").expect("test assertion");
         assert!(schedule.is_valid());
     }
 
     #[test]
     fn test_cron_every_minute() {
-        let schedule = CronSchedule::parse("* * * * *").unwrap();
+        let schedule = CronSchedule::parse("* * * * *").expect("test assertion");
         assert!(schedule.is_valid());
     }
 
@@ -125,7 +125,7 @@ mod cron_schedule_tests {
 
     #[test]
     fn test_cron_next_run() {
-        let schedule = CronSchedule::parse("0 0 * * *").unwrap(); // Daily at midnight
+        let schedule = CronSchedule::parse("0 0 * * *").expect("test assertion"); // Daily at midnight
         let next = schedule.next_run();
         assert!(next.is_some());
     }

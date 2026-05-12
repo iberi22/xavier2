@@ -7,7 +7,7 @@ mod benchmarks_inner {
     use std::time::Instant;
 
     fn setup_large_db() -> CodeGraphDB {
-        let db = CodeGraphDB::in_memory().unwrap();
+        let db = CodeGraphDB::in_memory().expect("benchmark assertion");
 
         // Insert 1000 symbols for benchmarking
         for i in 0..1000 {
@@ -24,7 +24,7 @@ mod benchmarks_inner {
                 signature: Some(format!("fn function_{}() -> Result<()>", i)),
                 parent: None,
             };
-            db.insert_symbol(&sym).unwrap();
+            db.insert_symbol(&sym).expect("benchmark assertion");
         }
 
         db
@@ -36,7 +36,7 @@ mod benchmarks_inner {
 
         let start = Instant::now();
         for _ in 0..100 {
-            db.find_symbols("function_500", 10).unwrap();
+            db.find_symbols("function_500", 10).expect("benchmark assertion");
         }
         let elapsed = start.elapsed();
 
@@ -50,7 +50,7 @@ mod benchmarks_inner {
 
         let start = Instant::now();
         for _ in 0..100 {
-            db.find_symbols("function_", 10).unwrap();
+            db.find_symbols("function_", 10).expect("benchmark assertion");
         }
         let elapsed = start.elapsed();
 
@@ -60,7 +60,7 @@ mod benchmarks_inner {
 
     #[test]
     fn benchmark_insert() {
-        let db = CodeGraphDB::in_memory().unwrap();
+        let db = CodeGraphDB::in_memory().expect("benchmark assertion");
 
         let start = Instant::now();
         for i in 0..100 {
@@ -77,7 +77,7 @@ mod benchmarks_inner {
                 signature: Some("fn bench()".to_string()),
                 parent: None,
             };
-            db.insert_symbol(&sym).unwrap();
+            db.insert_symbol(&sym).expect("benchmark assertion");
         }
         let elapsed = start.elapsed();
 
@@ -91,7 +91,7 @@ mod benchmarks_inner {
 
         let start = Instant::now();
         for _ in 0..100 {
-            db.find_by_kind(SymbolKind::Function, 100).unwrap();
+            db.find_by_kind(SymbolKind::Function, 100).expect("benchmark assertion");
         }
         let elapsed = start.elapsed();
 

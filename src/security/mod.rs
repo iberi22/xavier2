@@ -137,7 +137,7 @@ impl SecurityManager {
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("test assertion")
             .as_secs();
         let token_id = ulid::Ulid::new().to_string();
 

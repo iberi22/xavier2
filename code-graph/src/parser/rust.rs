@@ -12,7 +12,7 @@ impl RustParser {
     pub fn new() -> Self {
         let mut parser = Parser::new();
         let lang = tree_sitter_rust::LANGUAGE.into();
-        parser.set_language(&lang).unwrap();
+        parser.set_language(&lang).expect("failed to set Rust tree-sitter language");
         Self { parser }
     }
 
@@ -190,13 +190,13 @@ mod tests {
                 "#,
                 "memory.rs",
             )
-            .unwrap();
+            .expect("test assertion");
 
         let symbol = symbols
             .iter()
             .find(|symbol| symbol.name == "search_filtered")
-            .unwrap();
-        let signature = symbol.signature.as_deref().unwrap();
+            .expect("test assertion");
+        let signature = symbol.signature.as_deref().expect("test assertion");
 
         assert!(signature.contains("pub async fn search_filtered"));
         assert!(signature.contains("Result<Vec<MemoryDocument>>"));
@@ -216,12 +216,12 @@ mod tests {
                 "#,
                 "semantic_cache.rs",
             )
-            .unwrap();
+            .expect("test assertion");
 
         let symbol = symbols
             .iter()
             .find(|symbol| symbol.name == "SemanticCache")
-            .unwrap();
+            .expect("test assertion");
 
         assert_eq!(symbol.kind, SymbolKind::Struct);
         assert_eq!(
@@ -235,8 +235,8 @@ mod tests {
         let long_name = "á".repeat(450);
         let source = format!("pub fn {long_name}() {{}}");
         let mut parser = RustParser::new();
-        let symbols = parser.parse(&source, "unicode.rs").unwrap();
-        let signature = symbols[0].signature.as_deref().unwrap();
+        let symbols = parser.parse(&source, "unicode.rs").expect("test assertion");
+        let signature = symbols[0].signature.as_deref().expect("test assertion");
 
         assert!(signature.ends_with("..."));
         assert!(signature.is_char_boundary(signature.len()));

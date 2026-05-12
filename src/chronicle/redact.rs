@@ -139,7 +139,7 @@ mod tests {
         let input = "Secret: api_key=1234567890, Server: localhost:3000";
         let result = process_output(input);
         assert!(result.is_ok());
-        let output = result.unwrap();
+        let output = result.expect("test assertion");
         assert!(output.contains("[REDACTED]"));
         assert!(output.contains("[internal-service]"));
     }

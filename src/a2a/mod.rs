@@ -452,7 +452,10 @@ impl A2AServer {
             .handle_task(task_id.to_string(), message)
             .await
         {
-            Ok(task) => success_response(request.id, serde_json::to_value(task).unwrap()),
+            Ok(task) => match serde_json::to_value(task) {
+                Ok(value) => success_response(request.id, value),
+                Err(e) => internal_error(request.id, format!("serialization error: {}", e)),
+            },
             Err(error) => internal_error(request.id, error),
         }
     }
@@ -467,7 +470,10 @@ impl A2AServer {
         };
 
         match self.task_handler.get_task(task_id).await {
-            Ok(task) => success_response(request.id, serde_json::to_value(task).unwrap()),
+            Ok(task) => match serde_json::to_value(task) {
+                Ok(value) => success_response(request.id, value),
+                Err(e) => internal_error(request.id, format!("serialization error: {}", e)),
+            },
             Err(error) => internal_error(request.id, error),
         }
     }
@@ -723,10 +729,10 @@ mod tests {
 
     #[test]
     fn task_status_uses_protocol_friendly_serialization() {
-        let serialized = serde_json::to_string(&types::TaskStatus::InputRequired).unwrap();
+        let serialized = serde_json::to_string(&types::TaskStatus::InputRequired).expect("test serialization");
         assert_eq!(serialized, "\"inputRequired\"");
 
-        let deserialized: types::TaskStatus = serde_json::from_str("\"completed\"").unwrap();
+        let deserialized: types::TaskStatus = serde_json::from_str("\"completed\"").expect("test deserialization");
         assert_eq!(deserialized, types::TaskStatus::Completed);
     }
 
@@ -737,7 +743,7 @@ mod tests {
             r#type: "document".to_string(),
         };
 
-        let json = serde_json::to_value(&artifact).unwrap();
+        let json = serde_json::to_value(&artifact).expect("test serialization");
         assert_eq!(json["type"], "document");
     }
 
@@ -765,7 +771,7 @@ mod tests {
         };
 
         let response = server.handle_request(request).await;
-        let task: types::Task = serde_json::from_value(response.result.unwrap()).unwrap();
+        let task: types::Task = serde_json::from_value(response.result.expect("test result present")).expect("test deserialization");
 
         assert_eq!(response.error, None);
         assert_eq!(task.id, "task-1");
@@ -787,7 +793,7 @@ mod tests {
         };
 
         let response = server.handle_request(request).await;
-        let error = response.error.unwrap();
+        let error = response.error.expect("test error present");
 
         assert_eq!(error.code, -32602);
         assert!(error.message.contains("Invalid params"));
@@ -804,7 +810,7 @@ mod tests {
         };
 
         let response = server.handle_request(request).await;
-        let error = response.error.unwrap();
+        let error = response.error.expect("test error present");
 
         assert_eq!(error.code, -32000);
         assert!(error.message.contains("Task not found"));
@@ -833,7 +839,7 @@ mod tests {
         let response = server.handle_request(cancel_request).await;
 
         assert_eq!(response.error, None);
-        assert_eq!(response.result.unwrap()["success"], true);
+        assert_eq!(response.result.expect("test result present")["success"], true);
     }
 
     #[tokio::test]
@@ -847,7 +853,7 @@ mod tests {
         };
 
         let response = server.handle_request(request).await;
-        let error = response.error.unwrap();
+        let error = response.error.expect("test error present");
 
         assert_eq!(error.code, -32601);
         assert_eq!(error.message, "Method not found: tasks/unknown");

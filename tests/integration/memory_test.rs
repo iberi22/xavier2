@@ -26,7 +26,7 @@ mod memory_manager_tests {
     async fn test_get_stats_empty() {
         let manager = MemoryManager::new(empty_memory(), None);
 
-        let stats = manager.get_stats().await.unwrap();
+        let stats = manager.get_stats().await.expect("test assertion");
         assert_eq!(stats.total_documents, 0);
         assert_eq!(stats.total_size_bytes, 0);
         assert_eq!(stats.low_quality_count, 0);
@@ -39,7 +39,7 @@ mod memory_manager_tests {
         let memories = manager
             .get_memories_by_priority(MemoryPriority::Medium)
             .await
-            .unwrap();
+            .expect("test assertion");
         assert!(memories.is_empty());
     }
 
@@ -67,7 +67,7 @@ mod memory_manager_tests {
         }
 
         let manager = MemoryManager::new(Arc::new(QmdMemory::new(docs)), None);
-        let result = manager.consolidate_memories().await.unwrap();
+        let result = manager.consolidate_memories().await.expect("test assertion");
 
         assert_eq!(result.documents_affected, 1);
         assert_eq!(result.actions.len(), 1);
@@ -76,7 +76,7 @@ mod memory_manager_tests {
             MemoryManagementAction::Consolidated { .. }
         ));
 
-        let remaining = manager.get_stats().await.unwrap();
+        let remaining = manager.get_stats().await.expect("test assertion");
         assert_eq!(remaining.total_documents, 1);
     }
 
@@ -96,7 +96,7 @@ mod memory_manager_tests {
             ..MemoryManagerConfig::default()
         };
         let manager = MemoryManager::with_config(Arc::new(QmdMemory::new(docs)), None, config);
-        let result = manager.evict_low_quality().await.unwrap();
+        let result = manager.evict_low_quality().await.expect("test assertion");
 
         assert_eq!(result.documents_affected, 1);
         assert!(matches!(

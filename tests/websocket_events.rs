@@ -100,7 +100,7 @@ async fn handle_test_ws(mut socket: WebSocket, mut event_rx: broadcast::Receiver
                     {
                         let confirm = WsEvent::SubscriptionConfirmed;
                         let _ = socket.send(Message::Text(
-                            serde_json::to_string(&confirm).unwrap().into(),
+                            serde_json::to_string(&confirm).expect("test assertion").into(),
                         )).await;
                         subscribed = true;
                     }
@@ -113,7 +113,7 @@ async fn handle_test_ws(mut socket: WebSocket, mut event_rx: broadcast::Receiver
                     Ok(e) if subscribed => {
                         let ws_event = WsEvent::Event(e);
                         let _ = socket.send(Message::Text(
-                            serde_json::to_string(&ws_event).unwrap().into(),
+                            serde_json::to_string(&ws_event).expect("test assertion").into(),
                         )).await;
                     }
                     _ => {}
@@ -125,7 +125,7 @@ async fn handle_test_ws(mut socket: WebSocket, mut event_rx: broadcast::Receiver
 
 #[tokio::test]
 async fn test_websocket_streaming() {
-    let temp = tempfile::tempdir().unwrap();
+    let temp = tempfile::tempdir().expect("test assertion");
     let db_path = temp.path().join("test_ws.db");
 
     let mut store_inner = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
@@ -133,7 +133,7 @@ async fn test_websocket_streaming() {
         embedding_dimensions: 3,
     })
     .await
-    .unwrap();
+    .expect("test assertion");
 
     let (event_tx, _) = broadcast::channel(100);
     store_inner.set_event_tx(event_tx.clone());
@@ -150,15 +150,15 @@ async fn test_websocket_streaming() {
         .route("/xavier/events/stream", get(test_ws_handler))
         .with_state(test_state);
 
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("test assertion");
+    let addr = listener.local_addr().expect("test assertion");
 
     tokio::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
+        axum::serve(listener, app).await.expect("test assertion");
     });
 
     let ws_url = format!("ws://{}/xavier/events/stream", addr);
-    let (mut ws_stream, _) = connect_async(ws_url).await.unwrap();
+    let (mut ws_stream, _) = connect_async(ws_url).await.expect("test assertion");
 
     // Subscribe to events
     let sub_msg = WsMessage::Subscribe {
@@ -168,13 +168,13 @@ async fn test_websocket_streaming() {
     };
     ws_stream
         .send(WsProtocolMessage::Text(
-            serde_json::to_string(&sub_msg).unwrap().into(),
+            serde_json::to_string(&sub_msg).expect("test assertion").into(),
         ))
         .await
-        .unwrap();
+        .expect("test assertion");
 
-    let msg = ws_stream.next().await.unwrap().unwrap();
-    let conf: WsEvent = serde_json::from_str(msg.to_text().unwrap()).unwrap();
+    let msg = ws_stream.next().await.expect("test assertion").expect("test assertion");
+    let conf: WsEvent = serde_json::from_str(msg.to_text().expect("test assertion")).expect("test assertion");
     assert!(matches!(conf, WsEvent::SubscriptionConfirmed));
 
     // Add a memory record via HTTP
@@ -192,13 +192,13 @@ async fn test_websocket_streaming() {
         }))
         .send()
         .await
-        .unwrap();
+        .expect("test assertion");
 
     assert_eq!(add_res.status(), StatusCode::OK);
 
     // Wait for the event
-    let msg = ws_stream.next().await.unwrap().unwrap();
-    let event: WsEvent = serde_json::from_str(msg.to_text().unwrap()).unwrap();
+    let msg = ws_stream.next().await.expect("test assertion").expect("test assertion");
+    let event: WsEvent = serde_json::from_str(msg.to_text().expect("test assertion")).expect("test assertion");
 
     if let WsEvent::Event(e) = event {
         assert_eq!(e.agent_id, "test_agent");

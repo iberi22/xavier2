@@ -469,7 +469,7 @@ mod tests {
         session.add_sentiment(0.2); // Should be clamped to 0.0
 
         assert_eq!(session.sentiment_timeline.len(), 4);
-        assert!((session.average_sentiment().unwrap() - 0.65).abs() < 0.01);
+        assert!((session.average_sentiment().expect("test assertion") - 0.65).abs() < 0.01);
     }
 
     #[test]
@@ -489,7 +489,7 @@ mod tests {
 
         session.mark_summarized("This is a summary");
         assert!(session.is_summarized);
-        assert_eq!(session.summary.as_ref().unwrap(), "This is a summary");
+        assert_eq!(session.summary.as_ref().expect("test assertion"), "This is a summary");
     }
 
     #[test]
@@ -527,10 +527,10 @@ mod tests {
         let mut em = EpisodicMemory::new();
         em.add_session(SessionSummary::new("session-1"));
 
-        em.add_to_session("session-1", "item-1").unwrap();
-        em.add_to_session("session-1", "item-2").unwrap();
+        em.add_to_session("session-1", "item-1").expect("test assertion");
+        em.add_to_session("session-1", "item-2").expect("test assertion");
 
-        let session = em.get_session("session-1").unwrap();
+        let session = em.get_session("session-1").expect("test assertion");
         assert_eq!(session.item_ids.len(), 2);
         assert_eq!(session.turn_count, 2);
     }
@@ -549,8 +549,8 @@ mod tests {
         };
 
         // Event below threshold should not be added
-        em.add_event_to_session("session-1", event.clone()).unwrap();
-        assert_eq!(em.get_session("session-1").unwrap().key_events.len(), 0);
+        em.add_event_to_session("session-1", event.clone()).expect("test assertion");
+        assert_eq!(em.get_session("session-1").expect("test assertion").key_events.len(), 0);
 
         // Event above threshold should be added
         let high_importance_event = KeyEvent {
@@ -561,8 +561,8 @@ mod tests {
             event_type: None,
         };
         em.add_event_to_session("session-1", high_importance_event)
-            .unwrap();
-        assert_eq!(em.get_session("session-1").unwrap().key_events.len(), 1);
+            .expect("test assertion");
+        assert_eq!(em.get_session("session-1").expect("test assertion").key_events.len(), 1);
     }
 
     #[test]
@@ -660,7 +660,7 @@ mod tests {
 
         let removed = em.remove_session("session-1");
         assert!(removed.is_some());
-        assert_eq!(removed.unwrap().session_id, "session-1");
+        assert_eq!(removed.expect("test assertion").session_id, "session-1");
         assert_eq!(em.len(), 1);
         assert!(em.get_session("session-1").is_none());
     }
@@ -670,8 +670,8 @@ mod tests {
         let mut em = EpisodicMemory::new();
         em.add_session(SessionSummary::new("session-1"));
 
-        em.end_session("session-1").unwrap();
-        assert!(em.get_session("session-1").unwrap().end_time.is_some());
+        em.end_session("session-1").expect("test assertion");
+        assert!(em.get_session("session-1").expect("test assertion").end_time.is_some());
     }
 
     #[test]

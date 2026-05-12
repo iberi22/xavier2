@@ -66,7 +66,7 @@ mod tests {
         let mut manager = ContextManager::new(1, 100);
         manager.put("s1", "some context".to_string(), ContextLevel::Medium);
 
-        assert_eq!(manager.get("s1").unwrap(), "some context");
+        assert_eq!(manager.get("s1").expect("test assertion"), "some context");
 
         // Wait for expiration
         std::thread::sleep(Duration::from_secs(2));
@@ -78,6 +78,6 @@ mod tests {
         let mut manager = ContextManager::new(60, 5);
         manager.put("s1", "long context".to_string(), ContextLevel::Minimal);
 
-        assert_eq!(manager.get("s1").unwrap(), "long ");
+        assert_eq!(manager.get("s1").expect("test assertion"), "long ");
     }
 }

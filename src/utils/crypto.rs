@@ -66,9 +66,9 @@ mod tests {
 
     #[test]
     fn test_hex_decode() {
-        assert_eq!(hex_decode("68656c6c6f").unwrap(), b"hello");
-        assert_eq!(hex_decode("").unwrap(), b"");
-        assert_eq!(hex_decode("ABCD").unwrap(), &[0xab, 0xcd]);
+        assert_eq!(hex_decode("68656c6c6f").expect("test assertion"), b"hello");
+        assert_eq!(hex_decode("").expect("test assertion"), b"");
+        assert_eq!(hex_decode("ABCD").expect("test assertion"), &[0xab, 0xcd]);
     }
 
     #[test]

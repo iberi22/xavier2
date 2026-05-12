@@ -478,8 +478,8 @@ mod tests {
         let graph = BeliefGraph::new();
         graph.add_node("test".to_string(), 0.5);
 
-        let json = graph.to_json().unwrap();
-        let loaded = BeliefGraph::from_json(&json).unwrap();
+        let json = graph.to_json().expect("test assertion");
+        let loaded = BeliefGraph::from_json(&json).expect("test assertion");
 
         assert!(loaded.get_node("test").is_some());
     }

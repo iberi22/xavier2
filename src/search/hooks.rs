@@ -140,7 +140,7 @@ mod tests {
         registry
             .execute_pre_query(&mut query, &mut filters)
             .await
-            .unwrap();
+            .expect("test assertion");
         assert_eq!(query, "original expanded");
 
         let mut results = vec![ScoredResult {
@@ -154,7 +154,7 @@ mod tests {
         registry
             .execute_post_query(&query, &mut results)
             .await
-            .unwrap();
+            .expect("test assertion");
         assert_eq!(results[0].score, 1.5);
     }
 }

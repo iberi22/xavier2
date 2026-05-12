@@ -104,7 +104,7 @@ mod event_mapper_tests {
         let entry = PanelThreadEntry::from_session_event(&session_event);
 
         assert!(entry.is_some(), "Message event should produce a PanelThreadEntry");
-        let entry = entry.unwrap();
+        let entry = entry.expect("test assertion");
 
         assert_eq!(entry.session_id, session_id);
         assert_eq!(entry.role, "user");
@@ -161,7 +161,7 @@ mod event_mapper_tests {
 
         let entry = PanelThreadEntry::from_session_event(&session_event);
         assert!(entry.is_some(), "ToolCall should produce an entry");
-        assert_eq!(entry.unwrap().role, "tool");
+        assert_eq!(entry.expect("test assertion").role, "tool");
     }
 
     #[tokio::test]
@@ -179,7 +179,7 @@ mod event_mapper_tests {
 
         let entry = PanelThreadEntry::from_session_event(&session_event);
         assert!(entry.is_some(), "ToolResult should produce an entry");
-        assert_eq!(entry.unwrap().role, "assistant");
+        assert_eq!(entry.expect("test assertion").role, "assistant");
     }
 
     #[tokio::test]
@@ -197,7 +197,7 @@ mod event_mapper_tests {
 
         let entry = PanelThreadEntry::from_session_event(&session_event);
         assert!(entry.is_some(), "Error should produce an entry");
-        assert_eq!(entry.unwrap().role, "system");
+        assert_eq!(entry.expect("test assertion").role, "system");
     }
 
     #[tokio::test]

@@ -541,7 +541,7 @@ mod tests {
                 "Save ok rate 90.0% below threshold 95.0%".to_string(),
             ],
         };
-        *LAST_CHECK_RESULT.write().unwrap() = test_result;
+        *LAST_CHECK_RESULT.write().expect("test assertion") = test_result;
 
         let Json(response) = sync_check_handler().await;
 

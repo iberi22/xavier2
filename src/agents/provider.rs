@@ -721,7 +721,7 @@ mod tests {
 
     #[test]
     fn test_local_provider_config() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = env_lock().lock().expect("test assertion");
         std::env::set_var("XAVIER_LOCAL_LLM_MODEL", "test-model");
         std::env::remove_var("XAVIER_LLM_MODEL");
         std::env::set_var("XAVIER_LOCAL_LLM_URL", "http://test-url/v1");
@@ -737,7 +737,7 @@ mod tests {
 
     #[test]
     fn test_local_provider_defaults() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = env_lock().lock().expect("test assertion");
         std::env::remove_var("XAVIER_LOCAL_LLM_MODEL");
         std::env::remove_var("XAVIER_LLM_MODEL");
         std::env::remove_var("XAVIER_LOCAL_LLM_URL");
@@ -752,7 +752,7 @@ mod tests {
 
     #[test]
     fn test_local_anthropic_flavor_uses_ollama_base() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = env_lock().lock().expect("test assertion");
         std::env::set_var("XAVIER_API_FLAVOR", "anthropic-compatible");
         std::env::remove_var("XAVIER_LOCAL_ANTHROPIC_URL");
         std::env::remove_var("XAVIER_LOCAL_LLM_URL");
@@ -770,7 +770,7 @@ mod tests {
 
     #[test]
     fn test_groq_provider_config() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = env_lock().lock().expect("test assertion");
         std::env::set_var("GROQ_API_KEY", "gsk_test");
 
         let config = ModelProviderConfig::groq_cloud_from_env();
@@ -782,7 +782,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_deepseek_tool_instruction_wrapper() {
-        let _guard = env_lock().lock().unwrap();
+        let _guard = env_lock().lock().expect("test assertion");
         std::env::set_var("DEEPSEEK_API_KEY", "sk-test");
 
         let client = ModelProviderClient::for_provider("deepseek", None);

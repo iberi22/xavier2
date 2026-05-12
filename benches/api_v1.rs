@@ -1,4 +1,4 @@
-﻿use axum::{extract::Query, Extension, Json};
+use axum::{extract::Query, Extension, Json};
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
@@ -13,7 +13,7 @@ fn bench_v1_api(c: &mut Criterion) {
     let runtime = Runtime::new().expect("tokio runtime");
 
     let temp_dir = std::env::temp_dir().join(format!("xavier-bench-{}", std::process::id()));
-    std::fs::create_dir_all(&temp_dir).unwrap();
+    std::fs::create_dir_all(&temp_dir).expect("test assertion");
 
     let workspace = runtime.block_on(async {
         WorkspaceState::new(
@@ -33,7 +33,7 @@ fn bench_v1_api(c: &mut Criterion) {
             temp_dir.join("threads"),
         )
         .await
-        .unwrap()
+        .expect("test assertion")
     });
 
     let context = WorkspaceContext {

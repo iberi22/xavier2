@@ -203,7 +203,7 @@ impl DevLogSSG {
         let content = fs::read_to_string(path)
             .with_context(|| format!("Failed to read post: {}", path.display()))?;
 
-        let filename = path.file_stem().unwrap().to_str().unwrap();
+        let filename = path.file_stem().expect("test assertion").to_str().expect("test assertion");
 
         // Simple extraction of title from first # header or filename
         let title = content

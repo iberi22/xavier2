@@ -97,7 +97,7 @@ mod tests {
             raw_data: "Some raw data".to_string(),
         };
 
-        let serialized = serde_json::to_string(&input).unwrap();
+        let serialized = serde_json::to_string(&input).expect("test assertion");
         assert!(serialized.contains("2023-10-27"));
         assert!(serialized.contains("\"active_projects\":2"));
     }

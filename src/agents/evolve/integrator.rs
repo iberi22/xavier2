@@ -97,7 +97,11 @@ impl Integrator {
         let agent_files = vec![
             PathBuf::from("src/agents/system1.rs"),
             PathBuf::from("src/agents/system2.rs"),
-            PathBuf::from("src/agents/system3.rs"),
+            PathBuf::from("src/agents/system3/mod.rs"),
+            PathBuf::from("src/agents/system3/types.rs"),
+            PathBuf::from("src/agents/system3/client.rs"),
+            PathBuf::from("src/agents/system3/helpers.rs"),
+            PathBuf::from("src/agents/system3/engine.rs"),
         ];
 
         for af in agent_files {

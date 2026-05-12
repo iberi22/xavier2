@@ -259,7 +259,7 @@ mod tests {
             code_changes: vec![],
         };
 
-        let json = serde_json::to_string(&output).unwrap();
+        let json = serde_json::to_string(&output).expect("test assertion");
         assert!(json.contains("2026-05-07"));
         assert!(json.contains("decisions/001-arch.md"));
     }
@@ -293,15 +293,15 @@ mod tests {
             },
         ]))));
 
-        let code_db = Arc::new(CodeGraphDB::in_memory().unwrap());
+        let code_db = Arc::new(CodeGraphDB::in_memory().expect("test assertion"));
         let harvester = Harvester::new(PathBuf::from("."), memory, code_db);
 
-        let decisions = harvester.harvest_memories("decisions/*").await.unwrap();
+        let decisions = harvester.harvest_memories("decisions/*").await.expect("test assertion");
         assert_eq!(decisions.len(), 1);
         assert_eq!(decisions[0].path, "decisions/use-rust.md");
         assert_eq!(decisions[0].status, Some("accepted".to_string()));
 
-        let bugs = harvester.harvest_memories("bugs/*").await.unwrap();
+        let bugs = harvester.harvest_memories("bugs/*").await.expect("test assertion");
         assert_eq!(bugs.len(), 1);
         assert_eq!(bugs[0].path, "bugs/fix-ui.md");
     }

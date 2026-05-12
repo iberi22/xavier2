@@ -757,7 +757,9 @@ impl WorkspaceState {
     }
 
     pub async fn export_sync(&self) -> Result<String> {
-        let sync_dir = self.usage_state_path.parent().unwrap().join("sync");
+        let sync_dir = self.usage_state_path.parent()
+            .ok_or_else(|| anyhow!("usage_state_path has no parent directory"))?
+            .join("sync");
         let mut manifest = crate::sync::chunks::load_manifest(&sync_dir)?;
         let docs = self.memory.all_documents().await;
 
@@ -765,7 +767,9 @@ impl WorkspaceState {
     }
 
     pub async fn import_sync(&self) -> Result<usize> {
-        let sync_dir = self.usage_state_path.parent().unwrap().join("sync");
+        let sync_dir = self.usage_state_path.parent()
+            .ok_or_else(|| anyhow!("usage_state_path has no parent directory"))?
+            .join("sync");
         let manifest = crate::sync::chunks::load_manifest(&sync_dir)?;
         let mut total_imported = 0;
 
@@ -1456,7 +1460,7 @@ mod tests {
             std::env::temp_dir().join(format!("xavier-ws-{}", ulid::Ulid::new())),
         )
         .await
-        .unwrap();
+        .expect("test assertion");
 
         assert_eq!(workspace.config.storage_limit_bytes, Some(500 * MB));
         assert_eq!(workspace.config.request_limit, Some(50_000));
@@ -1496,16 +1500,16 @@ mod tests {
             &root,
         )
         .await
-        .unwrap();
+        .expect("test assertion");
 
         workspace
             .record_request(UsageEvent::from_request("POST", "/sync"))
             .await
-            .unwrap();
+            .expect("test assertion");
         workspace
             .record_request(UsageEvent::from_request("POST", "/agents/run"))
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let reloaded = WorkspaceState::new(
             WorkspaceConfig {
@@ -1524,7 +1528,7 @@ mod tests {
             &root,
         )
         .await
-        .unwrap();
+        .expect("test assertion");
 
         let usage = reloaded.usage_snapshot().await;
         assert_eq!(usage.requests_used, 2);
@@ -1549,7 +1553,7 @@ mod tests {
 
         let workspace = WorkspaceState::new(config.clone(), RuntimeConfig::default(), &root)
             .await
-            .unwrap();
+            .expect("test assertion");
         let doc_id = workspace
             .memory
             .add_document_typed(
@@ -1567,12 +1571,12 @@ mod tests {
                 }),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let reloaded = WorkspaceState::new(config, RuntimeConfig::default(), &root)
             .await
-            .unwrap();
-        let doc = reloaded.memory.get(&doc_id).await.unwrap().unwrap();
+            .expect("test assertion");
+        let doc = reloaded.memory.get(&doc_id).await.expect("test assertion").expect("test assertion");
         assert_eq!(doc.content, "Durable memory survives restarts.");
         assert_eq!(doc.metadata["kind"].as_str(), Some("semantic"));
     }
@@ -1595,8 +1599,8 @@ mod tests {
 
         let workspace = WorkspaceState::new(config.clone(), RuntimeConfig::default(), &root)
             .await
-            .unwrap();
-        let session_token = workspace.generate_session_token().await.unwrap();
+            .expect("test assertion");
+        let session_token = workspace.generate_session_token().await.expect("test assertion");
         workspace
             .belief_graph
             .read()
@@ -1607,7 +1611,7 @@ mod tests {
                 "is_a".to_string(),
             )
             .await;
-        workspace.persist_beliefs().await.unwrap();
+        workspace.persist_beliefs().await.expect("test assertion");
         workspace
             .checkpoint_manager
             .save(crate::checkpoint::Checkpoint::new(
@@ -1616,18 +1620,18 @@ mod tests {
                 serde_json::json!({"ok": true}),
             ))
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let reloaded = WorkspaceState::new(config, RuntimeConfig::default(), &root)
             .await
-            .unwrap();
+            .expect("test assertion");
         assert!(reloaded.is_session_token_valid(&session_token).await);
         assert_eq!(reloaded.belief_graph.read().await.get_relations().len(), 1);
         let checkpoint = reloaded
             .checkpoint_manager
             .load("task-1".to_string(), "restore".to_string())
             .await
-            .unwrap();
+            .expect("test assertion");
         assert!(checkpoint.is_some());
     }
 }

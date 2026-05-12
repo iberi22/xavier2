@@ -68,7 +68,7 @@ async fn run_locomo_benchmark() {
         memory
             .add_document(path.to_string(), content.to_string(), metadata)
             .await
-            .unwrap();
+            .expect("test assertion");
     }
 
     // 2. Define the benchmark questions

@@ -94,7 +94,7 @@ impl CodeGraphDB {
 
     /// Initialize database schema
     fn init_schema(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().map_err(|e| GraphError::Database(format!("lock poisoned: {}", e)))?;
 
         conn.execute_batch(
             r#"
@@ -154,7 +154,7 @@ impl CodeGraphDB {
 
     /// Insert a symbol
     pub fn insert_symbol(&self, symbol: &Symbol) -> Result<i64> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().map_err(|e| GraphError::Database(format!("lock poisoned: {}", e)))?;
 
         conn.execute(
             r#"INSERT INTO symbols (name, kind, lang, file_path, start_line, end_line, start_col, end_col, signature, parent)
@@ -179,7 +179,7 @@ impl CodeGraphDB {
 
     /// Insert multiple symbols in a batch
     pub fn insert_symbols(&self, symbols: &[Symbol]) -> Result<()> {
-        let mut conn = self.conn.lock().unwrap();
+        let mut conn = self.conn.lock().map_err(|e| GraphError::Database(format!("lock poisoned: {}", e)))?;
 
         let tx = conn
             .transaction()
@@ -255,7 +255,7 @@ impl CodeGraphDB {
     /// Find symbols by name with hybrid ranking
     pub fn find_symbols(&self, query: &str, limit: usize) -> Result<QueryResult> {
         let start = std::time::Instant::now();
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().map_err(|e| GraphError::Database(format!("lock poisoned: {}", e)))?;
 
         let mut stmt = conn
             .prepare(
@@ -316,7 +316,7 @@ impl CodeGraphDB {
 
     /// Find symbols in a specific file
     pub fn find_by_file(&self, file_path: &str) -> Result<Vec<Symbol>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().map_err(|e| GraphError::Database(format!("lock poisoned: {}", e)))?;
 
         let mut stmt = conn
             .prepare(
@@ -351,7 +351,7 @@ impl CodeGraphDB {
 
     /// Find symbols by kind
     pub fn find_by_kind(&self, kind: SymbolKind, limit: usize) -> Result<Vec<Symbol>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().map_err(|e| GraphError::Database(format!("lock poisoned: {}", e)))?;
 
         let mut stmt = conn
             .prepare(
@@ -388,7 +388,7 @@ impl CodeGraphDB {
 
     /// Get statistics
     pub fn stats(&self) -> Result<IndexStats> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().map_err(|e| GraphError::Database(format!("lock poisoned: {}", e)))?;
 
         let total_files: u64 = conn
             .query_row("SELECT COUNT(DISTINCT file_path) FROM symbols", [], |row| {
@@ -432,7 +432,7 @@ impl CodeGraphDB {
 
     /// Clear all data
     pub fn clear(&self) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.conn.lock().map_err(|e| GraphError::Database(format!("lock poisoned: {}", e)))?;
 
         conn.execute_batch(
             r#"

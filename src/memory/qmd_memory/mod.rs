@@ -886,16 +886,16 @@ mod tests {
                 serde_json::json!({}),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let first = memory
             .search_with_cache("cache acceleration", 5)
             .await
-            .unwrap();
+            .expect("test assertion");
         let second = memory
             .search_with_cache("cache acceleration", 5)
             .await
-            .unwrap();
+            .expect("test assertion");
         let metrics = memory.cache_metrics().await;
 
         assert!(!first.cache_hit);
@@ -915,9 +915,9 @@ mod tests {
                 serde_json::json!({}),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
-        let _ = memory.search_with_cache("performance", 5).await.unwrap();
+        let _ = memory.search_with_cache("performance", 5).await.expect("test assertion");
         assert_eq!(memory.cache_metrics().await.entries, 1);
 
         memory
@@ -927,7 +927,7 @@ mod tests {
                 serde_json::json!({}),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert_eq!(memory.cache_metrics().await.entries, 0);
     }
@@ -947,9 +947,9 @@ mod tests {
                 serde_json::json!({ "source": "test" }),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
-        let stored = memory.get("docs/offline").await.unwrap().unwrap();
+        let stored = memory.get("docs/offline").await.expect("test assertion").expect("test assertion");
         assert!(stored.embedding.is_empty());
     }
 
@@ -967,7 +967,7 @@ mod tests {
                 }),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let stored = memory.all_documents().await;
         assert!(stored.len() > 1);
@@ -1001,7 +1001,7 @@ mod tests {
                 }),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
         memory
             .add_document(
                 "locomo/conv-26/session_1/D1:3".to_string(),
@@ -1015,12 +1015,12 @@ mod tests {
                 }),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let results = memory
             .search("When did Caroline go to the LGBTQ support group?", 5)
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert!(!results.is_empty());
         assert_eq!(
@@ -1056,7 +1056,7 @@ mod tests {
                 }),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let stored = memory.all_documents().await;
         let primary = stored
@@ -1111,7 +1111,7 @@ mod tests {
                 embedding: vec![0.0, 1.0],
             })
             .await
-            .unwrap();
+            .expect("test assertion");
         memory
             .add(MemoryDocument {
                 id: Some("semantic-doc".to_string()),
@@ -1124,7 +1124,7 @@ mod tests {
                 embedding: vec![1.0, 0.0],
             })
             .await
-            .unwrap();
+            .expect("test assertion");
         memory
             .add(MemoryDocument {
                 id: Some("noise-doc".to_string()),
@@ -1135,12 +1135,12 @@ mod tests {
                 embedding: vec![0.0, 0.2],
             })
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let results = memory
             .query_with_hybrid_search("Where did Alice move in 2020?", vec![1.0, 0.0], 3)
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let paths: Vec<&str> = results.iter().map(|doc| doc.path.as_str()).collect();
         assert!(paths.iter().take(2).any(|path| *path == "docs/keyword"));

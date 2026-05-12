@@ -223,7 +223,7 @@ mod tests {
 
         let retrieved = registry.get("test-plugin");
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().name(), "test-plugin");
+        assert_eq!(retrieved.expect("test assertion").name(), "test-plugin");
 
         assert!(registry.get("nonexistent").is_none());
     }
@@ -247,10 +247,10 @@ mod tests {
         let results = registry.health_check_all().await;
         assert_eq!(results.len(), 2);
 
-        let healthy_result = results.iter().find(|(n, _)| n == "healthy").unwrap();
+        let healthy_result = results.iter().find(|(n, _)| n == "healthy").expect("test assertion");
         assert!(healthy_result.1.is_ok());
 
-        let unhealthy_result = results.iter().find(|(n, _)| n == "unhealthy").unwrap();
+        let unhealthy_result = results.iter().find(|(n, _)| n == "unhealthy").expect("test assertion");
         assert!(unhealthy_result.1.is_err());
     }
 

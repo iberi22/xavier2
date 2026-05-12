@@ -218,13 +218,13 @@ mod tests {
     fn test_kek_derive_and_verify() {
         let salt = KeySalt::generate();
         let password = "secure_password_123";
-        let kek = KEK::derive_from_password(password, &salt).unwrap();
+        let kek = KEK::derive_from_password(password, &salt).expect("test assertion");
 
         // Verify correct password
-        assert!(kek.verify_password(password, &salt).unwrap());
+        assert!(kek.verify_password(password, &salt).expect("test assertion"));
 
         // Verify wrong password
-        assert!(!kek.verify_password("wrong_password", &salt).unwrap());
+        assert!(!kek.verify_password("wrong_password", &salt).expect("test assertion"));
     }
 
     #[test]
@@ -232,8 +232,8 @@ mod tests {
         let salt = KeySalt::generate();
         let password = "test_password";
 
-        let kek1 = KEK::derive_from_password(password, &salt).unwrap();
-        let kek2 = KEK::derive_from_password(password, &salt).unwrap();
+        let kek1 = KEK::derive_from_password(password, &salt).expect("test assertion");
+        let kek2 = KEK::derive_from_password(password, &salt).expect("test assertion");
 
         assert_eq!(kek1.0, kek2.0);
     }
@@ -251,14 +251,14 @@ mod tests {
     fn test_key_manager_full_cycle() {
         let manager = KeyManager::new();
         let password = "my_secure_password";
-        let kek = manager.derive_kek(password).unwrap();
+        let kek = manager.derive_kek(password).expect("test assertion");
         let dek = manager.generate_dek();
 
         // Encrypt DEK
-        let encrypted_dek = manager.encrypt_dek(&dek, &kek).unwrap();
+        let encrypted_dek = manager.encrypt_dek(&dek, &kek).expect("test assertion");
 
         // Decrypt DEK
-        let decrypted_dek = manager.decrypt_dek(&encrypted_dek, &kek).unwrap();
+        let decrypted_dek = manager.decrypt_dek(&encrypted_dek, &kek).expect("test assertion");
 
         assert_eq!(dek.0, decrypted_dek.0);
     }
@@ -269,16 +269,16 @@ mod tests {
         let password = "original_password";
         let wrong_password = "wrong_password";
 
-        let kek = manager.derive_kek(password).unwrap();
+        let kek = manager.derive_kek(password).expect("test assertion");
         let dek = manager.generate_dek();
-        let encrypted_dek = manager.encrypt_dek(&dek, &kek).unwrap();
+        let encrypted_dek = manager.encrypt_dek(&dek, &kek).expect("test assertion");
 
         // Wrong KEK (derived from different password) should fail to decrypt
-        let wrong_kek = manager.derive_kek(wrong_password).unwrap();
+        let wrong_kek = manager.derive_kek(wrong_password).expect("test assertion");
         let result = manager.decrypt_dek(&encrypted_dek, &wrong_kek);
 
         // Will fail or produce garbage (auth tag will fail)
         // In practice, AES-GCM authentication will reject tampered/wrong ciphertext
-        assert!(result.is_err() || result.unwrap().0 != dek.0);
+        assert!(result.is_err() || result.expect("test assertion").0 != dek.0);
     }
 }

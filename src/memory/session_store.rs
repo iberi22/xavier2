@@ -228,8 +228,8 @@ mod tests {
     #[tokio::test]
     async fn creates_and_loads_threads() {
         let root = temp_store_root();
-        let store = SessionStore::new(&root).await.unwrap();
-        let thread = store.create_thread("Thread title").await.unwrap();
+        let store = SessionStore::new(&root).await.expect("test assertion");
+        let thread = store.create_thread("Thread title").await.expect("test assertion");
 
         let message = PanelMessage {
             id: Ulid::new().to_string(),
@@ -240,10 +240,10 @@ mod tests {
             metadata: serde_json::json!({}),
         };
 
-        store.append_message(&thread.id, message).await.unwrap();
+        store.append_message(&thread.id, message).await.expect("test assertion");
 
-        let reloaded = SessionStore::new(&root).await.unwrap();
-        let loaded = reloaded.get_thread(&thread.id).await.unwrap();
+        let reloaded = SessionStore::new(&root).await.expect("test assertion");
+        let loaded = reloaded.get_thread(&thread.id).await.expect("test assertion");
         assert_eq!(loaded.messages.len(), 1);
         assert_eq!(loaded.last_preview, "Hello from the panel");
     }
@@ -251,18 +251,18 @@ mod tests {
     #[tokio::test]
     async fn deletes_threads() {
         let root = temp_store_root();
-        let store = SessionStore::new(&root).await.unwrap();
-        let thread = store.create_thread("Delete me").await.unwrap();
+        let store = SessionStore::new(&root).await.expect("test assertion");
+        let thread = store.create_thread("Delete me").await.expect("test assertion");
 
-        assert!(store.delete_thread(&thread.id).await.unwrap());
+        assert!(store.delete_thread(&thread.id).await.expect("test assertion"));
         assert!(store.get_thread(&thread.id).await.is_none());
     }
 
     #[tokio::test]
     async fn first_user_message_renames_new_threads() {
         let root = temp_store_root();
-        let store = SessionStore::new(&root).await.unwrap();
-        let thread = store.create_thread("New Thread").await.unwrap();
+        let store = SessionStore::new(&root).await.expect("test assertion");
+        let thread = store.create_thread("New Thread").await.expect("test assertion");
 
         let message = PanelMessage {
             id: Ulid::new().to_string(),
@@ -273,7 +273,7 @@ mod tests {
             metadata: serde_json::json!({}),
         };
 
-        let updated = store.append_message(&thread.id, message).await.unwrap();
+        let updated = store.append_message(&thread.id, message).await.expect("test assertion");
 
         assert_eq!(updated.messages.len(), 1);
         assert_ne!(updated.title, "New Thread");

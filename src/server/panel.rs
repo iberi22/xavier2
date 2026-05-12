@@ -229,7 +229,7 @@ fn asset_response(bytes: Vec<u8>, content_type: &'static str) -> Response {
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, content_type)
         .body(axum::body::Body::from(bytes))
-        .unwrap()
+        .expect("test assertion")
 }
 
 trait ThreadDetailExt {
@@ -265,7 +265,7 @@ mod tests {
 
     async fn test_state() -> (AppState, WorkspaceContext) {
         let db_path = std::env::temp_dir().join(format!("xavier-panel-{}.db", Ulid::new()));
-        let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).unwrap());
+        let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).expect("test assertion"));
         let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
         let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
         let workspace_registry = Arc::new(WorkspaceRegistry::new());
@@ -286,12 +286,12 @@ mod tests {
             std::env::temp_dir().join(format!("xavier-panel-store-{}", Ulid::new())),
         )
         .await
-        .unwrap();
-        workspace_registry.insert(workspace).await.unwrap();
+        .expect("test assertion");
+        workspace_registry.insert(workspace).await.expect("test assertion");
         let workspace = workspace_registry
             .authenticate("panel-token")
             .await
-            .unwrap();
+            .expect("test assertion");
 
         (
             AppState {
@@ -330,24 +330,24 @@ mod tests {
             .uri("/panel/api/threads")
             .header("content-type", "application/json")
             .body(Body::from(r#"{"title":"Panel Thread"}"#))
-            .unwrap();
+            .expect("test assertion");
 
-        let create_response = app.clone().oneshot(create_request).await.unwrap();
+        let create_response = app.clone().oneshot(create_request).await.expect("test assertion");
         let create_body = to_bytes(create_response.into_body(), usize::MAX)
             .await
-            .unwrap();
-        let summary: ThreadSummary = serde_json::from_slice(&create_body).unwrap();
+            .expect("test assertion");
+        let summary: ThreadSummary = serde_json::from_slice(&create_body).expect("test assertion");
 
         let get_request = Request::builder()
             .method("GET")
             .uri(format!("/panel/api/threads/{}", summary.id))
             .body(Body::empty())
-            .unwrap();
-        let get_response = app.oneshot(get_request).await.unwrap();
+            .expect("test assertion");
+        let get_response = app.oneshot(get_request).await.expect("test assertion");
         let get_body = to_bytes(get_response.into_body(), usize::MAX)
             .await
-            .unwrap();
-        let detail: ThreadDetail = serde_json::from_slice(&get_body).unwrap();
+            .expect("test assertion");
+        let detail: ThreadDetail = serde_json::from_slice(&get_body).expect("test assertion");
         assert_eq!(detail.thread.id, summary.id);
     }
 
@@ -360,11 +360,11 @@ mod tests {
             .uri("/panel/api/chat")
             .header("content-type", "application/json")
             .body(Body::from(r#"{"message":"Explain xavier memory"}"#))
-            .unwrap();
+            .expect("test assertion");
 
-        let response = app.oneshot(request).await.unwrap();
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let payload: PanelChatResponse = serde_json::from_slice(&body).unwrap();
+        let response = app.oneshot(request).await.expect("test assertion");
+        let body = to_bytes(response.into_body(), usize::MAX).await.expect("test assertion");
+        let payload: PanelChatResponse = serde_json::from_slice(&body).expect("test assertion");
 
         assert_eq!(payload.messages.len(), 2);
         assert_eq!(payload.messages[1].role, "assistant");

@@ -56,7 +56,7 @@ impl EvolveConfig {
                 "src/memory/".to_string(),
                 "src/agents/system1.rs".to_string(),
                 "src/agents/system2.rs".to_string(),
-                "src/agents/system3.rs".to_string(),
+                "src/agents/system3/".to_string(),
             ],
             memory_modules_path: "src/memory/".to_string(),
         }

@@ -278,7 +278,7 @@ mod tests {
         let root = std::env::temp_dir()
             .join("xavier-scheduler-tests")
             .join(ulid::Ulid::new().to_string());
-        fs::create_dir_all(&root).await.unwrap();
+        fs::create_dir_all(&root).await.expect("test assertion");
         root.join("scheduler").join("jobs.json")
     }
 
@@ -291,18 +291,18 @@ mod tests {
         });
 
         scheduler
-            .add_job(ScheduledJob::from_schedule("job-a", "index", "0/30 * * * * * *").unwrap())
+            .add_job(ScheduledJob::from_schedule("job-a", "index", "0/30 * * * * * *").expect("test assertion"))
             .await
-            .unwrap();
+            .expect("test assertion");
 
-        assert!(fs::try_exists(&storage_path).await.unwrap());
+        assert!(fs::try_exists(&storage_path).await.expect("test assertion"));
 
         let restored = JobScheduler::load(SchedulerConfig {
             storage_path,
             recovery: RecoveryConfig::default(),
         })
         .await
-        .unwrap();
+        .expect("test assertion");
 
         assert_eq!(restored.jobs().len(), 1);
         assert_eq!(restored.jobs()[0].id, "job-a");
@@ -330,16 +330,16 @@ mod tests {
                 status: ScheduledJobStatus::Pending,
             })
             .await
-            .unwrap();
+            .expect("test assertion");
 
-        let missed = scheduler.detect_missed_jobs().await.unwrap();
+        let missed = scheduler.detect_missed_jobs().await.expect("test assertion");
         assert_eq!(missed, 1);
         assert_eq!(scheduler.jobs()[0].status, ScheduledJobStatus::Missed);
 
         let recovered = scheduler
             .recover_missed_jobs(|_| async { Ok(()) })
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert_eq!(recovered, vec!["job-a".to_string()]);
         assert_eq!(scheduler.jobs()[0].status, ScheduledJobStatus::Completed);

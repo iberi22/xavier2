@@ -190,7 +190,7 @@ mod belief_serialization_tests {
             Confidence::High,
         );
 
-        let json = serde_json::to_string(&belief).unwrap();
+        let json = serde_json::to_string(&belief).expect("test assertion");
         assert!(json.contains("test"));
         assert!(json.contains("example"));
     }
@@ -204,7 +204,7 @@ mod belief_serialization_tests {
             "confidence": "High"
         }"#;
 
-        let belief: Belief = serde_json::from_str(json).unwrap();
+        let belief: Belief = serde_json::from_str(json).expect("test assertion");
         assert_eq!(belief.subject, "xavier");
         assert_eq!(belief.confidence, Confidence::High);
     }

@@ -264,7 +264,7 @@ mod tests {
         let task = service
             .create_task("Test task", "Xavier", "test-user")
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert_eq!(task.title, "Test task");
         assert_eq!(task.project, "Xavier");
@@ -279,20 +279,20 @@ mod tests {
         service
             .create_task("Task 1", "Xavier", "user")
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let task2 = service
             .create_task("Task 2", "Xavier", "user")
             .await
-            .unwrap();
+            .expect("test assertion");
         service
             .move_task(&task2.id, TaskStatus::InProgress)
             .await
-            .unwrap();
+            .expect("test assertion");
 
-        let board = service.get_task_board("Xavier").await.unwrap();
+        let board = service.get_task_board("Xavier").await.expect("test assertion");
 
-        assert!(!board.get("Backlog").unwrap().is_empty());
-        assert!(!board.get("In Progress").unwrap().is_empty());
+        assert!(!board.get("Backlog").expect("test assertion").is_empty());
+        assert!(!board.get("In Progress").expect("test assertion").is_empty());
     }
 }

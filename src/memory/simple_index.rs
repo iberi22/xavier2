@@ -31,7 +31,7 @@ impl SimpleMemoryDoc {
             metadata,
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("test assertion")
                 .as_secs(),
         }
     }

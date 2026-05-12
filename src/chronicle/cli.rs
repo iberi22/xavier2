@@ -340,7 +340,7 @@ mod tests {
 
     #[test]
     fn test_parse_since_arg_supports_date() {
-        let parsed = parse_since_arg(Some("2026-05-01")).unwrap();
+        let parsed = parse_since_arg(Some("2026-05-01")).expect("test assertion");
         assert_eq!(parsed.format("%Y-%m-%d").to_string(), "2026-05-01");
     }
 }

@@ -418,7 +418,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // CLI mode
-    match cli.command.unwrap() {
+    match cli.command.expect("test assertion") {
         Commands::Serve => unreachable!(),
 
         Commands::Scan { path } => {

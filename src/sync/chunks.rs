@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn test_export_import_roundtrip() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("test assertion");
         let sync_dir = dir.path();
 
         let mut manifest = ChunkManifest::default();
@@ -132,14 +132,14 @@ mod tests {
             },
         ];
 
-        let hash = export_to_chunk(sync_dir, &docs, &mut manifest).unwrap();
+        let hash = export_to_chunk(sync_dir, &docs, &mut manifest).expect("test assertion");
         assert!(!hash.is_empty());
         assert!(manifest.chunks.contains_key(&hash));
 
-        let imported = import_from_chunk(sync_dir, &hash).unwrap();
+        let imported = import_from_chunk(sync_dir, &hash).expect("test assertion");
         assert_eq!(docs, imported);
 
-        let reloaded_manifest = load_manifest(sync_dir).unwrap();
+        let reloaded_manifest = load_manifest(sync_dir).expect("test assertion");
         assert_eq!(manifest.chunks.len(), reloaded_manifest.chunks.len());
     }
 }

@@ -676,7 +676,7 @@ mod tests {
             "workspace-a",
             None,
         )
-        .unwrap();
+        .expect("test assertion");
 
         assert_eq!(metadata["kind"], "fact");
         assert_eq!(metadata["evidence_kind"], "fact_atom");
@@ -703,7 +703,7 @@ mod tests {
             "ws-1",
             None,
         )
-        .unwrap();
+        .expect("test assertion");
 
         assert!(matches_filters(
             "docs/api",
@@ -731,9 +731,9 @@ mod tests {
             "ws-1",
             None,
         )
-        .unwrap();
+        .expect("test assertion");
 
-        let recorded_at = metadata["provenance"]["recorded_at"].as_str().unwrap();
+        let recorded_at = metadata["provenance"]["recorded_at"].as_str().expect("test assertion");
         assert!(DateTime::parse_from_rfc3339(recorded_at).is_ok());
         assert_ne!(recorded_at, "not-a-date");
     }
