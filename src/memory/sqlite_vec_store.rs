@@ -247,6 +247,20 @@ impl VecSqliteMemoryStore {
     }
 
     fn init_schema(conn: &Connection, embedding_dimensions: usize) -> Result<()> {
+        // Ensure table has new columns if it already exists
+        let table_info = Self::virtual_table_columns(conn, TABLE_MEMORIES)?;
+        if !table_info.is_empty() {
+            if !table_info.iter().any(|c| c == "cluster_id") {
+                conn.execute(&format!("ALTER TABLE {} ADD COLUMN cluster_id TEXT", TABLE_MEMORIES), [])?;
+            }
+            if !table_info.iter().any(|c| c == "level") {
+                conn.execute(&format!("ALTER TABLE {} ADD COLUMN level TEXT NOT NULL DEFAULT 'raw'", TABLE_MEMORIES), [])?;
+            }
+            if !table_info.iter().any(|c| c == "relation") {
+                conn.execute(&format!("ALTER TABLE {} ADD COLUMN relation TEXT", TABLE_MEMORIES), [])?;
+            }
+        }
+
         // Create main memory table (same as SqliteMemoryStore)
         conn.execute_batch(&format!(
             r#"
