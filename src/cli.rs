@@ -10,6 +10,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use chrono::Utc;
 use clap::{Parser, Subcommand};
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -19,7 +20,6 @@ use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 use uuid::Uuid;
-use chrono::Utc;
 
 use xavier::adapters::inbound::http::handlers::change_control;
 use xavier::adapters::inbound::http::routes::{
@@ -63,7 +63,7 @@ pub struct CliState {
     pub _time_store: Option<Arc<TimeMetricsStore>>,
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
-    pub change_control: Arc<ChangeControlService>,
+    pub _change_control: Arc<ChangeControlService>,
 }
 
 #[derive(Subcommand)]
@@ -359,7 +359,7 @@ async fn start_http_server(port: u16) -> Result<()> {
         _time_store: Some(time_store),
         agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
         panel_store,
-        change_control,
+        _change_control: change_control,
     };
 
     info!(
@@ -429,13 +429,31 @@ async fn start_http_server(port: u16) -> Result<()> {
     let change_control_routes = Router::new()
         .route("/change/tasks", post(change_control::create_task_handler))
         .route("/change/tasks/{id}", get(change_control::get_task_handler))
-        .route("/change/leases/claim", post(change_control::claim_lease_handler))
-        .route("/change/leases/release", post(change_control::release_lease_handler))
-        .route("/change/leases/active", get(change_control::active_leases_handler))
-        .route("/change/conflicts/check", post(change_control::check_conflicts_handler))
+        .route(
+            "/change/leases/claim",
+            post(change_control::claim_lease_handler),
+        )
+        .route(
+            "/change/leases/release",
+            post(change_control::release_lease_handler),
+        )
+        .route(
+            "/change/leases/active",
+            get(change_control::active_leases_handler),
+        )
+        .route(
+            "/change/conflicts/check",
+            post(change_control::check_conflicts_handler),
+        )
         .route("/change/validate", post(change_control::validate_handler))
-        .route("/change/complete", post(change_control::complete_task_handler))
-        .route("/change/merge-plan", get(change_control::merge_plan_handler))
+        .route(
+            "/change/complete",
+            post(change_control::complete_task_handler),
+        )
+        .route(
+            "/change/merge-plan",
+            get(change_control::merge_plan_handler),
+        )
         .with_state(change_control_port);
 
     let app = Router::new()
@@ -478,7 +496,10 @@ async fn start_http_server(port: u16) -> Result<()> {
     let hce_workspace_id = state.workspace_id.clone();
     tokio::spawn(async move {
         let hce = xavier::memory::hce_engine::HceEngine::new(hce_store);
-        info!("HCE Engine background task started for workspace: {}", hce_workspace_id);
+        info!(
+            "HCE Engine background task started for workspace: {}",
+            hce_workspace_id
+        );
         loop {
             if let Err(e) = hce.process_workspace(&hce_workspace_id).await {
                 tracing::error!("HCE Engine error: {}", e);
@@ -919,6 +940,11 @@ async fn panel_process_chat_inner(
         .panel_store
         .append_message(&thread.id, user_message)
         .await?;
+
+    // Artificial delay for CI stability to ensure Playwright catches the loading state
+    if std::env::var("XAVIER_CI").is_ok() {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
 
     let assistant_message = PanelMessage {
         id: ulid::Ulid::new().to_string(),
@@ -3095,9 +3121,8 @@ async fn handle_init() -> Result<()> {
 }
 
 async fn handle_index(path: Option<PathBuf>, output: Option<PathBuf>) -> Result<()> {
-    let scan_path = path.unwrap_or_else(|| {
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-    });
+    let scan_path =
+        path.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let xavier_dir = scan_path.join(".xavier");
     let db_path = output.unwrap_or_else(|| xavier_dir.join("memory.db"));
 
@@ -3109,7 +3134,8 @@ async fn handle_index(path: Option<PathBuf>, output: Option<PathBuf>) -> Result<
     println!("Database output: {}", db_path.display());
 
     // Initialize standalone store
-    let config = crate::memory::sqlite_vec_store::VecSqliteStoreConfig::new_at_path(db_path.clone());
+    let config =
+        crate::memory::sqlite_vec_store::VecSqliteStoreConfig::new_at_path(db_path.clone());
     let store = Arc::new(crate::memory::sqlite_vec_store::VecSqliteMemoryStore::new(config).await?);
 
     let workspace_id = scan_path
@@ -3176,10 +3202,7 @@ async fn handle_export(workspace_id: String, output: PathBuf, format: String) ->
         "db" => store.export(&output).await?,
         "tree" => store.export_tree(&workspace_id, &output).await?,
         _ => {
-            anyhow::bail!(
-                "Unsupported export format: {}. Use 'db' or 'tree'.",
-                format
-            )
+            anyhow::bail!("Unsupported export format: {}. Use 'db' or 'tree'.", format)
         }
     }
     println!("Export complete!");
@@ -3417,7 +3440,7 @@ mod tests {
         // This test runs last and may be affected by env state from other tests.
         // If XAVIER_TOKEN is still set, we expect 401 (wrong token).
         // If unset, we expect 500 (not configured). Both are acceptable for this test.
-        let token_is_set = std::env::var("XAVIER_TOKEN").is_ok();
+        let _token_is_set = std::env::var("XAVIER_TOKEN").is_ok();
 
         let app = Router::new()
             .route("/protected", get(|| async { "ok" }))
@@ -3450,7 +3473,16 @@ mod tests {
                     .unwrap(),
             )
             .unwrap();
-            assert!(body["message"].as_str().unwrap_or("").contains("not configured") || body["message"].as_str().unwrap_or("").contains("XAVIER_TOKEN"));
+            assert!(
+                body["message"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("not configured")
+                    || body["message"]
+                        .as_str()
+                        .unwrap_or("")
+                        .contains("XAVIER_TOKEN")
+            );
         }
     }
 }

@@ -5,11 +5,7 @@
 //! `cli.rs` via `.with_state(state.change_control.clone() as Arc<dyn ChangeControlPort>)`.
 //! The outer app router merges this sub-router alongside the protected routes.
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -258,7 +254,10 @@ pub async fn complete_task_handler(
     State(service): State<Arc<dyn ChangeControlPort>>,
     Json(payload): Json<CompleteTaskRequest>,
 ) -> Result<Json<TaskCompletionResult>, (StatusCode, Json<serde_json::Value>)> {
-    match service.complete_task(&payload.task_id, payload.result).await {
+    match service
+        .complete_task(&payload.task_id, payload.result)
+        .await
+    {
         Ok(result) => Ok(Json(result)),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
