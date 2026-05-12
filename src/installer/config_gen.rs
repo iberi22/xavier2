@@ -79,21 +79,23 @@ pub struct SyncSection {
 /// Generate a config JSON from installer state.
 pub fn generate_config(state: &InstallerState) -> GeneratedConfig {
     let (embedding_url, embedding_model, provider_label) = match state.embedding_provider {
-        super::EmbeddingProvider::Bm25 => {
-            (String::new(), "bm25".to_string(), "bm25".to_string())
-        }
-        super::EmbeddingProvider::Ollama => {
-            (state.embedding_url.clone(), state.embedding_model.clone(), "ollama".to_string())
-        }
-        super::EmbeddingProvider::Gllm => {
-            (String::new(), "gllm".to_string(), "gllm".to_string())
-        }
-        super::EmbeddingProvider::Tract => {
-            (String::new(), "tract-onnx".to_string(), "tract-onnx".to_string())
-        }
-        super::EmbeddingProvider::OpenAI => {
-            (state.embedding_url.clone(), state.embedding_model.clone(), "openai".to_string())
-        }
+        super::EmbeddingProvider::Bm25 => (String::new(), "bm25".to_string(), "bm25".to_string()),
+        super::EmbeddingProvider::Ollama => (
+            state.embedding_url.clone(),
+            state.embedding_model.clone(),
+            "ollama".to_string(),
+        ),
+        super::EmbeddingProvider::Gllm => (String::new(), "gllm".to_string(), "gllm".to_string()),
+        super::EmbeddingProvider::Tract => (
+            String::new(),
+            "tract-onnx".to_string(),
+            "tract-onnx".to_string(),
+        ),
+        super::EmbeddingProvider::OpenAI => (
+            state.embedding_url.clone(),
+            state.embedding_model.clone(),
+            "openai".to_string(),
+        ),
     };
 
     let data_dir = if state.data_dir.is_empty() {
@@ -140,9 +142,7 @@ pub fn generate_config(state: &InstallerState) -> GeneratedConfig {
             router_retrieved_model: String::new(),
             router_complex_model: String::new(),
         },
-        retrieval: RetrievalSection {
-            disable_hyde: true,
-        },
+        retrieval: RetrievalSection { disable_hyde: true },
         sync: SyncSection {
             interval_ms: 300_000,
             lag_threshold_ms: 30_000,
@@ -156,8 +156,7 @@ pub fn generate_config(state: &InstallerState) -> GeneratedConfig {
 /// Write config to disk. Creates parent directories if needed.
 pub fn write_config(state: &mut InstallerState) -> Result<()> {
     let config = generate_config(state);
-    let json = serde_json::to_string_pretty(&config)
-        .context("failed to serialize config")?;
+    let json = serde_json::to_string_pretty(&config).context("failed to serialize config")?;
 
     let path = PathBuf::from(&state.config_path);
     if let Some(parent) = path.parent() {

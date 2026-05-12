@@ -57,7 +57,9 @@ impl MemoryKind {
             "meeting" => Some(Self::Meeting),
             "content_project" | "content-project" | "content project" => Some(Self::ContentProject),
             "video_asset" | "video-asset" | "video asset" => Some(Self::VideoAsset),
-            "agent_change_summary" | "agent-change-summary" | "change_summary" => Some(Self::AgentChangeSummary),
+            "agent_change_summary" | "agent-change-summary" | "change_summary" => {
+                Some(Self::AgentChangeSummary)
+            }
             "document" | "memory" | "note" => Some(Self::Document),
             _ => None,
         }
@@ -138,9 +140,9 @@ impl EvidenceKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryLevel {
-    Raw,        // Chunks, events, facts
-    Section,    // Summaries of files or topics
-    Global,     // Workspace/Project summaries
+    Raw,     // Chunks, events, facts
+    Section, // Summaries of files or topics
+    Global,  // Workspace/Project summaries
 }
 
 impl MemoryLevel {

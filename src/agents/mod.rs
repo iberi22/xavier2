@@ -76,7 +76,10 @@ impl AgentConfig {
         self
     }
 
-    pub fn with_provider_config(mut self, config: crate::agents::provider::ModelProviderConfig) -> Self {
+    pub fn with_provider_config(
+        mut self,
+        config: crate::agents::provider::ModelProviderConfig,
+    ) -> Self {
         self.provider_config = Some(config);
         self
     }

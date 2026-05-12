@@ -6,12 +6,12 @@ use crate::ports::inbound::change_control_port::{
     BlockedTask, ChangeControlPort, LeaseResponse, MergePlan, TaskCompletionResult,
     ValidationResult,
 };
+use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Utc;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 use ulid::Ulid;
-use anyhow::Result;
 
 // ---------------------------------------------------------------------------
 // Service
@@ -266,9 +266,9 @@ impl ChangeControlPort for ChangeControlService {
         };
         leases.insert(lease_id.clone(), lease);
 
-        let has_blocking = conflicts
-            .iter()
-            .any(|c| c.severity == ConflictSeverity::Blocking || c.severity == ConflictSeverity::Critical);
+        let has_blocking = conflicts.iter().any(|c| {
+            c.severity == ConflictSeverity::Blocking || c.severity == ConflictSeverity::Critical
+        });
 
         let status = if has_blocking {
             "conflict_detected".to_string()
@@ -443,9 +443,9 @@ impl ChangeControlPort for ChangeControlService {
             .filter(|t| {
                 t.dependencies.iter().any(|dep_id| {
                     // Blocked if dependency is missing or not yet completed
-                    tasks.get(dep_id).map_or(true, |dep| {
-                        dep.status != AgentTaskStatus::Completed
-                    })
+                    tasks
+                        .get(dep_id)
+                        .map_or(true, |dep| dep.status != AgentTaskStatus::Completed)
                 })
             })
             .map(|t| BlockedTask {
@@ -455,9 +455,9 @@ impl ChangeControlPort for ChangeControlService {
                     t.dependencies
                         .iter()
                         .filter(|dep_id| {
-                            tasks.get(*dep_id).map_or(true, |dep| {
-                                dep.status != AgentTaskStatus::Completed
-                            })
+                            tasks
+                                .get(*dep_id)
+                                .map_or(true, |dep| dep.status != AgentTaskStatus::Completed)
                         })
                         .cloned()
                         .collect::<Vec<_>>()

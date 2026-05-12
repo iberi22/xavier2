@@ -1,12 +1,12 @@
+use crate::adapters::inbound::http::state::check_auth;
+use crate::adapters::inbound::http::AppState;
+use crate::domain::memory::{MemoryQueryFilters, MemoryRecord as DomainMemoryRecord};
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
     Json,
 };
 use serde::{Deserialize, Serialize};
-use crate::adapters::inbound::http::state::check_auth;
-use crate::adapters::inbound::http::AppState;
-use crate::domain::memory::{MemoryQueryFilters, MemoryRecord as DomainMemoryRecord};
 use tracing::info;
 
 #[derive(Debug, Deserialize)]
@@ -77,7 +77,10 @@ pub async fn search_handler(
         })));
     }
 
-    let effective_query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input);
+    let effective_query = sec_result
+        .sanitized_input
+        .as_deref()
+        .unwrap_or(&sec_result.original_input);
     let limit = payload.limit.max(1).min(100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
@@ -173,7 +176,10 @@ pub async fn memory_query_handler(
     }
 
     let limit = payload.limit.unwrap_or(10).max(1).min(100);
-    let effective_query = sec_result.sanitized_input.as_deref().unwrap_or(&sec_result.original_input);
+    let effective_query = sec_result
+        .sanitized_input
+        .as_deref()
+        .unwrap_or(&sec_result.original_input);
 
     match state.memory.search(effective_query, None).await {
         Ok(results) => {

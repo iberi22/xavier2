@@ -23,7 +23,7 @@ use tokio::sync::broadcast;
 use crate::checkpoint::Checkpoint;
 use crate::memory::belief_graph::BeliefRelation;
 use crate::memory::embedder::EmbeddingClient;
-use crate::memory::schema::{MemoryLevel, RelationKind, MemoryQueryFilters};
+use crate::memory::schema::{MemoryLevel, MemoryQueryFilters, RelationKind};
 use crate::memory::sqlite_store::{
     TABLE_BELIEFS, TABLE_CHECKPOINTS, TABLE_MEMORIES, TABLE_SESSION_TOKENS,
 };
@@ -735,7 +735,8 @@ impl VecSqliteMemoryStore {
             parent_id: row.get(10)?,
             cluster_id: row.get(11)?,
             level: MemoryLevel::parse(&row.get::<_, String>(12)?).unwrap_or(MemoryLevel::Raw),
-            relation: row.get::<_, Option<String>>(13)?
+            relation: row
+                .get::<_, Option<String>>(13)?
                 .and_then(|s| RelationKind::parse(&s)),
             revisions: serde_json::from_str(&revisions_str).unwrap_or_default(),
         })
@@ -1792,7 +1793,7 @@ impl VecSqliteMemoryStore {
                 "INSERT OR REPLACE INTO main.relations SELECT * FROM source.relations",
                 [],
             )?;
-            
+
             // Merge timeline
             conn.execute(
                 &format!(

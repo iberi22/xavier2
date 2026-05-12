@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use anyhow::Result;
-use crate::memory::store::{MemoryRecord, MemoryStore};
 use super::schema::{MemoryLevel, RelationKind};
-use uuid::Uuid;
+use crate::memory::store::{MemoryRecord, MemoryStore};
+use anyhow::Result;
 use chrono::Utc;
-use tracing::{info, debug};
 use std::collections::HashMap;
+use std::sync::Arc;
+use tracing::{debug, info};
+use uuid::Uuid;
 
 /// Hierarchical Context Engine (HCE)
 /// Responsible for evolving raw memories into a structured hierarchical graph.
@@ -41,11 +41,12 @@ impl HceEngine {
     /// Maps raw file memories into structural sections (functions, classes, etc.)
     async fn map_structural_elements(&self, workspace_id: &str) -> Result<()> {
         debug!("HCE: Mapping structural elements for {}", workspace_id);
-        
+
         let all_memories = self.store.list(workspace_id).await?;
-        
+
         // Filter for raw file memories
-        let raw_files: Vec<_> = all_memories.iter()
+        let raw_files: Vec<_> = all_memories
+            .iter()
             .filter(|m| m.level == MemoryLevel::Raw && m.path.ends_with(".rs")) // Start with Rust
             .collect();
 
@@ -65,10 +66,10 @@ impl HceEngine {
             debug!("Decomposing large file: {}", raw.path);
             // Split by double newline as a naive sectioning for now
             let sections = raw.content.split("\n\n").filter(|s| s.trim().len() > 100);
-            
+
             for (i, content) in sections.enumerate() {
                 let section_path = format!("{}:section-{}", raw.path, i);
-                
+
                 // Check if already exists
                 if self.store.get(workspace_id, &section_path).await?.is_some() {
                     continue;
@@ -105,10 +106,14 @@ impl HceEngine {
 
     /// Clusters Section memories into Global communities
     async fn perform_hierarchical_clustering(&self, workspace_id: &str) -> Result<()> {
-        debug!("HCE: Performing hierarchical clustering for {}", workspace_id);
-        
+        debug!(
+            "HCE: Performing hierarchical clustering for {}",
+            workspace_id
+        );
+
         let all_memories = self.store.list(workspace_id).await?;
-        let sections: Vec<_> = all_memories.iter()
+        let sections: Vec<_> = all_memories
+            .iter()
             .filter(|m| m.level == MemoryLevel::Section)
             .collect();
 
@@ -130,7 +135,7 @@ impl HceEngine {
 
         for (cluster_name, members) in clusters {
             let cluster_id = format!("cluster_{}_{}", workspace_id, cluster_name);
-            
+
             for member_path in members {
                 if let Some(mut record) = self.store.get(workspace_id, &member_path).await? {
                     record.cluster_id = Some(cluster_id.clone());
@@ -145,11 +150,11 @@ impl HceEngine {
     /// Generates summaries for each cluster/community
     async fn generate_community_summaries(&self, workspace_id: &str) -> Result<()> {
         debug!("HCE: Generating community summaries for {}", workspace_id);
-        
+
         // Find unique cluster_ids
         let all_memories = self.store.list(workspace_id).await?;
         let mut cluster_members: HashMap<String, Vec<&MemoryRecord>> = HashMap::new();
-        
+
         for m in &all_memories {
             if let Some(cid) = &m.cluster_id {
                 cluster_members.entry(cid.clone()).or_default().push(m);
@@ -158,22 +163,27 @@ impl HceEngine {
 
         for (cluster_id, members) in cluster_members {
             let summary_path = format!("summary/{}", cluster_id);
-            
+
             if self.store.get(workspace_id, &summary_path).await?.is_some() {
                 continue;
             }
 
             // Combine contents for summarization (limited)
             let mut combined_content = String::new();
-            for m in members.iter().take(5) { // Limit to 5 members for now
+            for m in members.iter().take(5) {
+                // Limit to 5 members for now
                 combined_content.push_str(&format!("--- {} ---\n{}\n", m.path, m.content));
             }
 
             // Deterministic template summary; an LLM-based abstractive pass is a follow-up.
-            let summary_content = format!("Community Summary for {}: Includes {} elements such as {}.", 
-                cluster_id, 
+            let summary_content = format!(
+                "Community Summary for {}: Includes {} elements such as {}.",
+                cluster_id,
                 members.len(),
-                members.first().map(|m| m.path.as_str()).unwrap_or("unknown")
+                members
+                    .first()
+                    .map(|m| m.path.as_str())
+                    .unwrap_or("unknown")
             );
 
             let summary_record = MemoryRecord {

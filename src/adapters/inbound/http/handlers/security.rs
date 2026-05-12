@@ -1,6 +1,6 @@
+use crate::adapters::inbound::http::AppState;
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
-use crate::adapters::inbound::http::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct SecurityScanPayload {

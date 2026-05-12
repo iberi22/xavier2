@@ -1,16 +1,16 @@
-use xavier::memory::hce_engine::HceEngine;
-use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
-use xavier::memory::store::{MemoryRecord, MemoryStore};
-use xavier::memory::schema::MemoryLevel;
+use chrono::Utc;
 use std::sync::Arc;
 use tempfile::tempdir;
-use chrono::Utc;
+use xavier::memory::hce_engine::HceEngine;
+use xavier::memory::schema::MemoryLevel;
+use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
+use xavier::memory::store::{MemoryRecord, MemoryStore};
 
 #[tokio::test]
 async fn test_hce_full_cycle() {
     let dir = tempdir().unwrap();
     let db_path = dir.path().join("test_xavier.db");
-    
+
     // 1. Initialize Store
     let config = xavier::memory::sqlite_vec_store::VecSqliteStoreConfig {
         path: db_path,
@@ -47,8 +47,11 @@ async fn test_hce_full_cycle() {
 
     // 4. Verify Section Creation
     let memories = store.list(workspace_id).await.unwrap();
-    let sections: Vec<_> = memories.iter().filter(|m| m.level == MemoryLevel::Section).collect();
-    
+    let sections: Vec<_> = memories
+        .iter()
+        .filter(|m| m.level == MemoryLevel::Section)
+        .collect();
+
     // In our current MVP logic, we split by \n\n if content is > 1000 chars.
     // Let's check if it worked or if we need a larger content for the MVP logic.
     println!("Found {} sections", sections.len());
@@ -57,6 +60,9 @@ async fn test_hce_full_cycle() {
     }
 
     // 5. Verify Clustering and Global Summaries
-    let globals: Vec<_> = memories.iter().filter(|m| m.level == MemoryLevel::Global).collect();
+    let globals: Vec<_> = memories
+        .iter()
+        .filter(|m| m.level == MemoryLevel::Global)
+        .collect();
     println!("Found {} global summaries", globals.len());
 }

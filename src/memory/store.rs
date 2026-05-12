@@ -30,6 +30,7 @@ pub enum MemoryBackend {
     Memory,
     Sqlite,
     Vec, // SQLite + sqlite-vec vector search
+    Libsql,
 }
 
 impl MemoryBackend {
@@ -38,6 +39,7 @@ impl MemoryBackend {
             "memory" => Self::Memory,
             "sqlite" => Self::Sqlite,
             "vec" | "sqlite-vec" => Self::Vec,
+            "libsql" => Self::Libsql,
             "file" => Self::File,
             _ => Self::File,
         }
@@ -49,6 +51,7 @@ impl MemoryBackend {
             Self::Memory => "memory",
             Self::Sqlite => "sqlite",
             Self::Vec => "vec",
+            Self::Libsql => "libsql",
         }
     }
 }
@@ -196,11 +199,21 @@ impl MemoryRecord {
             .clone()
             .unwrap_or_else(|| stable_key("memory", &[workspace_id, &document.path]));
 
-        let resolved = resolve_metadata(&document.path, &document.metadata, workspace_id, None).ok();
-        let level = resolved.as_ref().map(|r| r.level).unwrap_or(MemoryLevel::Raw);
-        let cluster_id = resolved.as_ref().and_then(|r| r.provenance.cluster_id.clone());
+        let resolved =
+            resolve_metadata(&document.path, &document.metadata, workspace_id, None).ok();
+        let level = resolved
+            .as_ref()
+            .map(|r| r.level)
+            .unwrap_or(MemoryLevel::Raw);
+        let cluster_id = resolved
+            .as_ref()
+            .and_then(|r| r.provenance.cluster_id.clone());
         let relation = resolved.as_ref().and_then(|r| r.provenance.relation);
-        let parent_id = parent_id.or_else(|| resolved.as_ref().and_then(|r| r.provenance.parent_id.clone()));
+        let parent_id = parent_id.or_else(|| {
+            resolved
+                .as_ref()
+                .and_then(|r| r.provenance.parent_id.clone())
+        });
 
         Self {
             id,
@@ -262,6 +275,27 @@ impl MemoryRecord {
             metadata,
             content_vector: Some(self.embedding.clone()),
             embedding: self.embedding.clone(),
+        }
+    }
+
+    pub fn new_fact(path: String, content: String) -> Self {
+        let now = Utc::now();
+        Self {
+            id: stable_key("memory", &["default", &path]),
+            workspace_id: "default".to_string(),
+            path: path.clone(),
+            content: content.clone(),
+            metadata: serde_json::json!({}),
+            embedding: Vec::new(),
+            created_at: now,
+            updated_at: now,
+            revision: 1,
+            primary: true,
+            parent_id: None,
+            cluster_id: None,
+            level: MemoryLevel::Raw,
+            relation: None,
+            revisions: Vec::new(),
         }
     }
 
@@ -511,7 +545,7 @@ impl MemoryStore for FileMemoryStore {
             .unwrap_or_default())
     }
 
-    async fn export(&self, path: &std::path::Path) -> Result<()>{
+    async fn export(&self, path: &std::path::Path) -> Result<()> {
         let payload = {
             let state = self.state.read().await;
             serde_json::to_vec_pretty(&*state)?
