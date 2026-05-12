@@ -297,7 +297,10 @@ impl FileIndexer {
     /// Verifica si un archivo debe ser incluido según los patrones
     fn should_include(&self, path: &Path) -> bool {
         let path_str = path.to_string_lossy();
-        debug!("Checking include for: {} (patterns: {:?})", path_str, self.config.include_patterns);
+        debug!(
+            "Checking include for: {} (patterns: {:?})",
+            path_str, self.config.include_patterns
+        );
 
         for pattern in &self.config.include_patterns {
             let pattern_clean = pattern.trim_start_matches("*");

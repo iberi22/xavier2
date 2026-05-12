@@ -2080,7 +2080,10 @@ impl System3Actor {
         Self { config, llm_client }
     }
 
-    pub fn with_config(config: ActorConfig, provider_config: crate::agents::provider::ModelProviderConfig) -> Self {
+    pub fn with_config(
+        config: ActorConfig,
+        provider_config: crate::agents::provider::ModelProviderConfig,
+    ) -> Self {
         let llm_client = LlmClient::with_config(provider_config);
         Self { config, llm_client }
     }

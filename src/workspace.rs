@@ -21,6 +21,7 @@ use crate::{
         belief_graph::{BeliefGraph, SharedBeliefGraph},
         embedder::EmbeddingClient,
         entity_graph::{EntityGraph, SharedEntityGraph},
+        libsql_store::LibsqlMemoryStore,
         qmd_memory::{estimate_document_bytes, MemoryUsage, QmdMemory},
         schema::MemoryQueryFilters,
         semantic::SemanticMemory,
@@ -609,6 +610,17 @@ impl WorkspaceState {
             }
             MemoryBackend::Vec => {
                 let store: Arc<dyn MemoryStore> = Arc::new(VecSqliteMemoryStore::from_env().await?);
+                let migration = migrate_file_store_if_needed(
+                    &config.id,
+                    &file_store_path,
+                    &migration_marker_path,
+                    Arc::clone(&store),
+                )
+                .await?;
+                (store, migration.migrated, migration.detail)
+            }
+            MemoryBackend::Libsql => {
+                let store: Arc<dyn MemoryStore> = Arc::new(LibsqlMemoryStore::from_env().await?);
                 let migration = migrate_file_store_if_needed(
                     &config.id,
                     &file_store_path,

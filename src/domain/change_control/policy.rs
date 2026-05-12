@@ -2,8 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::task::RiskLevel;
 use super::conflict::ConflictSeverity;
+use super::task::RiskLevel;
 
 /// Associates a source-tree layer with a risk level and import rules.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,10 +67,7 @@ impl ChangeControlConfig {
     /// Returns the first matching `ValidationRule` on violation, or `None`.
     pub fn check_import(&self, from_path: &str, to_layer: &str) -> Option<&ValidationRule> {
         // Find which layer from_path belongs to
-        let from_layer = self
-            .layers
-            .iter()
-            .find(|l| glob_match(&l.path, from_path));
+        let from_layer = self.layers.iter().find(|l| glob_match(&l.path, from_path));
 
         if let Some(layer) = from_layer {
             if !layer.may_import.iter().any(|allowed| allowed == to_layer) {
@@ -129,17 +126,18 @@ fn glob_match(pattern: &str, path: &str) -> bool {
             2 => {
                 let prefix = parts[0];
                 let suffix = parts[1];
-                path.starts_with(prefix) && path.ends_with(suffix)
+                path.starts_with(prefix)
+                    && path.ends_with(suffix)
                     && path[prefix.len()..path.len() - suffix.len()]
                         .find('/')
                         .is_none()
-            },
+            }
             _ => {
                 // Fallback for multiple `*` in one segment: just check prefix + suffix
                 let prefix = parts[0];
                 let suffix = parts[parts.len() - 1];
                 path.starts_with(prefix) && path.ends_with(suffix)
-            },
+            }
         }
     }
 }
@@ -185,10 +183,7 @@ mod tests {
             critical_files: vec![],
             rules: vec![],
         };
-        assert_eq!(
-            config.risk_for("src/misc/unlisted.rs"),
-            RiskLevel::Low
-        );
+        assert_eq!(config.risk_for("src/misc/unlisted.rs"), RiskLevel::Low);
     }
 
     #[test]
@@ -283,9 +278,7 @@ rules:
             critical_files: vec![],
             rules: vec![],
         };
-        assert!(
-            config.check_import("src/unknown.rs", "ports").is_none()
-        );
+        assert!(config.check_import("src/unknown.rs", "ports").is_none());
     }
 
     #[test]

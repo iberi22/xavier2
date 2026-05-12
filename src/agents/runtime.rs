@@ -126,8 +126,7 @@ impl RuntimeConfig {
             lookup("XAVIER_MODEL_PROVIDER").map(|value| value.trim().to_ascii_lowercase())
         {
             if provider == "local" {
-                if let Some(url) = lookup("XAVIER_LOCAL_LLM_URL").filter(|v| !v.trim().is_empty())
-                {
+                if let Some(url) = lookup("XAVIER_LOCAL_LLM_URL").filter(|v| !v.trim().is_empty()) {
                     config.model_provider = Some(provider);
                     config.model_url = Some(url);
                     return config;
@@ -248,7 +247,10 @@ impl AgentRuntime {
         &self.config
     }
 
-    pub fn with_provider_config(mut self, provider_config: crate::agents::provider::ModelProviderConfig) -> Self {
+    pub fn with_provider_config(
+        mut self,
+        provider_config: crate::agents::provider::ModelProviderConfig,
+    ) -> Self {
         let provider = crate::agents::provider::ModelProviderClient::new(provider_config);
         self.system2 = System2Reasoner::with_provider(ReasonerConfig::default(), provider);
         self
