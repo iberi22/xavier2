@@ -42,7 +42,7 @@ mod tests {
                 f,
                 Rect::new(0, 0, 40, 1),
                 "Label",
-                "Value",
+                "🦀Rust",
                 false,
                 0,
                 false,
@@ -60,15 +60,15 @@ mod tests {
 
 
         // Check emoji
-        assert_eq!(buf[(6, 0)].symbol(), "🦀");
+        assert_eq!(buf[(7, 0)].symbol(), "🦀");
 
         // The emoji 🦀 is width 2. Ratatui renders it in one cell and
         // usually leaves the next cell empty or with a generic filler.
-        // In this environment, it seems cell 7 is a space.
-        let rust_start = if buf[(7, 0)].symbol() == " " || buf[(7, 0)].symbol() == "" {
-            8
+        // In this environment, it seems cell 8 is a space.
+        let rust_start = if buf[(8, 0)].symbol() == " " || buf[(8, 0)].symbol() == "" {
+            9
         } else {
-            7
+            8
         };
 
         let mut rust = String::new();

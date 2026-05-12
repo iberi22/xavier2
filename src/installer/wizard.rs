@@ -293,7 +293,7 @@ fn progress_bar(steps: &[WizardStep], current: WizardStep) -> Line<'_> {
             spans.push(Span::raw(" · "));
         }
         if *step == current {
-            spans.push(Span::styled(format!("●"), Style::default().fg(ACCENT)));
+            spans.push(Span::styled("●".to_string(), Style::default().fg(ACCENT)));
         } else if step_order(*step) < step_order(current) {
             spans.push(Span::styled("●", Style::default().fg(SUCCESS)));
         } else {

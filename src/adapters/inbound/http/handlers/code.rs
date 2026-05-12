@@ -3,11 +3,9 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use crate::adapters::inbound::http::state::check_auth;
 use crate::adapters::inbound::http::AppState;
-use crate::ports::inbound::InputSecurityPort;
-use tracing::info;
 use std::path::Path;
 
 #[derive(Debug, Deserialize)]

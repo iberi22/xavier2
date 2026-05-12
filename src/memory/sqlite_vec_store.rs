@@ -215,6 +215,18 @@ impl VecSqliteMemoryStore {
         // Initialize schema
         Self::init_schema(&conn, config.embedding_dimensions)?;
 
+        // Ensure new columns exist for defensive schema evolution
+        let columns = Self::virtual_table_columns(&conn, TABLE_MEMORIES)?;
+        if !columns.iter().any(|c| c == "cluster_id") {
+            conn.execute("ALTER TABLE memory_records ADD COLUMN cluster_id TEXT", [])?;
+        }
+        if !columns.iter().any(|c| c == "level") {
+            conn.execute("ALTER TABLE memory_records ADD COLUMN level TEXT NOT NULL DEFAULT 'raw'", [])?;
+        }
+        if !columns.iter().any(|c| c == "relation") {
+            conn.execute("ALTER TABLE memory_records ADD COLUMN relation TEXT", [])?;
+        }
+
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
             config,

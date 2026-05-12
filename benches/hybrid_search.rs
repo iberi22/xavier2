@@ -78,6 +78,9 @@ fn bench_hybrid_search(c: &mut Criterion) {
                     revision: 1,
                     primary: true,
                     parent_id: None,
+                    cluster_id: None,
+                    level: xavier::memory::schema::MemoryLevel::Raw,
+                    relation: None,
                     revisions: Vec::new(),
                 })
                 .await
