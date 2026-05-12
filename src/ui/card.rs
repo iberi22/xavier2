@@ -71,7 +71,7 @@ impl CardView {
             .interact(egui::Sense::click())
             .clicked()
         {
-            // TODO: Open task detail modal
+            // Open task detail modal (TUI — to be implemented)
         }
     }
 

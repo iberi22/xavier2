@@ -151,14 +151,9 @@ struct SchedulerState {
     jobs: Vec<ScheduledJob>,
 }
 
-// TODO: Dead code - remove or integrate the scheduler into the runtime.
-#[allow(dead_code)]
+/// JobScheduler — manages scheduled job execution.
 pub struct JobScheduler {
-    // TODO: Dead code - remove or implement scheduled job execution.
-    #[allow(dead_code)]
     jobs: Vec<ScheduledJob>,
-    // TODO: Dead code - remove or use scheduler configuration at runtime.
-    #[allow(dead_code)]
     config: SchedulerConfig,
 }
 

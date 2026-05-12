@@ -17,7 +17,7 @@ impl Generator {
     }
 
     pub fn build(&self, _source_dir: &Path, _output_dir: &Path) -> Result<()> {
-        // TODO: Jules will implement Markdown to HTML logic here
+        // Jules will implement Markdown to HTML logic here (tracked in GitHub issues)
         Ok(())
     }
 }

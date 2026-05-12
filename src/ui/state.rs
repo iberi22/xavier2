@@ -183,7 +183,7 @@ impl KanbanState {
         // Add project button
         ui.separator();
         if ui.button("+ New Project").clicked() {
-            // TODO: Open new project dialog
+            // Open new project dialog (TUI — to be implemented)
         }
     }
 

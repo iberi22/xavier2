@@ -14,20 +14,10 @@ use crate::memory::qmd_memory::QmdMemory;
 /// Configuración del indexer
 #[derive(Debug, Clone)]
 pub struct FileIndexerConfig {
-    // TODO: Dead code - remove or use file indexer config in indexing.
-    #[allow(dead_code)]
     pub root_path: PathBuf,
-    // TODO: Dead code - remove or use file indexer config in indexing.
-    #[allow(dead_code)]
     pub include_patterns: Vec<String>,
-    // TODO: Dead code - remove or use file indexer config in indexing.
-    #[allow(dead_code)]
     pub exclude_patterns: Vec<String>,
-    // TODO: Dead code - remove or use file indexer config in indexing.
-    #[allow(dead_code)]
     pub chunk_size: usize,
-    // TODO: Dead code - remove or use file indexer config in indexing.
-    #[allow(dead_code)]
     pub chunk_overlap: usize,
 }
 
@@ -57,8 +47,6 @@ impl Default for FileIndexerConfig {
 
 /// Archivo indexado
 #[derive(Debug, Clone, Serialize, Deserialize)]
-// TODO: Dead code - remove or return indexed files from FileIndexer.
-#[allow(dead_code)]
 pub struct IndexedFile {
     pub path: String,
     pub content: String,
@@ -69,8 +57,6 @@ pub struct IndexedFile {
 
 /// Chunk de un archivo
 #[derive(Debug, Clone, Serialize, Deserialize)]
-// TODO: Dead code - remove or return file chunks from FileIndexer.
-#[allow(dead_code)]
 pub struct FileChunk {
     pub index: usize,
     pub content: String,
@@ -80,8 +66,6 @@ pub struct FileChunk {
 
 /// Resultado de la indexación
 #[derive(Debug, Clone, Serialize, Deserialize)]
-// TODO: Dead code - remove or return index results from FileIndexer.
-#[allow(dead_code)]
 pub struct IndexResult {
     pub total_files: usize,
     pub total_chunks: usize,
@@ -100,8 +84,6 @@ pub struct FileIndexer {
     pub code_indexer: Option<Arc<code_graph::indexer::Indexer>>,
 }
 
-// TODO: Dead code - remove or wire FileIndexer into code/memory indexing.
-#[allow(dead_code)]
 impl FileIndexer {
     /// Crea un nuevo indexer
     pub fn new(

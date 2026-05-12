@@ -59,17 +59,9 @@ impl SecretsManager {
     }
 }
 
-// TODO: Dead code - remove or wire secret daemon into production runtime.
-#[allow(dead_code)]
 pub mod daemon;
-// TODO: Dead code - remove or wire local secret store into production runtime.
-#[allow(dead_code)]
 pub mod local;
-// TODO: Dead code - remove or wire OpenBao secret store into production runtime.
-#[allow(dead_code)]
 pub mod openbao;
-// TODO: Dead code - remove or wire secret store abstractions into production runtime.
-#[allow(dead_code)]
 pub mod store;
 #[cfg(test)]
 mod tests;

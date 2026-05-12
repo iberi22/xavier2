@@ -1924,8 +1924,7 @@ async fn agent_register_handler(
     }))
 }
 
-// TODO: Dead code - remove or implement heartbeat payload deserialization.
-#[allow(dead_code)]
+/// Heartbeat payload deserialization.
 #[derive(Debug, Deserialize)]
 struct AgentHeartbeatPayload {
     agent_id: String,
@@ -2338,8 +2337,6 @@ async fn start_mcp_stdio() -> Result<()> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Session context returned by session_load
-// TODO: Dead code - remove or wire session_load into the CLI.
-#[allow(dead_code)]
 #[derive(Debug, serde::Serialize)]
 struct SessionContext {
     session_id: String,
@@ -2349,8 +2346,6 @@ struct SessionContext {
 
 /// Fetch session context from Xavier memory store.
 /// GETs from /memory/search with path: context/<session_id>/latest
-// TODO: Dead code - remove or expose this as a CLI command.
-#[allow(dead_code)]
 async fn session_load(ctx: &str) -> Result<String> {
     let token = require_xavier_token()?;
     let url = format!("{}/memory/search", resolve_base_url());

@@ -107,10 +107,10 @@ impl BeliefGraph {
             created_at: chrono::Utc::now(),
         };
 
-        self.nodes.write().unwrap().insert(id, node);
+        self.nodes.write().expect("belief_graph: nodes write lock poisoned").insert(id, node);
         self.adjacency
             .write()
-            .unwrap()
+            .expect("belief_graph: adjacency write lock poisoned")
             .entry(concept.clone())
             .or_default();
 
@@ -130,7 +130,7 @@ impl BeliefGraph {
     ) {
         let now = chrono::Utc::now();
         let superseded_relation = {
-            let mut relations = self.relations.write().unwrap();
+            let mut relations = self.relations.write().expect("belief_graph: relations write lock poisoned");
             relations
                 .iter_mut()
                 .find(|relation| {
@@ -162,13 +162,13 @@ impl BeliefGraph {
             updated_at: now,
         };
 
-        self.relations.write().unwrap().push(relation);
+        self.relations.write().expect("belief_graph: relations write lock poisoned").push(relation);
 
         if let Some(previous_id) = superseded_relation {
             if let Some(previous) = self
                 .relations
                 .write()
-                .unwrap()
+                .expect("belief_graph: relations write lock poisoned")
                 .iter_mut()
                 .find(|relation| relation.id == previous_id)
             {
@@ -176,7 +176,7 @@ impl BeliefGraph {
             }
         }
 
-        let mut adjacency = self.adjacency.write().unwrap();
+        let mut adjacency = self.adjacency.write().expect("belief_graph: adjacency write lock poisoned");
         adjacency
             .entry(source.clone())
             .or_default()
@@ -192,7 +192,7 @@ impl BeliefGraph {
     pub fn get_related(&self, concept: &str) -> Vec<String> {
         self.adjacency
             .read()
-            .unwrap()
+            .expect("belief_graph: adjacency read lock poisoned")
             .get(concept)
             .map(|set| set.iter().cloned().collect())
             .unwrap_or_default()
@@ -201,22 +201,22 @@ impl BeliefGraph {
     pub fn get_node(&self, concept: &str) -> Option<BeliefNode> {
         self.nodes
             .read()
-            .unwrap()
+            .expect("belief_graph: nodes read lock poisoned")
             .values()
             .find(|node| node.concept == concept)
             .cloned()
     }
 
     pub fn get_relations(&self) -> Vec<BeliefRelation> {
-        self.relations.read().unwrap().clone()
+        self.relations.read().expect("belief_graph: relations read lock poisoned").clone()
     }
 
     pub fn list_nodes(&self) -> Vec<BeliefNode> {
-        self.nodes.read().unwrap().values().cloned().collect()
+        self.nodes.read().expect("belief_graph: nodes read lock poisoned").values().cloned().collect()
     }
 
     pub fn update_confidence(&self, concept: &str, new_confidence: f32) {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().expect("belief_graph: nodes write lock poisoned");
         if let Some(node) = nodes.values_mut().find(|node| node.concept == concept) {
             node.confidence = new_confidence;
         }
@@ -278,7 +278,7 @@ impl BeliefGraph {
     }
 
     pub async fn bfs(&self, start: &str) -> Vec<String> {
-        let adjacency = self.adjacency.read().unwrap().clone();
+        let adjacency = self.adjacency.read().expect("belief_graph: adjacency read lock poisoned").clone();
         let mut visited = HashSet::new();
         let mut queue = VecDeque::from([start.to_string()]);
         let mut ordered = Vec::new();
@@ -376,9 +376,9 @@ impl BeliefGraph {
             }
         }
 
-        *self.nodes.write().unwrap() = nodes;
-        *self.adjacency.write().unwrap() = adjacency;
-        *self.relations.write().unwrap() = relations;
+        *self.nodes.write().expect("belief_graph: nodes write lock poisoned") = nodes;
+        *self.adjacency.write().expect("belief_graph: adjacency write lock poisoned") = adjacency;
+        *self.relations.write().expect("belief_graph: relations write lock poisoned") = relations;
     }
 
     pub async fn query(&self, query: &str) -> Result<Vec<BeliefNode>> {
@@ -409,8 +409,8 @@ impl BeliefGraph {
         let graph = Self::new();
 
         {
-            let mut nodes = graph.nodes.write().unwrap();
-            let mut adjacency = graph.adjacency.write().unwrap();
+            let mut nodes = graph.nodes.write().expect("belief_graph: nodes write lock poisoned");
+            let mut adjacency = graph.adjacency.write().expect("belief_graph: adjacency write lock poisoned");
 
             for node in data.nodes {
                 adjacency.entry(node.concept.clone()).or_default();
@@ -419,8 +419,8 @@ impl BeliefGraph {
         }
 
         {
-            let mut relations = graph.relations.write().unwrap();
-            let mut adjacency = graph.adjacency.write().unwrap();
+            let mut relations = graph.relations.write().expect("belief_graph: relations write lock poisoned");
+            let mut adjacency = graph.adjacency.write().expect("belief_graph: adjacency write lock poisoned");
             for relation in data.relations {
                 adjacency
                     .entry(relation.source.clone())

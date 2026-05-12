@@ -339,8 +339,6 @@ impl HttpConfig {
 }
 
 pub struct HttpServer {
-    // TODO: Dead code - remove or use config when serve() is implemented.
-    #[allow(dead_code)]
     config: HttpConfig,
 }
 

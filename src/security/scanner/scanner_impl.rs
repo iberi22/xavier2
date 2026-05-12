@@ -12,13 +12,13 @@ use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
 static BASE64_ENCODED_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[A-Za-z0-9+/]{20,}={0,2}").unwrap());
+    LazyLock::new(|| Regex::new(r"[A-Za-z0-9+/]{20,}={0,2}").expect("invalid regex: base64 encoded"));
 static HEX_ENCODED_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?:0x)?[a-fA-F0-9]{20,}").unwrap());
+    LazyLock::new(|| Regex::new(r"(?:0x)?[a-fA-F0-9]{20,}").expect("invalid regex: hex encoded"));
 static URL_ENCODED_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"%[0-9A-Fa-f]{2}{5,}").unwrap());
+    LazyLock::new(|| Regex::new(r"%[0-9A-Fa-f]{2}{5,}").expect("invalid regex: URL encoded"));
 static REPEATED_PUNCTUATION_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[!?\\]{5,}").unwrap());
+    LazyLock::new(|| Regex::new(r"[!?\\]{5,}").expect("invalid regex: repeated punctuation"));
 
 /// Threat level classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

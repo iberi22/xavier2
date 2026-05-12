@@ -7,11 +7,11 @@ use crate::security::detections::{ScanResult, Severity, Threat, ThreatCategory};
 
 /// Path traversal patterns
 static PATH_TRAV_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(\.\.[/\\]|%2e%2e|\\|/etc/passwd|C:\\Windows|C:\\boot)").unwrap()
+    Regex::new(r"(?i)(\.\.[/\\]|%2e%2e|\\|/etc/passwd|C:\\Windows|C:\\boot)").expect("invalid regex: path traversal")
 });
 
 /// Path separators pattern
-static PATH_SEP_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[/\\]{2,}").unwrap());
+static PATH_SEP_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[/\\]{2,}").expect("invalid regex: path separators"));
 
 /// Detect path traversal attempts
 pub fn detect_path_traversal(input: &str, result: &mut ScanResult) {

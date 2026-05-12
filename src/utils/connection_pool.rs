@@ -28,8 +28,6 @@ impl Default for PoolConfig {
 
 /// A simple connection pool wrapper for SQLite connections
 pub struct ConnectionPool {
-    // TODO: Dead code - remove or use pool configuration for connection lifecycle.
-    #[allow(dead_code)]
     config: PoolConfig,
     connection: Connection,
 }

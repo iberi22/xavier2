@@ -1,6 +1,4 @@
 pub mod session;
-// TODO: Dead code - remove or wire checkpoint state into runtime recovery.
-#[allow(dead_code)]
 pub mod state;
 
 use std::collections::HashMap;
