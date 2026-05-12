@@ -14,10 +14,20 @@ use crate::memory::qmd_memory::QmdMemory;
 /// Configuración del indexer
 #[derive(Debug, Clone)]
 pub struct FileIndexerConfig {
+    // TODO: Dead code - remove or use file indexer config in indexing.
+    #[allow(dead_code)]
     pub root_path: PathBuf,
+    // TODO: Dead code - remove or use file indexer config in indexing.
+    #[allow(dead_code)]
     pub include_patterns: Vec<String>,
+    // TODO: Dead code - remove or use file indexer config in indexing.
+    #[allow(dead_code)]
     pub exclude_patterns: Vec<String>,
+    // TODO: Dead code - remove or use file indexer config in indexing.
+    #[allow(dead_code)]
     pub chunk_size: usize,
+    // TODO: Dead code - remove or use file indexer config in indexing.
+    #[allow(dead_code)]
     pub chunk_overlap: usize,
 }
 
@@ -25,7 +35,7 @@ impl Default for FileIndexerConfig {
     fn default() -> Self {
         Self {
             root_path: PathBuf::from("/data/projects"),
-            include_patterns: vec![".md".to_string(), ".rs".to_string()],
+            include_patterns: vec![".md".to_string()],
             exclude_patterns: vec![
                 ".git/**".to_string(),
                 "node_modules/**".to_string(),
@@ -47,6 +57,8 @@ impl Default for FileIndexerConfig {
 
 /// Archivo indexado
 #[derive(Debug, Clone, Serialize, Deserialize)]
+// TODO: Dead code - remove or return indexed files from FileIndexer.
+#[allow(dead_code)]
 pub struct IndexedFile {
     pub path: String,
     pub content: String,
@@ -57,6 +69,8 @@ pub struct IndexedFile {
 
 /// Chunk de un archivo
 #[derive(Debug, Clone, Serialize, Deserialize)]
+// TODO: Dead code - remove or return file chunks from FileIndexer.
+#[allow(dead_code)]
 pub struct FileChunk {
     pub index: usize,
     pub content: String,
@@ -66,6 +80,8 @@ pub struct FileChunk {
 
 /// Resultado de la indexación
 #[derive(Debug, Clone, Serialize, Deserialize)]
+// TODO: Dead code - remove or return index results from FileIndexer.
+#[allow(dead_code)]
 pub struct IndexResult {
     pub total_files: usize,
     pub total_chunks: usize,
@@ -84,6 +100,8 @@ pub struct FileIndexer {
     pub code_indexer: Option<Arc<code_graph::indexer::Indexer>>,
 }
 
+// TODO: Dead code - remove or wire FileIndexer into code/memory indexing.
+#[allow(dead_code)]
 impl FileIndexer {
     /// Crea un nuevo indexer
     pub fn new(
@@ -297,7 +315,6 @@ impl FileIndexer {
     /// Verifica si un archivo debe ser incluido según los patrones
     fn should_include(&self, path: &Path) -> bool {
         let path_str = path.to_string_lossy();
-        debug!("Checking include for: {} (patterns: {:?})", path_str, self.config.include_patterns);
 
         for pattern in &self.config.include_patterns {
             let pattern_clean = pattern.trim_start_matches("*");

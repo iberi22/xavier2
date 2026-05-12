@@ -125,8 +125,8 @@ pub async fn verify_save_handler(
 ) -> Json<VerifySaveResponse> {
     let start = Instant::now();
 
-    let xavier_url = std::env::var("XAVIER_URL")
-        .unwrap_or_else(|_| XavierSettings::current().client_base_url());
+    let xavier_url =
+        std::env::var("XAVIER_URL").unwrap_or_else(|_| XavierSettings::current().client_base_url());
 
     // Validate internal URL to prevent SSRF
     if let Err(e) = crate::security::url_validator::validate_internal_url(&xavier_url) {

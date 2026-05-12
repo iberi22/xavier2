@@ -20,5 +20,4 @@ pub mod sqlite_store;
 pub mod sqlite_vec_store;
 pub mod store;
 pub mod working;
-pub mod hce_engine;
 pub use store::*;

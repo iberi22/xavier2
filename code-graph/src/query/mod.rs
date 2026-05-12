@@ -159,16 +159,6 @@ impl QueryEngine {
         self.db.find_symbols(file_path, 1000).map(|r| r.symbols)
     }
 
-    /// Find all symbols in a specific file
-    pub fn symbols_in_file(&self, file_path: &str) -> Result<Vec<Symbol>> {
-        self.db.find_symbols_in_file(file_path)
-    }
-
-    /// Find files that depend on the given file
-    pub fn reverse_dependencies(&self, file_path: &str) -> Result<Vec<String>> {
-        self.db.find_reverse_dependencies(file_path)
-    }
-
     /// Get all symbols of a specific language
     pub fn by_language(&self, _lang: crate::types::Language, _limit: usize) -> Result<Vec<Symbol>> {
         // Would need a new db method

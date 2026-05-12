@@ -64,50 +64,6 @@ Saves current session context to Xavier.
 
 Spawns multiple agents with provider routing.
 
----
-
-## Standalone Context Commands
-
-These commands operate **without a running server**. They work directly on a local SQLite database.
-
-### `xavier init`
-
-Initializes a `.xavier/` directory in the current project.
-
-```bash
-xavier init
-```
-
-### `xavier index [--path <DIR>] [--output <DB>]`
-
-Scans the project directory, indexes `.md` and `.rs` files into a local memory database, then runs the HCE engine to build the hierarchical context tree.
-
-```bash
-xavier index                          # indexes current directory -> .xavier/memory.db
-xavier index --path ./my-project
-xavier index --path . --output .xavier/memory.db
-```
-
-### `xavier export --workspace <ID> [--output <FILE>] [--format tree|db]`
-
-Exports workspace memories to a portable artifact.
-
-- `--format db` (default): exports a SQLite snapshot via `VACUUM INTO`
-- `--format tree`: exports a hierarchical `context-tree.json` for agent context loading
-
-```bash
-xavier export --workspace myproject --format tree --output context-tree.json
-xavier export --workspace myproject --format db   --output backup.db
-```
-
-### `xavier import --file <DB> [--workspace <ID>]`
-
-Non-destructively merges an external Xavier database into the local store via `ATTACH DATABASE`. Does not overwrite existing records.
-
-```bash
-xavier import --file team-brain.db --workspace shared
-```
-
 ## Environment Variables
 
 | Variable | Default | Description |

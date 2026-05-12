@@ -5,17 +5,16 @@
 
 pub mod a2a;
 pub mod agents;
-pub mod chronicle;
 pub mod api;
-pub mod devlog;
 pub mod checkpoint;
+pub mod chronicle;
 pub mod consistency;
 pub mod consolidation;
 pub mod context;
 pub mod coordination;
 pub mod crypto;
+pub mod devlog;
 pub mod embedding;
-pub mod installer;
 pub mod memory;
 pub mod retrieval;
 pub mod scheduler;
