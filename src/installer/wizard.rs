@@ -247,8 +247,8 @@ fn render(f: &mut Frame, state: &InstallerState) {
     f.render_widget(Paragraph::new("").style(Style::default().bg(BG)), area);
 
     // Main layout: centered card
-    let card_w = (area.width.min(72)).max(40);
-    let card_h = (area.height.min(22)).max(12);
+    let card_w = area.width.clamp(40, 72);
+    let card_h = area.height.clamp(12, 22);
     let card_x = (area.width.saturating_sub(card_w)) / 2;
     let card_y = (area.height.saturating_sub(card_h)) / 2;
     let card = Rect::new(card_x, card_y, card_w, card_h);

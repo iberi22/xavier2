@@ -32,7 +32,15 @@ mod tests {
 
         terminal
             .draw(|f| {
-                render_input_field(f, Rect::new(0, 0, 40, 1), "Label", "🦀Rust", false, 0, false);
+                render_input_field(
+                    f,
+                    Rect::new(0, 0, 40, 1),
+                    "Label",
+                    "🦀Rust",
+                    false,
+                    0,
+                    false,
+                );
             })
             .unwrap();
 

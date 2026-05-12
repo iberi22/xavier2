@@ -81,7 +81,7 @@ pub async fn search_handler(
         .sanitized_input
         .as_deref()
         .unwrap_or(&sec_result.original_input);
-    let limit = payload.limit.max(1).min(100);
+    let limit = payload.limit.clamp(1, 100);
     info!("Search request: query={}, limit={}", effective_query, limit);
 
     match state.memory.search(effective_query, payload.filters).await {
@@ -175,7 +175,7 @@ pub async fn memory_query_handler(
         }));
     }
 
-    let _limit = payload.limit.unwrap_or(10).max(1).min(100);
+    let _limit = payload.limit.unwrap_or(10).clamp(1, 100);
     let effective_query = sec_result
         .sanitized_input
         .as_deref()

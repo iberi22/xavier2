@@ -941,6 +941,11 @@ async fn panel_process_chat_inner(
         .append_message(&thread.id, user_message)
         .await?;
 
+    // Artificial delay for CI stability to ensure Playwright catches the loading state
+    if std::env::var("XAVIER_CI").is_ok() {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+
     let assistant_message = PanelMessage {
         id: ulid::Ulid::new().to_string(),
         role: "assistant".to_string(),
