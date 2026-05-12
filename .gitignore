@@ -78,3 +78,6 @@ notebooks/.ipynb_checkpoints/
 /HEARTBEAT.md
 /IDENTITY.md
 /TOOLS.md
+
+# Ghost directory from subagent split (use single .rs file)
+src/memory/sqlite_vec_store/
