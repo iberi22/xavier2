@@ -321,7 +321,7 @@ mod tests {
             .with_token_count(token_count)
             .with_tool_calls(vec!["cargo_test".to_string()])
             .with_metadata(json!({"topic": "build", "kind": "summary"}))
-            .with_created_at(Utc.timestamp_opt(seconds, 0).expect("test assertion"))
+            .with_created_at(Utc.timestamp_opt(seconds, 0).single().expect("test assertion"))
     }
 
     #[test]
