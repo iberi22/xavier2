@@ -208,6 +208,7 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         event_bus,
         tasks,
         rate_manager: rate_manager.clone(),
+        prompt_cache: Arc::new(parking_lot::Mutex::new(HashMap::new())),
     };
 
     info!(
@@ -265,6 +266,7 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/secrets/revoke", post(revoke_handler))
         .route("/secrets/status/{token}", get(status_handler))
         .route("/v1/proxy/chat/completions", post(crate::cli::proxy::chat_proxy))
+        .route("/v1/proxy/chat/completions/batch", post(crate::cli::proxy::chat_batch_proxy))
         .route("/v1/usage/status/{provider}", get(usage_status_handler))
         .route("/v1/usage/update", post(usage_update_handler))
         .route("/v1/usage/cooldown", post(usage_cooldown_handler))
@@ -404,7 +406,7 @@ pub async fn build_handler(State(state): State<CliState>) -> Response {
     )
 }
 
-pub async fn account_usage_handler(State(_state): State<CliState>, headers: HeaderMap) -> Response {
+pub async fn account_usage_handler(State(state): State<CliState>, headers: HeaderMap) -> Response {
     let expected_token = match std::env::var("XAVIER_TOKEN") {
         Ok(token) => token,
         Err(_) => {
@@ -431,10 +433,32 @@ pub async fn account_usage_handler(State(_state): State<CliState>, headers: Head
         );
     }
 
+    // Collect provider quotas from RateLimitManager
+    let mut provider_quotas = serde_json::Map::new();
+    match state.rate_manager.get_all_providers().await {
+        Ok(providers) => {
+            for p in providers {
+                if let Ok(status) = state.rate_manager.get_status(&p).await {
+                    if let Ok(val) = serde_json::to_value(&status) {
+                        provider_quotas.insert(p, val);
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to list providers for quotas: {e}");
+        }
+    }
+
     json_response(
         StatusCode::OK,
         serde_json::json!({
             "status": "ok",
+            "document_count": 0,
+            "requests_used": 0,
+            "storage_bytes_used": 0,
+            "storage_bytes_limit": 0,
+            "provider_quotas": provider_quotas,
             "optimization": {
                 "router_direct_count": 0,
                 "semantic_cache_hits": 0,

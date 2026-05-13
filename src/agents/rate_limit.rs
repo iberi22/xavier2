@@ -12,6 +12,7 @@ pub struct QuotaStatus {
     pub used_weekly: usize,
     pub used_monthly: usize,
     pub weekly_quota: usize,
+    pub cache_hits: usize,
     pub rate_limited_until: Option<DateTime<Utc>>,
     pub last_update: DateTime<Utc>,
 }
@@ -38,6 +39,17 @@ impl RateLimitManager {
             )",
             [],
         )?;
+
+        // Migration: Add cache_hits column if it doesn't exist
+        let has_cache_hits: bool = conn.query_row(
+            "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cache_hits'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0) > 0;
+
+        if !has_cache_hits {
+            conn.execute("ALTER TABLE rate_limit_usage ADD COLUMN cache_hits INTEGER DEFAULT 0", [])?;
+        }
 
         // Migration: Add cost_usd column if it doesn't exist
         let column_exists: bool = conn.query_row(
@@ -81,6 +93,7 @@ impl RateLimitManager {
         tokens: usize,
         status: u16,
         cost_usd: f64,
+        is_cache_hit: bool,
     ) -> Result<()> {
         let conn = self.db.lock();
         conn.execute(
@@ -88,6 +101,13 @@ impl RateLimitManager {
              VALUES (?1, ?2, ?3, ?4, ?5)",
             params![provider, tokens as i64, cost_usd, status, status >= 400],
         )?;
+
+        if is_cache_hit {
+            conn.execute(
+                "UPDATE rate_limit_usage SET cache_hits = cache_hits + 1 WHERE id = last_insert_rowid()",
+                [],
+            )?;
+        }
 
         if status == 429 {
             // Default cooldown of 5 minutes if not specified
@@ -129,6 +149,12 @@ impl RateLimitManager {
             |row| row.get(0),
         )?;
 
+        let cache_hits: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(cache_hits), 0) FROM rate_limit_usage WHERE provider = ?1",
+            params![provider],
+            |row| row.get(0),
+        )?;
+
         let (rate_limited_until, weekly_quota): (Option<DateTime<Utc>>, usize) = conn.query_row(
             "SELECT rate_limited_until, COALESCE(weekly_quota, 1000000) FROM provider_quotas WHERE provider = ?1",
             params![provider],
@@ -141,6 +167,7 @@ impl RateLimitManager {
             used_weekly: used_weekly as usize,
             used_monthly: used_monthly as usize,
             weekly_quota,
+            cache_hits: cache_hits as usize,
             rate_limited_until,
             last_update: now,
         })
@@ -167,6 +194,15 @@ impl RateLimitManager {
             params![provider, until],
         )?;
         Ok(())
+    }
+
+    pub async fn get_all_providers(&self) -> Result<Vec<String>> {
+        let conn = self.db.lock();
+        let mut stmt = conn.prepare("SELECT DISTINCT provider FROM rate_limit_usage")?;
+        let providers = stmt.query_map([], |row| row.get::<_, String>(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(providers)
     }
 
     pub async fn update_manual_limit(&self, provider: &str, percentage: f32) -> Result<()> {
@@ -203,12 +239,12 @@ mod tests {
         assert!(!manager.is_quota_low(provider).await.unwrap());
 
         // Use 91% of quota
-        manager.track_request(provider, 910_000, 200).await.unwrap();
+        manager.track_request(provider, 910_000, 200, 0.0, false).await.unwrap();
         assert!(manager.is_quota_low(provider).await.unwrap());
 
         // Use 89% of quota
         let manager = setup_manager().await;
-        manager.track_request(provider, 890_000, 200).await.unwrap();
+        manager.track_request(provider, 890_000, 200, 0.0, false).await.unwrap();
         assert!(!manager.is_quota_low(provider).await.unwrap());
     }
 
@@ -226,7 +262,7 @@ mod tests {
         }
 
         // Use 950 tokens (95%)
-        manager.track_request(provider, 950, 200).await.unwrap();
+        manager.track_request(provider, 950, 200, 0.0, false).await.unwrap();
         assert!(manager.is_quota_low(provider).await.unwrap());
 
         // Use 850 tokens (85%)
@@ -238,7 +274,7 @@ mod tests {
                 params![provider, 1000],
             ).unwrap();
         }
-        manager.track_request(provider, 850, 200).await.unwrap();
+        manager.track_request(provider, 850, 200, 0.0, false).await.unwrap();
         assert!(!manager.is_quota_low(provider).await.unwrap());
     }
 }

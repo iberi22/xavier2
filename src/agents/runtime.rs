@@ -5,7 +5,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::context::orchestrator::Orchestrator;
 
@@ -534,6 +534,26 @@ impl AgentRuntime {
                 .or(route.model_override.clone())
                 .or(self.config.model_url.clone());
 
+            let mut budget_multiplier = 1.0;
+            if let Some(ref rate_manager) = self.rate_manager {
+                if let Some(ref provider) = self.config.model_provider {
+                    if let Ok(status) = rate_manager.get_status(provider).await {
+                        let weekly_budget = std::env::var("XAVIER_WEEKLY_BUDGET")
+                            .ok()
+                            .and_then(|v| v.parse::<usize>().ok())
+                            .unwrap_or(100_000);
+
+                        if status.used_weekly as f64 > 0.9 * weekly_budget as f64 {
+                            info!(
+                                "Weekly budget usage high ({}/{}). Reducing System 3 tokens.",
+                                status.used_weekly, weekly_budget
+                            );
+                            budget_multiplier = 0.5;
+                        }
+                    }
+                }
+            }
+
             let system3 = if let Some(provider) = &self.config.model_provider {
                 // If runtime config has explicit provider, use it
                 let p_config = crate::agents::provider::ModelProviderConfig::new_with_params(
@@ -542,20 +562,31 @@ impl AgentRuntime {
                     self.config.model_api_key.clone(),
                     self.config.model_url.clone(),
                 );
-                System3Actor::with_config(
-                    ActorConfig {
-                        semantic_cache: Some(Arc::clone(&self.semantic_cache)),
-                        model_override: p_config.model.clone().into(),
-                        ..ActorConfig::default()
-                    },
-                    p_config,
-                )
+                let mut actor_config = ActorConfig {
+                    semantic_cache: Some(Arc::clone(&self.semantic_cache)),
+                    model_override: p_config.model.clone().into(),
+                    ..ActorConfig::default()
+                };
+
+                if budget_multiplier < 1.0 {
+                    actor_config.max_actions =
+                        (actor_config.max_actions as f64 * budget_multiplier) as usize;
+                }
+
+                System3Actor::with_config(actor_config, p_config)
             } else {
-                System3Actor::new(ActorConfig {
+                let mut actor_config = ActorConfig {
                     semantic_cache: Some(Arc::clone(&self.semantic_cache)),
                     model_override: selected_model_override,
                     ..ActorConfig::default()
-                })
+                };
+
+                if budget_multiplier < 1.0 {
+                    actor_config.max_actions =
+                        (actor_config.max_actions as f64 * budget_multiplier) as usize;
+                }
+
+                System3Actor::new(actor_config)
             };
 
             let s3_start = std::time::Instant::now();
@@ -571,6 +602,27 @@ impl AgentRuntime {
         };
 
         debug!("✅ System 3 completed in {}ms", s3_ms);
+
+        if action_result.llm_used {
+            if let Some(ref rate_manager) = self.rate_manager {
+                if let Some(ref provider) = self.config.model_provider {
+                    let context_text = retrieval_result
+                        .documents
+                        .iter()
+                        .map(|d| d.content.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                    let estimated_tokens = estimate_tokens(query)
+                        + estimate_tokens(&context_text)
+                        + estimate_tokens(&action_result.response);
+
+                    if let Err(e) = rate_manager.track_request(provider, estimated_tokens, 200, 0.0, false).await {
+                        warn!("Failed to track runtime LLM usage: {e}");
+                    }
+                }
+            }
+        }
 
         let total_ms = start.elapsed().as_millis() as u64;
 
@@ -698,6 +750,10 @@ impl AgentRuntime {
 
 fn query_fingerprint(query: &str) -> String {
     sha256_hex(query.as_bytes())[..12].to_string()
+}
+
+fn estimate_tokens(text: &str) -> usize {
+    (text.len() / 4).max(1)
 }
 
 /// Builder para crear el runtime
