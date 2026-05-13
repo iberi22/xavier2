@@ -90,13 +90,30 @@ pub struct SystemTimings {
 }
 
 /// Configuración del Runtime
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RuntimeConfig {
     pub timeout_seconds: u64,
     pub max_retries: usize,
     pub model_provider: Option<String>,
     pub model_api_key: Option<String>,
     pub model_url: Option<String>,
+    pub rate_manager: Option<Arc<crate::agents::rate_limit::RateLimitManager>>,
+}
+
+impl std::fmt::Debug for RuntimeConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RuntimeConfig")
+            .field("timeout_seconds", &self.timeout_seconds)
+            .field("max_retries", &self.max_retries)
+            .field("model_provider", &self.model_provider)
+            .field("model_api_key", &self.model_api_key)
+            .field("model_url", &self.model_url)
+            .field(
+                "rate_manager",
+                &self.rate_manager.as_ref().map(|_| "RateLimitManager"),
+            )
+            .finish()
+    }
 }
 
 impl Default for RuntimeConfig {
@@ -107,6 +124,7 @@ impl Default for RuntimeConfig {
             model_provider: None,
             model_api_key: None,
             model_url: None,
+            rate_manager: None,
         }
     }
 }
@@ -121,6 +139,7 @@ impl RuntimeConfig {
         F: FnMut(&str) -> Option<String>,
     {
         let mut config = Self::default();
+        config.rate_manager = None;
 
         if let Some(provider) =
             lookup("XAVIER_MODEL_PROVIDER").map(|value| value.trim().to_ascii_lowercase())
@@ -224,6 +243,14 @@ impl AgentRuntime {
 
     pub fn with_orchestrator(mut self, orchestrator: Orchestrator) -> Self {
         self.orchestrator = Some(orchestrator);
+        self
+    }
+
+    pub fn with_rate_manager(
+        mut self,
+        manager: Arc<crate::agents::rate_limit::RateLimitManager>,
+    ) -> Self {
+        self.config.rate_manager = Some(manager);
         self
     }
 
@@ -481,6 +508,26 @@ impl AgentRuntime {
             ),
         };
 
+        let mut budget_multiplier = 1.0;
+        if let (Some(ref rate_manager), Some(ref provider)) =
+            (&self.config.rate_manager, &self.config.model_provider)
+        {
+            if let Ok(status) = crate::agents::rate_limit::RateLimitManager::get_status(rate_manager, provider).await {
+                let weekly_budget = std::env::var("XAVIER_WEEKLY_BUDGET")
+                    .ok()
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .unwrap_or(100_000);
+
+                if status.used_weekly as f64 > 0.9 * weekly_budget as f64 {
+                    info!(
+                        "Weekly budget usage high ({}/{}). Reducing System 3 tokens.",
+                        status.used_weekly, weekly_budget
+                    );
+                    budget_multiplier = 0.5;
+                }
+            }
+        }
+
         let (action_result, s3_ms) = if should_skip_system3 {
             (
                 crate::agents::system3::ActionResult {
@@ -515,20 +562,31 @@ impl AgentRuntime {
                     self.config.model_api_key.clone(),
                     self.config.model_url.clone(),
                 );
-                System3Actor::with_config(
-                    ActorConfig {
-                        semantic_cache: Some(Arc::clone(&self.semantic_cache)),
-                        model_override: p_config.model.clone().into(),
-                        ..ActorConfig::default()
-                    },
-                    p_config,
-                )
+                let mut actor_config = ActorConfig {
+                    semantic_cache: Some(Arc::clone(&self.semantic_cache)),
+                    model_override: p_config.model.clone().into(),
+                    ..ActorConfig::default()
+                };
+
+                if budget_multiplier < 1.0 {
+                    actor_config.max_actions =
+                        (actor_config.max_actions as f64 * budget_multiplier) as usize;
+                }
+
+                System3Actor::with_config(actor_config, p_config)
             } else {
-                System3Actor::new(ActorConfig {
+                let mut actor_config = ActorConfig {
                     semantic_cache: Some(Arc::clone(&self.semantic_cache)),
                     model_override: selected_model_override,
                     ..ActorConfig::default()
-                })
+                };
+
+                if budget_multiplier < 1.0 {
+                    actor_config.max_actions =
+                        (actor_config.max_actions as f64 * budget_multiplier) as usize;
+                }
+
+                System3Actor::new(actor_config)
             };
 
             let s3_start = std::time::Instant::now();
@@ -544,6 +602,25 @@ impl AgentRuntime {
         };
 
         debug!("✅ System 3 completed in {}ms", s3_ms);
+
+        if action_result.llm_used {
+            if let (Some(ref rate_manager), Some(ref provider)) =
+                (&self.config.rate_manager, &self.config.model_provider)
+            {
+                let context_text = retrieval_result
+                    .documents
+                    .iter()
+                    .map(|d| d.content.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                let estimated_tokens = estimate_tokens(query)
+                    + estimate_tokens(&context_text)
+                    + estimate_tokens(&action_result.response);
+
+                let _ = crate::agents::rate_limit::RateLimitManager::track_request(rate_manager, provider, estimated_tokens, 200).await;
+            }
+        }
 
         let total_ms = start.elapsed().as_millis() as u64;
 
@@ -671,6 +748,10 @@ impl AgentRuntime {
 
 fn query_fingerprint(query: &str) -> String {
     sha256_hex(query.as_bytes())[..12].to_string()
+}
+
+fn estimate_tokens(text: &str) -> usize {
+    (text.len() / 4).max(1)
 }
 
 /// Builder para crear el runtime
