@@ -183,28 +183,33 @@ impl RateLimitManager {
     }
 
     pub async fn get_daily_summary(&self, provider: &str) -> Result<serde_json::Value> {
-        let conn = self.db.lock();
         let now = Utc::now();
         let day_ago = now - Duration::days(1);
 
-        let mut stmt = conn.prepare(
-            "SELECT timestamp, tokens_used, status_code FROM rate_limit_usage
-             WHERE provider = ?1 AND timestamp > ?2
-             ORDER BY timestamp ASC",
-        )?;
+        let (requests, daily_total, daily_tokens) = {
+            let conn = self.db.lock();
 
-        let requests: Vec<serde_json::Value> = stmt.query_map(params![provider, day_ago], |row| {
-            Ok(serde_json::json!({
-                "ts": row.get::<_, DateTime<Utc>>(0)?,
-                "tokens": row.get::<_, i64>(1)?,
-                "status": row.get::<_, u16>(2)?,
-            }))
-        })?.filter_map(|r| r.ok()).collect();
+            let mut stmt = conn.prepare(
+                "SELECT timestamp, tokens_used, status_code FROM rate_limit_usage
+                 WHERE provider = ?1 AND timestamp > ?2
+                 ORDER BY timestamp ASC",
+            )?;
 
-        let daily_total = requests.len();
-        let daily_tokens: i64 = requests.iter()
-            .map(|r| r["tokens"].as_i64().unwrap_or(0))
-            .sum();
+            let requests: Vec<serde_json::Value> = stmt.query_map(params![provider, day_ago], |row| {
+                Ok(serde_json::json!({
+                    "ts": row.get::<_, DateTime<Utc>>(0)?,
+                    "tokens": row.get::<_, i64>(1)?,
+                    "status": row.get::<_, u16>(2)?,
+                }))
+            })?.filter_map(|r| r.ok()).collect();
+
+            let total = requests.len();
+            let tokens: i64 = requests.iter()
+                .map(|r| r["tokens"].as_i64().unwrap_or(0))
+                .sum();
+
+            (requests, total, tokens)
+        }; // lock dropped here before .await
 
         let status = self.get_status(provider).await?;
 
@@ -212,7 +217,7 @@ impl RateLimitManager {
             "requests": requests,
             "daily_total": daily_total,
             "daily_tokens": daily_tokens,
-            "rate_limited": status.rate_limited_until.map_or(false, |until| until > now),
+            "rate_limited": status.rate_limited_until.is_some_and(|until| until > now),
             "cooldown_until": status.rate_limited_until,
         }))
     }
