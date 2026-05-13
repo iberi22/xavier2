@@ -161,8 +161,8 @@ impl Cli {
                         let token = require_xavier_token()?;
                         let client = reqwest::Client::new();
                         let providers = ["opencode-go", "deepseek", "groq", "openai", "anthropic"];
-                        println!("{:<15} | {:<10} | {:<10} | {:<10} | {:<20}", "Provider", "Today", "Weekly", "Monthly", "Limited Until");
-                        println!("{:-<15}-+-{:-<10}-+-{:-<10}-+-{:-<10}-+-{:-<20}", "", "", "", "", "");
+                        println!("{:<15} | {:<10} | {:<10} | {:<10} | {:<10} | {:<20}", "Provider", "Today", "Weekly", "Monthly", "Cache Hits", "Limited Until");
+                        println!("{:-<15}-+-{:-<10}-+-{:-<10}-+-{:-<10}-+-{:-<10}-+-{:-<20}", "", "", "", "", "", "");
                         for p in providers {
                             let resp = client.get(format!("{}/v1/usage/status/{}", base_url, p))
                                 .header("X-Xavier-Token", &token)
@@ -170,8 +170,8 @@ impl Cli {
                             if resp.status().is_success() {
                                 let status: xavier::agents::rate_limit::QuotaStatus = resp.json().await?;
                                 let limited = status.rate_limited_until.map(|u| u.to_rfc3339()).unwrap_or_else(|| "No".to_string());
-                                println!("{:<15} | {:<10} | {:<10} | {:<10} | {:<20}", 
-                                    status.provider, status.used_today, status.used_weekly, status.used_monthly, limited);
+                                println!("{:<15} | {:<10} | {:<10} | {:<10} | {:<10} | {:<20}",
+                                    status.provider, status.used_today, status.used_weekly, status.used_monthly, status.cache_hits, limited);
                             }
                         }
                         Ok(())

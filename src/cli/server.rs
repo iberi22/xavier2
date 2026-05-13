@@ -208,6 +208,7 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         event_bus,
         tasks,
         rate_manager: rate_manager.clone(),
+        prompt_cache: Arc::new(parking_lot::Mutex::new(HashMap::new())),
     };
 
     info!(

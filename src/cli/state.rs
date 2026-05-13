@@ -12,8 +12,8 @@ use xavier::time::TimeMetricsStore;
 use xavier::agents::rate_limit::RateLimitManager;
 use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 use xavier::tasks::store::{InMemoryTaskStore, TaskService};
-use xavier::AppState;
-use tokio::sync::RwLock;
+use parking_lot::Mutex;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct CliState {
@@ -32,6 +32,7 @@ pub struct CliState {
     pub event_bus: XavierEventBus,
     pub tasks: Arc<TaskService<InMemoryTaskStore>>,
     pub rate_manager: Arc<RateLimitManager>,
+    pub prompt_cache: Arc<Mutex<HashMap<String, Vec<String>>>>,
 }
 
 #[derive(Parser)]

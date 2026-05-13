@@ -7,6 +7,7 @@ use serde::Deserialize;
 use crate::cli::state::CliState;
 use xavier::agents::provider::{ModelProviderClient, ModelProviderConfig};
 use tracing::{info, warn};
+use sha2::{Sha256, Digest};
 
 #[derive(Debug, Deserialize)]
 pub struct ProxyChatRequest {
@@ -20,6 +21,16 @@ pub async fn chat_proxy(
     State(state): State<CliState>,
     Json(req): Json<ProxyChatRequest>,
 ) -> Response {
+    // 0. Detect Prompt Cache
+    let system_msg = req.messages.iter()
+        .find(|m| m["role"] == "system")
+        .and_then(|m| m["content"].as_str())
+        .unwrap_or("You are a helpful assistant.");
+
+    let mut hasher = Sha256::new();
+    hasher.update(system_msg.as_bytes());
+    let system_hash = hex::encode(hasher.finalize());
+
     // 1. Resolve Provider based on Rate Limits
     // Order of priority as per AGENTS.md
     let providers = ["opencode-go", "deepseek", "groq", "openai", "anthropic"];
@@ -47,28 +58,40 @@ pub async fn chat_proxy(
 
     info!("Proxying request to provider: {}", provider_name);
 
+    let is_cache_hit = {
+        let mut cache = state.prompt_cache.lock();
+        let hashes = cache.entry(provider_name.clone()).or_insert_with(Vec::new);
+        let hit = hashes.contains(&system_hash);
+        if !hit {
+            hashes.push(system_hash);
+            if hashes.len() > 5 {
+                hashes.remove(0);
+            }
+        }
+        hit
+    };
+
+    if is_cache_hit {
+        info!("Prompt cache hit for provider {}", provider_name);
+    }
+
     // 2. Execute Request
     let config = ModelProviderConfig::for_provider(&provider_name).with_model_override(Some(req.model.clone()));
     let client = ModelProviderClient::new(config);
 
     // Extraction logic for Axum Proxy
-    let system_msg = req.messages.iter()
-        .find(|m| m["role"] == "system")
-        .and_then(|m| m["content"].as_str())
-        .unwrap_or("You are a helpful assistant.");
-    
     let user_msg = req.messages.iter()
         .filter(|m| m["role"] == "user")
         .last()
         .and_then(|m| m["content"].as_str())
         .unwrap_or("");
 
-    match client.generate_text(system_msg, user_msg).await {
+    match client.generate_text_with_cache(system_msg, user_msg, is_cache_hit).await {
         Ok(text) => {
             // 3. Track Usage
             // Rough token estimation (1 token ~= 4 chars)
             let tokens = (text.len() + user_msg.len()) / 4;
-            if let Err(e) = state.rate_manager.track_request(&provider_name, tokens, 200).await {
+            if let Err(e) = state.rate_manager.track_request(&provider_name, tokens, 200, is_cache_hit).await {
                 warn!("Failed to track request usage: {}", e);
             }
 
@@ -94,7 +117,7 @@ pub async fn chat_proxy(
         }
         Err(e) => {
             warn!("Provider {} failed: {}", provider_name, e);
-            if let Err(track_err) = state.rate_manager.track_request(&provider_name, 0, 500).await {
+            if let Err(track_err) = state.rate_manager.track_request(&provider_name, 0, 500, false).await {
                 warn!("Failed to track failed request: {}", track_err);
             }
             (StatusCode::INTERNAL_SERVER_ERROR, format!("Provider error: {}", e)).into_response()
