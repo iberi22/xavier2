@@ -57,6 +57,10 @@ pub struct ModelCandidatePolicy {
     pub quality_score: Option<f32>,
     #[serde(default)]
     pub health: Option<String>,
+    #[serde(default)]
+    pub cost_per_input_token: Option<f32>,
+    #[serde(default)]
+    pub cost_per_output_token: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -237,7 +241,7 @@ fn routing_policy_cache() -> &'static Mutex<Option<CachedPolicy>> {
     CACHE.get_or_init(|| Mutex::new(None))
 }
 
-fn load_routing_policy() -> Option<RoutingPolicy> {
+pub fn load_routing_policy() -> Option<RoutingPolicy> {
     let path = std::env::var("XAVIER_ROUTER_POLICY_PATH")
         .ok()
         .map(|value| value.trim().to_string())

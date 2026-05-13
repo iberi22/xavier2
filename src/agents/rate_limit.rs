@@ -31,11 +31,23 @@ impl RateLimitManager {
                 provider TEXT NOT NULL,
                 timestamp DATETIME DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
                 tokens_used INTEGER DEFAULT 0,
+                cost_usd REAL DEFAULT 0.0,
                 status_code INTEGER,
                 is_error BOOLEAN DEFAULT 0
             )",
             [],
         )?;
+
+        // Migration: Add cost_usd column if it doesn't exist
+        let column_exists: bool = conn.query_row(
+            "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cost_usd'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0) > 0;
+
+        if !column_exists {
+            conn.execute("ALTER TABLE rate_limit_usage ADD COLUMN cost_usd REAL DEFAULT 0.0", [])?;
+        }
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS provider_quotas (
@@ -50,12 +62,18 @@ impl RateLimitManager {
         Ok(())
     }
 
-    pub async fn track_request(&self, provider: &str, tokens: usize, status: u16) -> Result<()> {
+    pub async fn track_request(
+        &self,
+        provider: &str,
+        tokens: usize,
+        status: u16,
+        cost_usd: f64,
+    ) -> Result<()> {
         let conn = self.db.lock();
         conn.execute(
-            "INSERT INTO rate_limit_usage (provider, tokens_used, status_code, is_error)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![provider, tokens as i64, status, status >= 400],
+            "INSERT INTO rate_limit_usage (provider, tokens_used, cost_usd, status_code, is_error)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![provider, tokens as i64, cost_usd, status, status >= 400],
         )?;
 
         if status == 429 {
