@@ -271,7 +271,7 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/v1/usage/update", post(usage_update_handler))
         .route("/v1/usage/cooldown", post(usage_cooldown_handler))
         .route("/v1/usage/track", post(usage_track_handler))
-        // .route("/v1/usage/summary/{provider}", get(usage_summary_handler))
+        .route("/v1/usage/summary/{provider}", get(usage_summary_handler))
         .layer(middleware::from_fn(auth_middleware));
 
     // Add enterprise plugin routes if feature is enabled
