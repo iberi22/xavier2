@@ -3,20 +3,20 @@ mod tests {
     use axum::{body::Body, http::{Request, StatusCode}, middleware, routing::get, Router};
     use tower::ServiceExt;
 
-    use super::state::CliState;
-    use super::commands::Command;
-    use super::code_graph::{
+    use crate::cli::state::CliState;
+    use crate::cli::commands::Command;
+    use crate::cli::code_graph::{
         code_find_symbols, symbols_for_kind, is_supported_code_pattern,
         search_code_symbols_with_fallback, best_symbol_query_token, filter_symbols_by_query,
     };
-    use super::security::{blocked_external_input_response, secure_cli_input, secure_external_input, secure_optional_request_field};
-    use super::config::{
+    use crate::cli::security::{blocked_external_input_response, secure_cli_input, secure_external_input, secure_optional_request_field};
+    use crate::cli::config::{
         resolve_http_token, resolve_http_bind_host, resolve_base_url_for_port, resolve_base_url,
         resolve_http_port, xavier_token, require_xavier_token, code_graph_db_path, state_panel_root,
         default_token_budget, default_limit, default_compaction_threshold,
     };
-    use super::utils::{json_response, estimate_tokens, load_skill};
-    use super::server::auth_middleware;
+    use crate::cli::utils::{json_response, estimate_tokens, load_skill};
+    use crate::cli::server::auth_middleware;
 
     use code_graph::types::{Language, Symbol, SymbolKind};
     use std::sync::Arc;
