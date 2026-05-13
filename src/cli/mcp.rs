@@ -177,11 +177,36 @@ pub async fn start_mcp_stdio() -> Result<()> {
                             }
                         },
                         {
-                            "name": "stats",
-                            "description": "Get Xavier memory statistics (total count, cache metrics)",
+                            "name": "lend_secret",
+                            "description": "Lend an ephemeral secret to an agent with TTL",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "secret_name": { "type": "string" },
+                                    "secret_value": { "type": "string" },
+                                    "agent_id": { "type": "string" },
+                                    "ttl_seconds": { "type": "number", "default": 3600 }
+                                },
+                                "required": ["secret_name", "secret_value", "agent_id"]
+                            }
+                        },
+                        {
+                            "name": "list_active_leases",
+                            "description": "List all active ephemeral secret leases",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {}
+                            }
+                        },
+                        {
+                            "name": "revoke_secret",
+                            "description": "Revoke an ephemeral secret lease by token",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "token": { "type": "string" }
+                                },
+                                "required": ["token"]
                             }
                         }
                     ]
@@ -258,8 +283,13 @@ pub async fn start_mcp_stdio() -> Result<()> {
                         "version": "0.4.1",
                     })
                     .to_string(),
+                    "lend_secret" => {
+                        // For MCP stdio, we'd need a reference to the global KeyLendingEngine
+                        // Since start_mcp_stdio is standalone, we'll need to pass it or init it
+                        "Error: Secrets tools require Xavier server to be running in HTTP mode for shared state management.".to_string()
+                    }
                     _ => format!(
-                        "Unknown tool: {}. Available tools: search_memory, create_memory, search, add, stats",
+                        "Unknown tool: {}. Available tools: search_memory, create_memory, search, add, stats, lend_secret, list_active_leases, revoke_secret",
                         tool_name
                     ),
                 };
