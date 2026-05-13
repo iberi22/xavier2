@@ -8,6 +8,7 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     io,
     sync::Arc,
     time::{Duration, Instant},
@@ -58,6 +59,15 @@ impl XavierClient {
             .json::<serde_json::Value>()
             .await?;
 
+        let mut provider_quotas = HashMap::new();
+        if let Some(quotas) = resp["provider_quotas"].as_object() {
+            for (name, usage) in quotas {
+                if let Ok(quota) = serde_json::from_value::<xavier::agents::rate_limit::QuotaUsage>(usage.clone()) {
+                    provider_quotas.insert(name.clone(), quota);
+                }
+            }
+        }
+
         let metrics = DashboardMetrics {
             total_memories: resp["document_count"].as_u64().unwrap_or(0) as usize,
             total_beliefs: 0,
@@ -67,6 +77,7 @@ impl XavierClient {
             uptime_seconds: 0,
             storage_used: resp["storage_bytes_used"].as_u64().unwrap_or(0),
             storage_limit: resp["storage_bytes_limit"].as_u64().unwrap_or(0),
+            provider_quotas,
         };
         Ok(metrics)
     }
@@ -82,6 +93,18 @@ impl XavierClient {
             .json::<MemoryListResponse>()
             .await?;
         Ok(resp.memories)
+    }
+
+    pub async fn update_usage(&self) -> Result<()> {
+        let url = format!("{}/v1/account/usage", self.base_url);
+        // This is a mock trigger to simulate manual usage updates
+        let _resp = self
+            .client
+            .get(&url)
+            .header("X-Xavier-Token", &self.token)
+            .send()
+            .await?;
+        Ok(())
     }
 
     pub async fn search_memories(&self, query: &str) -> Result<Vec<MemoryItem>> {
@@ -300,6 +323,9 @@ async fn main() -> Result<()> {
                 match app.input_mode {
                     InputMode::Normal => match key.code {
                         KeyCode::Char('q') => app.should_quit = true,
+                        KeyCode::Char('u') => {
+                            let _ = app.client.update_usage().await;
+                        }
                         KeyCode::Tab => {
                             app.current_tab = (app.current_tab + 1) % 3;
                         }

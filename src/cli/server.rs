@@ -343,6 +343,8 @@ pub async fn build_handler(State(state): State<CliState>) -> Response {
 }
 
 pub async fn account_usage_handler(State(_state): State<CliState>, headers: HeaderMap) -> Response {
+    use xavier::agents::rate_limit::GLOBAL_RATE_LIMITER;
+
     let expected_token = match std::env::var("XAVIER_TOKEN") {
         Ok(token) => token,
         Err(_) => {
@@ -369,10 +371,13 @@ pub async fn account_usage_handler(State(_state): State<CliState>, headers: Head
         );
     }
 
+    let provider_quotas = GLOBAL_RATE_LIMITER.get_quotas();
+
     json_response(
         StatusCode::OK,
         serde_json::json!({
             "status": "ok",
+            "provider_quotas": provider_quotas,
             "optimization": {
                 "router_direct_count": 0,
                 "semantic_cache_hits": 0,

@@ -314,6 +314,16 @@ impl AgentRuntime {
         let mut s1_total_ms = 0;
         let mut s2_total_ms = 0;
 
+        // Check for Auto-Budgeting (Safety Threshold)
+        let mut budget_multiplier = 1.0;
+        if let Some(ref provider) = self.config.model_provider {
+            use crate::agents::rate_limit::GLOBAL_RATE_LIMITER;
+            if GLOBAL_RATE_LIMITER.is_below_safety_threshold(provider, 10.0) {
+                info!("⚠️ Provider {} is below 10% quota. Applying auto-budgeting (50% token reduction).", provider);
+                budget_multiplier = 0.5;
+            }
+        }
+
         // 1. Check Semantic Cache
         if let Ok(Some(cached_response)) = self.semantic_cache.get(query).await {
             info!("⚡ Semantic Cache Hit! Returning zero-token cost response.");
@@ -506,12 +516,20 @@ impl AgentRuntime {
                 .resolve_model_override(route.category, &retrieval_result, &reasoning_result)
                 .or(route.model_override.clone())
                 .or(self.config.model_url.clone());
-            let system3 = System3Actor::new(ActorConfig {
+            let mut actor_config = ActorConfig {
                 semantic_cache: Some(Arc::clone(&self.semantic_cache)),
                 model_override: selected_model_override,
                 provider_override: self.config.model_provider.clone(),
                 ..ActorConfig::default()
-            });
+            };
+
+            // Apply budget multiplier to System 3 if needed
+            if budget_multiplier < 1.0 {
+                actor_config.max_tokens = Some(250); // Default reduced tokens
+                debug!("Auto-budgeting: applying multiplier {} to System 3", budget_multiplier);
+            }
+
+            let system3 = System3Actor::new(actor_config);
             let s3_start = std::time::Instant::now();
             let action_result = system3
                 .run(
@@ -521,6 +539,14 @@ impl AgentRuntime {
                     category.as_deref(),
                 )
                 .await?;
+
+            // Update rate limiter with approximate usage
+            if let Some(ref provider) = self.config.model_provider {
+                use crate::agents::rate_limit::GLOBAL_RATE_LIMITER;
+                // Rough estimation: 1000 tokens per call if not tracked precisely
+                GLOBAL_RATE_LIMITER.add_usage(provider, 1000);
+            }
+
             (action_result, s3_start.elapsed().as_millis() as u64)
         };
 

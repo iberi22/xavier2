@@ -1,5 +1,6 @@
 pub mod curation;
 pub mod provider;
+pub mod rate_limit;
 pub mod router;
 pub mod runtime;
 pub mod supervisor;

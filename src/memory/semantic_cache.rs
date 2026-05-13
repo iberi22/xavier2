@@ -50,6 +50,14 @@ pub struct SemanticCache {
     embedder: Arc<dyn QueryEmbedder>,
 }
 
+impl std::fmt::Debug for SemanticCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SemanticCache")
+            .field("similarity_threshold", &self.similarity_threshold)
+            .finish_non_exhaustive()
+    }
+}
+
 impl SemanticCache {
     pub fn new(similarity_threshold: f32) -> Result<Self> {
         let embedder: Arc<dyn QueryEmbedder> = match EmbeddingClient::from_env() {

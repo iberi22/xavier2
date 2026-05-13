@@ -23,6 +23,7 @@ pub struct DashboardMetrics {
     pub uptime_seconds: u64,
     pub storage_used: u64,
     pub storage_limit: u64,
+    pub provider_quotas: HashMap<String, crate::agents::rate_limit::QuotaUsage>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,6 +164,9 @@ fn render_stats(f: &mut Frame, metrics: &DashboardMetrics, area: Rect) {
         .style(Style::default().fg(Color::Gray));
     f.render_widget(p_help, horizontal_chunks[1]);
 
+    let mut quota_y = vertical_chunks[1].y;
+    let mut quota_height = vertical_chunks[1].height;
+
     if metrics.storage_limit > 0 {
         let ratio = metrics.storage_used as f64 / metrics.storage_limit as f64;
         let label = format!(
@@ -181,7 +185,43 @@ fn render_stats(f: &mut Frame, metrics: &DashboardMetrics, area: Rect) {
             )
             .ratio(ratio.min(1.0))
             .label(label);
-        f.render_widget(gauge, vertical_chunks[1]);
+        let storage_area = Rect::new(vertical_chunks[1].x, quota_y, vertical_chunks[1].width, 3);
+        f.render_widget(gauge, storage_area);
+        quota_y += 3;
+        quota_height = quota_height.saturating_sub(3);
+    }
+
+    for (provider, usage) in &metrics.provider_quotas {
+        if quota_height < 3 {
+            break;
+        }
+        let ratio = usage.percentage() / 100.0;
+        let label = format!(
+            "{} Quota: {:.1}% ({}/{})",
+            provider,
+            usage.percentage(),
+            usage.used,
+            usage.limit
+        );
+        let gauge = Gauge::default()
+            .block(Block::default().borders(Borders::ALL).title(provider.as_str()))
+            .gauge_style(
+                Style::default()
+                    .fg(if ratio > 0.9 {
+                        Color::Red
+                    } else if ratio > 0.7 {
+                        Color::Yellow
+                    } else {
+                        Color::Cyan
+                    })
+                    .bg(Color::Black),
+            )
+            .ratio(ratio.min(1.0))
+            .label(label);
+        let provider_area = Rect::new(vertical_chunks[1].x, quota_y, vertical_chunks[1].width, 3);
+        f.render_widget(gauge, provider_area);
+        quota_y += 3;
+        quota_height = quota_height.saturating_sub(3);
     }
 }
 
