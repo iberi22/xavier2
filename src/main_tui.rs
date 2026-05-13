@@ -8,6 +8,7 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     io,
     sync::Arc,
     time::{Duration, Instant},
@@ -58,6 +59,15 @@ impl XavierClient {
             .json::<serde_json::Value>()
             .await?;
 
+        let mut provider_quotas = HashMap::new();
+        if let Some(quotas) = resp["provider_quotas"].as_object() {
+            for (name, value) in quotas {
+                if let Ok(status) = serde_json::from_value::<xavier::agents::rate_limit::QuotaStatus>(value.clone()) {
+                    provider_quotas.insert(name.clone(), status);
+                }
+            }
+        }
+
         let metrics = DashboardMetrics {
             total_memories: resp["document_count"].as_u64().unwrap_or(0) as usize,
             total_beliefs: 0,
@@ -67,6 +77,7 @@ impl XavierClient {
             uptime_seconds: 0,
             storage_used: resp["storage_bytes_used"].as_u64().unwrap_or(0),
             storage_limit: resp["storage_bytes_limit"].as_u64().unwrap_or(0),
+            provider_quotas,
         };
         Ok(metrics)
     }
@@ -323,6 +334,9 @@ async fn main() -> Result<()> {
                         }
                         KeyCode::Char('/') if app.current_tab == 1 => {
                             app.input_mode = InputMode::Editing;
+                        }
+                        KeyCode::Char('u') => {
+                            app.on_tick().await;
                         }
                         _ => {}
                     },

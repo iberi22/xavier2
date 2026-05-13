@@ -23,6 +23,7 @@ pub struct DashboardMetrics {
     pub uptime_seconds: u64,
     pub storage_used: u64,
     pub storage_limit: u64,
+    pub provider_quotas: HashMap<String, crate::agents::rate_limit::QuotaStatus>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,12 +157,33 @@ fn render_stats(f: &mut Frame, metrics: &DashboardMetrics, area: Rect) {
         Line::from("Keybindings:"),
         Line::from("  j/k: Scroll down/up"),
         Line::from("  Enter: View details"),
+        Line::from("  u: Refresh usage"),
         Line::from("  /: Search (Memory Explorer only)"),
     ];
     let p_help = Paragraph::new(help)
         .block(Block::default().borders(Borders::ALL).title("Help"))
         .style(Style::default().fg(Color::Gray));
     f.render_widget(p_help, horizontal_chunks[1]);
+
+    let mut quota_constraints = Vec::new();
+    if metrics.storage_limit > 0 {
+        quota_constraints.push(Constraint::Length(3));
+    }
+
+    let mut providers: Vec<_> = metrics.provider_quotas.keys().collect();
+    providers.sort();
+
+    for _ in &providers {
+        quota_constraints.push(Constraint::Length(3));
+    }
+    quota_constraints.push(Constraint::Min(0));
+
+    let quota_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(quota_constraints)
+        .split(vertical_chunks[1]);
+
+    let mut current_idx = 0;
 
     if metrics.storage_limit > 0 {
         let ratio = metrics.storage_used as f64 / metrics.storage_limit as f64;
@@ -181,7 +203,37 @@ fn render_stats(f: &mut Frame, metrics: &DashboardMetrics, area: Rect) {
             )
             .ratio(ratio.min(1.0))
             .label(label);
-        f.render_widget(gauge, vertical_chunks[1]);
+        f.render_widget(gauge, quota_chunks[current_idx]);
+        current_idx += 1;
+    }
+
+    for name in providers {
+        let status = &metrics.provider_quotas[name];
+        // TODO: Move limit to QuotaStatus in src/agents/rate_limit.rs
+        let limit = 10000.0;
+        let ratio = (status.used_today as f64 / limit).min(1.0);
+
+        let color = if ratio < 0.7 {
+            Color::Green
+        } else if ratio < 0.9 {
+            Color::Yellow
+        } else {
+            Color::Red
+        };
+
+        let label = format!(
+            "Usage: {:.2}% ({}/10k tokens)",
+            ratio * 100.0,
+            status.used_today
+        );
+
+        let gauge = Gauge::default()
+            .block(Block::default().borders(Borders::ALL).title(format!("Provider: {}", name)))
+            .gauge_style(Style::default().fg(color).bg(Color::Black))
+            .ratio(ratio)
+            .label(label);
+        f.render_widget(gauge, quota_chunks[current_idx]);
+        current_idx += 1;
     }
 }
 
