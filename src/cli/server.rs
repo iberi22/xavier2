@@ -270,6 +270,8 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/v1/usage/status/{provider}", get(usage_status_handler))
         .route("/v1/usage/update", post(usage_update_handler))
         .route("/v1/usage/cooldown", post(usage_cooldown_handler))
+        .route("/v1/usage/track", post(usage_track_handler))
+        // .route("/v1/usage/summary/{provider}", get(usage_summary_handler))
         .layer(middleware::from_fn(auth_middleware));
 
     // Add enterprise plugin routes if feature is enabled
@@ -1812,12 +1814,49 @@ pub struct UsageCooldownPayload {
     pub minutes: i64,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UsageTrackPayload {
+    pub provider: String,
+    pub tokens: usize,
+    pub status: u16,
+    #[serde(default)]
+    pub cost_usd: f64,
+    #[serde(default)]
+    pub is_cache_hit: bool,
+}
+
 pub async fn usage_status_handler(
     State(state): State<CliState>,
     AxumPath(provider): AxumPath<String>,
 ) -> Response {
     match state.rate_manager.get_status(&provider).await {
         Ok(status) => json_response(StatusCode::OK, serde_json::to_value(status).unwrap_or_default()),
+        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+    }
+}
+
+pub async fn usage_track_handler(
+    State(state): State<CliState>,
+    Json(payload): Json<UsageTrackPayload>,
+) -> Response {
+    match state.rate_manager.track_request(
+        &payload.provider,
+        payload.tokens,
+        payload.status,
+        payload.cost_usd,
+        payload.is_cache_hit
+    ).await {
+        Ok(_) => json_response(StatusCode::OK, serde_json::json!({ "status": "ok" })),
+        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+    }
+}
+
+pub async fn usage_summary_handler(
+    State(state): State<CliState>,
+    AxumPath(provider): AxumPath<String>,
+) -> Response {
+    match state.rate_manager.get_daily_summary(&provider).await {
+        Ok(summary) => json_response(StatusCode::OK, summary),
         Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
     }
 }

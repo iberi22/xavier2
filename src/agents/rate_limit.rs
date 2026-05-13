@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuotaStatus {
     pub provider: String,
+    pub used_hourly: usize,
     pub used_today: usize,
     pub used_weekly: usize,
     pub used_monthly: usize,
@@ -125,11 +126,18 @@ impl RateLimitManager {
 
     pub async fn get_status(&self, provider: &str) -> Result<QuotaStatus> {
         let conn = self.db.lock();
-        
+
         let now = Utc::now();
+        let hour_ago = now - Duration::hours(1);
         let day_ago = now - Duration::days(1);
         let week_ago = now - Duration::days(7);
         let month_ago = now - Duration::days(30);
+
+        let used_hourly: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
+            params![provider, hour_ago],
+            |row| row.get(0),
+        )?;
 
         let used_today: i64 = conn.query_row(
             "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
@@ -163,6 +171,7 @@ impl RateLimitManager {
 
         Ok(QuotaStatus {
             provider: provider.to_string(),
+            used_hourly: used_hourly as usize,
             used_today: used_today as usize,
             used_weekly: used_weekly as usize,
             used_monthly: used_monthly as usize,
@@ -171,6 +180,41 @@ impl RateLimitManager {
             rate_limited_until,
             last_update: now,
         })
+    }
+
+    pub async fn get_daily_summary(&self, provider: &str) -> Result<serde_json::Value> {
+        let conn = self.db.lock();
+        let now = Utc::now();
+        let day_ago = now - Duration::days(1);
+
+        let mut stmt = conn.prepare(
+            "SELECT timestamp, tokens_used, status_code FROM rate_limit_usage
+             WHERE provider = ?1 AND timestamp > ?2
+             ORDER BY timestamp ASC",
+        )?;
+
+        let requests: Vec<serde_json::Value> = stmt.query_map(params![provider, day_ago], |row| {
+            Ok(serde_json::json!({
+                "ts": row.get::<_, DateTime<Utc>>(0)?,
+                "tokens": row.get::<_, i64>(1)?,
+                "status": row.get::<_, u16>(2)?,
+            }))
+        })?.filter_map(|r| r.ok()).collect();
+
+        let daily_total = requests.len();
+        let daily_tokens: i64 = requests.iter()
+            .map(|r| r["tokens"].as_i64().unwrap_or(0))
+            .sum();
+
+        let status = self.get_status(provider).await?;
+
+        Ok(serde_json::json!({
+            "requests": requests,
+            "daily_total": daily_total,
+            "daily_tokens": daily_tokens,
+            "rate_limited": status.rate_limited_until.map_or(false, |until| until > now),
+            "cooldown_until": status.rate_limited_until,
+        }))
     }
 
     pub async fn is_quota_low(&self, provider: &str) -> Result<bool> {
@@ -276,5 +320,23 @@ mod tests {
         }
         manager.track_request(provider, 850, 200, 0.0, false).await.unwrap();
         assert!(!manager.is_quota_low(provider).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_daily_summary_and_hourly_usage() {
+        let manager = setup_manager().await;
+        let provider = "test-provider";
+
+        manager.track_request(provider, 100, 200, 0.01, false).await.unwrap();
+        manager.track_request(provider, 200, 200, 0.02, false).await.unwrap();
+
+        let status = manager.get_status(provider).await.unwrap();
+        assert_eq!(status.used_hourly, 300);
+        assert_eq!(status.used_today, 300);
+
+        let summary = manager.get_daily_summary(provider).await.unwrap();
+        assert_eq!(summary["daily_total"], 2);
+        assert_eq!(summary["daily_tokens"], 300);
+        assert!(summary["requests"].as_array().unwrap().len() == 2);
     }
 }
