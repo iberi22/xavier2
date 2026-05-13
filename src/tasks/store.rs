@@ -138,11 +138,17 @@ impl Default for InMemoryTaskStore {
 /// Task service - business logic layer
 pub struct TaskService<S: TaskStore> {
     pub store: Arc<S>,
+    pub event_bus: Option<crate::coordination::events::XavierEventBus>,
 }
 
 impl<S: TaskStore> TaskService<S> {
     pub fn new(store: Arc<S>) -> Self {
-        Self { store }
+        Self { store, event_bus: None }
+    }
+
+    pub fn with_event_bus(mut self, event_bus: crate::coordination::events::XavierEventBus) -> Self {
+        self.event_bus = Some(event_bus);
+        self
     }
 
     /// Create a new task
@@ -181,6 +187,15 @@ impl<S: TaskStore> TaskService<S> {
 
         task.set_status(new_status);
         self.store.update_task(&task).await?;
+
+        // Publish event if event bus is available
+        if let Some(bus) = &self.event_bus {
+            if new_status == TaskStatus::Done {
+                let _ = bus.publish(crate::coordination::events::XavierEvent::TaskCompleted {
+                    task: task.clone(),
+                });
+            }
+        }
 
         Ok(task)
     }

@@ -78,3 +78,8 @@ notebooks/.ipynb_checkpoints/
 /HEARTBEAT.md
 /IDENTITY.md
 /TOOLS.md
+ 
+# Local development
+.xavier/
+scratch/
+check-errors.txt

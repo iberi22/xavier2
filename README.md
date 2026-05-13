@@ -105,6 +105,7 @@ schtasks /query /tn Xavier2MemoryRuntime    # Status
 - **Service/daemon support** — systemd (Linux) + scheduled task (Windows) for auto-start at boot/logon
 - **Agent runtime modules** — Ready-to-use runtime components for agent memory workflows
 - **Chronicle workflow** — `xavier chronicle` can harvest project activity, generate daily technical posts, preview them, and publish Markdown outputs
+- **Clavis Secret Management** — Ephemeral, task-scoped API key management with automated revocation via `xavier secrets`
 - **Plugin system** — Extensible enterprise integrations (Cortex, PgHeart)
 
 ## Enterprise Plugins

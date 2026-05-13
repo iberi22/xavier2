@@ -8,9 +8,13 @@
 //! Integrates with TaskService for task distribution
 
 pub mod agent_registry;
+pub mod events;
 pub mod message_bus;
+pub mod secrets;
 
 pub use agent_registry::SimpleAgentRegistry;
+pub use events::{WebhookDispatcher, XavierEvent, XavierEventBus};
+pub use secrets::KeyLendingEngine;
 pub use message_bus::*;
 
 use std::collections::HashMap;

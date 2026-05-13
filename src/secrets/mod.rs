@@ -59,6 +59,9 @@ impl SecretsManager {
     }
 }
 
+// Lending engine
+pub mod lending;
+
 // TODO: Dead code - remove or wire secret daemon into production runtime.
 #[allow(dead_code)]
 pub mod daemon;

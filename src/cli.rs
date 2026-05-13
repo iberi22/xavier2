@@ -45,7 +45,9 @@ use xavier::server::panel::{
 use xavier::session::event_mapper::PanelThreadEntry;
 use xavier::session::types::SessionEvent;
 use xavier::tasks::session_sync_task::SessionSyncTask;
+use xavier::tasks::store::{InMemoryTaskStore, TaskService};
 use xavier::time::TimeMetricsStore;
+use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 
 use crate::settings::XavierSettings;
 
@@ -64,6 +66,9 @@ pub struct CliState {
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
     pub change_control: Arc<ChangeControlService>,
+    pub secrets_engine: Arc<KeyLendingEngine>,
+    pub event_bus: XavierEventBus,
+    pub tasks: Arc<TaskService<InMemoryTaskStore>>,
 }
 
 #[derive(Subcommand)]
@@ -160,6 +165,38 @@ pub enum Command {
         #[arg(short, long)]
         workspace: Option<String>,
     },
+    /// Manage ephemeral secrets (Clavis)
+    Secrets {
+        #[command(subcommand)]
+        cmd: SecretsCommand,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+pub enum SecretsCommand {
+    /// Lend an ephemeral secret to an agent
+    Lend {
+        /// Name of the secret to lend (from system environment)
+        secret_name: String,
+        /// ID of the agent receiving the secret
+        #[arg(short, long)]
+        agent: String,
+        /// Time-to-live in seconds
+        #[arg(short, long, default_value_t = 3600)]
+        ttl: u64,
+    },
+    /// List all active ephemeral leases
+    ListLeases,
+    /// Manually revoke an ephemeral lease
+    Revoke {
+        /// The UUID token of the lease
+        token: String,
+    },
+    /// Check the status of a specific lease
+    Status {
+        /// The UUID token of the lease
+        token: String,
+    },
 }
 
 /// Xavier - Fast Vector Memory for AI Agents
@@ -252,6 +289,7 @@ impl Cli {
             Command::Import { file, workspace } => {
                 handle_import(file.clone(), workspace.clone()).await
             }
+            Command::Secrets { cmd } => handle_secrets_command(cmd.clone()).await,
         }
     }
 }
@@ -360,7 +398,31 @@ async fn start_http_server(port: u16) -> Result<()> {
         agent_registry: SimpleAgentRegistry::new() as Arc<dyn AgentLifecyclePort>,
         panel_store,
         change_control,
+        secrets_engine: Arc::new(KeyLendingEngine::new()),
+        event_bus: XavierEventBus::new(100),
+        tasks: Arc::new(TaskService::new(Arc::new(InMemoryTaskStore::new()))),
     };
+
+    // Wire the event bus to the task service
+    let state = CliState {
+        tasks: Arc::new(TaskService::new(Arc::new(InMemoryTaskStore::new())).with_event_bus(state.event_bus.clone())),
+        ..state
+    };
+
+    // Subscribe secrets engine to task completion events
+    let secrets_engine_for_bus = state.secrets_engine.clone();
+    let mut receiver = state.event_bus.subscribe();
+    tokio::spawn(async move {
+        info!("Secrets engine listening for task events...");
+        while let Ok(event) = receiver.recv().await {
+            if let xavier::coordination::events::XavierEvent::TaskCompleted { task } = event {
+                if let Some(agent_id) = &task.assignee {
+                    info!("Task {} completed by agent {}. Revoking ephemeral keys...", task.id, agent_id);
+                    secrets_engine_for_bus.revoke_for_agent(agent_id).await;
+                }
+            }
+        }
+    });
 
     info!(
         "Memory store initialized for workspace: {}",
@@ -413,6 +475,10 @@ async fn start_http_server(port: u16) -> Result<()> {
             get(panel_get_thread).delete(panel_delete_thread),
         )
         .route("/panel/api/chat", post(panel_process_chat))
+        .route("/secrets/lend", post(secrets_lend_handler))
+        .route("/secrets/leases", get(secrets_list_leases_handler))
+        .route("/secrets/revoke/{token}", post(secrets_revoke_handler))
+        .route("/secrets/status/{token}", get(secrets_status_handler))
         .layer(middleware::from_fn(auth_middleware));
 
     // Add enterprise plugin routes if feature is enabled
@@ -3417,7 +3483,7 @@ mod tests {
         // This test runs last and may be affected by env state from other tests.
         // If XAVIER_TOKEN is still set, we expect 401 (wrong token).
         // If unset, we expect 500 (not configured). Both are acceptable for this test.
-        let token_is_set = std::env::var("XAVIER_TOKEN").is_ok();
+        let _token_is_set = std::env::var("XAVIER_TOKEN").is_ok();
 
         let app = Router::new()
             .route("/protected", get(|| async { "ok" }))
@@ -3454,3 +3520,217 @@ mod tests {
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Secrets CLI Handlers
+// ─────────────────────────────────────────────────────────────────────────────
+
+async fn handle_secrets_command(cmd: SecretsCommand) -> Result<()> {
+    match cmd {
+        SecretsCommand::Lend { secret_name, agent, ttl } => {
+            lend_secret(&secret_name, &agent, ttl).await
+        }
+        SecretsCommand::ListLeases => list_leases().await,
+        SecretsCommand::Revoke { token } => revoke_lease(&token).await,
+        SecretsCommand::Status { token } => check_lease_status(&token).await,
+    }
+}
+
+async fn lend_secret(secret_name: &str, agent: &str, ttl: u64) -> Result<()> {
+    let token = xavier_token();
+    let base_url = resolve_base_url();
+    let url = format!("{}/secrets/lend", base_url);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("X-Xavier-Token", &token)
+        .json(&serde_json::json!({
+            "secret_name": secret_name,
+            "agent_id": agent,
+            "ttl": ttl
+        }))
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let body: serde_json::Value = resp.json().await?;
+                println!("Secret lent successfully!");
+                println!("Lease Token: {}", body["token"]);
+                println!("Agent: {}", body["agent_id"]);
+                println!("Expires At: {}", body["expires_at"]);
+            } else {
+                let status = resp.status();
+                let text = resp.text().await?;
+                println!("Failed to lend secret ({}): {}", status, text);
+            }
+        }
+        Err(e) => println!("Error connecting to Xavier server: {}", e),
+    }
+    Ok(())
+}
+
+async fn list_leases() -> Result<()> {
+    let token = xavier_token();
+    let base_url = resolve_base_url();
+    let url = format!("{}/secrets/leases", base_url);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("X-Xavier-Token", &token)
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let body: serde_json::Value = resp.json().await?;
+                println!("{:<40} {:<15} {:<20} {:<10}", "Token", "Agent", "Expires At", "Status");
+                println!("{}", "-".repeat(90));
+                if let Some(leases) = body["leases"].as_array() {
+                    for lease in leases {
+                        println!("{:<40} {:<15} {:<20} {:<10}", 
+                            lease["token"].as_str().unwrap_or(""),
+                            lease["agent_id"].as_str().unwrap_or(""),
+                            lease["expires_at"].as_str().unwrap_or(""),
+                            lease["status"].as_str().unwrap_or("")
+                        );
+                    }
+                }
+            } else {
+                println!("Failed to list leases: {}", resp.status());
+            }
+        }
+        Err(e) => println!("Error connecting to Xavier server: {}", e),
+    }
+    Ok(())
+}
+
+async fn revoke_lease(token_id: &str) -> Result<()> {
+    let token = xavier_token();
+    let base_url = resolve_base_url();
+    let url = format!("{}/secrets/revoke/{}", base_url, token_id);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("X-Xavier-Token", &token)
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                println!("Lease {} revoked successfully.", token_id);
+            } else {
+                println!("Failed to revoke lease: {}", resp.status());
+            }
+        }
+        Err(e) => println!("Error connecting to Xavier server: {}", e),
+    }
+    Ok(())
+}
+
+async fn check_lease_status(token_id: &str) -> Result<()> {
+    let token = xavier_token();
+    let base_url = resolve_base_url();
+    let url = format!("{}/secrets/status/{}", base_url, token_id);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("X-Xavier-Token", &token)
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let body: serde_json::Value = resp.json().await?;
+                println!("Lease Status for {}:", token_id);
+                println!("{}", serde_json::to_string_pretty(&body)?);
+            } else {
+                println!("Failed to check lease status: {}", resp.status());
+            }
+        }
+        Err(e) => println!("Error connecting to Xavier server: {}", e),
+    }
+    Ok(())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Secrets HTTP Handlers
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct LendPayload {
+    secret_name: String,
+    agent_id: String,
+    ttl: u64,
+}
+
+async fn secrets_lend_handler(
+    State(state): State<CliState>,
+    axum::Json(payload): axum::Json<LendPayload>,
+) -> impl axum::response::IntoResponse {
+    // In a real implementation, we would fetch the secret from environment
+    let secret_value = std::env::var(&payload.secret_name).unwrap_or_else(|_| "DEMO_KEY".to_string());
+    
+    match state.secrets_engine.lend(&payload.secret_name, &secret_value, &payload.agent_id, payload.ttl).await {
+        Ok(lease) => axum::Json(serde_json::json!({
+            "status": "ok",
+            "token": lease.token,
+            "agent_id": lease.agent_id,
+            "expires_at": lease.expires_at.to_rfc3339(),
+        })),
+        Err(e) => axum::Json(serde_json::json!({
+            "status": "error",
+            "message": e.to_string(),
+        })),
+    }
+}
+
+async fn secrets_list_leases_handler(
+    State(state): State<CliState>,
+) -> impl axum::response::IntoResponse {
+    let leases = state.secrets_engine.list_leases().await;
+    axum::Json(serde_json::json!({
+        "status": "ok",
+        "leases": leases.iter().map(|l| serde_json::json!({
+            "token": l.token,
+            "agent_id": l.agent_id,
+            "expires_at": l.expires_at.to_rfc3339(),
+            "status": if l.is_expired() { "expired" } else { "active" }
+        })).collect::<Vec<_>>()
+    }))
+}
+
+async fn secrets_revoke_handler(
+    State(state): State<CliState>,
+    AxumPath(token): AxumPath<String>,
+) -> impl axum::response::IntoResponse {
+    match state.secrets_engine.revoke(&token).await {
+        Ok(_) => axum::Json(serde_json::json!({ "status": "ok" })),
+        Err(e) => axum::Json(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+async fn secrets_status_handler(
+    State(state): State<CliState>,
+    AxumPath(token): AxumPath<String>,
+) -> impl axum::response::IntoResponse {
+    match state.secrets_engine.get_lease(&token).await {
+        Some(lease) => axum::Json(serde_json::json!({
+            "status": "ok",
+            "token": lease.token,
+            "agent_id": lease.agent_id,
+            "expires_at": lease.expires_at.to_rfc3339(),
+            "is_expired": lease.is_expired()
+        })),
+        None => axum::Json(serde_json::json!({ "status": "not_found" })),
+    }
+}
+

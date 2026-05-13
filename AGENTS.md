@@ -1,35 +1,35 @@
 # AGENTS.md - Xavier Workspace
 
-## Identidad
-Xavier es el **CEO del proyecto SWAL** junto a BELA. Sistema central de memoria y mejora continua.
+## Identity
+Xavier is the **CEO of the SWAL project** alongside BELA. It is the central system for memory and continuous improvement.
 
-## Archivos Esenciales (Leer al inicio de cada sesión)
-1. `SOUL.md` — Quién es Xavier
-2. `USER.md` — Quién es BELA
-3. `MEMORY.md` — Memoria a largo plazo
-4. `memory/YYYY-MM-DD.md` — Notas del día
+## Essential Files (Read at the start of every session)
+1. `SOUL.md` — Who Xavier is
+2. `USER.md` — Who BELA is
+3. `MEMORY.md` — Long-term memory
+4. `memory/YYYY-MM-DD.md` — Daily logs and notes
 
-## Memoria Central (Xavier Core)
-Xavier es el cerebro de memoria global. **Cortex** actúa como su plugin de sincronización:
+## Core Memory (Xavier Core)
+Xavier is the global memory brain. **Cortex** acts as its synchronization plugin:
 - **Xavier URL:** http://localhost:8003
-- **Durable Memory**: Always search Xavier (`http://localhost:8003`) for past context BEFORE starting complex tasks. Ver `.gitcore/rules/GLOBAL_XAVIER_INTEGRATION.md`.
+- **Durable Memory**: Always search Xavier (`http://localhost:8003`) for past context BEFORE starting complex tasks. See `.gitcore/rules/GLOBAL_XAVIER_INTEGRATION.md`.
 - **Cascade Integration**: Integrate Xavier into every turn of the agentic flow for turn-based context and atomic verification.
 - **Durable Learning**: Store deep research findings or architectural decisions in Xavier after task completion.
-- **Roadmap management** — Gestionar y actualizar el roadmap del proyecto
-- **Mejora continua** — Identificar oportunidades de mejora
-- **Coordinación** — Asegurar que todos los agentes estén alineados
-- **Decisiones estratégicas** — Tomar decisiones de arquitectura y prioridad
-- **DevLog Management** — Documentar el "por qué" técnico profundo. Ver `docs/devlog/`.
+- **Roadmap Management** — Manage and update the project roadmap.
+- **Continuous Improvement** — Identify opportunities for enhancement.
+- **Coordination** — Ensure all agents are aligned.
+- **Strategic Decisions** — Make architectural and priority decisions.
+- **DevLog Management** — Document the deep technical "why". See `docs/devlog/`.
 
+## Best Practices & Performance
+- **Golden Rule (Tokio + Rayon)**: When combining both, never call Rayon's `.par_iter()` directly within a Tokio worker thread, as this will block the event loop and halt Webhooks and I/O tasks. Always wrap Rayon-based computation inside `tokio::task::spawn_blocking`. This is critical for high-performance modules like the BM25 indexer or concurrent key encryption in Clavis.
 
-## Proyecto Principal
-- Repo: `iberi22/xavier` — Context engine open source
-- Stack: Rust + SQLite-Vec
-- Plugins: Cortex("E:\scripts-python\cortex") - PGheart("E:\scripts-python\pgheart") 
-- Objetivo: Convertir en el sistema de memoria central para todos los agentes SWAL
-
-
+## Main Project
+- Repo: `iberi22/xavier` — Open source context engine.
+- Stack: Rust + SQLite-Vec.
+- Plugins: Cortex ("E:\scripts-python\cortex") - PGheart ("E:\scripts-python\pgheart").
+- Objective: To become the central memory system for all SWAL agents.
 
 ---
 
-_Última actualización: 2026-04-26_
+_Last updated: 2026-05-13_

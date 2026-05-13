@@ -118,7 +118,24 @@ pub async fn add_handler(
     Json(payload): Json<AddPayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     check_auth(&headers, &state)?;
-    let mut record = DomainMemoryRecord::new_fact(payload.path.clone(), payload.content);
+    let now = chrono::Utc::now();
+    let record = DomainMemoryRecord {
+        id: String::new(),
+        workspace_id: state.workspace_id.clone(),
+        path: payload.path.clone(),
+        content: payload.content,
+        metadata: payload.metadata,
+        embedding: Vec::new(),
+        created_at: now,
+        updated_at: now,
+        revision: 1,
+        primary: true,
+        parent_id: None,
+        cluster_id: None,
+        level: crate::memory::schema::MemoryLevel::Raw,
+        relation: None,
+        revisions: Vec::new(),
+    };
     // Note: domain metadata translation would go here if needed
 
     match state.memory.add(record).await {
