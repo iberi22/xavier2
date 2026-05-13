@@ -38,7 +38,7 @@ async fn internal_benchmark_smoke_covers_filters_and_optional_system3() {
             }),
         )
         .await
-        .unwrap();
+        .expect("test assertion");
 
     let filtered = memory
         .search_filtered(
@@ -51,10 +51,10 @@ async fn internal_benchmark_smoke_covers_filters_and_optional_system3() {
             }),
         )
         .await
-        .unwrap();
+        .expect("test assertion");
     assert_eq!(filtered.len(), 1);
 
-    let runtime = AgentRuntime::new(Arc::clone(&memory), None, RuntimeConfig::default()).unwrap();
+    let runtime = AgentRuntime::new(Arc::clone(&memory), None, RuntimeConfig::default()).expect("test assertion");
     let trace = runtime
         .run_with_trace_filtered(
             "What was the decision about System3?",
@@ -68,7 +68,7 @@ async fn internal_benchmark_smoke_covers_filters_and_optional_system3() {
             System3Mode::Disabled,
         )
         .await
-        .unwrap();
+        .expect("test assertion");
 
     assert!(trace.agent.response.to_lowercase().contains("system3"));
     assert!(!trace.action.llm_used);

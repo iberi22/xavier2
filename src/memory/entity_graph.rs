@@ -144,10 +144,10 @@ pub type SharedEntityGraph = std::sync::Arc<EntityGraph>;
 
 static CANDIDATE_ENTITY_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\b(?:[A-Z]{2,}(?:[A-Z0-9_-]*[A-Z0-9])?|[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9_-]*)+(?:\s+[A-Z][A-Za-z0-9_-]*)*|[A-Z][a-z0-9]+(?:\s+[A-Z][a-z0-9]+)*|[A-Za-z]+[0-9]+[A-Za-z0-9_-]*)\b")
-        .unwrap()
+        .expect("valid entity regex")
 });
-static EMAIL_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\w.+-]+@[\w-]+\.[\w.-]+").unwrap());
-static URL_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"https?://[^\s]+").unwrap());
+static EMAIL_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\w.+-]+@[\w-]+\.[\w.-]+").expect("valid email regex"));
+static URL_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"https?://[^\s]+").expect("valid URL regex"));
 
 static RELATION_PATTERNS: &[(&str, &str, f32)] = &[
     (
@@ -467,7 +467,7 @@ impl EntityGraph {
         let entities = Self::extract_entities_without_relations(text);
         let mut relations = Vec::new();
         for (pattern, relation_type, score) in RELATION_PATTERNS {
-            let re = Regex::new(pattern).unwrap();
+            let re = Regex::new(pattern).expect("valid relation pattern regex");
             for cap in re.captures_iter(text) {
                 let Some(source) = cap.name("source").map(|m| m.as_str().trim()) else {
                     continue;
@@ -1058,14 +1058,14 @@ mod tests {
                 None,
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert!(view.total_relations > 0);
         let bela = graph.entity("BELA").await.expect("entity should exist");
         let neighbors = graph
             .entity_neighbors(&bela.id, 2, None, GraphDirection::Both)
             .await
-            .unwrap();
+            .expect("test assertion");
         assert_eq!(neighbors.entity.id, bela.id);
         assert!(!neighbors.traversal.is_empty());
     }
@@ -1076,15 +1076,15 @@ mod tests {
         graph
             .upsert_memory("memory-1", "Alice works at Acme", None)
             .await
-            .unwrap();
+            .expect("test assertion");
         graph
             .upsert_memory("memory-2", "Alicia knows Bob", None)
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let entities = graph.all_entities().await;
         assert!(!entities.is_empty());
-        let primary = graph.merge_entities("Alice", "Alicia").await.unwrap();
+        let primary = graph.merge_entities("Alice", "Alicia").await.expect("test assertion");
         assert!(primary
             .aliases
             .iter()

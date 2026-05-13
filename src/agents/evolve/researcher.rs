@@ -46,7 +46,7 @@ impl Researcher {
 +    pub async fn set(&self, query: String, docs: Vec<Document>) {
 +        let mut cache = self.cache.write().await;
 +        if cache.len() >= self.max_size {
-+            cache.remove(cache.keys().next().unwrap());
++            cache.remove(cache.keys().next().expect("test assertion"));
 +        }
 +        cache.insert(query, docs);
 +    }

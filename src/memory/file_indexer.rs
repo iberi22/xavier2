@@ -25,7 +25,7 @@ impl Default for FileIndexerConfig {
     fn default() -> Self {
         Self {
             root_path: PathBuf::from("/data/projects"),
-            include_patterns: vec![".md".to_string(), ".rs".to_string()],
+            include_patterns: vec![".md".to_string()],
             exclude_patterns: vec![
                 ".git/**".to_string(),
                 "node_modules/**".to_string(),
@@ -101,7 +101,7 @@ impl FileIndexer {
         let index_path = self.config.root_path.join(".xavier").join("index.json");
 
         // Create .xavier directory
-        fs::create_dir_all(index_path.parent().unwrap()).await?;
+        fs::create_dir_all(index_path.parent().expect("test assertion")).await?;
 
         // Write index file
         let json = serde_json::to_string_pretty(result)?;
@@ -297,7 +297,6 @@ impl FileIndexer {
     /// Verifica si un archivo debe ser incluido según los patrones
     fn should_include(&self, path: &Path) -> bool {
         let path_str = path.to_string_lossy();
-        debug!("Checking include for: {} (patterns: {:?})", path_str, self.config.include_patterns);
 
         for pattern in &self.config.include_patterns {
             let pattern_clean = pattern.trim_start_matches("*");

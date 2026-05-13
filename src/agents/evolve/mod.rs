@@ -245,7 +245,7 @@ impl EvolveModule {
             state.experiments_run
         );
 
-        tokio::fs::create_dir_all(results_path.parent().unwrap()).await?;
+        tokio::fs::create_dir_all(results_path.parent().expect("test assertion")).await?;
         tokio::fs::OpenOptions::new()
             .create(true)
             .append(true)

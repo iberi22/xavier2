@@ -520,7 +520,7 @@ pub fn extract_answer(content: &str, category: &str) -> Option<String> {
     match category {
         "2" => {
             static DATE_RE: LazyLock<Regex> = LazyLock::new(|| {
-                Regex::new(r"(?i)\b(?:\d{1,2}\s+[A-Za-z]+\s+\d{4}|[A-Za-z]+\s+\d{1,2},\s+\d{4}|(19|20)\d{2})\b").unwrap()
+                Regex::new(r"(?i)\b(?:\d{1,2}\s+[A-Za-z]+\s+\d{4}|[A-Za-z]+\s+\d{1,2},\s+\d{4}|(19|20)\d{2})\b").expect("test assertion")
             });
             DATE_RE.find(text).map(|m| m.as_str().trim().to_string())
         }

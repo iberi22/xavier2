@@ -41,12 +41,12 @@ mod checkpoint_tests {
             serde_json::json!({"value": 42}),
         );
 
-        manager.save(checkpoint).await.unwrap();
+        manager.save(checkpoint).await.expect("test assertion");
 
         let loaded = manager
             .load("task_1".to_string(), "save_test".to_string())
             .await
-            .unwrap();
+            .expect("test assertion");
         assert!(loaded.is_some());
     }
 
@@ -61,10 +61,10 @@ mod checkpoint_tests {
                 format!("cp_{}", i),
                 serde_json::json!({"index": i}),
             );
-            manager.save(cp).await.unwrap();
+            manager.save(cp).await.expect("test assertion");
         }
 
-        let checkpoints = manager.list("task_list".to_string()).await.unwrap();
+        let checkpoints = manager.list("task_list".to_string()).await.expect("test assertion");
         assert_eq!(checkpoints.len(), 5);
     }
 
@@ -78,16 +78,16 @@ mod checkpoint_tests {
             serde_json::json!({"test": true}),
         );
 
-        manager.save(cp).await.unwrap();
+        manager.save(cp).await.expect("test assertion");
         manager
             .delete("task_del".to_string(), "to_delete".to_string())
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let loaded = manager
             .load("task_del".to_string(), "to_delete".to_string())
             .await
-            .unwrap();
+            .expect("test assertion");
         assert!(loaded.is_none());
     }
 
@@ -100,10 +100,10 @@ mod checkpoint_tests {
             vec!["git commit -m \"feat(checkpoint): add session continuity\"".to_string()],
             vec!["Implement Phase 3".to_string()],
         )
-        .unwrap();
+        .expect("test assertion");
 
-        let payload = checkpoint.to_bytes().unwrap();
-        let restored = SessionCheckpoint::from_bytes(&payload).unwrap();
+        let payload = checkpoint.to_bytes().expect("test assertion");
+        let restored = SessionCheckpoint::from_bytes(&payload).expect("test assertion");
 
         assert_eq!(restored.session_id, "session_1");
         assert_eq!(restored.file_edits, checkpoint.file_edits);
@@ -124,9 +124,9 @@ mod checkpoint_tests {
             large.clone(),
             large,
         )
-        .unwrap();
+        .expect("test assertion");
 
-        assert!(checkpoint.size_bytes().unwrap() <= MAX_SESSION_CHECKPOINT_BYTES);
+        assert!(checkpoint.size_bytes().expect("test assertion") <= MAX_SESSION_CHECKPOINT_BYTES);
     }
 }
 

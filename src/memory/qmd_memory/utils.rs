@@ -7,20 +7,20 @@ use std::sync::LazyLock;
 use crate::memory::qmd_memory::types::MemoryDocument;
 
 pub static SPEAKER_COLON_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^([^:\s]+):\s*").unwrap());
+    LazyLock::new(|| Regex::new(r"(?m)^([^:\s]+):\s*").expect("valid regex"));
 pub static SPEAKER_BRACKET_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^\[([^]\s]+)\]").unwrap());
+    LazyLock::new(|| Regex::new(r"(?m)^\[([^]\s]+)\]").expect("valid regex"));
 pub static SPEAKER_ROLE_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?i)(?:Speaker|Person|Host|Guest|Interviewer|Interviewee|Moderator):\s*([A-Z][a-zA-Z]+)",
     )
-    .unwrap()
+    .expect("valid regex")
 });
 pub static QUERY_SPEAKER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(?:who|what|where|when|why|how|did|was|were)(?:\s+is|\s+did|\s+was|\s+were)?\s+([A-Z][a-zA-Z]+)").unwrap()
+    Regex::new(r"(?i)\b(?:who|what|where|when|why|how|did|was|were)(?:\s+is|\s+did|\s+was|\s+were)?\s+([A-Z][a-zA-Z]+)").expect("valid regex")
 });
-pub static SHE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bshe\b").unwrap());
-pub static HE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bhe\b").unwrap());
+pub static SHE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bshe\b").expect("valid regex"));
+pub static HE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bhe\b").expect("valid regex"));
 pub static SYNONYM_MAP: LazyLock<HashMap<&'static str, &'static [&'static str]>> =
     LazyLock::new(|| {
         HashMap::from([
@@ -43,9 +43,9 @@ pub const MAX_MULTI_HOP_DEPTH: usize = 2;
 pub const MAX_RERANK_CANDIDATES: usize = 32;
 
 pub static DIA_ID_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)^([a-z]+\d+):0*([0-9]+)$").unwrap());
+    LazyLock::new(|| Regex::new(r"(?i)^([a-z]+\d+):0*([0-9]+)$").expect("valid regex"));
 pub static LOCOMO_PATH_DIA_ID_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)(/)([a-z]+\d+):0*([0-9]+)([#/]|$)").unwrap());
+    LazyLock::new(|| Regex::new(r"(?i)(/)([a-z]+\d+):0*([0-9]+)([#/]|$)").expect("valid regex"));
 
 pub fn normalize_query(query_text: &str) -> String {
     query_text

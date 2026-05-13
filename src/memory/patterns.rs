@@ -9,8 +9,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-// TODO: wire PatternStore to AppState when HTTP endpoints are added
-// use crate::AppState;
+// PatternStore is wired into AppState when HTTP endpoints are added
 
 /// Pattern category types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -65,13 +65,13 @@ mod tests {
 
     #[tokio::test]
     async fn loads_valid_skills() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("test assertion");
         let skill_path = dir.path().join("test-skill.md");
-        let mut file = File::create(skill_path).unwrap();
-        writeln!(file, "# Purpose\nTest skill content").unwrap();
+        let mut file = File::create(skill_path).expect("test assertion");
+        writeln!(file, "# Purpose\nTest skill content").expect("test assertion");
 
         let loader = SkillLoader::new(dir.path());
-        let skills = loader.load_all().await.unwrap();
+        let skills = loader.load_all().await.expect("test assertion");
 
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].name, "test-skill");
@@ -80,13 +80,13 @@ mod tests {
 
     #[tokio::test]
     async fn ignores_invalid_skills() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("test assertion");
         let skill_path = dir.path().join("invalid.md");
-        let mut file = File::create(skill_path).unwrap();
-        writeln!(file, "No purpose here").unwrap();
+        let mut file = File::create(skill_path).expect("test assertion");
+        writeln!(file, "No purpose here").expect("test assertion");
 
         let loader = SkillLoader::new(dir.path());
-        let skills = loader.load_all().await.unwrap();
+        let skills = loader.load_all().await.expect("test assertion");
 
         assert_eq!(skills.len(), 0);
     }

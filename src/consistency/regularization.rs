@@ -563,7 +563,7 @@ impl RetentionRegularizer {
     fn extract_entity_references(&self, content: &str) -> Vec<(String, String)> {
         use regex::Regex;
         static ENTITY_RE: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b").unwrap());
+            LazyLock::new(|| Regex::new(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b").expect("test assertion"));
 
         let mut refs = Vec::new();
         let mut seen = std::collections::HashSet::new();
@@ -713,7 +713,7 @@ mod tests {
 
         let alert = regularizer.detect_drift(&old, &new);
         assert!(alert.is_some());
-        let alert = alert.unwrap();
+        let alert = alert.expect("test assertion");
         assert_eq!(alert.drift_type, DriftType::TrustScoreChange);
     }
 

@@ -45,7 +45,7 @@ impl Indexer {
             let db = self.db.clone();
 
             let handle = tokio::spawn(async move {
-                let _permit = sem.acquire().await.unwrap();
+                let _permit = sem.acquire().await.expect("test assertion");
 
                 // Get extension
                 let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");

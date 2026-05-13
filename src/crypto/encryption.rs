@@ -206,8 +206,8 @@ mod tests {
         let nonce = NonceBytes::generate();
         let plaintext = b"Hello, Xavier E2E Encryption!";
 
-        let blob = encrypt_data(plaintext, &key, &nonce).unwrap();
-        let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).unwrap();
+        let blob = encrypt_data(plaintext, &key, &nonce).expect("test assertion");
+        let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).expect("test assertion");
 
         assert_eq!(plaintext.to_vec(), decrypted);
     }
@@ -222,16 +222,16 @@ mod tests {
         let nonce = NonceBytes::generate();
         let plaintext = b"Test data for serialization";
 
-        let blob = encrypt_data(plaintext, &key, &nonce).unwrap();
+        let blob = encrypt_data(plaintext, &key, &nonce).expect("test assertion");
         let serialized = blob.to_bytes();
-        let deserialized = EncryptedBlob::from_bytes(&serialized).unwrap();
+        let deserialized = EncryptedBlob::from_bytes(&serialized).expect("test assertion");
 
         let decrypted = decrypt_data(
             &deserialized.ciphertext,
             &key,
-            &deserialized.nonce.try_into().unwrap(),
+            &deserialized.nonce.try_into().expect("test assertion"),
         )
-        .unwrap();
+        .expect("test assertion");
 
         assert_eq!(plaintext.to_vec(), decrypted);
     }
@@ -251,7 +251,7 @@ mod tests {
         let nonce = NonceBytes::generate();
         let plaintext = b"Secret message";
 
-        let blob = encrypt_data(plaintext, &key1, &nonce).unwrap();
+        let blob = encrypt_data(plaintext, &key1, &nonce).expect("test assertion");
 
         // Decrypt with wrong key should fail (authentication error)
         let result = decrypt_data(&blob.ciphertext, &key2, nonce.as_bytes());
@@ -268,7 +268,7 @@ mod tests {
         let nonce = NonceBytes::generate();
         let plaintext = b"Original message";
 
-        let blob = encrypt_data(plaintext, &key, &nonce).unwrap();
+        let blob = encrypt_data(plaintext, &key, &nonce).expect("test assertion");
         let mut tampered = blob.ciphertext.clone();
         // Flip a bit in the middle
         if tampered.len() > 20 {
@@ -289,8 +289,8 @@ mod tests {
         let nonce = NonceBytes::generate();
         let plaintext = b"AES encrypt/decrypt test";
 
-        let encrypted = aes_encrypt(plaintext, &key, &nonce).unwrap();
-        let decrypted = aes_decrypt(&encrypted, &key).unwrap();
+        let encrypted = aes_encrypt(plaintext, &key, &nonce).expect("test assertion");
+        let decrypted = aes_decrypt(&encrypted, &key).expect("test assertion");
 
         assert_eq!(plaintext.to_vec(), decrypted);
     }
@@ -330,8 +330,8 @@ mod tests {
         let nonce = NonceBytes::generate();
         let plaintext = b"";
 
-        let blob = encrypt_data(plaintext, &key, &nonce).unwrap();
-        let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).unwrap();
+        let blob = encrypt_data(plaintext, &key, &nonce).expect("test assertion");
+        let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).expect("test assertion");
 
         assert_eq!(plaintext.to_vec(), decrypted);
     }
@@ -347,8 +347,8 @@ mod tests {
         // 1MB of data
         let plaintext = vec![0xAB; 1024 * 1024];
 
-        let blob = encrypt_data(&plaintext, &key, &nonce).unwrap();
-        let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).unwrap();
+        let blob = encrypt_data(&plaintext, &key, &nonce).expect("test assertion");
+        let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).expect("test assertion");
 
         assert_eq!(plaintext, decrypted);
     }

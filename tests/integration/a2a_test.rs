@@ -26,7 +26,7 @@ mod a2a_message_tests {
             "data".to_string(),
         );
 
-        let json = serde_json::to_string(&msg).unwrap();
+        let json = serde_json::to_string(&msg).expect("test assertion");
         assert!(json.contains("a"));
         assert!(json.contains("b"));
     }
@@ -41,7 +41,7 @@ mod a2a_message_tests {
             "id": "msg123"
         }"#;
 
-        let msg: A2AMessage = serde_json::from_str(json).unwrap();
+        let msg: A2AMessage = serde_json::from_str(json).expect("test assertion");
         assert_eq!(msg.sender, "agent1");
         assert_eq!(msg.receiver, "agent2");
     }

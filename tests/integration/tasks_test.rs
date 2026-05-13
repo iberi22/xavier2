@@ -109,7 +109,7 @@ mod task_queue_tests {
         queue.enqueue(medium).await;
 
         // First should be high priority
-        let first = queue.dequeue().await.unwrap();
+        let first = queue.dequeue().await.expect("test assertion");
         assert!(matches!(first.priority, TaskPriority::High));
     }
 
@@ -121,7 +121,7 @@ mod task_queue_tests {
         queue.enqueue(task).await;
 
         // Simulate failure and retry
-        let mut task = queue.dequeue().await.unwrap();
+        let mut task = queue.dequeue().await.expect("test assertion");
         task.fail("temp error".to_string());
 
         queue.enqueue(task).await;

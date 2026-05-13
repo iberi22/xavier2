@@ -133,7 +133,7 @@ tempfile = "3.27.0"
 criterion = "0.5"
 axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
-tokio-tungstenite = "0.26"
+tokio-tungstenite = "0.29"
 futures-util = "0.3"
 
 [[bin]]
@@ -149,11 +149,6 @@ required-features = ["egui-standalone"]
 [[bin]]
 name = "xavier-tui"
 path = "src/main_tui.rs"
-required-features = ["cli-interactive"]
-
-[[bin]]
-name = "xavier-installer"
-path = "src/main_installer.rs"
 required-features = ["cli-interactive"]
 
 [profile.release]

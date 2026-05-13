@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_working_layer_config_from_env() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().expect("test assertion");
         std::env::set_var("XAVIER_WORKING_MEMORY_CAPACITY", "200");
         std::env::set_var("XAVIER_WORKING_LRU_THRESHOLD", "5");
         std::env::set_var("XAVIER_WORKING_BM25_K1", "2.0");
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_episodic_layer_config_from_env() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().expect("test assertion");
         std::env::set_var("XAVIER_MAX_EPISODIC_SESSIONS", "100");
         std::env::set_var("XAVIER_EPISODIC_SUMMARY_WINDOW", "20");
         std::env::set_var("XAVIER_EPISODIC_MIN_EVENT_IMPORTANCE", "0.7");
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_memory_layers_config_from_env() {
-        let _guard = ENV_LOCK.lock().unwrap();
+        let _guard = ENV_LOCK.lock().expect("test assertion");
         std::env::set_var("XAVIER_WORKING_MEMORY_CAPACITY", "150");
         std::env::set_var("XAVIER_MAX_EPISODIC_SESSIONS", "75");
 

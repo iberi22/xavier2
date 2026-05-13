@@ -122,8 +122,8 @@ mod tests {
         );
 
         // Should serialize and deserialize correctly
-        let json = serde_json::to_string(&checkpoint).unwrap();
-        let restored: Checkpoint = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&checkpoint).expect("test assertion");
+        let restored: Checkpoint = serde_json::from_str(&json).expect("test assertion");
 
         assert_eq!(checkpoint.id, restored.id);
     }

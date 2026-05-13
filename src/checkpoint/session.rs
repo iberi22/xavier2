@@ -200,9 +200,9 @@ mod tests {
             vec!["git add src/checkpoint/session.rs".to_string()],
             vec!["Implement Phase 3 checkpoint system".to_string()],
         )
-        .unwrap();
+        .expect("test assertion");
 
-        let restored = SessionCheckpoint::from_bytes(&checkpoint.to_bytes().unwrap()).unwrap();
+        let restored = SessionCheckpoint::from_bytes(&checkpoint.to_bytes().expect("test assertion")).expect("test assertion");
 
         assert_eq!(restored.session_id, "session_123");
         assert_eq!(restored.file_edits.len(), 1);
@@ -223,10 +223,10 @@ mod tests {
             large_items.clone(),
             large_items,
         )
-        .unwrap();
+        .expect("test assertion");
 
-        assert!(checkpoint.is_within_budget().unwrap());
-        assert!(checkpoint.size_bytes().unwrap() <= MAX_SESSION_CHECKPOINT_BYTES);
+        assert!(checkpoint.is_within_budget().expect("test assertion"));
+        assert!(checkpoint.size_bytes().expect("test assertion") <= MAX_SESSION_CHECKPOINT_BYTES);
         assert!(!checkpoint.file_edits.is_empty());
     }
 

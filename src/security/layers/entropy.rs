@@ -7,25 +7,25 @@ use std::sync::LazyLock;
 use crate::security::detections::{ScanResult, Severity, Threat, ThreatCategory};
 
 /// Pattern for API keys
-static SK_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"sk-[a-zA-Z0-9]{20,}").unwrap());
+static SK_PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"sk-[a-zA-Z0-9]{20,}").expect("invalid regex: OpenAI API key pattern"));
 
 /// Pattern for GitHub tokens
 static GITHUB_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"ghp_[a-zA-Z0-9]{36}").unwrap());
+    LazyLock::new(|| Regex::new(r"ghp_[a-zA-Z0-9]{36}").expect("invalid regex: GitHub token pattern"));
 
 /// Pattern for Slack tokens
 static SLACK_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"xox[baprs]-[a-zA-Z0-9]{10,}").unwrap());
+    LazyLock::new(|| Regex::new(r"xox[baprs]-[a-zA-Z0-9]{10,}").expect("invalid regex: Slack token pattern"));
 
 /// Pattern for generic secrets
 static SECRET_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     let pattern = r#"(?i)(password|secret|api_key|apikey|token|auth)[=:]{1}\s*['"]{0,1}[a-zA-Z0-9+/]{16,}['"]{0,1}"#;
-    Regex::new(pattern).unwrap()
+    Regex::new(pattern).expect("invalid regex: generic secret pattern")
 });
 
 /// Pattern for JWT tokens
 static JWT_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+").unwrap());
+    LazyLock::new(|| Regex::new(r"eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+").expect("invalid regex: JWT pattern"));
 
 /// Calculate Shannon entropy for a string (bits per character)
 pub fn shannon_entropy(data: &str) -> f64 {

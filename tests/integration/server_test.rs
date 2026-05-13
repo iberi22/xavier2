@@ -72,7 +72,7 @@ mod api_endpoint_tests {
             metadata: None,
         };
 
-        let json = serde_json::to_string(&request).unwrap();
+        let json = serde_json::to_string(&request).expect("test assertion");
         assert!(json.contains("test content"));
         assert!(json.contains("test/path"));
     }
@@ -92,7 +92,7 @@ mod api_endpoint_tests {
             path_filter: None,
         };
 
-        let json = serde_json::to_string(&request).unwrap();
+        let json = serde_json::to_string(&request).expect("test assertion");
         assert!(json.contains("test query"));
     }
 

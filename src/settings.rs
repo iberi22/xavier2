@@ -83,7 +83,7 @@ impl Default for MemorySettings {
         Self {
             backend: "vec".to_string(),
             data_dir: "data".to_string(),
-            embedding_dimensions: 384,
+            embedding_dimensions: 768,
             workspace_dir: "data/workspaces".to_string(),
             file_path: "data/workspaces/default/memory-store.json".to_string(),
             sqlite_path: "data/memory-store.sqlite3".to_string(),
@@ -172,10 +172,7 @@ impl XavierSettings {
         set_if_absent("XAVIER_HOST", &self.server.host);
         set_if_absent("XAVIER_PORT", &self.server.port.to_string());
         set_if_absent("XAVIER_LOG_LEVEL", &self.server.log_level);
-        set_if_absent(
-            "XAVIER_CODE_GRAPH_DB_PATH",
-            &self.server.code_graph_db_path,
-        );
+        set_if_absent("XAVIER_CODE_GRAPH_DB_PATH", &self.server.code_graph_db_path);
 
         set_if_absent(
             "XAVIER_DEFAULT_WORKSPACE_ID",

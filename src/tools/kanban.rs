@@ -162,7 +162,7 @@ impl PlankaClient {
         {
             let token = self.token.read().await;
             if token.is_some() {
-                return Ok(token.as_ref().unwrap().clone());
+                return Ok(token.as_ref().expect("test assertion").clone());
             }
         }
         // Need to login

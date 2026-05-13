@@ -887,13 +887,13 @@ mod tests {
         // Register agents
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
         bus.register_agent("agent2", "Agent 2", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
 
         // Subscribe agent1 to topic
-        bus.subscribe("agent1", "news").await.unwrap();
+        bus.subscribe("agent1", "news").await.expect("test assertion");
 
         // Publish to topic
         let msg = AgentMessage::new(
@@ -903,7 +903,7 @@ mod tests {
         )
         .on_topic("news");
 
-        let count = bus.publish(msg).await.unwrap();
+        let count = bus.publish(msg).await.expect("test assertion");
         assert!(count >= 1);
     }
 
@@ -913,15 +913,15 @@ mod tests {
 
         bus.register_agent("sender", "Sender", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
         bus.register_agent("receiver", "Receiver", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let id = bus
             .send_direct("sender", "receiver", serde_json::json!({"text": "hello"}))
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert!(!id.is_empty());
     }
@@ -932,18 +932,18 @@ mod tests {
 
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
         bus.register_agent("agent2", "Agent 2", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
         bus.register_agent("agent3", "Agent 3", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let id = bus
             .broadcast("sender", serde_json::json!({"text": "broadcast"}), None)
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert!(!id.is_empty());
     }
@@ -954,10 +954,10 @@ mod tests {
 
         bus.register_agent("client", "Client", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
         bus.register_agent("server", "Server", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
 
         // This would need a server handler to respond
         // Just test the timeout case
@@ -979,7 +979,7 @@ mod tests {
 
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let metrics = bus.get_metrics().await;
         assert_eq!(metrics.registered_agents, 1);
@@ -1093,8 +1093,8 @@ mod tests {
 
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
-            .unwrap();
-        bus.subscribe("agent1", "news").await.unwrap();
+            .expect("test assertion");
+        bus.subscribe("agent1", "news").await.expect("test assertion");
 
         let result = bus.unsubscribe("agent1", "news").await;
         assert!(result.is_ok());
@@ -1106,14 +1106,14 @@ mod tests {
 
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let result = bus.heartbeat("agent1").await;
         assert!(result.is_ok());
 
         let agent = bus.get_agent("agent1").await;
         assert!(agent.is_some());
-        assert_eq!(agent.unwrap().status, AgentStatus::Active);
+        assert_eq!(agent.expect("test assertion").status, AgentStatus::Active);
     }
 
     #[tokio::test]
@@ -1130,11 +1130,11 @@ mod tests {
 
         bus.register_agent("agent1", "Test Agent", vec!["capability1".to_string()])
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let agent = bus.get_agent("agent1").await;
         assert!(agent.is_some());
-        assert_eq!(agent.unwrap().name, "Test Agent");
+        assert_eq!(agent.expect("test assertion").name, "Test Agent");
     }
 
     #[tokio::test]
@@ -1143,10 +1143,10 @@ mod tests {
 
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
         bus.register_agent("agent2", "Agent 2", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let agents = bus.list_agents().await;
         assert_eq!(agents.len(), 2);
@@ -1158,7 +1158,7 @@ mod tests {
 
         let msg = AgentMessage::task("sender", serde_json::json!({"test": "data"}));
 
-        bus.send_to_dlq(msg.clone(), "test failure").await.unwrap();
+        bus.send_to_dlq(msg.clone(), "test failure").await.expect("test assertion");
 
         let dlq = bus.get_dlq().await;
         assert_eq!(dlq.len(), 1);
@@ -1176,9 +1176,9 @@ mod tests {
 
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
-            .unwrap();
-        bus.subscribe("agent1", "news").await.unwrap();
-        bus.subscribe("agent1", "updates").await.unwrap();
+            .expect("test assertion");
+        bus.subscribe("agent1", "news").await.expect("test assertion");
+        bus.subscribe("agent1", "updates").await.expect("test assertion");
 
         let topics = bus.get_topics().await;
         assert!(topics.contains_key("news"));
@@ -1191,10 +1191,10 @@ mod tests {
 
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
         bus.register_agent("agent2", "Agent 2", vec![])
             .await
-            .unwrap();
+            .expect("test assertion");
 
         bus.shutdown().await;
 
@@ -1208,8 +1208,8 @@ mod tests {
 
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
-            .unwrap();
-        bus.subscribe("agent1", "announcements").await.unwrap();
+            .expect("test assertion");
+        bus.subscribe("agent1", "announcements").await.expect("test assertion");
 
         let id = bus
             .broadcast(
@@ -1218,7 +1218,7 @@ mod tests {
                 Some("announcements"),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert!(!id.is_empty());
     }
@@ -1237,7 +1237,7 @@ mod tests {
             heartbeats_received: 0,
         };
 
-        let json = serde_json::to_string(&metrics).unwrap();
+        let json = serde_json::to_string(&metrics).expect("test assertion");
         assert!(json.contains("100"));
         assert!(json.contains("95"));
     }

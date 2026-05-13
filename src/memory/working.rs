@@ -177,7 +177,7 @@ impl From<WorkingMemoryConfig> for crate::memory::layers_config::WorkingMemoryLa
 /// wm.push(MemoryItem::new("1", "First item"));
 /// wm.push(MemoryItem::new("2", "Second item"));
 ///
-/// let item = wm.get("1").unwrap();
+/// let item = wm.get("1").expect("test assertion");
 /// assert_eq!(item.content, "First item");
 /// ```
 pub struct WorkingMemory {
@@ -241,7 +241,7 @@ impl WorkingMemory {
     pub fn push(&mut self, item: MemoryItem) -> Option<MemoryItem> {
         // If item with same ID exists, update it instead
         if self.items.contains_key(&item.id) {
-            let existing = self.items.get_mut(&item.id).unwrap();
+            let existing = self.items.get_mut(&item.id).expect("test assertion");
             *existing = item;
             existing.record_access();
             return None;
@@ -466,8 +466,8 @@ mod tests {
         wm.push(MemoryItem::new("1", "Hello world"));
         wm.push(MemoryItem::new("2", "Test content"));
 
-        assert_eq!(wm.get("1").unwrap().content, "Hello world");
-        assert_eq!(wm.get("2").unwrap().content, "Test content");
+        assert_eq!(wm.get("1").expect("test assertion").content, "Hello world");
+        assert_eq!(wm.get("2").expect("test assertion").content, "Test content");
         assert!(wm.get("3").is_none());
     }
 
@@ -476,14 +476,14 @@ mod tests {
         let mut wm = WorkingMemory::new();
         wm.push(MemoryItem::new("1", "Test item"));
 
-        assert_eq!(wm.get("1").unwrap().access_count, 0);
+        assert_eq!(wm.get("1").expect("test assertion").access_count, 0);
 
         wm.access("1");
-        assert_eq!(wm.get("1").unwrap().access_count, 1);
+        assert_eq!(wm.get("1").expect("test assertion").access_count, 1);
 
         wm.access("1");
         wm.access("1");
-        assert_eq!(wm.get("1").unwrap().access_count, 3);
+        assert_eq!(wm.get("1").expect("test assertion").access_count, 3);
     }
 
     #[test]
@@ -502,7 +502,7 @@ mod tests {
         // Adding 4th item should evict "First" (oldest with low access)
         let evicted = wm.push(MemoryItem::new("4", "Fourth"));
         assert!(evicted.is_some());
-        assert_eq!(evicted.unwrap().id, "1");
+        assert_eq!(evicted.expect("test assertion").id, "1");
 
         assert!(wm.get("1").is_none());
         assert!(wm.get("2").is_some());
@@ -531,7 +531,7 @@ mod tests {
         let evicted = wm.push(MemoryItem::new("3", "Third"));
 
         assert!(evicted.is_some());
-        assert_eq!(evicted.unwrap().id, "2");
+        assert_eq!(evicted.expect("test assertion").id, "2");
         assert!(wm.get("1").is_some()); // High-access item retained
         assert!(wm.get("3").is_some());
     }
@@ -563,7 +563,7 @@ mod tests {
         wm.push(MemoryItem::new("1", "Updated content"));
 
         assert_eq!(wm.len(), 1);
-        assert_eq!(wm.get("1").unwrap().content, "Updated content");
+        assert_eq!(wm.get("1").expect("test assertion").content, "Updated content");
     }
 
     #[test]
@@ -574,7 +574,7 @@ mod tests {
 
         let removed = wm.remove_item("1");
         assert!(removed.is_some());
-        assert_eq!(removed.unwrap().id, "1");
+        assert_eq!(removed.expect("test assertion").id, "1");
         assert!(wm.get("1").is_none());
         assert_eq!(wm.len(), 1);
     }

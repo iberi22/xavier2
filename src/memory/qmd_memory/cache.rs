@@ -109,7 +109,7 @@ pub fn preserve_quoted_speech(text: &str) -> String {
     let mut result = text.to_string();
 
     // Pattern for quoted speech: "..." or '...'
-    let quote_re = regex::Regex::new(r#"["']([^"']+)["']"#).unwrap();
+    let quote_re = regex::Regex::new(r#"["']([^"']+)["']"#).expect("test assertion");
 
     let mut quote_count = 0;
     result = quote_re

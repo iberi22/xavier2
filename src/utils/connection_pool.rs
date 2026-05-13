@@ -28,8 +28,6 @@ impl Default for PoolConfig {
 
 /// A simple connection pool wrapper for SQLite connections
 pub struct ConnectionPool {
-    // TODO: Dead code - remove or use pool configuration for connection lifecycle.
-    #[allow(dead_code)]
     config: PoolConfig,
     connection: Connection,
 }
@@ -82,7 +80,7 @@ mod tests {
     #[test]
     fn test_pool_execute() {
         let test_db = "file:connection_pool_execute?mode=memory&cache=shared";
-        let pool = ConnectionPool::new(test_db).unwrap();
+        let pool = ConnectionPool::new(test_db).expect("test assertion");
         let result = pool.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)");
         assert!(result.is_ok());
     }
@@ -90,20 +88,20 @@ mod tests {
     #[test]
     fn test_pool_query() {
         let test_db = "file:connection_pool_query?mode=memory&cache=shared";
-        let pool = ConnectionPool::new(test_db).unwrap();
+        let pool = ConnectionPool::new(test_db).expect("test assertion");
 
         pool.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
-            .unwrap();
+            .expect("test assertion");
         pool.execute("INSERT INTO test (name) VALUES ('test1')")
-            .unwrap();
+            .expect("test assertion");
 
         let conn = pool.connection();
-        let mut stmt = conn.prepare("SELECT id, name FROM test").unwrap();
+        let mut stmt = conn.prepare("SELECT id, name FROM test").expect("test assertion");
         let rows = stmt
             .query_map([], |row| {
                 Ok((row.get::<_, i32>(0)?, row.get::<_, String>(1)?))
             })
-            .unwrap();
+            .expect("test assertion");
 
         let results: Vec<(i32, String)> = rows.filter_map(|r| r.ok()).collect();
         assert_eq!(results.len(), 1);

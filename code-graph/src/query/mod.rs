@@ -27,7 +27,7 @@ impl QueryCache {
 
     /// Get cached result if still valid
     pub fn get(&self, query: &str) -> Option<QueryResult> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.read().expect("RwLock not poisoned");
         cache.get(query).and_then(|(time, result)| {
             if time.elapsed() < self.ttl {
                 Some(result.clone())
@@ -39,7 +39,7 @@ impl QueryCache {
 
     /// Store result in cache
     pub fn set(&self, query: String, result: QueryResult) {
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().expect("RwLock not poisoned");
 
         // Evict old entries if at capacity
         if cache.len() >= self.max_entries {
@@ -63,12 +63,12 @@ impl QueryCache {
 
     /// Clear all cached entries
     pub fn clear(&self) {
-        self.cache.write().unwrap().clear();
+        self.cache.write().expect("RwLock not poisoned").clear();
     }
 
     /// Get cache statistics
     pub fn stats(&self) -> (usize, usize) {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.read().expect("RwLock not poisoned");
         let valid = cache
             .iter()
             .filter(|(_, (time, _))| time.elapsed() < self.ttl)
@@ -157,16 +157,6 @@ impl QueryEngine {
         // This would need a new db method
         // For now, use search with file path
         self.db.find_symbols(file_path, 1000).map(|r| r.symbols)
-    }
-
-    /// Find all symbols in a specific file
-    pub fn symbols_in_file(&self, file_path: &str) -> Result<Vec<Symbol>> {
-        self.db.find_symbols_in_file(file_path)
-    }
-
-    /// Find files that depend on the given file
-    pub fn reverse_dependencies(&self, file_path: &str) -> Result<Vec<String>> {
-        self.db.find_reverse_dependencies(file_path)
     }
 
     /// Get all symbols of a specific language

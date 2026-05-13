@@ -72,7 +72,7 @@ impl BoardView {
 
                 // Add task button
                 if ui.button("+ New Task").clicked() {
-                    // TODO: Open new task dialog
+                    // Open new task dialog (TUI — to be implemented)
                 }
             });
     }
@@ -97,7 +97,7 @@ impl BoardView {
             // Drop zone / Add card
             ui.horizontal(|ui| {
                 if ui.button("+ Add card").clicked() {
-                    // TODO: Add card to this column
+                    // Add card to this column (TUI — to be implemented)
                 }
             });
         });

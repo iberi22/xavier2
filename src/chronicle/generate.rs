@@ -29,16 +29,14 @@ impl Default for ChronicleGenerator {
 impl ChronicleGenerator {
     pub fn new() -> Self {
         // Try to prefer MiniMax if available via environment or config
-        let model_override = std::env::var("XAVIER2_CHRONICLE_MODEL")
-            .ok()
-            .or_else(|| {
-                // Heuristic: if MINIMAX_API_KEY is present, we might want to use MiniMax
-                if std::env::var("MINIMAX_API_KEY").is_ok() {
-                    Some("MiniMax-Text-01".to_string())
-                } else {
-                    None
-                }
-            });
+        let model_override = std::env::var("XAVIER2_CHRONICLE_MODEL").ok().or_else(|| {
+            // Heuristic: if MINIMAX_API_KEY is present, we might want to use MiniMax
+            if std::env::var("MINIMAX_API_KEY").is_ok() {
+                Some("MiniMax-Text-01".to_string())
+            } else {
+                None
+            }
+        });
 
         Self {
             llm_client: ModelProviderClient::from_model_override(model_override),
@@ -51,7 +49,10 @@ impl ChronicleGenerator {
         let input_json = serde_json::to_string_pretty(&input)?;
         let user_prompt = CHRONICLE_USER_PROMPT_TEMPLATE.replace("{{input_data}}", &input_json);
 
-        let response = self.llm_client.generate_text(CHRONICLE_SYSTEM_PROMPT, &user_prompt).await?;
+        let response = self
+            .llm_client
+            .generate_text(CHRONICLE_SYSTEM_PROMPT, &user_prompt)
+            .await?;
 
         let processed = self.post_process(&response);
 
@@ -96,7 +97,7 @@ mod tests {
             raw_data: "Some raw data".to_string(),
         };
 
-        let serialized = serde_json::to_string(&input).unwrap();
+        let serialized = serde_json::to_string(&input).expect("test assertion");
         assert!(serialized.contains("2023-10-27"));
         assert!(serialized.contains("\"active_projects\":2"));
     }

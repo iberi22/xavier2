@@ -4,16 +4,19 @@
 //! It redacts sensitive patterns and performs a fail-fast validation.
 
 use crate::chronicle::patterns::REDACTION_PATTERNS;
+use anyhow::{anyhow, Result};
 use regex::Regex;
 use std::sync::LazyLock;
-use anyhow::{anyhow, Result};
 
 /// Compiled redaction rules
 static RULES: LazyLock<Vec<(Regex, &'static str)>> = LazyLock::new(|| {
     REDACTION_PATTERNS
         .iter()
         .map(|(pattern, replacement)| {
-            (Regex::new(pattern).expect("Invalid regex pattern"), *replacement)
+            (
+                Regex::new(pattern).expect("Invalid regex pattern"),
+                *replacement,
+            )
         })
         .collect()
 });
@@ -32,7 +35,10 @@ pub fn redact(input: &str) -> String {
 pub fn verify(output: &str) -> Result<()> {
     for (regex, _) in &*RULES {
         if regex.is_match(output) {
-            return Err(anyhow!("Sensitive content detected in post-redaction output: pattern '{}'", regex.as_str()));
+            return Err(anyhow!(
+                "Sensitive content detected in post-redaction output: pattern '{}'",
+                regex.as_str()
+            ));
         }
     }
     Ok(())
@@ -133,7 +139,7 @@ mod tests {
         let input = "Secret: api_key=1234567890, Server: localhost:3000";
         let result = process_output(input);
         assert!(result.is_ok());
-        let output = result.unwrap();
+        let output = result.expect("test assertion");
         assert!(output.contains("[REDACTED]"));
         assert!(output.contains("[internal-service]"));
     }

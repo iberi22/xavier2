@@ -798,11 +798,11 @@ mod tests {
         let entity = sem
             .upsert_entity(UpsertEntityRequest::new("Alice".to_string()))
             .await
-            .unwrap();
+            .expect("test assertion");
         assert_eq!(entity.name, "Alice");
         assert_eq!(entity.entity_type, SemanticEntityType::Concept);
 
-        let retrieved = sem.get_entity("Alice").await.unwrap();
+        let retrieved = sem.get_entity("Alice").await.expect("test assertion");
         assert_eq!(retrieved.id, entity.id);
     }
 
@@ -812,10 +812,10 @@ mod tests {
 
         sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string()))
             .await
-            .unwrap();
+            .expect("test assertion");
         sem.upsert_entity(UpsertEntityRequest::new("SWAL".to_string()))
             .await
-            .unwrap();
+            .expect("test assertion");
 
         let relation = sem
             .upsert_relation(UpsertRelationRequest::new(
@@ -824,7 +824,7 @@ mod tests {
                 "works_at".to_string(),
             ))
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert_eq!(relation.relation_type, "works_at");
 
@@ -856,18 +856,18 @@ mod tests {
             UpsertEntityRequest::new("Alice".to_string()).with_type(SemanticEntityType::Person),
         )
         .await
-        .unwrap();
+        .expect("test assertion");
         sem.upsert_entity(
             UpsertEntityRequest::new("Bob".to_string()).with_type(SemanticEntityType::Person),
         )
         .await
-        .unwrap();
+        .expect("test assertion");
         sem.upsert_entity(
             UpsertEntityRequest::new("Acme".to_string())
                 .with_type(SemanticEntityType::Organization),
         )
         .await
-        .unwrap();
+        .expect("test assertion");
 
         let stats = sem.stats().await;
         assert_eq!(stats.total_entities, 3);
@@ -881,13 +881,13 @@ mod tests {
 
         sem.upsert_entity(UpsertEntityRequest::new("Alice".to_string()))
             .await
-            .unwrap();
+            .expect("test assertion");
         sem.upsert_entity(UpsertEntityRequest::new("Bob".to_string()))
             .await
-            .unwrap();
+            .expect("test assertion");
         sem.upsert_entity(UpsertEntityRequest::new("Carol".to_string()))
             .await
-            .unwrap();
+            .expect("test assertion");
 
         sem.upsert_relation(UpsertRelationRequest::new(
             "Alice".to_string(),
@@ -895,16 +895,16 @@ mod tests {
             "knows".to_string(),
         ))
         .await
-        .unwrap();
+        .expect("test assertion");
         sem.upsert_relation(UpsertRelationRequest::new(
             "Bob".to_string(),
             "Carol".to_string(),
             "knows".to_string(),
         ))
         .await
-        .unwrap();
+        .expect("test assertion");
 
-        let alice = sem.get_entity("Alice").await.unwrap();
+        let alice = sem.get_entity("Alice").await.expect("test assertion");
         let traversal = sem
             .traverse(&alice.id, 2, RelationDirection::Outgoing)
             .await;

@@ -23,7 +23,7 @@ use tokio::sync::broadcast;
 use crate::checkpoint::Checkpoint;
 use crate::memory::belief_graph::BeliefRelation;
 use crate::memory::embedder::EmbeddingClient;
-use crate::memory::schema::{MemoryLevel, RelationKind, MemoryQueryFilters};
+use crate::memory::schema::MemoryQueryFilters;
 use crate::memory::sqlite_store::{
     TABLE_BELIEFS, TABLE_CHECKPOINTS, TABLE_MEMORIES, TABLE_SESSION_TOKENS,
 };
@@ -34,7 +34,7 @@ use crate::memory::store::{
 use crate::settings::XavierSettings;
 
 const DB_FILENAME: &str = "xavier_memory_vec.db";
-const DEFAULT_EMBEDDING_DIMENSIONS: usize = 384;
+const DEFAULT_EMBEDDING_DIMENSIONS: usize = 768;
 const DEFAULT_RRF_K: usize = 60;
 const DEFAULT_VECTOR_WEIGHT: f32 = 0.40;
 const DEFAULT_FTS_WEIGHT: f32 = 0.35;
@@ -128,25 +128,6 @@ impl VecSqliteStoreConfig {
         }
     }
 
-    pub fn new_at_path(path: PathBuf) -> Self {
-        let settings = XavierSettings::current();
-        let embedding_dimensions = std::env::var("XAVIER_EMBEDDING_DIMENSIONS")
-            .ok()
-            .and_then(|v| v.parse::<usize>().ok())
-            .unwrap_or({
-                if settings.memory.embedding_dimensions == 0 {
-                    DEFAULT_EMBEDDING_DIMENSIONS
-                } else {
-                    settings.memory.embedding_dimensions
-                }
-            });
-
-        Self {
-            path,
-            embedding_dimensions,
-        }
-    }
-
     fn detail(&self) -> String {
         format!(
             "{} ({}d embeddings)",
@@ -224,7 +205,13 @@ impl VecSqliteMemoryStore {
 
     fn register_sqlite_vec_extension() -> Result<()> {
         SQLITE_VEC_EXTENSION_INIT
-            .get_or_init(|| unsafe {
+            .get_or_init(|| {
+                // SAFETY: sqlite3_vec_init is the well-known sqlite-vec extension entry point
+                //         with a standard SQLite C ABI signature. The transmute is required
+                //         because the function pointer type is opaque across the FFI boundary.
+                //         sqlite3_auto_extension is called once at init; SQLite manages the
+                //         extension lifetime internally.
+                unsafe {
                 type SqliteExtFn = unsafe extern "C" fn(
                     *mut rusqlite::ffi::sqlite3,
                     *mut *mut i8,
@@ -241,6 +228,7 @@ impl VecSqliteMemoryStore {
                 } else {
                     Ok(())
                 }
+            }
             })
             .clone()
             .map_err(anyhow::Error::msg)
@@ -262,9 +250,6 @@ impl VecSqliteMemoryStore {
                 revision INTEGER NOT NULL DEFAULT 1,
                 primary_flag INTEGER NOT NULL DEFAULT 1,
                 parent_id TEXT,
-                cluster_id TEXT,
-                level TEXT NOT NULL DEFAULT 'raw',
-                relation TEXT,
                 revisions TEXT NOT NULL DEFAULT '[]'
             );
 
@@ -714,7 +699,7 @@ impl VecSqliteMemoryStore {
 
     fn deserialize_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
         let metadata_str: String = row.get(4)?;
-        let revisions_str: String = row.get(14)?;
+        let revisions_str: String = row.get(11)?;
         let embedding_blob: Vec<u8> = row.get(5)?;
 
         Ok(MemoryRecord {
@@ -733,10 +718,6 @@ impl VecSqliteMemoryStore {
             revision: row.get(8)?,
             primary: row.get::<_, i32>(9)? != 0,
             parent_id: row.get(10)?,
-            cluster_id: row.get(11)?,
-            level: MemoryLevel::parse(&row.get::<_, String>(12)?).unwrap_or(MemoryLevel::Raw),
-            relation: row.get::<_, Option<String>>(13)?
-                .and_then(|s| RelationKind::parse(&s)),
             revisions: serde_json::from_str(&revisions_str).unwrap_or_default(),
         })
     }
@@ -1041,7 +1022,7 @@ impl VecSqliteMemoryStore {
         memory_id: &str,
     ) -> Result<Option<MemoryRecord>> {
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE id = ? AND workspace_id = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE id = ? AND workspace_id = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -1446,7 +1427,7 @@ impl VecSqliteMemoryStore {
                         let vec_sql = r#"
                             SELECT m.id, m.workspace_id, m.path, m.content, m.metadata, m.embedding,
                                    m.created_at, m.updated_at, m.revision, m.primary_flag,
-                                   m.parent_id, m.cluster_id, m.level, m.relation, m.revisions, ve.distance
+                                   m.parent_id, m.revisions, ve.distance
                             FROM memory_embeddings ve
                             JOIN memory_records m ON m.id = ve.id AND m.workspace_id = ?
                             WHERE ve.embedding MATCH vec_f32(?)
@@ -1490,7 +1471,7 @@ impl VecSqliteMemoryStore {
                     let fts_sql = r#"
                         SELECT m.id, m.workspace_id, m.path, m.content, m.metadata, m.embedding,
                                m.created_at, m.updated_at, m.revision, m.primary_flag,
-                               m.parent_id, m.cluster_id, m.level, m.relation, m.revisions, bm25(f, 1.0, 0.8) AS rank
+                               m.parent_id, m.revisions, bm25(f, 1.0, 0.8) AS rank
                         FROM memory_fts f
                         JOIN memory_records m ON m.id = f.id AND m.workspace_id = ?
                         WHERE f.memory_fts MATCH ?
@@ -1682,7 +1663,7 @@ impl VecSqliteMemoryStore {
             let relation_path: String = row.get(4)?;
 
             let mut hit_stmt = conn.prepare(&format!(
-                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions
+                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions
                  FROM {}
                  WHERE workspace_id = ?
                    AND content LIKE '%' || ? || '%'
@@ -1743,80 +1724,6 @@ impl VecSqliteMemoryStore {
         )?;
         Ok(())
     }
-
-    /// Merge records from another Xavier SQLite database into this one.
-    pub async fn merge_from(
-        &self,
-        other_db_path: &std::path::Path,
-        target_workspace: Option<&str>,
-    ) -> Result<()> {
-        let conn = self.conn.lock();
-
-        let source_path = other_db_path.to_string_lossy().to_string();
-        conn.execute("ATTACH DATABASE ? AS source", params![source_path])?;
-
-        let res = (|| -> Result<()> {
-            // Remap workspace_id if provided, otherwise keep original
-            let workspace_sql = if let Some(ws) = target_workspace {
-                format!("'{}'", ws)
-            } else {
-                "workspace_id".to_string()
-            };
-
-            // Merge main memory records
-            conn.execute(
-                &format!(
-                    "INSERT OR REPLACE INTO main.{} (id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions)
-                     SELECT id, {}, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM source.{}",
-                    TABLE_MEMORIES, workspace_sql, TABLE_MEMORIES
-                ),
-                [],
-            )?;
-
-            // Merge beliefs
-            conn.execute(
-                &format!(
-                    "INSERT OR REPLACE INTO main.{} (id, workspace_id, beliefs, updated_at)
-                     SELECT id, {}, beliefs, updated_at FROM source.{}",
-                    TABLE_BELIEFS, workspace_sql, TABLE_BELIEFS
-                ),
-                [],
-            )?;
-
-            // Merge entities and relations (knowledge graph)
-            conn.execute(
-                "INSERT OR REPLACE INTO main.entities SELECT * FROM source.entities",
-                [],
-            )?;
-            conn.execute(
-                "INSERT OR REPLACE INTO main.relations SELECT * FROM source.relations",
-                [],
-            )?;
-            
-            // Merge timeline
-            conn.execute(
-                &format!(
-                    "INSERT OR REPLACE INTO main.timeline_events (id, workspace_id, memory_id, sequence, agent_id, timestamp, operation, prev_hash, curr_hash, payload)
-                     SELECT id, {}, memory_id, sequence, agent_id, timestamp, operation, prev_hash, curr_hash, payload FROM source.timeline_events",
-                    workspace_sql
-                ),
-                [],
-            )?;
-
-            Ok(())
-        })();
-
-        let _ = conn.execute("DETACH DATABASE source", []);
-        res?;
-
-        // Rebuild FTS and Vector index for the merged records
-        // For simplicity in MVP, we just trigger a full rebuild or rely on next sync.
-        // But since we have blobs, we should at least populate the virtual tables.
-        Self::ensure_vector_index(&conn, self.config.embedding_dimensions)?;
-        Self::ensure_fts_index(&conn)?;
-
-        Ok(())
-    }
 }
 
 #[async_trait]
@@ -1862,7 +1769,7 @@ impl MemoryStore for VecSqliteMemoryStore {
             };
             conn.execute(
                 &format!(
-                    "INSERT OR REPLACE INTO {} (id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                    "INSERT OR REPLACE INTO {} (id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                     TABLE_MEMORIES
                 ),
                 params![
@@ -1877,9 +1784,6 @@ impl MemoryStore for VecSqliteMemoryStore {
                     record.revision,
                     record.primary as i32,
                     record.parent_id,
-                    record.cluster_id,
-                    record.level.as_str(),
-                    record.relation.map(|r| r.as_str().to_string()),
                     serde_json::to_string(&record.revisions).unwrap_or_default(),
                 ],
             )?;
@@ -1918,7 +1822,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         // Try by id first (O(1) lookup)
         let key = Self::row_key(workspace_id, id_or_path);
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE id = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE id = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -1931,7 +1835,7 @@ impl MemoryStore for VecSqliteMemoryStore {
 
         // Fallback: try by path
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE workspace_id = ? AND path = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ? AND path = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -2041,7 +1945,7 @@ impl MemoryStore for VecSqliteMemoryStore {
     async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE workspace_id = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -2053,24 +1957,6 @@ impl MemoryStore for VecSqliteMemoryStore {
             }
         }
         Ok(records)
-    }
-
-    async fn export(&self, path: &std::path::Path) -> Result<()> {
-        let conn = self.conn.lock();
-        conn.execute("VACUUM INTO ?", params![path.to_string_lossy()])?;
-        Ok(())
-    }
-
-    async fn export_tree(&self, workspace_id: &str, path: &std::path::Path) -> Result<()> {
-        let records = self.list(workspace_id).await?;
-        let tree = crate::memory::store::build_context_tree(records);
-        let json = serde_json::to_string_pretty(&tree)?;
-        tokio::fs::write(path, json).await?;
-        Ok(())
-    }
-
-    async fn import(&self, _path: &std::path::Path) -> Result<()> {
-        anyhow::bail!("Import into an active SQLite store is not yet supported. Use the CLI to load a context file.")
     }
 
     async fn list_filtered(
@@ -2164,7 +2050,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         let mut memories = Vec::new();
         {
             let mut stmt = conn.prepare(&format!(
-                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE workspace_id = ?",
+                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ?",
                 TABLE_MEMORIES
             ))?;
             let mut rows = stmt.query([workspace_id])?;
@@ -2449,15 +2335,15 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn sqlite_vec_extension_is_active_on_new_connections() {
-        VecSqliteMemoryStore::register_sqlite_vec_extension().unwrap();
+    fn sqlite_vec_extension_is_active_on_new_connections() -> Result<()> {
+        VecSqliteMemoryStore::register_sqlite_vec_extension()?;
 
-        let conn = Connection::open_in_memory().unwrap();
+        let conn = Connection::open_in_memory()?;
         let version: String = conn
-            .query_row("SELECT vec_version()", [], |row| row.get(0))
-            .unwrap();
+            .query_row("SELECT vec_version()", [], |row| row.get(0))?;
 
         assert!(version.starts_with('v'));
+        Ok(())
     }
 
     fn test_record(
@@ -2478,9 +2364,6 @@ mod tests {
             revision: 1,
             primary: true,
             parent_id: None,
-            cluster_id: None,
-            level: MemoryLevel::Raw,
-            relation: None,
             revisions: Vec::new(),
         }
     }
@@ -2495,14 +2378,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn hybrid_search_rrf_fuses_vector_fts_and_belief_signals() {
-        let temp = tempdir().unwrap();
+    async fn hybrid_search_rrf_fuses_vector_fts_and_belief_signals() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("rrf.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-hybrid";
         let lexical_winner = test_record(
@@ -2518,8 +2400,8 @@ mod tests {
             vec![1.0, 0.0, 0.0],
         );
 
-        store.put(lexical_winner.clone()).await.unwrap();
-        store.put(semantic_distractor.clone()).await.unwrap();
+        store.put(lexical_winner.clone()).await?;
+        store.put(semantic_distractor.clone()).await?;
         store
             .save_beliefs(
                 workspace_id,
@@ -2538,8 +2420,7 @@ mod tests {
                     updated_at: chrono::Utc::now(),
                 }],
             )
-            .await
-            .unwrap();
+            .await?;
 
         let results = store
             .hybrid_search_with_embedding(
@@ -2550,8 +2431,7 @@ mod tests {
                 None,
                 5,
             )
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(
             results.first().map(|entry| entry.record.id.as_str()),
@@ -2559,17 +2439,17 @@ mod tests {
         );
         assert!(results.len() >= 2);
         assert!(results[0].score > results[1].score);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn graph_hops_returns_recursive_paths_for_memory() {
-        let temp = tempdir().unwrap();
+    async fn graph_hops_returns_recursive_paths_for_memory() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("graph-hops.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-graph";
         let source = test_record(
@@ -2585,28 +2465,24 @@ mod tests {
             vec![1.0, 0.0, 0.0],
         );
 
-        store.put(source.clone()).await.unwrap();
-        store.put(target).await.unwrap();
+        store.put(source.clone()).await?;
+        store.put(target).await?;
         store
             .add_entity(
                 &VecSqliteMemoryStore::memory_node_id(workspace_id, &source.id),
                 &source.path,
                 "memory",
             )
-            .await
-            .unwrap();
+            .await?;
         store
             .add_entity("acct", "ACCT-9F3A", "account")
-            .await
-            .unwrap();
+            .await?;
         store
             .add_entity("alice", "Alice Johnson", "person")
-            .await
-            .unwrap();
+            .await?;
         store
             .add_entity("finance", "Finance Committee", "team")
-            .await
-            .unwrap();
+            .await?;
         store
             .add_relation(
                 &ulid::Ulid::new().to_string(),
@@ -2614,8 +2490,7 @@ mod tests {
                 "acct",
                 "mentions",
             )
-            .await
-            .unwrap();
+            .await?;
         store
             .add_relation(
                 &ulid::Ulid::new().to_string(),
@@ -2623,8 +2498,7 @@ mod tests {
                 "alice",
                 "approved_by",
             )
-            .await
-            .unwrap();
+            .await?;
         store
             .add_relation(
                 &ulid::Ulid::new().to_string(),
@@ -2632,13 +2506,11 @@ mod tests {
                 "finance",
                 "briefed",
             )
-            .await
-            .unwrap();
+            .await?;
 
         let result = store
             .graph_hops(workspace_id, &source.path, 3, "ACCT-9F3A")
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(result.source.id, source.id);
         assert!(result
@@ -2649,17 +2521,17 @@ mod tests {
             .paths
             .iter()
             .any(|path| path.entity_path.contains("Finance Committee")));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn put_extracts_entities_and_links_memory_nodes() {
-        let temp = tempdir().unwrap();
+    async fn put_extracts_entities_and_links_memory_nodes() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("entities.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-entities";
         let record = test_record(
@@ -2669,7 +2541,7 @@ mod tests {
             vec![0.0, 1.0, 0.0],
         );
 
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
 
         let conn = store.conn.lock();
         let link_count: i64 = conn
@@ -2677,20 +2549,20 @@ mod tests {
                 "SELECT COUNT(*) FROM memory_entities WHERE workspace_id = ? AND memory_id = ?",
                 params![workspace_id, &record.id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
 
         assert!(link_count >= 4);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn new_rebuilds_stale_fts_schema_without_code_tokens() {
-        let temp = tempdir().unwrap();
+    async fn new_rebuilds_stale_fts_schema_without_code_tokens() -> Result<()> {
+        let temp = tempdir()?;
         let db_path = temp.path().join("stale-fts.db");
-        VecSqliteMemoryStore::register_sqlite_vec_extension().unwrap();
+        VecSqliteMemoryStore::register_sqlite_vec_extension()?;
 
         {
-            let conn = Connection::open(&db_path).unwrap();
+            let conn = Connection::open(&db_path)?;
             conn.execute_batch(
                 r#"
                 CREATE TABLE memory_records (
@@ -2713,16 +2585,14 @@ mod tests {
                     content
                 );
                 "#,
-            )
-            .unwrap();
+            )?;
         }
 
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: db_path,
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let record = test_record(
             "ws-stale",
@@ -2731,10 +2601,10 @@ mod tests {
             vec![1.0, 0.0, 0.0],
         );
 
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
 
         let conn = store.conn.lock();
-        let columns = VecSqliteMemoryStore::virtual_table_columns(&conn, "memory_fts").unwrap();
+        let columns = VecSqliteMemoryStore::virtual_table_columns(&conn, "memory_fts")?;
         assert!(columns.iter().any(|column| column == "code_tokens"));
 
         let indexed: i64 = conn
@@ -2742,20 +2612,19 @@ mod tests {
                 "SELECT COUNT(*) FROM memory_fts WHERE id = ?",
                 params![record.id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
         assert_eq!(indexed, 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn put_appends_auditable_timeline_events() {
-        let temp = tempdir().unwrap();
+    async fn put_appends_auditable_timeline_events() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("timeline.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-timeline";
         let mut record = test_record(
@@ -2771,10 +2640,10 @@ mod tests {
             }
         });
 
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
         record.path = "memory/audit-2".to_string();
         record.id = stable_key("memory", &[workspace_id, &record.path]);
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
 
         let conn = store.conn.lock();
         let event_count: i64 = conn
@@ -2782,29 +2651,27 @@ mod tests {
                 "SELECT COUNT(*) FROM timeline_events WHERE workspace_id = ?",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
         let chained_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM timeline_events WHERE workspace_id = ? AND prev_hash IS NOT NULL",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
 
         assert_eq!(event_count, 2);
         assert_eq!(chained_count, 1);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn timeline_chain_uses_sequence_not_timestamp_order() {
-        let temp = tempdir().unwrap();
+    async fn timeline_chain_uses_sequence_not_timestamp_order() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("timeline-sequence.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-timeline-sequence";
         let mut record = test_record(
@@ -2820,11 +2687,11 @@ mod tests {
             }
         });
 
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
         record.path = "memory/audit-b".to_string();
         record.id = stable_key("memory", &[workspace_id, &record.path]);
         record.content = "second auditable event".to_string();
-        store.put(record.clone()).await.unwrap();
+        store.put(record.clone()).await?;
 
         {
             let conn = store.conn.lock();
@@ -2835,14 +2702,13 @@ mod tests {
                  ELSE timestamp END \
                  WHERE workspace_id = ?",
                 params![workspace_id],
-            )
-            .unwrap();
+            )?;
         }
 
         record.path = "memory/audit-c".to_string();
         record.id = stable_key("memory", &[workspace_id, &record.path]);
         record.content = "third auditable event".to_string();
-        store.put(record).await.unwrap();
+        store.put(record).await?;
 
         let conn = store.conn.lock();
         let second_hash: String = conn
@@ -2850,36 +2716,33 @@ mod tests {
                 "SELECT curr_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 2",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
         let third_prev_hash: String = conn
             .query_row(
                 "SELECT prev_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 3",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
         let max_sequence: i64 = conn
             .query_row(
                 "SELECT MAX(sequence) FROM timeline_events WHERE workspace_id = ?",
                 params![workspace_id],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
 
         assert_eq!(max_sequence, 3);
         assert_eq!(third_prev_hash, second_hash);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn delete_removes_memory_without_foreign_key_errors() {
-        let temp = tempdir().unwrap();
+    async fn delete_removes_memory_without_foreign_key_errors() -> Result<()> {
+        let temp = tempdir()?;
         let store = VecSqliteMemoryStore::new(VecSqliteStoreConfig {
             path: temp.path().join("delete-roundtrip.db"),
             embedding_dimensions: 3,
         })
-        .await
-        .unwrap();
+        .await?;
 
         let workspace_id = "ws-delete";
         let record = test_record(
@@ -2889,18 +2752,17 @@ mod tests {
             vec![0.0, 1.0, 0.0],
         );
 
-        store.put(record).await.unwrap();
+        store.put(record).await?;
         let deleted = store
             .delete(workspace_id, "manual/smoke")
-            .await
-            .unwrap_or_else(|error| panic!("{error:#}"));
+            .await?;
 
         assert!(deleted.is_some());
         assert!(store
             .get(workspace_id, "manual/smoke")
-            .await
-            .unwrap()
+            .await?
             .is_none());
+        Ok(())
     }
 
     #[test]

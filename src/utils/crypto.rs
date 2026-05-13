@@ -12,6 +12,8 @@ pub fn hex_encode(data: &[u8]) -> String {
         result.push(HEX_CHARS[(byte >> 4) as usize]);
         result.push(HEX_CHARS[(byte & 0xf) as usize]);
     }
+    // SAFETY: `result` only contains bytes from HEX_CHARS ("0123456789abcdef"),
+    //         which are all valid ASCII and therefore valid UTF-8.
     unsafe { String::from_utf8_unchecked(result) }
 }
 
@@ -64,9 +66,9 @@ mod tests {
 
     #[test]
     fn test_hex_decode() {
-        assert_eq!(hex_decode("68656c6c6f").unwrap(), b"hello");
-        assert_eq!(hex_decode("").unwrap(), b"");
-        assert_eq!(hex_decode("ABCD").unwrap(), &[0xab, 0xcd]);
+        assert_eq!(hex_decode("68656c6c6f").expect("test assertion"), b"hello");
+        assert_eq!(hex_decode("").expect("test assertion"), b"");
+        assert_eq!(hex_decode("ABCD").expect("test assertion"), &[0xab, 0xcd]);
     }
 
     #[test]

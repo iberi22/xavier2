@@ -132,7 +132,7 @@ mod tests {
 
     fn doc(id: &str, content: &str, seconds: i64) -> ContextDocument {
         ContextDocument::new(id, "session-1", "user", content)
-            .with_created_at(Utc.timestamp_opt(seconds, 0).unwrap())
+            .with_created_at(Utc.timestamp_opt(seconds, 0).single().expect("test assertion"))
     }
 
     #[test]

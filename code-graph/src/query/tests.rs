@@ -7,7 +7,7 @@ mod tests_inner {
 
     /// Create a test database with sample symbols
     fn setup_test_db() -> CodeGraphDB {
-        let db = CodeGraphDB::in_memory().unwrap();
+        let db = CodeGraphDB::in_memory().expect("test assertion");
 
         // Insert test symbols
         let sym1 = Symbol {
@@ -23,7 +23,7 @@ mod tests_inner {
             signature: Some("fn main()".to_string()),
             parent: None,
         };
-        db.insert_symbol(&sym1).unwrap();
+        db.insert_symbol(&sym1).expect("test assertion");
 
         let sym2 = Symbol {
             id: None,
@@ -38,7 +38,7 @@ mod tests_inner {
             signature: Some("fn process_data(data: String) -> Result<()>".to_string()),
             parent: None,
         };
-        db.insert_symbol(&sym2).unwrap();
+        db.insert_symbol(&sym2).expect("test assertion");
 
         let sym3 = Symbol {
             id: None,
@@ -53,7 +53,7 @@ mod tests_inner {
             signature: Some("struct User { name: String }".to_string()),
             parent: None,
         };
-        db.insert_symbol(&sym3).unwrap();
+        db.insert_symbol(&sym3).expect("test assertion");
 
         let sym4 = Symbol {
             id: None,
@@ -68,7 +68,7 @@ mod tests_inner {
             signature: Some("function calculateTotal(items: Item[]): number".to_string()),
             parent: None,
         };
-        db.insert_symbol(&sym4).unwrap();
+        db.insert_symbol(&sym4).expect("test assertion");
 
         db
     }
@@ -78,7 +78,7 @@ mod tests_inner {
         let db = setup_test_db();
 
         // Test exact match
-        let result = db.find_symbols("main", 10).unwrap();
+        let result = db.find_symbols("main", 10).expect("test assertion");
         assert!(!result.symbols.is_empty());
         assert_eq!(result.symbols[0].name, "main");
     }
@@ -88,7 +88,7 @@ mod tests_inner {
         let db = setup_test_db();
 
         // Test partial match
-        let result = db.find_symbols("process", 10).unwrap();
+        let result = db.find_symbols("process", 10).expect("test assertion");
         assert!(!result.symbols.is_empty());
         assert!(result.symbols[0].name.contains("process"));
     }
@@ -98,7 +98,7 @@ mod tests_inner {
         let db = setup_test_db();
 
         // Test case insensitive
-        let result = db.find_symbols("MAIN", 10).unwrap();
+        let result = db.find_symbols("MAIN", 10).expect("test assertion");
         assert!(!result.symbols.is_empty());
     }
 
@@ -107,11 +107,11 @@ mod tests_inner {
         let db = setup_test_db();
 
         // Find all functions
-        let functions = db.find_by_kind(SymbolKind::Function, 100).unwrap();
+        let functions = db.find_by_kind(SymbolKind::Function, 100).expect("test assertion");
         assert_eq!(functions.len(), 3); // main, process_data, calculate_total
 
         // Find all structs
-        let structs = db.find_by_kind(SymbolKind::Struct, 100).unwrap();
+        let structs = db.find_by_kind(SymbolKind::Struct, 100).expect("test assertion");
         assert_eq!(structs.len(), 1); // User
     }
 
@@ -120,7 +120,7 @@ mod tests_inner {
         let db = setup_test_db();
 
         // Empty query should return some results
-        let result = db.find_symbols("", 10).unwrap();
+        let result = db.find_symbols("", 10).expect("test assertion");
         assert!(!result.symbols.is_empty());
     }
 
@@ -128,7 +128,7 @@ mod tests_inner {
     fn test_no_results() {
         let db = setup_test_db();
 
-        let result = db.find_symbols("nonexistent_symbol_xyz", 10).unwrap();
+        let result = db.find_symbols("nonexistent_symbol_xyz", 10).expect("test assertion");
         assert!(result.symbols.is_empty());
     }
 
@@ -136,7 +136,7 @@ mod tests_inner {
     fn test_limit() {
         let db = setup_test_db();
 
-        let result = db.find_symbols("", 2).unwrap();
+        let result = db.find_symbols("", 2).expect("test assertion");
         assert!(result.symbols.len() <= 2);
     }
 
@@ -146,7 +146,7 @@ mod tests_inner {
     fn test_query_result_metadata() {
         let db = setup_test_db();
 
-        let result = db.find_symbols("main", 10).unwrap();
+        let result = db.find_symbols("main", 10).expect("test assertion");
 
         assert!(result.total > 0);
         assert!(result.query_time_ms >= 0, "query time should be recorded");

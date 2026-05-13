@@ -397,14 +397,14 @@ mod tests {
     fn unique_test_path(prefix: &str, suffix: &str) -> PathBuf {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("system time should not be before UNIX epoch")
             .as_nanos();
         std::env::temp_dir().join(format!("{prefix}-{unique}-{suffix}"))
     }
 
     async fn test_state() -> (AppState, WorkspaceContext) {
         let db_path = unique_test_path("xavier-v1-test", "code_graph.db");
-        let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).unwrap());
+        let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).expect("failed to create CodeGraphDB for test"));
         let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
         let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
         let workspace_registry = Arc::new(WorkspaceRegistry::new());
@@ -425,9 +425,9 @@ mod tests {
             unique_test_path("xavier-v1-panel", "threads"),
         )
         .await
-        .unwrap();
-        workspace_registry.insert(workspace).await.unwrap();
-        let workspace = workspace_registry.authenticate("test-token").await.unwrap();
+        .expect("failed to create WorkspaceState for test");
+        workspace_registry.insert(workspace).await.expect("failed to insert workspace into registry");
+        let workspace = workspace_registry.authenticate("test-token").await.expect("failed to authenticate with test token");
 
         (
             AppState {
@@ -477,9 +477,9 @@ mod tests {
                 })
                 .to_string(),
             ))
-            .unwrap();
+            .expect("failed to build add memory request");
 
-        let resp = app.clone().oneshot(add_req).await.unwrap();
+        let resp = app.clone().oneshot(add_req).await.expect("failed to execute add memory request");
         assert_eq!(resp.status(), StatusCode::OK);
 
         // 2. List Memories
@@ -487,11 +487,11 @@ mod tests {
             .method("GET")
             .uri("/v1/memories?limit=10")
             .body(Body::empty())
-            .unwrap();
-        let resp = app.clone().oneshot(list_req).await.unwrap();
+            .expect("failed to build list memories request");
+        let resp = app.clone().oneshot(list_req).await.expect("failed to execute list memories request");
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        let list_resp: V1MemoryListResponse = serde_json::from_slice(&body).unwrap();
+        let body = to_bytes(resp.into_body(), usize::MAX).await.expect("failed to read list response body");
+        let list_resp: V1MemoryListResponse = serde_json::from_slice(&body).expect("failed to parse list response JSON");
         assert_eq!(list_resp.memories.len(), 1);
         let memory_id = list_resp.memories[0].id.clone();
 
@@ -500,8 +500,8 @@ mod tests {
             .method("GET")
             .uri(format!("/v1/memories/{}", memory_id))
             .body(Body::empty())
-            .unwrap();
-        let resp = app.clone().oneshot(get_req).await.unwrap();
+            .expect("failed to build get memory request");
+        let resp = app.clone().oneshot(get_req).await.expect("failed to execute get memory request");
         assert_eq!(resp.status(), StatusCode::OK);
 
         // 4. Update Memory
@@ -516,18 +516,18 @@ mod tests {
                 })
                 .to_string(),
             ))
-            .unwrap();
-        let resp = app.clone().oneshot(update_req).await.unwrap();
+            .expect("failed to build update memory request");
+        let resp = app.clone().oneshot(update_req).await.expect("failed to execute update memory request");
         assert_eq!(resp.status(), StatusCode::OK);
 
         let get_req = Request::builder()
             .method("GET")
             .uri(format!("/v1/memories/{}", memory_id))
             .body(Body::empty())
-            .unwrap();
-        let resp = app.clone().oneshot(get_req).await.unwrap();
-        let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            .expect("failed to build get (after update) memory request");
+        let resp = app.clone().oneshot(get_req).await.expect("failed to execute get (after update) memory request");
+        let body = to_bytes(resp.into_body(), usize::MAX).await.expect("failed to read get (after update) response body");
+        let payload: serde_json::Value = serde_json::from_slice(&body).expect("failed to parse get (after update) response JSON");
         assert_eq!(payload["memory"]["id"].as_str(), Some(memory_id.as_str()));
         assert_eq!(
             payload["memory"]["memory"].as_str(),
@@ -547,8 +547,8 @@ mod tests {
                 })
                 .to_string(),
             ))
-            .unwrap();
-        let resp = app.clone().oneshot(search_req).await.unwrap();
+            .expect("failed to build search memory request");
+        let resp = app.clone().oneshot(search_req).await.expect("failed to execute search memory request");
         assert_eq!(resp.status(), StatusCode::OK);
 
         // 6. Delete Memory
@@ -556,8 +556,8 @@ mod tests {
             .method("DELETE")
             .uri(format!("/v1/memories/{}", memory_id))
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(delete_req).await.unwrap();
+            .expect("failed to build delete memory request");
+        let resp = app.oneshot(delete_req).await.expect("failed to execute delete memory request");
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -579,8 +579,8 @@ mod tests {
                     })
                     .to_string(),
                 ))
-                .unwrap();
-            app.clone().oneshot(add_req).await.unwrap();
+                .expect("failed to build add (pagination) memory request");
+            app.clone().oneshot(add_req).await.expect("failed to execute add (pagination) memory request");
         }
 
         // Test pagination: limit=2, offset=1
@@ -588,11 +588,11 @@ mod tests {
             .method("GET")
             .uri("/v1/memories?limit=2&offset=1")
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(list_req).await.unwrap();
+            .expect("failed to build pagination list request");
+        let resp = app.oneshot(list_req).await.expect("failed to execute pagination list request");
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        let list_resp: V1MemoryListResponse = serde_json::from_slice(&body).unwrap();
+        let body = to_bytes(resp.into_body(), usize::MAX).await.expect("failed to read pagination response body");
+        let list_resp: V1MemoryListResponse = serde_json::from_slice(&body).expect("failed to parse pagination response JSON");
 
         assert_eq!(list_resp.memories.len(), 2);
         assert_eq!(list_resp.pagination.total, 5);
@@ -637,8 +637,8 @@ mod tests {
                 .uri("/v1/memories")
                 .header("content-type", "application/json")
                 .body(Body::from(payload.to_string()))
-                .unwrap();
-            let resp = app.clone().oneshot(add_req).await.unwrap();
+                .expect("failed to build add (typed) memory request");
+            let resp = app.clone().oneshot(add_req).await.expect("failed to execute add (typed) memory request");
             assert_eq!(resp.status(), StatusCode::OK);
         }
 
@@ -659,12 +659,12 @@ mod tests {
                 })
                 .to_string(),
             ))
-            .unwrap();
-        let resp = app.oneshot(search_req).await.unwrap();
+            .expect("failed to build search (typed) request");
+        let resp = app.oneshot(search_req).await.expect("failed to execute search (typed) request");
         assert_eq!(resp.status(), StatusCode::OK);
-        let body = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
-        let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        let results = payload["results"].as_array().unwrap();
+        let body = to_bytes(resp.into_body(), usize::MAX).await.expect("failed to read search (typed) response body");
+        let payload: serde_json::Value = serde_json::from_slice(&body).expect("failed to parse search (typed) response JSON");
+        let results = payload["results"].as_array().expect("search response 'results' should be an array");
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0]["user_id"], "belal");

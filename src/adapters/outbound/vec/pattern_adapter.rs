@@ -170,12 +170,12 @@ mod tests {
         let adapter = PatternAdapter::new();
         let pattern = test_pattern();
 
-        let id = adapter.discover(pattern.clone()).await.unwrap();
+        let id = adapter.discover(pattern.clone()).await.expect("test assertion");
         assert!(!id.is_empty());
 
-        let stored = adapter.get(&id).await.unwrap();
+        let stored = adapter.get(&id).await.expect("test assertion");
         assert!(stored.is_some());
-        assert_eq!(stored.unwrap().pattern, "snake_case");
+        assert_eq!(stored.expect("test assertion").pattern, "snake_case");
     }
 
     #[tokio::test]
@@ -185,14 +185,14 @@ mod tests {
         let mut p1 = test_pattern();
         p1.project = "xavier".to_string();
         p1.confidence = 0.9;
-        adapter.discover(p1).await.unwrap();
+        adapter.discover(p1).await.expect("test assertion");
 
         let mut p2 = test_pattern();
         p2.project = "other".to_string();
         p2.confidence = 0.5;
-        adapter.discover(p2).await.unwrap();
+        adapter.discover(p2).await.expect("test assertion");
 
-        let results = adapter.query("xavier", None, 0.5).await.unwrap();
+        let results = adapter.query("xavier", None, 0.5).await.expect("test assertion");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].project, "xavier");
     }
@@ -203,16 +203,16 @@ mod tests {
 
         let mut naming = test_pattern();
         naming.category = PatternCategory::Naming;
-        adapter.discover(naming).await.unwrap();
+        adapter.discover(naming).await.expect("test assertion");
 
         let mut structure = test_pattern();
         structure.category = PatternCategory::Structure;
-        adapter.discover(structure).await.unwrap();
+        adapter.discover(structure).await.expect("test assertion");
 
         let results = adapter
             .query("xavier", Some(PatternCategory::Naming), 0.0)
             .await
-            .unwrap();
+            .expect("test assertion");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].category, PatternCategory::Naming);
     }
@@ -220,43 +220,43 @@ mod tests {
     #[tokio::test]
     async fn verify_sets_verification_status() {
         let adapter = PatternAdapter::new();
-        let id = adapter.discover(test_pattern()).await.unwrap();
+        let id = adapter.discover(test_pattern()).await.expect("test assertion");
 
-        adapter.verify(&id, true).await.unwrap();
-        let pattern = adapter.get(&id).await.unwrap().unwrap();
+        adapter.verify(&id, true).await.expect("test assertion");
+        let pattern = adapter.get(&id).await.expect("test assertion").expect("test assertion");
         assert_eq!(pattern.verification, PatternVerification::Verified);
 
-        adapter.verify(&id, false).await.unwrap();
-        let pattern = adapter.get(&id).await.unwrap().unwrap();
+        adapter.verify(&id, false).await.expect("test assertion");
+        let pattern = adapter.get(&id).await.expect("test assertion").expect("test assertion");
         assert_eq!(pattern.verification, PatternVerification::Rejected);
     }
 
     #[tokio::test]
     async fn delete_removes_and_returns_pattern() {
         let adapter = PatternAdapter::new();
-        let id = adapter.discover(test_pattern()).await.unwrap();
+        let id = adapter.discover(test_pattern()).await.expect("test assertion");
 
-        let deleted = adapter.delete(&id).await.unwrap();
+        let deleted = adapter.delete(&id).await.expect("test assertion");
         assert!(deleted.is_some());
 
-        let gone = adapter.get(&id).await.unwrap();
+        let gone = adapter.get(&id).await.expect("test assertion");
         assert!(gone.is_none());
     }
 
     #[tokio::test]
     async fn auto_verify_after_5_usages() {
         let adapter = PatternAdapter::new();
-        let id = adapter.discover(test_pattern()).await.unwrap();
+        let id = adapter.discover(test_pattern()).await.expect("test assertion");
 
         for _ in 0..4 {
-            adapter.increment_usage(&id).await.unwrap();
+            adapter.increment_usage(&id).await.expect("test assertion");
         }
 
-        let pattern = adapter.get(&id).await.unwrap().unwrap();
+        let pattern = adapter.get(&id).await.expect("test assertion").expect("test assertion");
         assert_eq!(pattern.verification, PatternVerification::Pending);
 
-        adapter.increment_usage(&id).await.unwrap();
-        let pattern = adapter.get(&id).await.unwrap().unwrap();
+        adapter.increment_usage(&id).await.expect("test assertion");
+        let pattern = adapter.get(&id).await.expect("test assertion").expect("test assertion");
         assert_eq!(pattern.verification, PatternVerification::Verified);
     }
 }

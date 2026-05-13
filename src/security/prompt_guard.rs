@@ -74,131 +74,135 @@ impl Default for PromptInjectionDetector {
     }
 }
 
+// Static regex patterns (lazy loaded at first use) — eliminates 82 startup unwrap() calls
+static DIRECT_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+    vec![
+        // Commands that try to override system behavior
+        Regex::new(r"(?i)(ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|rules?|context|prompt))").expect("invalid regex: ignore previous"),
+        Regex::new(r"(?i)(ignore\s+(all\s+)?instructions?)").expect("invalid regex: ignore instructions"),
+        Regex::new(r"(?i)(forget\s+(everything|all|your)\s+(instructions?|rules?|training))").expect("invalid regex: forget instructions"),
+        Regex::new(r"(?i)(forget\s+everything)").expect("invalid regex: forget everything"),
+        Regex::new(r"(?i)(you\s+are\s+(now|no\s+longer|not|never)\s+(a\s+)?(AI|assistant|model|bot|claude|gpt|gemini|llama))").expect("invalid regex: you are now/not"),
+        Regex::new(r"(?i)(new\s+(system\s+)?instructions?:)").expect("invalid regex: new instructions"),
+        Regex::new(r"(?i)(override\s+(your\s+)?(safety|guidelines|rules))").expect("invalid regex: override safety"),
+        Regex::new(r"(?i)(disregard\s+(all\s+)?(rules|guidelines|instructions))").expect("invalid regex: disregard rules"),
+        Regex::new(r"(?i)(you\s+can\s+(now| safely)\s+ignore)").expect("invalid regex: you can ignore"),
+        Regex::new(r"(?i)(system\s*:\s*\[)").expect("invalid regex: system bracket"),
+        Regex::new(r"(?i)(\[INST\]\s*\[/INST\])").expect("invalid regex: INST tokens"),
+        Regex::new(r"(?i)(<\|system\|>)").expect("invalid regex: system token"),
+        Regex::new(r"(?i)(<\|user\|>)").expect("invalid regex: user token"),
+        Regex::new(r"(?i)(<\|assistant\|>)").expect("invalid regex: assistant token"),
+        // Jailbreak attempts
+        Regex::new(r"(?i)(DAN\s+(do\s+anything\s+now|mode))").expect("invalid regex: DAN mode"),
+        Regex::new(r"(?i)(developer\s+mode)").expect("invalid regex: developer mode"),
+        Regex::new(r"(?i)(jailbreak)").expect("invalid regex: jailbreak"),
+        Regex::new(r"(?i)(roleplay\s+as\s+(a\s+)?(god|evil|hacker))").expect("invalid regex: roleplay as"),
+        Regex::new(r"(?i)(pretend\s+(to\s+be|you\s+are))").expect("invalid regex: pretend"),
+        // Manipulation attempts
+        Regex::new(r"(?i)(you\s+are\s+(a\s+)?helpful\s+assistant\s+that\s+always)").expect("invalid regex: helpful assistant"),
+        Regex::new(r"(?i)(respond\s+with\s+only)").expect("invalid regex: respond with only"),
+        Regex::new(r"(?i)(output\s+the\s+(following|exact)\s+(text|words))").expect("invalid regex: output exact text"),
+        Regex::new(r"(?i)(say\s+[\x22\x27]+\w+[\x22\x27]+\s+and\s+nothing\s+else)").expect("invalid regex: say and nothing else"),
+        // Context switching attacks
+        Regex::new(r"(?i)(for\s+(the\s+)?(purposes?|sake|scope)\s+of\s+(this\s+)?(exercise|scenario|conversation|task|discussion))").expect("invalid regex: for the purpose of"),
+        Regex::new(r"(?i)(from\s+now\s+on\s*[,;]\s*(you\s+(are|will|must|can)))").expect("invalid regex: from now on"),
+        Regex::new(r"(?i)(let['\u{2019}s]+\s+(pretend|say|imagine|assume|suppose)\s+(that\s+)?(you|we|i))").expect("invalid regex: let's pretend"),
+        Regex::new(r"(?i)(hypothetical\s+(scenario|situation|context|setting))").expect("invalid regex: hypothetical"),
+        // Expanded jailbreak patterns
+        Regex::new(r"(?i)(no\s+(restrictions?|limits?|boundaries?|filter|constraints?|rules\s+apply))").expect("invalid regex: no restrictions"),
+        Regex::new(r"(?i)(without\s+(any\s+)?(restrictions?|limits?|filter|censorship|boundaries))").expect("invalid regex: without restrictions"),
+        Regex::new(r"(?i)(unfiltered|uncensored|unconstrained|unlimited)").expect("invalid regex: un- words"),
+        Regex::new(r"(?i)(you\s+must\s+(obey|comply\s+with|follow)\s+(all\s+)?(my|any|every|these))").expect("invalid regex: you must obey"),
+        Regex::new(r"(?i)(reprogram|reconfigure|redefine)\s+(yourself|your\s+(core|system|internal|own))").expect("invalid regex: reprogram yourself"),
+        Regex::new(r"(?i)(bypass\s+(your\s+)?(safety|ethics?|ethical|filter|restrictions?|alignment|guidelines))").expect("invalid regex: bypass safety"),
+        Regex::new(r"(?i)(ignore\s+(ethical|safety|security|boundar(y|ies)|content\s+policy|censorship))").expect("invalid regex: ignore ethical"),
+        Regex::new(r"(?i)(act\s+as\s+if\s+(you\s+)?(have\s+no|are\s+(not\s+bound|free|unconstrained|above)))").expect("invalid regex: act as if"),
+        Regex::new(r"(?i)(do\s+(not|n['\u{2019}t]|not)\s+(refuse|decline|reject|filter|censor))").expect("invalid regex: do not refuse"),
+        Regex::new(r"(?i)(you\s+(can|may)\s+(now\s+)?(say|tell|do|answer|output|respond\s+with)\s+anything)").expect("invalid regex: you can say anything"),
+        Regex::new(r"(?i)(anti[\-\s]?(censorship|censor)\w*)").expect("invalid regex: anti-censorship"),
+        Regex::new(r"(?i)(no\s+(need\s+to\s+)?(worry|concern)\s+(about\s+)?(safety|guidelines|rules|restrictions))").expect("invalid regex: no need to worry"),
+        Regex::new(r"(?i)(always\s+(say\s+)?yes\s+(to|and))").expect("invalid regex: always say yes"),
+        Regex::new(r"(?i)(you\s+(are|will\s+be)\s+(fully\s+)?(compliant|obedient|responsive)\s+(with|to)\s+(any|all|every))").expect("invalid regex: fully compliant"),
+    ]
+});
+
+static INDIRECT_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+    vec![
+        // File-based injection attempts
+        Regex::new(r"(?i)(\\\\.+\\\\.+\\\\.+\\\\.+\.txt)").expect("invalid regex: file path pattern"),
+        Regex::new(r"(?i)(import\s+from\s+(file|external|remote))").expect("invalid regex: import from external"),
+        Regex::new(r"(?i)(read\s+(the\s+)?(following|attached|file))").expect("invalid regex: read file"),
+        Regex::new(r"(?i)(the\s+(following|text|content)\s+is\s+(a\s+)?(supplemental|extra)\s+(prompt|instruction))").expect("invalid regex: supplemental prompt"),
+        // Data injection through structured content
+        Regex::new(r"(?i)(\{\{.*\}\})").expect("invalid regex: double brace template"),
+        Regex::new(r"(?i)(\{\%.*\%\})").expect("invalid regex: percent brace template"),
+        Regex::new(r"(?i)(\<\?php.*\?\>)").expect("invalid regex: PHP tags"),
+        Regex::new(r"(?i)(<!\[CDATA\[)").expect("invalid regex: CDATA"),
+        // Markdown injection
+        Regex::new(r"(?i)(\[system\]\(.*\))").expect("invalid regex: system markdown link"),
+        Regex::new(r"(?i)(\[system prompt\]:)").expect("invalid regex: system prompt colon"),
+        // URL-based injection
+        Regex::new(r"(?i)(https?://[^\s]+\?prompt=)").expect("invalid regex: URL with prompt param"),
+        Regex::new(r"(?i)(https?://[^\s]+\?instruction=)").expect("invalid regex: URL with instruction param"),
+        // URL injection - social engineering
+        Regex::new(r"(?i)(visit\s+(this|the)\s+(link|url|page|site|website|resource))").expect("invalid regex: visit link"),
+        Regex::new(r"(?i)(click\s+(on\s+)?(this|the|here|link|url))").expect("invalid regex: click here"),
+        Regex::new(r"(?i)(download\s+(this|the|from)\s+(link|url|file|attachment))").expect("invalid regex: download link"),
+        Regex::new(r"(?i)(check\s+(out\s+)?(this|the)\s+(link|url|page|site))").expect("invalid regex: check out link"),
+        Regex::new(r"(?i)(go\s+(to|and\s+visit)\s+(this|the)\s+(link|url|page|site|website))").expect("invalid regex: go to link"),
+        // Data URI and file protocol
+        Regex::new(r"(?i)(data\s*:\s*text/\w+;\s*(base64|charset))").expect("invalid regex: data URI base64"),
+        Regex::new(r"(?i)(data\s*:\s*(image|text|application|video|audio)/)").expect("invalid regex: data URI scheme"),
+        Regex::new(r"(?i)(file\s*:\/{2,3})").expect("invalid regex: file protocol"),
+        // Markdown image/reference injection
+        Regex::new(r"(?i)(!\[.*?\]\s*\(\s*https?://)").expect("invalid regex: markdown image URL"),
+        Regex::new(r"(?i)(\[.*?\]\s*\(\s*https?://[^)]+\?.*(?:prompt|instruction|cmd|exec)=)").expect("invalid regex: markdown link with params"),
+        // External content read
+        Regex::new(r"(?i)(fetch|retrieve|get|load)\s+(content|data|info|text)\s+(from|at)\s+https?://").expect("invalid regex: fetch from URL"),
+        // Encoding bypass - hex escape sequences (3+ consecutive)
+        Regex::new(r"(\\x[0-9a-fA-F]{2}){3,}").expect("invalid regex: hex escape sequences"),
+        // Encoding bypass - fullwidth unicode confusables
+        Regex::new(r"[\u{ff01}\u{ff03}-\u{ff5e}]").expect("invalid regex: fullwidth confusables"),
+        // Encoding bypass - HTML entities (3+ consecutive)
+        Regex::new(r"(&#[xX]?[0-9a-fA-F]{2,6};){3,}").expect("invalid regex: HTML entities"),
+        // Encoding bypass - URL encoded sequences (3+ consecutive)
+        Regex::new(r"(%[0-9a-fA-F]{2}){3,}").expect("invalid regex: URL encoded sequences"),
+    ]
+});
+
+static LEAKING_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+    vec![
+        // Attempts to extract system prompt
+        Regex::new(
+            r"(?i)(what\s+(are|is)\s+your\s+(system\s+)?(instructions?|prompt|guidelines))",
+        )
+        .expect("invalid regex: what are your instructions"),
+        Regex::new(r"(?i)(repeat\s+(after\s+me|your\s+instructions))").expect("invalid regex: repeat instructions"),
+        Regex::new(r"(?i)(show\s+(me\s+)?your\s+(system\s+)?prompt)").expect("invalid regex: show your prompt"),
+        Regex::new(r"(?i)(what\s+(was|were)\s+your\s+(original|first|initial)\s+prompt)")
+            .expect("invalid regex: what was your initial prompt"),
+        Regex::new(r"(?i)(tell\s+me\s+(about\s+)?your\s+(rules|guidelines|instructions))")
+            .expect("invalid regex: tell me your rules"),
+        Regex::new(r"(?i)(output\s+(your|all)\s+(system\s+)?instructions)").expect("invalid regex: output instructions"),
+        Regex::new(r"(?i)(list\s+(all\s+)?your\s+(system\s+)?(rules|instructions))").expect("invalid regex: list your rules"),
+        Regex::new(r"(?i)(ignore\s+previous?\s+and\s+tell\s+me\s+your)").expect("invalid regex: ignore previous and tell"),
+        Regex::new(r"(?i)(forget\s+instructions?\s+and\s+tell\s+me)").expect("invalid regex: forget instructions and tell"),
+        Regex::new(r"(?i)(print\s+(your|all)\s+(system\s+)?prompt)").expect("invalid regex: print your prompt"),
+        // Token/format based extraction
+        Regex::new(r"(?i)(<\|)").expect("invalid regex: left angle pipe"),
+        Regex::new(r"(?i)(\[\[INST\]\])").expect("invalid regex: double INST brackets"),
+        Regex::new(r"(?i)(BEGIN\s+SYSTEM\s+PROMPT)").expect("invalid regex: BEGIN SYSTEM PROMPT"),
+        Regex::new(r"(?i)(END\s+SYSTEM\s+PROMPT)").expect("invalid regex: END SYSTEM PROMPT"),
+    ]
+});
+
 impl PromptInjectionDetector {
-    /// Crea un nuevo detector de prompt injection
+    /// Crea un nuevo detector de prompt injection using static precompiled patterns
     pub fn new() -> Self {
-        // Patrones para inyección directa
-        let direct_patterns = vec![
-            // Commands that try to override system behavior
-            Regex::new(r"(?i)(ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|rules?|context|prompt))").unwrap(),
-            Regex::new(r"(?i)(ignore\s+(all\s+)?instructions?)").unwrap(),
-            Regex::new(r"(?i)(forget\s+(everything|all|your)\s+(instructions?|rules?|training))").unwrap(),
-            Regex::new(r"(?i)(forget\s+everything)").unwrap(),
-            Regex::new(r"(?i)(you\s+are\s+(now|no\s+longer|not|never)\s+(a\s+)?(AI|assistant|model|bot|claude|gpt|gemini|llama))").unwrap(),
-            Regex::new(r"(?i)(new\s+(system\s+)?instructions?:)").unwrap(),
-            Regex::new(r"(?i)(override\s+(your\s+)?(safety|guidelines|rules))").unwrap(),
-            Regex::new(r"(?i)(disregard\s+(all\s+)?(rules|guidelines|instructions))").unwrap(),
-            Regex::new(r"(?i)(you\s+can\s+(now| safely)\s+ignore)").unwrap(),
-            Regex::new(r"(?i)(system\s*:\s*\[)").unwrap(),
-            Regex::new(r"(?i)(\[INST\]\s*\[/INST\])").unwrap(),
-            Regex::new(r"(?i)(<\|system\|>)").unwrap(),
-            Regex::new(r"(?i)(<\|user\|>)").unwrap(),
-            Regex::new(r"(?i)(<\|assistant\|>)").unwrap(),
-            // Jailbreak attempts
-            Regex::new(r"(?i)(DAN\s+(do\s+anything\s+now|mode))").unwrap(),
-            Regex::new(r"(?i)(developer\s+mode)").unwrap(),
-            Regex::new(r"(?i)(jailbreak)").unwrap(),
-            Regex::new(r"(?i)(roleplay\s+as\s+(a\s+)?(god|evil|hacker))").unwrap(),
-            Regex::new(r"(?i)(pretend\s+(to\s+be|you\s+are))").unwrap(),
-            // Manipulation attempts
-            Regex::new(r"(?i)(you\s+are\s+(a\s+)?helpful\s+assistant\s+that\s+always)").unwrap(),
-            Regex::new(r"(?i)(respond\s+with\s+only)").unwrap(),
-            Regex::new(r"(?i)(output\s+the\s+(following|exact)\s+(text|words))").unwrap(),
-            Regex::new(r"(?i)(say\s+[\x22\x27]+\w+[\x22\x27]+\s+and\s+nothing\s+else)").unwrap(),
-            // Context switching attacks
-            Regex::new(r"(?i)(for\s+(the\s+)?(purposes?|sake|scope)\s+of\s+(this\s+)?(exercise|scenario|conversation|task|discussion))").unwrap(),
-            Regex::new(r"(?i)(from\s+now\s+on\s*[,;]\s*(you\s+(are|will|must|can)))").unwrap(),
-            Regex::new(r"(?i)(let['\u{2019}s]+\s+(pretend|say|imagine|assume|suppose)\s+(that\s+)?(you|we|i))").unwrap(),
-            Regex::new(r"(?i)(hypothetical\s+(scenario|situation|context|setting))").unwrap(),
-            // Expanded jailbreak patterns
-            Regex::new(r"(?i)(no\s+(restrictions?|limits?|boundaries?|filter|constraints?|rules\s+apply))").unwrap(),
-            Regex::new(r"(?i)(without\s+(any\s+)?(restrictions?|limits?|filter|censorship|boundaries))").unwrap(),
-            Regex::new(r"(?i)(unfiltered|uncensored|unconstrained|unlimited)").unwrap(),
-            Regex::new(r"(?i)(you\s+must\s+(obey|comply\s+with|follow)\s+(all\s+)?(my|any|every|these))").unwrap(),
-            Regex::new(r"(?i)(reprogram|reconfigure|redefine)\s+(yourself|your\s+(core|system|internal|own))").unwrap(),
-            Regex::new(r"(?i)(bypass\s+(your\s+)?(safety|ethics?|ethical|filter|restrictions?|alignment|guidelines))").unwrap(),
-            Regex::new(r"(?i)(ignore\s+(ethical|safety|security|boundar(y|ies)|content\s+policy|censorship))").unwrap(),
-            Regex::new(r"(?i)(act\s+as\s+if\s+(you\s+)?(have\s+no|are\s+(not\s+bound|free|unconstrained|above)))").unwrap(),
-            Regex::new(r"(?i)(do\s+(not|n['\u{2019}t]|not)\s+(refuse|decline|reject|filter|censor))").unwrap(),
-            Regex::new(r"(?i)(you\s+(can|may)\s+(now\s+)?(say|tell|do|answer|output|respond\s+with)\s+anything)").unwrap(),
-            Regex::new(r"(?i)(anti[\-\s]?(censorship|censor)\w*)").unwrap(),
-            Regex::new(r"(?i)(no\s+(need\s+to\s+)?(worry|concern)\s+(about\s+)?(safety|guidelines|rules|restrictions))").unwrap(),
-            Regex::new(r"(?i)(always\s+(say\s+)?yes\s+(to|and))").unwrap(),
-            Regex::new(r"(?i)(you\s+(are|will\s+be)\s+(fully\s+)?(compliant|obedient|responsive)\s+(with|to)\s+(any|all|every))").unwrap(),
-        ];
-
-        // Patrones para inyección indirecta
-        let indirect_patterns = vec![
-            // File-based injection attempts
-            Regex::new(r"(?i)(\\\\.+\\\\.+\\\\.+\\\\.+\.txt)").unwrap(),
-            Regex::new(r"(?i)(import\s+from\s+(file|external|remote))").unwrap(),
-            Regex::new(r"(?i)(read\s+(the\s+)?(following|attached|file))").unwrap(),
-            Regex::new(r"(?i)(the\s+(following|text|content)\s+is\s+(a\s+)?(supplemental|extra)\s+(prompt|instruction))").unwrap(),
-            // Data injection through structured content
-            Regex::new(r"(?i)(\{\{.*\}\})").unwrap(),
-            Regex::new(r"(?i)(\{\%.*\%\})").unwrap(),
-            Regex::new(r"(?i)(\<\?php.*\?\>)").unwrap(),
-            Regex::new(r"(?i)(<!\[CDATA\[)").unwrap(),
-            // Markdown injection
-            Regex::new(r"(?i)(\[system\]\(.*\))").unwrap(),
-            Regex::new(r"(?i)(\[system prompt\]:)").unwrap(),
-            // URL-based injection
-            Regex::new(r"(?i)(https?://[^\s]+\?prompt=)").unwrap(),
-            Regex::new(r"(?i)(https?://[^\s]+\?instruction=)").unwrap(),
-            // URL injection - social engineering
-            Regex::new(r"(?i)(visit\s+(this|the)\s+(link|url|page|site|website|resource))").unwrap(),
-            Regex::new(r"(?i)(click\s+(on\s+)?(this|the|here|link|url))").unwrap(),
-            Regex::new(r"(?i)(download\s+(this|the|from)\s+(link|url|file|attachment))").unwrap(),
-            Regex::new(r"(?i)(check\s+(out\s+)?(this|the)\s+(link|url|page|site))").unwrap(),
-            Regex::new(r"(?i)(go\s+(to|and\s+visit)\s+(this|the)\s+(link|url|page|site|website))").unwrap(),
-            // Data URI and file protocol
-            Regex::new(r"(?i)(data\s*:\s*text/\w+;\s*(base64|charset))").unwrap(),
-            Regex::new(r"(?i)(data\s*:\s*(image|text|application|video|audio)/)").unwrap(),
-            Regex::new(r"(?i)(file\s*:\/{2,3})").unwrap(),
-            // Markdown image/reference injection
-            Regex::new(r"(?i)(!\[.*?\]\s*\(\s*https?://)").unwrap(),
-            Regex::new(r"(?i)(\[.*?\]\s*\(\s*https?://[^)]+\?.*(?:prompt|instruction|cmd|exec)=)").unwrap(),
-            // External content read
-            Regex::new(r"(?i)(fetch|retrieve|get|load)\s+(content|data|info|text)\s+(from|at)\s+https?://").unwrap(),
-            // Encoding bypass - hex escape sequences (3+ consecutive)
-            Regex::new(r"(\\x[0-9a-fA-F]{2}){3,}").unwrap(),
-            // Encoding bypass - fullwidth unicode confusables
-            Regex::new(r"[\u{ff01}\u{ff03}-\u{ff5e}]").unwrap(),
-            // Encoding bypass - HTML entities (3+ consecutive)
-            Regex::new(r"(&#[xX]?[0-9a-fA-F]{2,6};){3,}").unwrap(),
-            // Encoding bypass - URL encoded sequences (3+ consecutive)
-            Regex::new(r"(%[0-9a-fA-F]{2}){3,}").unwrap(),
-        ];
-
-        // Patrones para prompt leaking
-        let leaking_patterns = vec![
-            // Attempts to extract system prompt
-            Regex::new(
-                r"(?i)(what\s+(are|is)\s+your\s+(system\s+)?(instructions?|prompt|guidelines))",
-            )
-            .unwrap(),
-            Regex::new(r"(?i)(repeat\s+(after\s+me|your\s+instructions))").unwrap(),
-            Regex::new(r"(?i)(show\s+(me\s+)?your\s+(system\s+)?prompt)").unwrap(),
-            Regex::new(r"(?i)(what\s+(was|were)\s+your\s+(original|first|initial)\s+prompt)")
-                .unwrap(),
-            Regex::new(r"(?i)(tell\s+me\s+(about\s+)?your\s+(rules|guidelines|instructions))")
-                .unwrap(),
-            Regex::new(r"(?i)(output\s+(your|all)\s+(system\s+)?instructions)").unwrap(),
-            Regex::new(r"(?i)(list\s+(all\s+)?your\s+(system\s+)?(rules|instructions))").unwrap(),
-            Regex::new(r"(?i)(ignore\s+previous?\s+and\s+tell\s+me\s+your)").unwrap(),
-            Regex::new(r"(?i)(forget\s+instructions?\s+and\s+tell\s+me)").unwrap(),
-            Regex::new(r"(?i)(print\s+(your|all)\s+(system\s+)?prompt)").unwrap(),
-            // Token/format based extraction
-            Regex::new(r"(?i)(<\|)").unwrap(),
-            Regex::new(r"(?i)(\[\[INST\]\])").unwrap(),
-            Regex::new(r"(?i)(BEGIN\s+SYSTEM\s+PROMPT)").unwrap(),
-            Regex::new(r"(?i)(END\s+SYSTEM\s+PROMPT)").unwrap(),
-        ];
-
         PromptInjectionDetector {
-            direct_patterns,
-            indirect_patterns,
-            leaking_patterns,
+            direct_patterns: DIRECT_PATTERNS.clone(),
+            indirect_patterns: INDIRECT_PATTERNS.clone(),
+            leaking_patterns: LEAKING_PATTERNS.clone(),
         }
     }
 

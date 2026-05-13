@@ -3,6 +3,7 @@
 //! Detects high-entropy strings that may indicate secrets or tokens.
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 /// Minimum entropy threshold for suspicious strings
 pub const DEFAULT_ENTROPY_THRESHOLD: f64 = 4.5;
@@ -96,13 +97,53 @@ pub struct SecretMatch {
     pub confidence: f32,
 }
 
+/// Compiled regex patterns for secret detection
+static DEFAULT_PATTERNS: LazyLock<Vec<(String, regex::Regex)>> = LazyLock::new(|| {
+    vec![
+        (
+            "GitHub Token".to_string(),
+            regex::Regex::new(r"gh[pousr]_[A-Za-z0-9_]{36,}")
+                .expect("invalid regex: GitHub Token"),
+        ),
+        (
+            "AWS Key".to_string(),
+            regex::Regex::new(r"(?i)AKIA[0-9A-Z]{16}")
+                .expect("invalid regex: AWS Key"),
+        ),
+        (
+            "Generic API Key".to_string(),
+            regex::Regex::new(
+                r#"(?i)(api[_-]?key|apikey)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#,
+            )
+            .expect("invalid regex: Generic API Key"),
+        ),
+        (
+            "Generic Secret".to_string(),
+            regex::Regex::new(
+                r#"(?i)(secret|password|token|auth)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#,
+            )
+            .expect("invalid regex: Generic Secret"),
+        ),
+        (
+            "JWT".to_string(),
+            regex::Regex::new(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
+                .expect("invalid regex: JWT"),
+        ),
+        (
+            "Slack Token".to_string(),
+            regex::Regex::new(r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*")
+                .expect("invalid regex: Slack Token"),
+        ),
+    ]
+});
+
 pub struct SecretDetector;
 
 impl SecretDetector {
     /// Warm up the secret detector (no-op for regex-based detection)
     pub fn warm_up() {
         // Pre-compile regex patterns on first use
-        let _ = Self::default_patterns();
+        let _ = &*DEFAULT_PATTERNS;
     }
 
     /// Extract secrets from input text
@@ -126,38 +167,7 @@ impl SecretDetector {
     }
 
     fn default_patterns() -> Vec<(String, regex::Regex)> {
-        vec![
-            (
-                "GitHub Token".to_string(),
-                regex::Regex::new(r"gh[pousr]_[A-Za-z0-9_]{36,}").unwrap(),
-            ),
-            (
-                "AWS Key".to_string(),
-                regex::Regex::new(r"(?i)AKIA[0-9A-Z]{16}").unwrap(),
-            ),
-            (
-                "Generic API Key".to_string(),
-                regex::Regex::new(
-                    r#"(?i)(api[_-]?key|apikey)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#,
-                )
-                .unwrap(),
-            ),
-            (
-                "Generic Secret".to_string(),
-                regex::Regex::new(
-                    r#"(?i)(secret|password|token|auth)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#,
-                )
-                .unwrap(),
-            ),
-            (
-                "JWT".to_string(),
-                regex::Regex::new(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+").unwrap(),
-            ),
-            (
-                "Slack Token".to_string(),
-                regex::Regex::new(r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*").unwrap(),
-            ),
-        ]
+        DEFAULT_PATTERNS.clone()
     }
 }
 

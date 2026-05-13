@@ -487,9 +487,9 @@ mod tests {
 
     #[tokio::test]
     async fn imports_openclaw_markdown_files() {
-        let temp = tempdir().unwrap();
+        let temp = tempdir().expect("test assertion");
         let file = temp.path().join("memory").join("decision.md");
-        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(file.parent().expect("test assertion")).expect("test assertion");
         std::fs::write(
             &file,
             r#"---
@@ -501,16 +501,16 @@ projects: ["xavier"]
 Use token auth for local workflows.
 "#,
         )
-        .unwrap();
+        .expect("test assertion");
 
         let memory = QmdMemory::new_with_workspace(Arc::new(RwLock::new(Vec::new())), "ws-1");
         let stats =
             import_openclaw_markdown_dir(&memory, temp.path(), BridgeImportOptions::default())
                 .await
-                .unwrap();
+                .expect("test assertion");
 
         assert_eq!(stats.imported, 1);
-        let docs = memory.search("token auth", 5).await.unwrap();
+        let docs = memory.search("token auth", 5).await.expect("test assertion");
         assert_eq!(docs[0].metadata["kind"], "decision");
         assert_eq!(docs[0].metadata["provenance"]["source_app"], "openclaw");
     }
@@ -546,7 +546,7 @@ Use token auth for local workflows.
 
         let stats = import_engram_export(&memory, &export, BridgeImportOptions::default())
             .await
-            .unwrap();
+            .expect("test assertion");
 
         assert_eq!(stats.imported, 3);
         let docs = memory
@@ -560,7 +560,7 @@ Use token auth for local workflows.
                 }),
             )
             .await
-            .unwrap();
+            .expect("test assertion");
         assert!(!docs.is_empty());
     }
 }

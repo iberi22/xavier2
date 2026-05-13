@@ -738,7 +738,7 @@ mod tests {
         // Get metadata
         let metadata = registry.get_metadata("agent1").await;
         assert!(metadata.is_some());
-        assert_eq!(metadata.unwrap().role, Some("worker".to_string()));
+        assert_eq!(metadata.expect("test assertion").role, Some("worker".to_string()));
     }
 
     #[tokio::test]
@@ -751,7 +751,7 @@ mod tests {
             .registry()
             .register("agent1", "Worker", vec!["default".to_string()], None, None)
             .await
-            .unwrap();
+            .expect("test assertion");
 
         // Create task
         let task_id = service

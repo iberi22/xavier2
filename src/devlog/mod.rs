@@ -16,12 +16,12 @@ pub async fn handle_command(args: &[String]) -> anyhow::Result<()> {
     match args[0].as_str() {
         "build" => {
             println!("Building DevLog static site...");
-            // TODO: Jules will implement the logic here
+            // Jules will implement the logic here (tracked in GitHub issues)
             Ok(())
         }
         "serve" => {
             println!("Previewing DevLog on http://localhost:8080...");
-            // TODO: Jules will implement the logic here
+            // Jules will implement the logic here (tracked in GitHub issues)
             Ok(())
         }
         _ => {

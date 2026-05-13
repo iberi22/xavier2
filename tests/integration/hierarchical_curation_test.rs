@@ -43,12 +43,12 @@ async fn test_hierarchical_curation_and_retrieval() {
         .expect("Failed to ingest document");
 
     // 2. Manually "curate" it since we might not have a live LLM in the test environment
-    if let Some(mut doc) = workspace.memory.get(&doc_id).await.unwrap() {
+    if let Some(mut doc) = workspace.memory.get(&doc_id).await.expect("test assertion") {
         if let Some(meta) = doc.metadata.as_object_mut() {
             meta.insert("domain".to_string(), json!("Technology"));
             meta.insert("topic".to_string(), json!("Rust Programming"));
         }
-        workspace.memory.update(doc).await.unwrap();
+        workspace.memory.update(doc).await.expect("test assertion");
     }
 
     // 3. Add a related document in the same domain/topic
@@ -57,7 +57,7 @@ async fn test_hierarchical_curation_and_retrieval() {
         "Ownership is Rust's most unique feature, and it enables memory safety without a garbage collector.".to_string(),
         json!({"domain": "Technology", "topic": "Rust Programming"}),
         false
-    ).await.unwrap();
+    ).await.expect("test assertion");
 
     // 4. Test Retrieval Expansion
     // When we search for "Rust intro", it should find "rust/intro"
@@ -102,7 +102,7 @@ async fn test_hierarchical_curation_and_retrieval() {
         .runtime
         .run_with_trace("What does Rust provide?", None, None)
         .await
-        .unwrap();
+        .expect("test assertion");
     let graph_context = results_with_graph
         .retrieval
         .documents
@@ -114,7 +114,7 @@ async fn test_hierarchical_curation_and_retrieval() {
         "Should include belief graph context"
     );
     assert!(graph_context
-        .unwrap()
+        .expect("test assertion")
         .content
         .contains("FACT: Rust provides Memory Safety"));
 }

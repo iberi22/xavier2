@@ -96,7 +96,7 @@ mod tests {
 
     fn doc(id: &str, content: &str, seconds: i64) -> ContextDocument {
         ContextDocument::new(id, "session-1", "user", content)
-            .with_created_at(Utc.timestamp_opt(seconds, 0).unwrap())
+            .with_created_at(Utc.timestamp_opt(seconds, 0).single().expect("test assertion"))
     }
 
     #[test]
@@ -121,7 +121,7 @@ mod tests {
         indexer.index_document(doc("1", "original content", 1));
         indexer.index_document(doc("1", "updated content", 2));
         assert_eq!(indexer.len(), 1);
-        assert_eq!(indexer.get("1").unwrap().content, "updated content");
+        assert_eq!(indexer.get("1").expect("test assertion").content, "updated content");
     }
 
     #[test]

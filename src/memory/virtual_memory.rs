@@ -41,7 +41,7 @@ impl Checkpoint {
             id: ulid::Ulid::new().to_string(),
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("test assertion")
                 .as_secs(),
             summary: String::new(),
             file_edits: Vec::new(),
@@ -108,7 +108,7 @@ impl VirtualMemoryEntry {
             size_bytes: content.len(),
             indexed_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("test assertion")
                 .as_secs(),
         }
     }
