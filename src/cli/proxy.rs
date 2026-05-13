@@ -25,7 +25,7 @@ pub async fn chat_proxy(
 ) -> Response {
     // 1. Resolve Provider based on Rate Limits
     // Order of priority as per AGENTS.md
-    let providers = ["opencode-go", "deepseek", "groq", "openai", "anthropic"];
+    let providers = ["opencode-go", "deepseek", "groq", "openrouter", "google", "openai", "anthropic"];
     let mut selected_provider = None;
 
     for provider in providers {
@@ -174,7 +174,7 @@ pub async fn chat_batch_proxy(
     let mut provider_assignments: HashMap<String, Vec<(usize, ProxyChatRequest)>> = HashMap::new();
 
     // 1. Resolve Providers for all requests
-    let providers_list = ["opencode-go", "deepseek", "groq", "openai", "anthropic"];
+    let providers_list = ["opencode-go", "deepseek", "groq", "openrouter", "google", "openai", "anthropic"];
     for (idx, req) in requests.into_iter().enumerate() {
         let provider = select_available_provider(&state, &providers_list).await
             .unwrap_or_else(|| "none".to_string());
