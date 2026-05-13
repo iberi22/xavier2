@@ -13,6 +13,7 @@
 
 pub mod state;
 pub mod commands;
+pub mod proxy;
 pub(crate) mod config;
 pub(crate) mod security;
 pub(crate) mod code_graph;

@@ -9,8 +9,11 @@ use xavier::memory::store::MemoryStore;
 use xavier::ports::inbound::{AgentLifecyclePort, MemoryQueryPort};
 use xavier::security::SecurityService;
 use xavier::time::TimeMetricsStore;
+use xavier::agents::rate_limit::RateLimitManager;
 use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 use xavier::tasks::store::{InMemoryTaskStore, TaskService};
+use xavier::AppState;
+use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct CliState {
@@ -28,6 +31,7 @@ pub struct CliState {
     pub secrets_engine: Arc<KeyLendingEngine>,
     pub event_bus: XavierEventBus,
     pub tasks: Arc<TaskService<InMemoryTaskStore>>,
+    pub rate_manager: Arc<RateLimitManager>,
 }
 
 #[derive(Parser)]

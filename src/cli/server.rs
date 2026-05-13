@@ -24,6 +24,8 @@ use crate::cli::config::{
     code_graph_db_path, resolve_base_url, resolve_base_url_for_port, resolve_http_bind_host,
     resolve_http_port, resolve_http_token, state_panel_root, xavier_token,
 };
+use xavier::agents::rate_limit::RateLimitManager;
+use xavier::agents::system3::{System3Actor, ActorConfig};
 use crate::cli::state::CliState;
 use super::code_graph::{
     code_find_symbols, filter_symbols_by_query,
@@ -144,7 +146,21 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     let panel_root = state_panel_root(&workspace_dir, &workspace_id);
     let panel_store = Arc::new(SessionStore::new(panel_root).await?);
 
-    let secrets_engine = Arc::new(KeyLendingEngine::new());
+    let _audit_logger = Arc::new(xavier::secrets::audit::QmdAuditLogger::new(store.clone_inner_conn()));
+    {
+        let conn = store.clone_inner_conn();
+        let conn_lock = conn.lock();
+        xavier::secrets::audit::QmdAuditLogger::init_schema(&conn_lock)?;
+    }
+
+    let rate_manager = Arc::new(RateLimitManager::new(store.clone_inner_conn()));
+    {
+        let conn = store.clone_inner_conn();
+        let conn_lock = conn.lock();
+        RateLimitManager::init_schema(&conn_lock)?;
+    }
+
+    let secrets_engine = Arc::new(KeyLendingEngine::new(Box::new(xavier::secrets::audit::QmdAuditLogger::new(store.clone_inner_conn()))));
     let event_bus = XavierEventBus::new(100);
     let tasks = Arc::new(TaskService::new(Arc::new(InMemoryTaskStore::new())).with_event_bus(event_bus.clone()));
 
@@ -157,8 +173,21 @@ pub async fn start_http_server(port: u16) -> Result<()> {
             if let xavier::coordination::events::XavierEvent::TaskCompleted { task } = event {
                 if let Some(agent_id) = &task.assignee {
                     info!("Task {} completed by agent {}. Revoking ephemeral keys...", task.id, agent_id);
-                    secrets_engine_for_bus.revoke_for_agent(agent_id).await;
+                    secrets_engine_for_bus.revoke_for_agent(agent_id, "Task Completed").await;
                 }
+            }
+        }
+    });
+
+    // Periodically cleanup expired secrets
+    let secrets_engine_for_cleanup = secrets_engine.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            let removed = secrets_engine_for_cleanup.cleanup_expired().await;
+            if removed > 0 {
+                info!("Cleaned up {} expired secret leases", removed);
             }
         }
     });
@@ -178,6 +207,7 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         secrets_engine,
         event_bus,
         tasks,
+        rate_manager: rate_manager.clone(),
     };
 
     info!(
@@ -234,6 +264,10 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/secrets/leases", get(leases_handler))
         .route("/secrets/revoke", post(revoke_handler))
         .route("/secrets/status/{token}", get(status_handler))
+        .route("/v1/proxy/chat/completions", post(crate::cli::proxy::chat_proxy))
+        .route("/v1/usage/status/{provider}", get(usage_status_handler))
+        .route("/v1/usage/update", post(usage_update_handler))
+        .route("/v1/usage/cooldown", post(usage_cooldown_handler))
         .layer(middleware::from_fn(auth_middleware));
 
     // Add enterprise plugin routes if feature is enabled
@@ -1726,7 +1760,7 @@ pub async fn revoke_handler(
     State(state): State<CliState>,
     Json(payload): Json<RevokeLeasePayload>,
 ) -> Response {
-    match state.secrets_engine.revoke(&payload.token).await {
+    match state.secrets_engine.revoke(&payload.token, "Manual API Call").await {
         Ok(_) => json_response(StatusCode::OK, serde_json::json!({ "status": "revoked" })),
         Err(e) => json_response(StatusCode::NOT_FOUND, serde_json::json!({ "error": e.to_string() })),
     }
@@ -1739,5 +1773,47 @@ pub async fn status_handler(
     match state.secrets_engine.get_lease(&token).await {
         Some(status) => json_response(StatusCode::OK, serde_json::to_value(status).unwrap_or_default()),
         None => json_response(StatusCode::NOT_FOUND, serde_json::json!({ "error": "Lease not found" })),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UsageUpdatePayload {
+    pub provider: String,
+    pub percentage: f32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UsageCooldownPayload {
+    pub provider: String,
+    pub minutes: i64,
+}
+
+pub async fn usage_status_handler(
+    State(state): State<CliState>,
+    AxumPath(provider): AxumPath<String>,
+) -> Response {
+    match state.rate_manager.get_status(&provider).await {
+        Ok(status) => json_response(StatusCode::OK, serde_json::to_value(status).unwrap_or_default()),
+        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+    }
+}
+
+pub async fn usage_update_handler(
+    State(state): State<CliState>,
+    Json(payload): Json<UsageUpdatePayload>,
+) -> Response {
+    match state.rate_manager.update_manual_limit(&payload.provider, payload.percentage).await {
+        Ok(_) => json_response(StatusCode::OK, serde_json::json!({ "status": "ok" })),
+        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+    }
+}
+
+pub async fn usage_cooldown_handler(
+    State(state): State<CliState>,
+    Json(payload): Json<UsageCooldownPayload>,
+) -> Response {
+    match state.rate_manager.report_429(&payload.provider, payload.minutes).await {
+        Ok(_) => json_response(StatusCode::OK, serde_json::json!({ "status": "ok" })),
+        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
     }
 }

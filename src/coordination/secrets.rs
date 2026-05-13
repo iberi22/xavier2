@@ -22,14 +22,18 @@ impl SecretLease {
     }
 }
 
+use crate::secrets::lending::AuditLogger;
+
 pub struct KeyLendingEngine {
     leases: Arc<RwLock<HashMap<String, SecretLease>>>,
+    audit_logger: Box<dyn AuditLogger + Send + Sync>,
 }
 
 impl KeyLendingEngine {
-    pub fn new() -> Self {
+    pub fn new(audit_logger: Box<dyn AuditLogger + Send + Sync>) -> Self {
         Self {
             leases: Arc::new(RwLock::new(HashMap::new())),
+            audit_logger,
         }
     }
 
@@ -49,17 +53,19 @@ impl KeyLendingEngine {
         };
 
         let mut leases = self.leases.write().await;
-        leases.insert(token, lease.clone());
+        leases.insert(token.clone(), lease.clone());
         
+        self.audit_logger.log_lend(agent_id, name, &token, ttl_secs);
         tracing::info!("Lent secret '{}' to agent '{}'. Lease token: {}", name, agent_id, lease.token);
         Ok(lease)
     }
 
     /// Revoke a lease immediately
-    pub async fn revoke(&self, token: &str) -> Result<()> {
+    pub async fn revoke(&self, token: &str, reason: &str) -> Result<()> {
         let mut leases = self.leases.write().await;
-        if leases.remove(token).is_some() {
-            tracing::info!("Revoked secret lease: {}", token);
+        if let Some(lease) = leases.remove(token) {
+            self.audit_logger.log_revoke(&lease.agent_id, token, reason);
+            tracing::info!("Revoked secret lease: {} (Reason: {})", token, reason);
             Ok(())
         } else {
             Err(anyhow!("Lease token not found"))
@@ -67,15 +73,25 @@ impl KeyLendingEngine {
     }
 
     /// Revoke all leases for a specific agent
-    pub async fn revoke_for_agent(&self, agent_id: &str) -> usize {
+    pub async fn revoke_for_agent(&self, agent_id: &str, reason: &str) -> usize {
         let mut leases = self.leases.write().await;
-        let initial_count = leases.len();
-        leases.retain(|_, lease| lease.agent_id != agent_id);
-        let removed = initial_count - leases.len();
-        if removed > 0 {
-            tracing::info!("Revoked {} leases for agent '{}'", removed, agent_id);
+        let mut tokens_to_remove = Vec::new();
+        for (token, lease) in leases.iter() {
+            if lease.agent_id == agent_id {
+                tokens_to_remove.push(token.clone());
+            }
         }
-        removed
+
+        let count = tokens_to_remove.len();
+        for token in tokens_to_remove {
+            leases.remove(&token);
+            self.audit_logger.log_revoke(agent_id, &token, reason);
+        }
+
+        if count > 0 {
+            tracing::info!("Revoked {} leases for agent '{}' (Reason: {})", count, agent_id, reason);
+        }
+        count
     }
 
     /// Get lease details by token
@@ -93,14 +109,20 @@ impl KeyLendingEngine {
     /// Cleanup expired leases
     pub async fn cleanup_expired(&self) -> usize {
         let mut leases = self.leases.write().await;
-        let initial_count = leases.len();
-        leases.retain(|_, lease| !lease.is_expired());
-        initial_count - leases.len()
+        let mut tokens_to_remove = Vec::new();
+        for (token, lease) in leases.iter() {
+            if lease.is_expired() {
+                tokens_to_remove.push(token.clone());
+            }
+        }
+
+        let count = tokens_to_remove.len();
+        for token in tokens_to_remove {
+            if let Some(lease) = leases.remove(&token) {
+                self.audit_logger.log_revoke(&lease.agent_id, &token, "TTL Expired");
+            }
+        }
+        count
     }
 }
 
-impl Default for KeyLendingEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
