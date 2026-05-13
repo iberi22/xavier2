@@ -52,7 +52,9 @@ use xavier::server::panel::{
 use xavier::session::event_mapper::PanelThreadEntry;
 use xavier::session::types::SessionEvent;
 use xavier::tasks::session_sync_task::SessionSyncTask;
+use xavier::tasks::store::{TaskService, InMemoryTaskStore};
 use xavier::time::TimeMetricsStore;
+use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 
 pub async fn start_http_server(port: u16) -> Result<()> {
     std::env::set_var("XAVIER_PORT", port.to_string());
@@ -1695,6 +1697,7 @@ pub fn default_compaction_threshold() -> f64 {
 #[derive(Debug, Deserialize)]
 pub struct LendSecretPayload {
     pub secret_name: String,
+    pub secret_value: String,
     pub agent_id: String,
     pub ttl_seconds: u64,
 }
@@ -1708,7 +1711,7 @@ pub async fn lend_handler(
     State(state): State<CliState>,
     Json(payload): Json<LendSecretPayload>,
 ) -> Response {
-    match state.secrets_engine.lend(&payload.secret_name, &payload.agent_id, Duration::from_secs(payload.ttl_seconds)).await {
+    match state.secrets_engine.lend(&payload.secret_name, &payload.secret_value, &payload.agent_id, payload.ttl_seconds).await {
         Ok(lease) => json_response(StatusCode::OK, serde_json::to_value(lease).unwrap_or_default()),
         Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
     }
@@ -1733,8 +1736,8 @@ pub async fn status_handler(
     State(state): State<CliState>,
     AxumPath(token): AxumPath<String>,
 ) -> Response {
-    match state.secrets_engine.status(&token).await {
-        Ok(status) => json_response(StatusCode::OK, serde_json::to_value(status).unwrap_or_default()),
-        Err(e) => json_response(StatusCode::NOT_FOUND, serde_json::json!({ "error": e.to_string() })),
+    match state.secrets_engine.get_lease(&token).await {
+        Some(status) => json_response(StatusCode::OK, serde_json::to_value(status).unwrap_or_default()),
+        None => json_response(StatusCode::NOT_FOUND, serde_json::json!({ "error": "Lease not found" })),
     }
 }

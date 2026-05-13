@@ -14,7 +14,7 @@ use crate::utils::crypto::sha256_hex;
 use crate::agents::router::{RouteCategory, Router};
 use crate::agents::system1::{RetrieverConfig, System1Retriever};
 use crate::agents::system2::{ReasonerConfig, System2Reasoner};
-use crate::agents::system3::{ActorConfig, System3Actor};
+// use crate::agents::system3::{ActorConfig, System3Actor}; // REMOVED
 use crate::checkpoint::{Checkpoint, CheckpointManager};
 use crate::memory::belief_graph::SharedBeliefGraph;
 use crate::memory::qmd_memory::QmdMemory;
@@ -59,8 +59,21 @@ pub struct AgentRunTrace {
     pub agent: AgentResponse,
     pub retrieval: crate::agents::system1::RetrievalResult,
     pub reasoning: crate::agents::system2::ReasoningResult,
-    pub action: crate::agents::system3::ActionResult,
+    pub action: ActionResult,
     pub optimization: RunOptimizationTrace,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActionResult {
+    pub query: String,
+    pub response: String,
+    pub actions_taken: Vec<String>,
+    pub memory_updates: Vec<String>,
+    pub tool_calls: Vec<serde_json::Value>,
+    pub success: bool,
+    pub semantic_cache_hit: bool,
+    pub llm_used: bool,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -346,9 +359,9 @@ impl AgentRuntime {
                     beliefs_updated: vec![],
                     reasoning_chain: vec![],
                 },
-                action: crate::agents::system3::ActionResult {
+                action: ActionResult {
                     query: query.to_string(),
-                    response: cached_response,
+                    response: cached_response.clone(),
                     actions_taken: vec![],
                     memory_updates: vec![],
                     tool_calls: vec![],
@@ -371,7 +384,7 @@ impl AgentRuntime {
             let response = self
                 .router
                 .direct_response(query)
-                .unwrap_or_else(|| System3Actor::simple_response(query, &[], category.as_deref()));
+                .unwrap_or_else(|| simple_response(query, &[], category.as_deref()));
             let total_ms = start.elapsed().as_millis() as u64;
             let agent = AgentResponse {
                 session_id,
@@ -401,7 +414,7 @@ impl AgentRuntime {
                     beliefs_updated: vec![],
                     reasoning_chain: vec![],
                 },
-                action: crate::agents::system3::ActionResult {
+                action: ActionResult {
                     query: query.to_string(),
                     response,
                     actions_taken: vec![],
@@ -483,9 +496,9 @@ impl AgentRuntime {
 
         let (action_result, s3_ms) = if should_skip_system3 {
             (
-                crate::agents::system3::ActionResult {
+                ActionResult {
                     query: query.to_string(),
-                    response: System3Actor::simple_response(
+                    response: simple_response(
                         query,
                         &retrieval_result.documents,
                         category.as_deref(),
@@ -501,27 +514,21 @@ impl AgentRuntime {
                 0,
             )
         } else {
-            let selected_model_override = self
-                .router
-                .resolve_model_override(route.category, &retrieval_result, &reasoning_result)
-                .or(route.model_override.clone())
-                .or(self.config.model_url.clone());
-            let system3 = System3Actor::new(ActorConfig {
-                semantic_cache: Some(Arc::clone(&self.semantic_cache)),
-                model_override: selected_model_override,
-                provider_override: self.config.model_provider.clone(),
-                ..ActorConfig::default()
-            });
-            let s3_start = std::time::Instant::now();
-            let action_result = system3
-                .run(
-                    query,
-                    &retrieval_result,
-                    &reasoning_result,
-                    category.as_deref(),
-                )
-                .await?;
-            (action_result, s3_start.elapsed().as_millis() as u64)
+            // System 3 actor logic is currently disabled in favor of simplified System 2 output
+            (
+                ActionResult {
+                    query: query.to_string(),
+                    response: reasoning_result.analysis.clone(),
+                    actions_taken: vec![],
+                    memory_updates: vec![],
+                    tool_calls: vec![],
+                    success: true,
+                    semantic_cache_hit: false,
+                    llm_used: true,
+                    model: self.config.model_url.clone(),
+                },
+                0,
+            )
         };
 
         debug!("✅ System 3 completed in {}ms", s3_ms);
@@ -652,6 +659,18 @@ impl AgentRuntime {
 
 fn query_fingerprint(query: &str) -> String {
     sha256_hex(query.as_bytes())[..12].to_string()
+}
+
+fn simple_response(
+    _query: &str,
+    documents: &[crate::agents::system1::RetrievedDocument],
+    _category: Option<&str>,
+) -> String {
+    if let Some(doc) = documents.first() {
+        doc.content.clone()
+    } else {
+        "No relevant information found.".to_string()
+    }
 }
 
 /// Builder para crear el runtime
