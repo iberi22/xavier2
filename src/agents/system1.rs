@@ -27,6 +27,7 @@ pub struct RetrievedDocument {
     pub path: String,
     pub content: String,
     pub relevance_score: f32,
+    pub token_count: usize,
     pub metadata: serde_json::Value,
 }
 
@@ -106,6 +107,16 @@ impl System1Retriever {
         query: &str,
         search_type: Option<SearchType>,
         filters: Option<&MemoryQueryFilters>,
+    ) -> Result<RetrievalResult> {
+        self.run_with_filters_and_budget(query, search_type, filters, 4000).await
+    }
+
+    pub async fn run_with_filters_and_budget(
+        &self,
+        query: &str,
+        search_type: Option<SearchType>,
+        filters: Option<&MemoryQueryFilters>,
+        max_tokens: usize,
     ) -> Result<RetrievalResult> {
         let start = std::time::Instant::now();
 
@@ -210,15 +221,19 @@ impl System1Retriever {
         let mut documents: Vec<RetrievedDocument> = raw_documents
             .into_iter()
             .enumerate()
-            .map(|(index, doc)| RetrievedDocument {
-                id: doc
-                    .id
-                    .clone()
-                    .unwrap_or_else(|| format!("memory:{}", index)),
-                path: doc.path,
-                content: doc.content,
-                relevance_score: 1.0,
-                metadata: doc.metadata,
+            .map(|(index, doc)| {
+                let token_count = doc.content.split_whitespace().count();
+                RetrievedDocument {
+                    id: doc
+                        .id
+                        .clone()
+                        .unwrap_or_else(|| format!("memory:{}", index)),
+                    path: doc.path,
+                    content: doc.content,
+                    relevance_score: 1.0,
+                    token_count,
+                    metadata: doc.metadata,
+                }
             })
             .collect();
 
@@ -256,11 +271,13 @@ impl System1Retriever {
                         .iter()
                         .any(|d| d.id == doc.id.clone().unwrap_or_default() || d.path == doc.path)
                     {
+                        let token_count = doc.content.split_whitespace().count();
                         documents.push(RetrievedDocument {
                             id: doc.id.unwrap_or_default(),
                             path: doc.path,
                             content: doc.content,
                             relevance_score: 0.8,
+                            token_count,
                             metadata: doc.metadata,
                         });
                     }
@@ -279,11 +296,13 @@ impl System1Retriever {
                         .iter()
                         .any(|d| d.id == doc.id.clone().unwrap_or_default() || d.path == doc.path)
                     {
+                        let token_count = doc.content.split_whitespace().count();
                         documents.push(RetrievedDocument {
                             id: doc.id.unwrap_or_default(),
                             path: doc.path,
                             content: doc.content,
                             relevance_score: 0.8,
+                            token_count,
                             metadata: doc.metadata,
                         });
                     }
@@ -307,17 +326,40 @@ impl System1Retriever {
                     .collect::<Vec<_>>()
                     .join("\n");
 
+                let token_count = belief_text.split_whitespace().count();
                 documents.push(RetrievedDocument {
                     id: "belief_graph_context".to_string(),
                     path: "belief_graph".to_string(),
                     content: belief_text,
                     relevance_score: 0.9,
+                    token_count,
                     metadata: serde_json::json!({"type": "graph_context"}),
                 });
             }
         }
 
         rank_documents_for_query(query, &mut documents);
+
+        // Budget enforcement: Truncate documents to fit within max_tokens
+        let mut total_tokens = 0;
+        let mut final_documents = Vec::new();
+
+        for doc in documents {
+            if total_tokens + doc.token_count <= max_tokens {
+                total_tokens += doc.token_count;
+                final_documents.push(doc);
+            } else if final_documents.is_empty() {
+                // Always include at least the first document (possibly truncated) to avoid empty context
+                // but for now, we just skip it if it's too large, or we could truncate its content.
+                // Xavier policy is usually to skip or truncate. Let's keep it simple: skip if it blows the budget
+                // unless it's the very first one and we want at least something.
+                // Requirement: "truncate results to fit the token budget (greedy fill by relevance)"
+                break;
+            } else {
+                break;
+            }
+        }
+        documents = final_documents;
 
         let total = documents.len();
 
@@ -552,5 +594,70 @@ mod tests {
             value.trim().to_ascii_lowercase().as_str(),
             "1" | "true" | "yes" | "on"
         )
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use chrono::Utc;
+    use crate::memory::qmd_memory::QmdMemory;
+    use tokio::sync::RwLock;
+
+    fn mock_doc(id: &str, content: &str) -> crate::memory::store::MemoryRecord {
+        let now = Utc::now();
+        crate::memory::store::MemoryRecord {
+            id: id.to_string(),
+            workspace_id: "test".to_string(),
+            path: format!("path/{}", id),
+            content: content.to_string(),
+            metadata: serde_json::json!({}),
+            embedding: vec![0.0; 768],
+            created_at: now,
+            updated_at: now,
+            revision: 1,
+            primary: true,
+            parent_id: None,
+            revisions: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn test_truncation_logic() {
+        let docs = vec![
+            mock_doc("1", "one two three"), // 3 tokens
+            mock_doc("2", "four five"),      // 2 tokens
+            mock_doc("3", "six seven eight nine"), // 4 tokens
+        ];
+
+        let memory = Arc::new(QmdMemory::new_with_workspace(
+            Arc::new(RwLock::new(docs.iter().map(|r| r.to_document()).collect())),
+            "test".to_string()
+        ));
+
+        let retriever = System1Retriever::new(
+            memory,
+            None,
+            RetrieverConfig {
+                use_hyde: false,
+                ..RetrieverConfig::default()
+            }
+        );
+
+        // Budget of 5 tokens: should include doc 1 (3) and doc 2 (2). Doc 3 (4) would exceed.
+        // Note: ranking might affect this, but by default they are returned in some order.
+        // We want to verify that the final list doesn't exceed 5 tokens.
+
+        let result = retriever.run_with_filters_and_budget("one", None, None, 5).await.unwrap();
+        let total_tokens: usize = result.documents.iter().map(|d| d.token_count).sum();
+        assert!(total_tokens <= 5);
+        assert!(result.documents.len() >= 1);
+
+        // Budget of 2 tokens: doc 1 is 3 tokens, so it should be skipped if we follow "skip if it blows the budget"
+        // But if it's the only one and we want "at least one", it might be different.
+        // Our current implementation skips if it blows the budget.
+        let result = retriever.run_with_filters_and_budget("test", None, None, 2).await.unwrap();
+        let total_tokens: usize = result.documents.iter().map(|d| d.token_count).sum();
+        assert!(total_tokens <= 2);
     }
 }

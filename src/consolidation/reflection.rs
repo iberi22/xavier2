@@ -42,19 +42,24 @@ fn build_context(memories: &[MemoryDocument]) -> Vec<RetrievedDocument> {
     memories
         .iter()
         .enumerate()
-        .map(|(index, memory)| RetrievedDocument {
-            id: memory
-                .id
-                .clone()
-                .unwrap_or_else(|| format!("reflection-{}", index)),
-            path: memory.path.clone(),
-            content: memory.content.clone(),
-            relevance_score: memory
-                .metadata
-                .get("memory_importance")
-                .and_then(|value| value.as_f64())
-                .unwrap_or(0.5) as f32,
-            metadata: memory.metadata.clone(),
+        .map(|(index, memory)| {
+            let content = memory.content.clone();
+            let token_count = content.split_whitespace().count();
+            RetrievedDocument {
+                id: memory
+                    .id
+                    .clone()
+                    .unwrap_or_else(|| format!("reflection-{}", index)),
+                path: memory.path.clone(),
+                content,
+                relevance_score: memory
+                    .metadata
+                    .get("memory_importance")
+                    .and_then(|value| value.as_f64())
+                    .unwrap_or(0.5) as f32,
+                token_count,
+                metadata: memory.metadata.clone(),
+            }
         })
         .collect()
 }
