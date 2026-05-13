@@ -780,6 +780,19 @@ mod tests {
         assert_eq!(config.base_url, Some(DEFAULT_GROQ_BASE_URL.to_string()));
     }
 
+    #[test]
+    fn test_model_provider_respects_override() {
+        let _guard = env_lock().lock().expect("test assertion");
+        std::env::set_var("XAVIER_MODEL_PROVIDER", "openai");
+        std::env::set_var("OPENAI_API_KEY", "sk-test");
+
+        let client = ModelProviderClient::from_model_override(Some("gpt-4o-override".to_string()));
+        let status = client.status();
+
+        assert_eq!(status.model, "gpt-4o-override");
+        assert_eq!(client.config.model, "gpt-4o-override");
+    }
+
     #[tokio::test]
     async fn test_deepseek_tool_instruction_wrapper() {
         let _guard = env_lock().lock().expect("test assertion");
