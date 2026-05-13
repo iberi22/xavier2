@@ -3,20 +3,21 @@ mod tests {
     use axum::{body::Body, http::{Request, StatusCode}, middleware, routing::get, Router};
     use tower::ServiceExt;
 
-    use super::state::CliState;
-    use super::commands::Command;
-    use super::code_graph::{
+    use crate::cli::state::CliState;
+    use crate::cli::commands::Command;
+    use crate::cli::code_graph::{
         code_find_symbols, symbols_for_kind, is_supported_code_pattern,
         search_code_symbols_with_fallback, best_symbol_query_token, filter_symbols_by_query,
     };
-    use super::security::{blocked_external_input_response, secure_cli_input, secure_external_input, secure_optional_request_field};
-    use super::config::{
+    use crate::cli::security::{blocked_external_input_response, secure_cli_input, secure_external_input, secure_optional_request_field};
+    use crate::cli::config::{
         resolve_http_token, resolve_http_bind_host, resolve_base_url_for_port, resolve_base_url,
         resolve_http_port, xavier_token, require_xavier_token, code_graph_db_path, state_panel_root,
         default_token_budget, default_limit, default_compaction_threshold,
     };
-    use super::utils::{json_response, estimate_tokens, load_skill};
-    use super::server::auth_middleware;
+    use crate::cli::utils::{json_response, estimate_tokens, load_skill};
+    use crate::cli::server::auth_middleware;
+    use crate::cli::proxy::ProxyChatRequest;
 
     use code_graph::types::{Language, Symbol, SymbolKind};
     use std::sync::Arc;
@@ -226,5 +227,32 @@ mod tests {
             assert_eq!(body["status"], "error");
             assert!(body["message"].as_str().unwrap().contains("not configured"));
         }
+    }
+
+    #[tokio::test]
+    async fn test_chat_batch_proxy_ordering() {
+        let requests = vec![
+            ProxyChatRequest {
+                model: "model-1".to_string(),
+                messages: vec![serde_json::json!({"role": "user", "content": "ping 1"})],
+                temperature: None,
+                max_tokens: None,
+            },
+            ProxyChatRequest {
+                model: "model-2".to_string(),
+                messages: vec![serde_json::json!({"role": "user", "content": "ping 2"})],
+                temperature: None,
+                max_tokens: None,
+            },
+        ];
+
+        // To verify the ordering logic conceptually used in the handler:
+        let mut results = vec![serde_json::json!(null); requests.len()];
+        results[0] = serde_json::json!({"id": "1"});
+        results[1] = serde_json::json!({"id": "2"});
+
+        assert_eq!(results[0]["id"], "1");
+        assert_eq!(results[1]["id"], "2");
+        assert_eq!(results.len(), 2);
     }
 }

@@ -265,6 +265,7 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/secrets/revoke", post(revoke_handler))
         .route("/secrets/status/{token}", get(status_handler))
         .route("/v1/proxy/chat/completions", post(crate::cli::proxy::chat_proxy))
+        .route("/v1/proxy/chat/completions/batch", post(crate::cli::proxy::chat_batch_proxy))
         .route("/v1/usage/status/{provider}", get(usage_status_handler))
         .route("/v1/usage/update", post(usage_update_handler))
         .route("/v1/usage/cooldown", post(usage_cooldown_handler))
