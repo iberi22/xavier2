@@ -5,7 +5,7 @@ use super::{
     hybrid::{ContextSearchHit, HybridContextSearch},
     ContextDocument,
 };
-use crate::memory::virtual_memory::{MemoryReference, VirtualMemoryEntry};
+use crate::memory::virtual_memory::{VirtualMemoryEntry};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HookKind {

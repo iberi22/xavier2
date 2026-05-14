@@ -40,7 +40,7 @@ pub async fn chat_proxy(
         match state.rate_manager.get_status(provider).await {
             Ok(status) => {
                 let now = chrono::Utc::now();
-                if status.rate_limited_until.map_or(true, |until| until < now) {
+                if status.rate_limited_until.is_none_or(|until| until < now) {
                     selected_provider = Some(provider.to_string());
                     break;
                 }
@@ -276,7 +276,7 @@ async fn select_available_provider(state: &CliState, providers: &[&str]) -> Opti
         match state.rate_manager.get_status(provider).await {
             Ok(status) => {
                 let now = chrono::Utc::now();
-                if status.rate_limited_until.map_or(true, |until| until < now) {
+                if status.rate_limited_until.is_none_or(|until| until < now) {
                     return Some(provider.to_string());
                 }
             }
