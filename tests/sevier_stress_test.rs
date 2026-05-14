@@ -21,6 +21,7 @@ use xavier::adapters::inbound::http::routes::create_router_with_agent_registry;
 use xavier::coordination::SimpleAgentRegistry;
 use xavier::domain::agent::AgentMetadata;
 use xavier::time::TimeMetricsStore;
+use xavier::ports::outbound::schema_init::SchemaInitializer;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,8 @@ fn build_router() -> axum::Router {
 fn in_memory_db() -> Arc<Mutex<Connection>> {
     let conn = Connection::open_in_memory().expect("open in-memory DB");
     let db = Arc::new(Mutex::new(conn));
-    TimeMetricsStore::init_schema(&db.lock()).expect("init time_metrics schema");
+    let store = TimeMetricsStore::new(db.clone());
+    store.init_schema().expect("init time_metrics schema");
     db
 }
 

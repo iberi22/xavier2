@@ -227,12 +227,14 @@ mod tests {
     use super::*;
     use rusqlite::Connection;
     use crate::agents::rate_limit::RateLimitManager;
+    use crate::ports::outbound::schema_init::SchemaInitializer;
 
     #[tokio::test]
     async fn test_proxy_use_case_rate_limited() {
         let conn = Connection::open_in_memory().unwrap();
-        RateLimitManager::init_schema(&conn).unwrap();
-        let rate_manager = Arc::new(RateLimitManager::new(Arc::new(Mutex::new(conn))));
+        let shared_conn = std::sync::Arc::new(parking_lot::Mutex::new(conn));
+        let rate_manager = std::sync::Arc::new(RateLimitManager::new(shared_conn.clone()));
+        rate_manager.init_schema().unwrap();
         let prompt_cache = Arc::new(Mutex::new(HashMap::new()));
 
         // Mark all providers as rate limited
