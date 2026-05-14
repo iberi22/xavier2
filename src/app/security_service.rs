@@ -3,16 +3,22 @@
 //! This implements both `SecurityScanPort` and `InputSecurityPort` by wrapping the concrete `security::SecurityService`.
 //! Handlers should use these through port traits, not call `security::SecurityService` directly.
 /// NOTE: HexArch improvement — depends on concrete crate::security::SecurityService, should use a port abstraction
-use crate::domain::security::{ScanResult, Severity, Threat, ThreatCategory, ThreatLevel};
+use crate::domain::security::{ScanResult, Severity as DomainSeverity, Threat as DomainThreat, ThreatCategory as DomainThreatCategory, ThreatLevel as DomainThreatLevel};
 use crate::ports::inbound::security_port::SecureInputResult;
 use crate::ports::inbound::{InputSecurityPort, SecurityScanPort};
-use crate::security;
+use crate::ports::outbound::ThreatDetectionPort;
+use crate::security::{self, Anticipator};
+use crate::security::threat_store::SecurityThreatStore;
 use async_trait::async_trait;
 use chrono::Utc;
+use std::sync::Arc;
 use std::time::Instant;
 
 /// Wrapper that delegates to the real `security::SecurityService`.
-pub struct SecurityService;
+pub struct SecurityService {
+    threat_store: Option<Arc<SecurityThreatStore>>,
+    anticipator: Anticipator,
+}
 
 impl Default for SecurityService {
     fn default() -> Self {
@@ -22,7 +28,17 @@ impl Default for SecurityService {
 
 impl SecurityService {
     pub fn new() -> Self {
-        Self
+        Self {
+            threat_store: None,
+            anticipator: Anticipator::new(),
+        }
+    }
+
+    pub fn with_store(store: Arc<SecurityThreatStore>) -> Self {
+        Self {
+            threat_store: Some(store),
+            anticipator: Anticipator::new(),
+        }
     }
 }
 
@@ -30,7 +46,7 @@ impl SecurityService {
 impl SecurityScanPort for SecurityService {
     /// Scans the given target for security threats.
     /// Delegates to `security::SecurityService::process_input()`.
-    async fn scan(&self, target: &str, _level: Option<ThreatLevel>) -> anyhow::Result<ScanResult> {
+    async fn scan(&self, target: &str, _level: Option<DomainThreatLevel>) -> anyhow::Result<ScanResult> {
         let start = Instant::now();
 
         // The underlying service is sync; run it on the blocking thread pool.
@@ -110,31 +126,48 @@ impl InputSecurityPort for SecurityService {
     }
 }
 
+#[async_trait]
+impl ThreatDetectionPort for SecurityService {
+    async fn scan_and_log(&self, text: &str, component: &str) -> anyhow::Result<bool> {
+        let result = self.anticipator.scan(text);
+
+        if !result.clean {
+            if let Some(ref store) = self.threat_store {
+                for threat in &result.threats {
+                    let _ = store.save_threat(threat, component);
+                }
+            }
+        }
+
+        Ok(result.clean)
+    }
+}
+
 /// Converts a security `DetectionResult` into domain `Threat` entities.
-fn detection_to_threats(detection: &security::ProcessResult, _target: &str) -> Vec<Threat> {
+fn detection_to_threats(detection: &security::ProcessResult, _target: &str) -> Vec<DomainThreat> {
     if !detection.detection.is_injection && detection.detection.confidence < 0.1 {
         return Vec::new();
     }
 
     let severity = match detection.detection.attack_type {
-        security::AttackType::DirectPromptInjection => Severity::Critical,
-        security::AttackType::IndirectPromptInjection => Severity::High,
-        security::AttackType::PromptLeaking => Severity::Medium,
-        security::AttackType::None => Severity::Low,
+        security::AttackType::DirectPromptInjection => DomainSeverity::Critical,
+        security::AttackType::IndirectPromptInjection => DomainSeverity::High,
+        security::AttackType::PromptLeaking => DomainSeverity::Medium,
+        security::AttackType::None => DomainSeverity::Low,
     };
 
     let threat_level = match severity {
-        Severity::Critical => ThreatLevel::Critical,
-        Severity::High => ThreatLevel::High,
-        Severity::Medium => ThreatLevel::Medium,
-        Severity::Low => ThreatLevel::Low,
+        DomainSeverity::Critical => DomainThreatLevel::Critical,
+        DomainSeverity::High => DomainThreatLevel::High,
+        DomainSeverity::Medium => DomainThreatLevel::Medium,
+        DomainSeverity::Low => DomainThreatLevel::Low,
     };
 
     let category = match detection.detection.attack_type {
         security::AttackType::DirectPromptInjection
-        | security::AttackType::IndirectPromptInjection => ThreatCategory::Injection,
-        security::AttackType::PromptLeaking => ThreatCategory::DataExposure,
-        security::AttackType::None => ThreatCategory::Injection,
+        | security::AttackType::IndirectPromptInjection => DomainThreatCategory::Injection,
+        security::AttackType::PromptLeaking => DomainThreatCategory::DataExposure,
+        security::AttackType::None => DomainThreatCategory::Injection,
     };
 
     let name = match detection.detection.attack_type {
@@ -149,7 +182,7 @@ fn detection_to_threats(detection: &security::ProcessResult, _target: &str) -> V
         name, detection.detection.confidence, detection.detection.message
     );
 
-    vec![Threat {
+    vec![DomainThreat {
         id: ulid::Ulid::new().to_string(),
         name: name.to_string(),
         category,
