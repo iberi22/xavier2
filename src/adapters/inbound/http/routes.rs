@@ -150,7 +150,10 @@ pub async fn verify_save_handler(
         }
     };
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("failed to build reqwest client");
     let result = AutoVerifier::verify_save(
         &client,
         &xavier_url,

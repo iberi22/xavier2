@@ -8,7 +8,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use tracing::{info, warn};
-use xavier::agents::provider::{ModelProviderClient, ModelProviderConfig};
+use xavier::agents::provider::{ModelProviderClient, ModelProviderConfig, LLM_TIMEOUT};
 use xavier::agents::router::{load_routing_policy, RouteCategory, Router};
 
 #[derive(Debug, Deserialize)]
@@ -127,11 +127,14 @@ pub async fn chat_proxy(
         .with_model_override(Some(requested_model.clone()));
     let client = ModelProviderClient::new(config);
 
-    match client
-        .generate_text_with_cache(system_msg, user_msg, is_cache_hit)
-        .await
-    {
-        Ok(text) => {
+    let result = tokio::time::timeout(
+        LLM_TIMEOUT,
+        client.generate_text_with_cache(system_msg, user_msg, is_cache_hit),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(text)) => {
             // 4. Track Usage and Cost
             let prompt_tokens = user_msg.len() / 4;
             let completion_tokens = text.len() / 4;
@@ -187,18 +190,50 @@ pub async fn chat_proxy(
             )
                 .into_response()
         }
-        Err(e) => {
-            warn!("Provider {} failed: {}", provider_name, e);
+        Ok(Err(e)) => {
+            let err_msg = e.to_string();
+            if err_msg.contains("timed out") {
+                warn!("Provider {} timed out (internal)", provider_name);
+                if let Err(track_err) = state
+                    .rate_manager
+                    .track_request(&provider_name, 0, 504, 0.0, false)
+                    .await
+                {
+                    warn!("Failed to track timeout request: {}", track_err);
+                }
+                (
+                    StatusCode::GATEWAY_TIMEOUT,
+                    format!("Provider {} timed out after {}s", provider_name, LLM_TIMEOUT.as_secs()),
+                )
+                    .into_response()
+            } else {
+                warn!("Provider {} failed: {}", provider_name, e);
+                if let Err(track_err) = state
+                    .rate_manager
+                    .track_request(&provider_name, 0, 500, 0.0, false)
+                    .await
+                {
+                    warn!("Failed to track failed request: {}", track_err);
+                }
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Provider error: {}", e),
+                )
+                    .into_response()
+            }
+        }
+        Err(_) => {
+            warn!("Provider {} timed out", provider_name);
             if let Err(track_err) = state
                 .rate_manager
-                .track_request(&provider_name, 0, 500, 0.0, false)
+                .track_request(&provider_name, 0, 504, 0.0, false)
                 .await
             {
-                warn!("Failed to track failed request: {}", track_err);
+                warn!("Failed to track timeout request: {}", track_err);
             }
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Provider error: {}", e),
+                StatusCode::GATEWAY_TIMEOUT,
+                format!("Provider {} timed out after {}s", provider_name, LLM_TIMEOUT.as_secs()),
             )
                 .into_response()
         }
@@ -314,8 +349,14 @@ async fn execute_batch_request(
         .and_then(|m| m["content"].as_str())
         .unwrap_or("");
 
-    match client.generate_text(system_msg, user_msg).await {
-        Ok(text) => {
+    let result = tokio::time::timeout(
+        LLM_TIMEOUT,
+        client.generate_text(system_msg, user_msg),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(text)) => {
             let tokens = (text.len() + user_msg.len()) / 4;
             if let Err(e) = state
                 .rate_manager
@@ -345,18 +386,48 @@ async fn execute_batch_request(
                 }
             })
         }
-        Err(e) => {
-            warn!("Provider {provider_name} failed: {e}");
+        Ok(Err(e)) => {
+            let err_msg = e.to_string();
+            if err_msg.contains("timed out") {
+                warn!("Provider {provider_name} timed out (internal)");
+                if let Err(track_err) = state
+                    .rate_manager
+                    .track_request(&provider_name, 0, 504, 0.0, false)
+                    .await
+                {
+                    warn!("Failed to track timeout request: {track_err}");
+                }
+                serde_json::json!({
+                    "error": format!("Provider {provider_name} timed out after {}s", LLM_TIMEOUT.as_secs()),
+                    "status": 504
+                })
+            } else {
+                warn!("Provider {provider_name} failed: {e}");
+                if let Err(track_err) = state
+                    .rate_manager
+                    .track_request(&provider_name, 0, 500, 0.0, false)
+                    .await
+                {
+                    warn!("Failed to track failed request: {track_err}");
+                }
+                serde_json::json!({
+                    "error": format!("Provider error: {e}"),
+                    "status": 500
+                })
+            }
+        }
+        Err(_) => {
+            warn!("Provider {provider_name} timed out");
             if let Err(track_err) = state
                 .rate_manager
-                .track_request(&provider_name, 0, 500, 0.0, false)
+                .track_request(&provider_name, 0, 504, 0.0, false)
                 .await
             {
-                warn!("Failed to track failed request: {track_err}");
+                warn!("Failed to track timeout request: {track_err}");
             }
             serde_json::json!({
-                "error": format!("Provider error: {e}"),
-                "status": 500
+                "error": format!("Provider {provider_name} timed out after {}s", LLM_TIMEOUT.as_secs()),
+                "status": 504
             })
         }
     }

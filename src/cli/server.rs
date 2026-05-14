@@ -1789,7 +1789,10 @@ pub async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let base_url = resolve_base_url();
     let url = format!("{}/memory/search", base_url);
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("failed to build reqwest client");
     let response = client
         .post(&url)
         .header("X-Xavier-Token", &token)

@@ -216,6 +216,7 @@ mod tests {
                     path: "memory/doc-1".to_string(),
                     content: "Relevant memory".to_string(),
                     relevance_score: 1.0,
+                    token_count: 2,
                     metadata: serde_json::json!({}),
                 }],
                 search_type: SearchType::Hybrid,
