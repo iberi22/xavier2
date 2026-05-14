@@ -6,11 +6,32 @@
 pub mod anticipator;
 pub mod auth;
 pub mod detections;
-pub mod threat_store;
 pub mod layers;
 pub mod prompt_guard;
 pub mod scanner;
+pub mod threat_store;
 pub mod url_validator;
+
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+
+/// Threat report levels for Anticipator
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ThreatReport {
+    /// No threat detected
+    Clean,
+    /// Potential concern, needs attention
+    Warning,
+    /// Clear threat detected
+    Critical,
+}
+
+/// Port for core security scanning based on the Anticipator design
+#[async_trait]
+pub trait ThreatDetectionPort: Send + Sync {
+    /// Scans a payload for threats
+    async fn scan_payload(&self, payload: &str) -> anyhow::Result<ThreatReport>;
+}
 
 pub use anticipator::{Anticipator, AnticipatorConfig};
 pub use detections::{ScanResult as AnticipatorScanResult, Severity, Threat, ThreatCategory};

@@ -90,17 +90,14 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     // as we are opening the connection ourselves.
     use rusqlite::ffi::sqlite3_auto_extension;
     static SQLITE_VEC_EXTENSION_INIT: std::sync::Once = std::sync::Once::new();
-    SQLITE_VEC_EXTENSION_INIT.call_once(|| {
-        unsafe {
-            type SqliteExtFn = unsafe extern "C" fn(
-                *mut rusqlite::ffi::sqlite3,
-                *mut *mut i8,
-                *const rusqlite::ffi::sqlite3_api_routines,
-            ) -> i32;
-            let entry: SqliteExtFn =
-                std::mem::transmute(sqlite_vec::sqlite3_vec_init as *const ());
-            sqlite3_auto_extension(Some(entry));
-        }
+    SQLITE_VEC_EXTENSION_INIT.call_once(|| unsafe {
+        type SqliteExtFn = unsafe extern "C" fn(
+            *mut rusqlite::ffi::sqlite3,
+            *mut *mut i8,
+            *const rusqlite::ffi::sqlite3_api_routines,
+        ) -> i32;
+        let entry: SqliteExtFn = std::mem::transmute(sqlite_vec::sqlite3_vec_init as *const ());
+        sqlite3_auto_extension(Some(entry));
     });
 
     let conn = rusqlite::Connection::open(&config.path)?;
@@ -122,7 +119,9 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     let store = Arc::new(store_inner);
 
     let time_store = Arc::new(TimeMetricsStore::new(shared_conn.clone()));
-    let audit_logger = Arc::new(xavier::secrets::audit::QmdAuditLogger::new(shared_conn.clone()));
+    let audit_logger = Arc::new(xavier::secrets::audit::QmdAuditLogger::new(
+        shared_conn.clone(),
+    ));
     let rate_manager = Arc::new(RateLimitManager::new(shared_conn.clone()));
     let threat_store = Arc::new(SecurityThreatStore::new(shared_conn.clone()));
 
@@ -184,7 +183,10 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     let panel_store = Arc::new(SessionStore::new(panel_root).await?);
 
     let prompt_cache = Arc::new(parking_lot::Mutex::new(HashMap::new()));
-    let proxy_use_case = Arc::new(ProxyUseCase::new(rate_manager.clone(), prompt_cache.clone()));
+    let proxy_use_case = Arc::new(ProxyUseCase::new(
+        rate_manager.clone(),
+        prompt_cache.clone(),
+    ));
     let secrets_engine = Arc::new(KeyLendingEngine::new(Box::new(
         xavier::secrets::audit::QmdAuditLogger::new(shared_conn.clone()),
     )));

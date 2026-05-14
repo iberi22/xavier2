@@ -226,6 +226,10 @@ mod tests {
 
         let savings = TokenSavings::calculate(&original, &entry);
 
-        assert!(savings.reduction_percent > 90.0, "Should save >90% tokens, got {}", savings.reduction_percent);
+        assert!(
+            savings.reduction_percent > 90.0,
+            "Should save >90% tokens, got {}",
+            savings.reduction_percent
+        );
     }
 }
