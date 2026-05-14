@@ -41,10 +41,12 @@ use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 use xavier::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier::memory::schema::MemoryQueryFilters;
 use xavier::memory::session_store::{PanelMessage, SessionStore};
-use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
+use xavier::memory::sqlite_vec_store::{VecSqliteMemoryStore, VecSqliteStoreConfig};
 use xavier::memory::store::{MemoryRecord, MemoryStore};
 use xavier::ports::inbound::{AgentLifecyclePort, MemoryQueryPort, TimeMetricsPort};
-use xavier::ports::outbound::HealthCheckPort;
+use xavier::ports::outbound::health_check_port::HealthCheckPort;
+use xavier::ports::outbound::schema_init::SchemaInitializer;
+use xavier::security::threat_store::SecurityThreatStore;
 use xavier::security::SecurityService;
 use xavier::server::panel::{
     panel_asset, panel_index, CreateThreadRequest, PanelChatRequest, PanelChatResponse,
@@ -78,11 +80,59 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     let token = resolve_http_token()?;
     std::env::set_var("XAVIER_TOKEN", &token);
 
-    // Initialize the memory store
-    let mut store_inner = VecSqliteMemoryStore::from_env().await?;
+    // Initialize the SQLite connection
+    let config = VecSqliteStoreConfig::from_env();
+    if let Some(parent) = config.path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+    // Register sqlite-vec extension (needs to be done before opening connection)
+    // Actually VecSqliteMemoryStore::new does it, but we'll do it manually here to be safe
+    // as we are opening the connection ourselves.
+    use rusqlite::ffi::sqlite3_auto_extension;
+    static SQLITE_VEC_EXTENSION_INIT: std::sync::Once = std::sync::Once::new();
+    SQLITE_VEC_EXTENSION_INIT.call_once(|| {
+        unsafe {
+            type SqliteExtFn = unsafe extern "C" fn(
+                *mut rusqlite::ffi::sqlite3,
+                *mut *mut i8,
+                *const rusqlite::ffi::sqlite3_api_routines,
+            ) -> i32;
+            let entry: SqliteExtFn =
+                std::mem::transmute(sqlite_vec::sqlite3_vec_init as *const ());
+            sqlite3_auto_extension(Some(entry));
+        }
+    });
+
+    let conn = rusqlite::Connection::open(&config.path)?;
+    conn.execute_batch(
+        "PRAGMA journal_mode=WAL; \
+         PRAGMA synchronous=NORMAL; \
+         PRAGMA wal_autocheckpoint=1000; \
+         PRAGMA cache_size=-32768; \
+         PRAGMA mmap_size=268435456; \
+         PRAGMA temp_store=MEMORY; \
+         PRAGMA foreign_keys=ON;",
+    )?;
+    let shared_conn = Arc::new(parking_lot::Mutex::new(conn));
+
+    // Initialize components
+    let mut store_inner = VecSqliteMemoryStore::new_with_conn(shared_conn.clone(), config.clone());
     let (event_tx, _) = tokio::sync::broadcast::channel(100);
     store_inner.set_event_tx(event_tx);
     let store = Arc::new(store_inner);
+
+    let time_store = Arc::new(TimeMetricsStore::new(shared_conn.clone()));
+    let audit_logger = Arc::new(xavier::secrets::audit::QmdAuditLogger::new(shared_conn.clone()));
+    let rate_manager = Arc::new(RateLimitManager::new(shared_conn.clone()));
+    let threat_store = Arc::new(SecurityThreatStore::new(shared_conn.clone()));
+
+    // Initialize schemas
+    store.init_schema()?;
+    time_store.init_schema()?;
+    audit_logger.init_schema()?;
+    rate_manager.init_schema()?;
+    threat_store.init_schema()?;
+
     let workspace_id =
         std::env::var("XAVIER_DEFAULT_WORKSPACE_ID").unwrap_or_else(|_| "default".to_string());
     let durable_state = store.load_workspace_state(&workspace_id).await?;
@@ -100,16 +150,6 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     let memory_port =
         Arc::new(QmdMemoryAdapter::new(Arc::clone(&memory))) as Arc<dyn MemoryQueryPort>;
 
-    // Initialize TimeMetricsStore using the same SQLite connection
-    let time_conn = store.clone_inner_conn();
-    let time_store = Arc::new(TimeMetricsStore::new(time_conn));
-    // Init schema (table created if not exists)
-    {
-        let conn = time_store.conn.lock();
-        if let Err(e) = TimeMetricsStore::init_schema(&conn) {
-            info!("TimeMetricsStore schema init warning: {}", e);
-        }
-    }
     // Register global time metrics port for HTTP handler (wrap in adapter)
     use xavier::adapters::inbound::http::routes::{init_health_port, init_time_store};
     use xavier::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
@@ -143,26 +183,10 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     let panel_root = state_panel_root(&workspace_dir, &workspace_id);
     let panel_store = Arc::new(SessionStore::new(panel_root).await?);
 
-    let _audit_logger = Arc::new(xavier::secrets::audit::QmdAuditLogger::new(
-        store.clone_inner_conn(),
-    ));
-    {
-        let conn = store.clone_inner_conn();
-        let conn_lock = conn.lock();
-        xavier::secrets::audit::QmdAuditLogger::init_schema(&conn_lock)?;
-    }
-
-    let rate_manager = Arc::new(RateLimitManager::new(store.clone_inner_conn()));
-    {
-        let conn = store.clone_inner_conn();
-        let conn_lock = conn.lock();
-        RateLimitManager::init_schema(&conn_lock)?;
-    }
     let prompt_cache = Arc::new(parking_lot::Mutex::new(HashMap::new()));
     let proxy_use_case = Arc::new(ProxyUseCase::new(rate_manager.clone(), prompt_cache.clone()));
-
     let secrets_engine = Arc::new(KeyLendingEngine::new(Box::new(
-        xavier::secrets::audit::QmdAuditLogger::new(store.clone_inner_conn()),
+        xavier::secrets::audit::QmdAuditLogger::new(shared_conn.clone()),
     )));
     let event_bus = XavierEventBus::new(100);
     let tasks = Arc::new(
