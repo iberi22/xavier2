@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use xavier::agents::rate_limit::RateLimitManager;
+use xavier::app::proxy_use_case::ProxyUseCase;
 use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 use xavier::memory::session_store::SessionStore;
 use xavier::memory::store::MemoryStore;
@@ -35,6 +36,7 @@ pub struct CliState {
     pub tasks: Arc<TaskService<InMemoryTaskStore>>,
     pub rate_manager: Arc<RateLimitManager>,
     pub prompt_cache: Arc<Mutex<HashMap<String, Vec<String>>>>,
+    pub proxy_use_case: Arc<ProxyUseCase>,
 }
 
 #[derive(Parser)]
