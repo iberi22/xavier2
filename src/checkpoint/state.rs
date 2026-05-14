@@ -235,10 +235,14 @@ mod tests {
         let root = temp_checkpoint_root().await;
         let mut first = sample_state("session_a");
         first.checkpoint_timestamp = Utc::now() - chrono::Duration::seconds(1);
-        save_checkpoint_in_dir(&root, &first).await.expect("test assertion");
+        save_checkpoint_in_dir(&root, &first)
+            .await
+            .expect("test assertion");
 
         let second = sample_state("session_a");
-        save_checkpoint_in_dir(&root, &second).await.expect("test assertion");
+        save_checkpoint_in_dir(&root, &second)
+            .await
+            .expect("test assertion");
 
         let restored = load_latest_checkpoint_in_dir(&root, "session_a")
             .await
@@ -255,11 +259,15 @@ mod tests {
         for offset in 0..4 {
             let mut state = sample_state("session_b");
             state.checkpoint_timestamp = Utc::now() + chrono::Duration::milliseconds(offset);
-            save_checkpoint_in_dir(&root, &state).await.expect("test assertion");
+            save_checkpoint_in_dir(&root, &state)
+                .await
+                .expect("test assertion");
         }
 
         let session_dir = root.join("session_b");
-        let files = checkpoint_files_sorted(&session_dir).await.expect("test assertion");
+        let files = checkpoint_files_sorted(&session_dir)
+            .await
+            .expect("test assertion");
         assert_eq!(files.len(), RETAINED_CHECKPOINTS);
     }
 
@@ -271,7 +279,9 @@ mod tests {
             .expect("test assertion"));
 
         let state = sample_state("session_c");
-        save_checkpoint_in_dir(&root, &state).await.expect("test assertion");
+        save_checkpoint_in_dir(&root, &state)
+            .await
+            .expect("test assertion");
 
         assert!(is_session_restorable_in_dir(&root, "session_c")
             .await

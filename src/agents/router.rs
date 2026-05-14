@@ -48,7 +48,9 @@ pub struct RoutingPolicyModels {
     pub quality: Vec<ModelCandidatePolicy>,
 }
 
-fn deserialize_candidate_list<'de, D>(deserializer: D) -> Result<Vec<ModelCandidatePolicy>, D::Error>
+fn deserialize_candidate_list<'de, D>(
+    deserializer: D,
+) -> Result<Vec<ModelCandidatePolicy>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -630,7 +632,13 @@ mod tests {
         assert_eq!(policy.models.fast.len(), 2);
         assert_eq!(policy.models.quality.len(), 1);
 
-        assert_eq!(select_best_candidate(&policy.models.fast), Some("fast-2".to_string()));
-        assert_eq!(select_best_candidate(&policy.models.quality), Some("quality-1".to_string()));
+        assert_eq!(
+            select_best_candidate(&policy.models.fast),
+            Some("fast-2".to_string())
+        );
+        assert_eq!(
+            select_best_candidate(&policy.models.quality),
+            Some("quality-1".to_string())
+        );
     }
 }

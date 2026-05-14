@@ -202,7 +202,9 @@ mod tests {
         )
         .expect("test assertion");
 
-        let restored = SessionCheckpoint::from_bytes(&checkpoint.to_bytes().expect("test assertion")).expect("test assertion");
+        let restored =
+            SessionCheckpoint::from_bytes(&checkpoint.to_bytes().expect("test assertion"))
+                .expect("test assertion");
 
         assert_eq!(restored.session_id, "session_123");
         assert_eq!(restored.file_edits.len(), 1);

@@ -22,10 +22,13 @@ async fn test_full_harvest_workflow() {
     fs::create_dir_all(file_path.parent().expect("test assertion")).expect("test assertion");
     fs::write(&file_path, "fn main() {}").expect("test assertion");
 
-    index.add_path(std::path::Path::new("src/main.rs")).expect("test assertion");
+    index
+        .add_path(std::path::Path::new("src/main.rs"))
+        .expect("test assertion");
     let id = index.write_tree().expect("test assertion");
     let tree = repo.find_tree(id).expect("test assertion");
-    let sig = git2::Signature::now("Xavier CI", "xavier-ci@example.invalid").expect("test assertion");
+    let sig =
+        git2::Signature::now("Xavier CI", "xavier-ci@example.invalid").expect("test assertion");
     repo.commit(Some("HEAD"), &sig, &sig, "initial commit", &tree, &[])
         .expect("test assertion");
 

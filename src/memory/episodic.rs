@@ -489,7 +489,10 @@ mod tests {
 
         session.mark_summarized("This is a summary");
         assert!(session.is_summarized);
-        assert_eq!(session.summary.as_ref().expect("test assertion"), "This is a summary");
+        assert_eq!(
+            session.summary.as_ref().expect("test assertion"),
+            "This is a summary"
+        );
     }
 
     #[test]
@@ -527,8 +530,10 @@ mod tests {
         let mut em = EpisodicMemory::new();
         em.add_session(SessionSummary::new("session-1"));
 
-        em.add_to_session("session-1", "item-1").expect("test assertion");
-        em.add_to_session("session-1", "item-2").expect("test assertion");
+        em.add_to_session("session-1", "item-1")
+            .expect("test assertion");
+        em.add_to_session("session-1", "item-2")
+            .expect("test assertion");
 
         let session = em.get_session("session-1").expect("test assertion");
         assert_eq!(session.item_ids.len(), 2);
@@ -549,8 +554,15 @@ mod tests {
         };
 
         // Event below threshold should not be added
-        em.add_event_to_session("session-1", event.clone()).expect("test assertion");
-        assert_eq!(em.get_session("session-1").expect("test assertion").key_events.len(), 0);
+        em.add_event_to_session("session-1", event.clone())
+            .expect("test assertion");
+        assert_eq!(
+            em.get_session("session-1")
+                .expect("test assertion")
+                .key_events
+                .len(),
+            0
+        );
 
         // Event above threshold should be added
         let high_importance_event = KeyEvent {
@@ -562,7 +574,13 @@ mod tests {
         };
         em.add_event_to_session("session-1", high_importance_event)
             .expect("test assertion");
-        assert_eq!(em.get_session("session-1").expect("test assertion").key_events.len(), 1);
+        assert_eq!(
+            em.get_session("session-1")
+                .expect("test assertion")
+                .key_events
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -671,7 +689,11 @@ mod tests {
         em.add_session(SessionSummary::new("session-1"));
 
         em.end_session("session-1").expect("test assertion");
-        assert!(em.get_session("session-1").expect("test assertion").end_time.is_some());
+        assert!(em
+            .get_session("session-1")
+            .expect("test assertion")
+            .end_time
+            .is_some());
     }
 
     #[test]

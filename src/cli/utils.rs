@@ -1,7 +1,10 @@
 //! CLI utility functions
 
-
-use axum::{body::Body, http::StatusCode, response::{IntoResponse, Response}};
+use axum::{
+    body::Body,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 
 pub fn json_response(status: StatusCode, body: serde_json::Value) -> Response {
     Response::builder()

@@ -1,15 +1,15 @@
-use std::collections::HashMap;
+use crate::cli::state::CliState;
 use axum::{
-    extract::{State, Json},
-    response::{IntoResponse, Response},
+    extract::{Json, State},
     http::StatusCode,
+    response::{IntoResponse, Response},
 };
 use serde::Deserialize;
-use crate::cli::state::CliState;
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use tracing::{info, warn};
 use xavier::agents::provider::{ModelProviderClient, ModelProviderConfig};
 use xavier::agents::router::{load_routing_policy, RouteCategory, Router};
-use sha2::{Sha256, Digest};
-use tracing::{info, warn};
 
 #[derive(Debug, Deserialize)]
 pub struct ProxyChatRequest {
@@ -25,7 +25,15 @@ pub async fn chat_proxy(
 ) -> Response {
     // 1. Resolve Provider based on Rate Limits
     // Order of priority as per AGENTS.md
-    let providers = ["opencode-go", "deepseek", "groq", "openrouter", "google", "openai", "anthropic"];
+    let providers = [
+        "opencode-go",
+        "deepseek",
+        "groq",
+        "openrouter",
+        "google",
+        "openai",
+        "anthropic",
+    ];
     let mut selected_provider = None;
 
     for provider in providers {
@@ -45,7 +53,13 @@ pub async fn chat_proxy(
 
     let provider_name = match selected_provider {
         Some(p) => p,
-        None => return (StatusCode::TOO_MANY_REQUESTS, "All providers are rate-limited").into_response(),
+        None => {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                "All providers are rate-limited",
+            )
+                .into_response()
+        }
     };
 
     info!("Proxying request to provider: {}", provider_name);
@@ -55,7 +69,9 @@ pub async fn chat_proxy(
     let router = Router::new();
 
     // Prompt Cache Detection
-    let system_msg = req.messages.iter()
+    let system_msg = req
+        .messages
+        .iter()
         .find(|m| m["role"] == "system")
         .and_then(|m| m["content"].as_str())
         .unwrap_or("You are a helpful assistant.");
@@ -81,7 +97,9 @@ pub async fn chat_proxy(
         info!("Prompt cache hit for provider {}", provider_name);
     }
 
-    let user_msg = req.messages.iter()
+    let user_msg = req
+        .messages
+        .iter()
         .filter(|m| m["role"] == "user")
         .last()
         .and_then(|m| m["content"].as_str())
@@ -105,10 +123,14 @@ pub async fn chat_proxy(
     }
 
     // 3. Execute Request
-    let config = ModelProviderConfig::for_provider(&provider_name).with_model_override(Some(requested_model.clone()));
+    let config = ModelProviderConfig::for_provider(&provider_name)
+        .with_model_override(Some(requested_model.clone()));
     let client = ModelProviderClient::new(config);
 
-    match client.generate_text_with_cache(system_msg, user_msg, is_cache_hit).await {
+    match client
+        .generate_text_with_cache(system_msg, user_msg, is_cache_hit)
+        .await
+    {
         Ok(text) => {
             // 4. Track Usage and Cost
             let prompt_tokens = user_msg.len() / 4;
@@ -128,40 +150,57 @@ pub async fn chat_proxy(
                 if let Some(mp) = matched_policy {
                     let input_rate = mp.cost_per_input_token.unwrap_or(0.0) as f64;
                     let output_rate = mp.cost_per_output_token.unwrap_or(0.0) as f64;
-                    cost_usd = (prompt_tokens as f64 * input_rate) + (completion_tokens as f64 * output_rate);
+                    cost_usd = (prompt_tokens as f64 * input_rate)
+                        + (completion_tokens as f64 * output_rate);
                 }
             }
 
-            if let Err(e) = state.rate_manager.track_request(&provider_name, total_tokens, 200, cost_usd, is_cache_hit).await {
+            if let Err(e) = state
+                .rate_manager
+                .track_request(&provider_name, total_tokens, 200, cost_usd, is_cache_hit)
+                .await
+            {
                 warn!("Failed to track request usage: {}", e);
             }
 
-            (StatusCode::OK, Json(serde_json::json!({
-                "id": format!("chatcmpl-{}", ulid::Ulid::new()),
-                "object": "chat.completion",
-                "created": chrono::Utc::now().timestamp(),
-                "model": requested_model,
-                "choices": [{
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": text
-                    },
-                    "finish_reason": "stop"
-                }],
-                "usage": {
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens
-                }
-            }))).into_response()
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "id": format!("chatcmpl-{}", ulid::Ulid::new()),
+                    "object": "chat.completion",
+                    "created": chrono::Utc::now().timestamp(),
+                    "model": requested_model,
+                    "choices": [{
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": text
+                        },
+                        "finish_reason": "stop"
+                    }],
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": total_tokens
+                    }
+                })),
+            )
+                .into_response()
         }
         Err(e) => {
             warn!("Provider {} failed: {}", provider_name, e);
-            if let Err(track_err) = state.rate_manager.track_request(&provider_name, 0, 500, 0.0, false).await {
+            if let Err(track_err) = state
+                .rate_manager
+                .track_request(&provider_name, 0, 500, 0.0, false)
+                .await
+            {
                 warn!("Failed to track failed request: {}", track_err);
             }
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Provider error: {}", e)).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Provider error: {}", e),
+            )
+                .into_response()
         }
     }
 }
@@ -174,9 +213,18 @@ pub async fn chat_batch_proxy(
     let mut provider_assignments: HashMap<String, Vec<(usize, ProxyChatRequest)>> = HashMap::new();
 
     // 1. Resolve Providers for all requests
-    let providers_list = ["opencode-go", "deepseek", "groq", "openrouter", "google", "openai", "anthropic"];
+    let providers_list = [
+        "opencode-go",
+        "deepseek",
+        "groq",
+        "openrouter",
+        "google",
+        "openai",
+        "anthropic",
+    ];
     for (idx, req) in requests.into_iter().enumerate() {
-        let provider = select_available_provider(&state, &providers_list).await
+        let provider = select_available_provider(&state, &providers_list)
+            .await
             .unwrap_or_else(|| "none".to_string());
         provider_assignments
             .entry(provider)
@@ -251,12 +299,16 @@ async fn execute_batch_request(
         .with_model_override(Some(req.model.clone()));
     let client = ModelProviderClient::new(config);
 
-    let system_msg = req.messages.iter()
+    let system_msg = req
+        .messages
+        .iter()
         .find(|m| m["role"] == "system")
         .and_then(|m| m["content"].as_str())
         .unwrap_or("You are a helpful assistant.");
 
-    let user_msg = req.messages.iter()
+    let user_msg = req
+        .messages
+        .iter()
         .filter(|m| m["role"] == "user")
         .last()
         .and_then(|m| m["content"].as_str())
@@ -265,7 +317,11 @@ async fn execute_batch_request(
     match client.generate_text(system_msg, user_msg).await {
         Ok(text) => {
             let tokens = (text.len() + user_msg.len()) / 4;
-            if let Err(e) = state.rate_manager.track_request(&provider_name, tokens, 200, 0.0, false).await {
+            if let Err(e) = state
+                .rate_manager
+                .track_request(&provider_name, tokens, 200, 0.0, false)
+                .await
+            {
                 warn!("Failed to track batch request usage: {e}");
             }
 
@@ -291,7 +347,11 @@ async fn execute_batch_request(
         }
         Err(e) => {
             warn!("Provider {provider_name} failed: {e}");
-            if let Err(track_err) = state.rate_manager.track_request(&provider_name, 0, 500, 0.0, false).await {
+            if let Err(track_err) = state
+                .rate_manager
+                .track_request(&provider_name, 0, 500, 0.0, false)
+                .await
+            {
                 warn!("Failed to track failed request: {track_err}");
             }
             serde_json::json!({

@@ -446,7 +446,10 @@ impl AgentRuntime {
             if let Some(rate_manager) = &self.rate_manager {
                 if let Some(provider) = &self.config.model_provider {
                     if let Ok(true) = rate_manager.is_quota_low(provider).await {
-                        debug!("Low quota detected for provider {}, halving token budget", provider);
+                        debug!(
+                            "Low quota detected for provider {}, halving token budget",
+                            provider
+                        );
                         budget /= 2;
                     }
                 }
@@ -617,7 +620,10 @@ impl AgentRuntime {
                         + estimate_tokens(&context_text)
                         + estimate_tokens(&action_result.response);
 
-                    if let Err(e) = rate_manager.track_request(provider, estimated_tokens, 200, 0.0, false).await {
+                    if let Err(e) = rate_manager
+                        .track_request(provider, estimated_tokens, 200, 0.0, false)
+                        .await
+                    {
                         warn!("Failed to track runtime LLM usage: {e}");
                     }
                 }

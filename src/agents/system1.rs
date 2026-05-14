@@ -108,7 +108,8 @@ impl System1Retriever {
         search_type: Option<SearchType>,
         filters: Option<&MemoryQueryFilters>,
     ) -> Result<RetrievalResult> {
-        self.run_with_filters_and_budget(query, search_type, filters, 4000).await
+        self.run_with_filters_and_budget(query, search_type, filters, 4000)
+            .await
     }
 
     pub async fn run_with_filters_and_budget(
@@ -600,8 +601,8 @@ mod tests {
 #[cfg(test)]
 mod budget_tests {
     use super::*;
-    use chrono::Utc;
     use crate::memory::qmd_memory::QmdMemory;
+    use chrono::Utc;
     use tokio::sync::RwLock;
 
     fn mock_doc(id: &str, content: &str) -> crate::memory::store::MemoryRecord {
@@ -625,14 +626,14 @@ mod budget_tests {
     #[tokio::test]
     async fn test_truncation_logic() {
         let docs = vec![
-            mock_doc("1", "one two three"), // 3 tokens
-            mock_doc("2", "four five"),      // 2 tokens
+            mock_doc("1", "one two three"),        // 3 tokens
+            mock_doc("2", "four five"),            // 2 tokens
             mock_doc("3", "six seven eight nine"), // 4 tokens
         ];
 
         let memory = Arc::new(QmdMemory::new_with_workspace(
             Arc::new(RwLock::new(docs.iter().map(|r| r.to_document()).collect())),
-            "test".to_string()
+            "test".to_string(),
         ));
 
         let retriever = System1Retriever::new(
@@ -641,14 +642,17 @@ mod budget_tests {
             RetrieverConfig {
                 use_hyde: false,
                 ..RetrieverConfig::default()
-            }
+            },
         );
 
         // Budget of 5 tokens: should include doc 1 (3) and doc 2 (2). Doc 3 (4) would exceed.
         // Note: ranking might affect this, but by default they are returned in some order.
         // We want to verify that the final list doesn't exceed 5 tokens.
 
-        let result = retriever.run_with_filters_and_budget("one", None, None, 5).await.unwrap();
+        let result = retriever
+            .run_with_filters_and_budget("one", None, None, 5)
+            .await
+            .unwrap();
         let total_tokens: usize = result.documents.iter().map(|d| d.token_count).sum();
         assert!(total_tokens <= 5);
         assert!(result.documents.len() >= 1);
@@ -656,7 +660,10 @@ mod budget_tests {
         // Budget of 2 tokens: doc 1 is 3 tokens, so it should be skipped if we follow "skip if it blows the budget"
         // But if it's the only one and we want "at least one", it might be different.
         // Our current implementation skips if it blows the budget.
-        let result = retriever.run_with_filters_and_budget("test", None, None, 2).await.unwrap();
+        let result = retriever
+            .run_with_filters_and_budget("test", None, None, 2)
+            .await
+            .unwrap();
         let total_tokens: usize = result.documents.iter().map(|d| d.token_count).sum();
         assert!(total_tokens <= 2);
     }

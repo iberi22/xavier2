@@ -1,6 +1,6 @@
+use super::client::{LlmClient, ResponseGenerator};
 use super::helpers::*;
 use super::types::{ActionResult, ActorConfig};
-use super::client::{LlmClient, ResponseGenerator};
 use super::System3Actor;
 use crate::agents::system1::RetrievedDocument;
 use crate::agents::system1::{RetrievalResult, SearchType};

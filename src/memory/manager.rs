@@ -351,20 +351,32 @@ impl MemoryManager {
 
     /// Record a memory access for tracking
     pub fn record_access(&self, doc_id: &str) {
-        let mut counts = self.access_counts.lock().expect("manager: access_counts lock poisoned");
+        let mut counts = self
+            .access_counts
+            .lock()
+            .expect("manager: access_counts lock poisoned");
         *counts.entry(doc_id.to_string()).or_insert(0) += 1;
 
-        let mut times = self.last_access_times.lock().expect("manager: last_access_times lock poisoned");
+        let mut times = self
+            .last_access_times
+            .lock()
+            .expect("manager: last_access_times lock poisoned");
         times.insert(doc_id.to_string(), Utc::now());
     }
 
     /// Initialize tracking for a new document
     pub fn track_new_document(&self, doc: &MemoryDocument) {
         if let Some(id) = &doc.id {
-            let mut times = self.created_times.lock().expect("manager: created_times lock poisoned");
+            let mut times = self
+                .created_times
+                .lock()
+                .expect("manager: created_times lock poisoned");
             times.insert(id.clone(), Utc::now());
 
-            let mut relevance = self.relevance_scores.lock().expect("manager: relevance_scores lock poisoned");
+            let mut relevance = self
+                .relevance_scores
+                .lock()
+                .expect("manager: relevance_scores lock poisoned");
             relevance.insert(id.clone(), 1.0); // Start at full relevance
         }
     }
@@ -382,8 +394,14 @@ impl MemoryManager {
             decayed_count: 0,
         };
 
-        let counts = self.access_counts.lock().expect("manager: access_counts lock poisoned");
-        let times = self.last_access_times.lock().expect("manager: last_access_times lock poisoned");
+        let counts = self
+            .access_counts
+            .lock()
+            .expect("manager: access_counts lock poisoned");
+        let times = self
+            .last_access_times
+            .lock()
+            .expect("manager: last_access_times lock poisoned");
 
         for doc in docs {
             let priority = MemoryPriority::from_metadata(&doc.metadata);
@@ -428,10 +446,22 @@ impl MemoryManager {
     /// Get all managed memories with their quality scores
     pub async fn get_all_memories(&self) -> Result<Vec<ManagedMemory>> {
         let docs = self.memory.all_documents().await;
-        let counts = self.access_counts.lock().expect("manager: access_counts lock poisoned");
-        let times = self.last_access_times.lock().expect("manager: last_access_times lock poisoned");
-        let created = self.created_times.lock().expect("manager: created_times lock poisoned");
-        let _relevance = self.relevance_scores.lock().expect("manager: relevance_scores lock poisoned");
+        let counts = self
+            .access_counts
+            .lock()
+            .expect("manager: access_counts lock poisoned");
+        let times = self
+            .last_access_times
+            .lock()
+            .expect("manager: last_access_times lock poisoned");
+        let created = self
+            .created_times
+            .lock()
+            .expect("manager: created_times lock poisoned");
+        let _relevance = self
+            .relevance_scores
+            .lock()
+            .expect("manager: relevance_scores lock poisoned");
 
         let mut memories = Vec::new();
         for doc in docs {
@@ -484,15 +514,28 @@ impl MemoryManager {
         let docs = self.memory.all_documents().await;
         let mut actions = Vec::new();
         let mut decayed_count = 0;
-        let mut relevance_map = self.relevance_scores.lock().expect("manager: relevance_scores lock poisoned");
+        let mut relevance_map = self
+            .relevance_scores
+            .lock()
+            .expect("manager: relevance_scores lock poisoned");
 
         for doc in docs {
             let Some(doc_id) = &doc.id else {
                 continue;
             };
             let priority = MemoryPriority::from_metadata(&doc.metadata);
-            let last_access = self.last_access_times.lock().expect("manager: last_access_times lock poisoned").get(doc_id).copied();
-            let created_at = self.created_times.lock().expect("manager: created_times lock poisoned").get(doc_id).copied();
+            let last_access = self
+                .last_access_times
+                .lock()
+                .expect("manager: last_access_times lock poisoned")
+                .get(doc_id)
+                .copied();
+            let created_at = self
+                .created_times
+                .lock()
+                .expect("manager: created_times lock poisoned")
+                .get(doc_id)
+                .copied();
 
             // Calculate days since last access or creation
             let reference_time = last_access.or(created_at).unwrap_or_else(Utc::now);
@@ -857,7 +900,10 @@ impl MemoryManager {
             doc.metadata["memory_priority"] = serde_json::json!(new_priority.as_str());
             self.memory.update(doc).await?;
 
-            let mut relevance = self.relevance_scores.lock().expect("manager: relevance_scores lock poisoned");
+            let mut relevance = self
+                .relevance_scores
+                .lock()
+                .expect("manager: relevance_scores lock poisoned");
             let current = relevance.get(doc_id).copied().unwrap_or(1.0);
             // Boost relevance on promotion
             relevance.insert(doc_id.to_string(), (current * 1.2).min(1.0));
@@ -879,7 +925,10 @@ impl MemoryManager {
             doc.metadata["memory_priority"] = serde_json::json!(new_priority.as_str());
             self.memory.update(doc).await?;
 
-            let mut relevance = self.relevance_scores.lock().expect("manager: relevance_scores lock poisoned");
+            let mut relevance = self
+                .relevance_scores
+                .lock()
+                .expect("manager: relevance_scores lock poisoned");
             let current = relevance.get(doc_id).copied().unwrap_or(1.0);
             // Reduce relevance on demotion
             relevance.insert(doc_id.to_string(), current * 0.8);

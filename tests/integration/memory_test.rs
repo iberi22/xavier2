@@ -67,7 +67,10 @@ mod memory_manager_tests {
         }
 
         let manager = MemoryManager::new(Arc::new(QmdMemory::new(docs)), None);
-        let result = manager.consolidate_memories().await.expect("test assertion");
+        let result = manager
+            .consolidate_memories()
+            .await
+            .expect("test assertion");
 
         assert_eq!(result.documents_affected, 1);
         assert_eq!(result.actions.len(), 1);

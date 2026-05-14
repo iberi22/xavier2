@@ -170,7 +170,10 @@ mod tests {
         let adapter = PatternAdapter::new();
         let pattern = test_pattern();
 
-        let id = adapter.discover(pattern.clone()).await.expect("test assertion");
+        let id = adapter
+            .discover(pattern.clone())
+            .await
+            .expect("test assertion");
         assert!(!id.is_empty());
 
         let stored = adapter.get(&id).await.expect("test assertion");
@@ -192,7 +195,10 @@ mod tests {
         p2.confidence = 0.5;
         adapter.discover(p2).await.expect("test assertion");
 
-        let results = adapter.query("xavier", None, 0.5).await.expect("test assertion");
+        let results = adapter
+            .query("xavier", None, 0.5)
+            .await
+            .expect("test assertion");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].project, "xavier");
     }
@@ -220,21 +226,35 @@ mod tests {
     #[tokio::test]
     async fn verify_sets_verification_status() {
         let adapter = PatternAdapter::new();
-        let id = adapter.discover(test_pattern()).await.expect("test assertion");
+        let id = adapter
+            .discover(test_pattern())
+            .await
+            .expect("test assertion");
 
         adapter.verify(&id, true).await.expect("test assertion");
-        let pattern = adapter.get(&id).await.expect("test assertion").expect("test assertion");
+        let pattern = adapter
+            .get(&id)
+            .await
+            .expect("test assertion")
+            .expect("test assertion");
         assert_eq!(pattern.verification, PatternVerification::Verified);
 
         adapter.verify(&id, false).await.expect("test assertion");
-        let pattern = adapter.get(&id).await.expect("test assertion").expect("test assertion");
+        let pattern = adapter
+            .get(&id)
+            .await
+            .expect("test assertion")
+            .expect("test assertion");
         assert_eq!(pattern.verification, PatternVerification::Rejected);
     }
 
     #[tokio::test]
     async fn delete_removes_and_returns_pattern() {
         let adapter = PatternAdapter::new();
-        let id = adapter.discover(test_pattern()).await.expect("test assertion");
+        let id = adapter
+            .discover(test_pattern())
+            .await
+            .expect("test assertion");
 
         let deleted = adapter.delete(&id).await.expect("test assertion");
         assert!(deleted.is_some());
@@ -246,17 +266,28 @@ mod tests {
     #[tokio::test]
     async fn auto_verify_after_5_usages() {
         let adapter = PatternAdapter::new();
-        let id = adapter.discover(test_pattern()).await.expect("test assertion");
+        let id = adapter
+            .discover(test_pattern())
+            .await
+            .expect("test assertion");
 
         for _ in 0..4 {
             adapter.increment_usage(&id).await.expect("test assertion");
         }
 
-        let pattern = adapter.get(&id).await.expect("test assertion").expect("test assertion");
+        let pattern = adapter
+            .get(&id)
+            .await
+            .expect("test assertion")
+            .expect("test assertion");
         assert_eq!(pattern.verification, PatternVerification::Pending);
 
         adapter.increment_usage(&id).await.expect("test assertion");
-        let pattern = adapter.get(&id).await.expect("test assertion").expect("test assertion");
+        let pattern = adapter
+            .get(&id)
+            .await
+            .expect("test assertion")
+            .expect("test assertion");
         assert_eq!(pattern.verification, PatternVerification::Verified);
     }
 }

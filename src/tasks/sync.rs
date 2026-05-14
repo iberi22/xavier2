@@ -290,7 +290,10 @@ mod tests {
             .await
             .expect("test assertion");
 
-        let board = service.get_task_board("Xavier").await.expect("test assertion");
+        let board = service
+            .get_task_board("Xavier")
+            .await
+            .expect("test assertion");
 
         assert!(!board.get("Backlog").expect("test assertion").is_empty());
         assert!(!board.get("In Progress").expect("test assertion").is_empty());

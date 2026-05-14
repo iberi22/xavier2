@@ -1,21 +1,21 @@
 //! CLI application state
 
+use super::Command;
 use clap::Parser;
+use parking_lot::Mutex;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use super::Command;
+use tokio::sync::RwLock;
+use xavier::agents::rate_limit::RateLimitManager;
+use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 use xavier::memory::session_store::SessionStore;
 use xavier::memory::store::MemoryStore;
 use xavier::ports::inbound::{AgentLifecyclePort, MemoryQueryPort};
 use xavier::security::SecurityService;
-use xavier::time::TimeMetricsStore;
-use xavier::agents::rate_limit::RateLimitManager;
-use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 use xavier::tasks::store::{InMemoryTaskStore, TaskService};
+use xavier::time::TimeMetricsStore;
 use xavier::AppState;
-use parking_lot::Mutex;
-use std::collections::HashMap;
-use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct CliState {

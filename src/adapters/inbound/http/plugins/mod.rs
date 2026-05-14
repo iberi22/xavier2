@@ -247,10 +247,16 @@ mod tests {
         let results = registry.health_check_all().await;
         assert_eq!(results.len(), 2);
 
-        let healthy_result = results.iter().find(|(n, _)| n == "healthy").expect("test assertion");
+        let healthy_result = results
+            .iter()
+            .find(|(n, _)| n == "healthy")
+            .expect("test assertion");
         assert!(healthy_result.1.is_ok());
 
-        let unhealthy_result = results.iter().find(|(n, _)| n == "unhealthy").expect("test assertion");
+        let unhealthy_result = results
+            .iter()
+            .find(|(n, _)| n == "unhealthy")
+            .expect("test assertion");
         assert!(unhealthy_result.1.is_err());
     }
 

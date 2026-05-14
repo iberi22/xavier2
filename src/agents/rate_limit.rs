@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use anyhow::Result;
+use chrono::{DateTime, Duration, Utc};
 use parking_lot::Mutex;
 use rusqlite::{params, Connection, OptionalExtension};
-use anyhow::Result;
-use chrono::{DateTime, Utc, Duration};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuotaStatus {
@@ -49,18 +49,27 @@ impl RateLimitManager {
         ).unwrap_or(0) > 0;
 
         if !has_cache_hits {
-            conn.execute("ALTER TABLE rate_limit_usage ADD COLUMN cache_hits INTEGER DEFAULT 0", [])?;
+            conn.execute(
+                "ALTER TABLE rate_limit_usage ADD COLUMN cache_hits INTEGER DEFAULT 0",
+                [],
+            )?;
         }
 
         // Migration: Add cost_usd column if it doesn't exist
-        let column_exists: bool = conn.query_row(
-            "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cost_usd'",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(0) > 0;
+        let column_exists: bool = conn
+            .query_row(
+                "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cost_usd'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0)
+            > 0;
 
         if !column_exists {
-            conn.execute("ALTER TABLE rate_limit_usage ADD COLUMN cost_usd REAL DEFAULT 0.0", [])?;
+            conn.execute(
+                "ALTER TABLE rate_limit_usage ADD COLUMN cost_usd REAL DEFAULT 0.0",
+                [],
+            )?;
         }
 
         conn.execute(
@@ -82,7 +91,10 @@ impl RateLimitManager {
         ).map(|count| count > 0).unwrap_or(false);
 
         if !has_weekly_quota {
-            let _ = conn.execute("ALTER TABLE provider_quotas ADD COLUMN weekly_quota INTEGER DEFAULT 1000000", []);
+            let _ = conn.execute(
+                "ALTER TABLE provider_quotas ADD COLUMN weekly_quota INTEGER DEFAULT 1000000",
+                [],
+            );
         }
 
         Ok(())
@@ -195,16 +207,20 @@ impl RateLimitManager {
                  ORDER BY timestamp ASC",
             )?;
 
-            let requests: Vec<serde_json::Value> = stmt.query_map(params![provider, day_ago], |row| {
-                Ok(serde_json::json!({
-                    "ts": row.get::<_, DateTime<Utc>>(0)?,
-                    "tokens": row.get::<_, i64>(1)?,
-                    "status": row.get::<_, u16>(2)?,
-                }))
-            })?.filter_map(|r| r.ok()).collect();
+            let requests: Vec<serde_json::Value> = stmt
+                .query_map(params![provider, day_ago], |row| {
+                    Ok(serde_json::json!({
+                        "ts": row.get::<_, DateTime<Utc>>(0)?,
+                        "tokens": row.get::<_, i64>(1)?,
+                        "status": row.get::<_, u16>(2)?,
+                    }))
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
 
             let total = requests.len();
-            let tokens: i64 = requests.iter()
+            let tokens: i64 = requests
+                .iter()
                 .map(|r| r["tokens"].as_i64().unwrap_or(0))
                 .sum();
 
@@ -248,7 +264,8 @@ impl RateLimitManager {
     pub async fn get_all_providers(&self) -> Result<Vec<String>> {
         let conn = self.db.lock();
         let mut stmt = conn.prepare("SELECT DISTINCT provider FROM rate_limit_usage")?;
-        let providers = stmt.query_map([], |row| row.get::<_, String>(0))?
+        let providers = stmt
+            .query_map([], |row| row.get::<_, String>(0))?
             .filter_map(|r| r.ok())
             .collect();
         Ok(providers)
@@ -288,12 +305,18 @@ mod tests {
         assert!(!manager.is_quota_low(provider).await.unwrap());
 
         // Use 91% of quota
-        manager.track_request(provider, 910_000, 200, 0.0, false).await.unwrap();
+        manager
+            .track_request(provider, 910_000, 200, 0.0, false)
+            .await
+            .unwrap();
         assert!(manager.is_quota_low(provider).await.unwrap());
 
         // Use 89% of quota
         let manager = setup_manager().await;
-        manager.track_request(provider, 890_000, 200, 0.0, false).await.unwrap();
+        manager
+            .track_request(provider, 890_000, 200, 0.0, false)
+            .await
+            .unwrap();
         assert!(!manager.is_quota_low(provider).await.unwrap());
     }
 
@@ -307,11 +330,15 @@ mod tests {
             conn.execute(
                 "INSERT INTO provider_quotas (provider, weekly_quota) VALUES (?1, ?2)",
                 params![provider, 1000],
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         // Use 950 tokens (95%)
-        manager.track_request(provider, 950, 200, 0.0, false).await.unwrap();
+        manager
+            .track_request(provider, 950, 200, 0.0, false)
+            .await
+            .unwrap();
         assert!(manager.is_quota_low(provider).await.unwrap());
 
         // Use 850 tokens (85%)
@@ -321,9 +348,13 @@ mod tests {
             conn.execute(
                 "INSERT INTO provider_quotas (provider, weekly_quota) VALUES (?1, ?2)",
                 params![provider, 1000],
-            ).unwrap();
+            )
+            .unwrap();
         }
-        manager.track_request(provider, 850, 200, 0.0, false).await.unwrap();
+        manager
+            .track_request(provider, 850, 200, 0.0, false)
+            .await
+            .unwrap();
         assert!(!manager.is_quota_low(provider).await.unwrap());
     }
 
@@ -332,8 +363,14 @@ mod tests {
         let manager = setup_manager().await;
         let provider = "test-provider";
 
-        manager.track_request(provider, 100, 200, 0.01, false).await.unwrap();
-        manager.track_request(provider, 200, 200, 0.02, false).await.unwrap();
+        manager
+            .track_request(provider, 100, 200, 0.01, false)
+            .await
+            .unwrap();
+        manager
+            .track_request(provider, 200, 200, 0.02, false)
+            .await
+            .unwrap();
 
         let status = manager.get_status(provider).await.unwrap();
         assert_eq!(status.used_hourly, 300);

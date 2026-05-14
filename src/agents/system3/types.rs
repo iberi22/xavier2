@@ -1,6 +1,6 @@
+use crate::memory::semantic_cache::SemanticCache;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::memory::semantic_cache::SemanticCache;
 
 /// Response del System 3
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -917,7 +917,10 @@ mod tests {
             .await
             .expect("test assertion");
 
-        let _ = memory.search_with_cache("performance", 5).await.expect("test assertion");
+        let _ = memory
+            .search_with_cache("performance", 5)
+            .await
+            .expect("test assertion");
         assert_eq!(memory.cache_metrics().await.entries, 1);
 
         memory
@@ -949,7 +952,11 @@ mod tests {
             .await
             .expect("test assertion");
 
-        let stored = memory.get("docs/offline").await.expect("test assertion").expect("test assertion");
+        let stored = memory
+            .get("docs/offline")
+            .await
+            .expect("test assertion")
+            .expect("test assertion");
         assert!(stored.embedding.is_empty());
     }
 

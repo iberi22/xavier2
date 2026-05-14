@@ -70,7 +70,10 @@ mod tests {
             name: "test".to_string(),
             content: "content".to_string(),
         };
-        let result = executor.execute(&skill, "input").await.expect("test assertion");
+        let result = executor
+            .execute(&skill, "input")
+            .await
+            .expect("test assertion");
 
         assert!(result.contains("Result of test"));
         assert!(result.contains("[SAFE]"));

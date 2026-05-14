@@ -729,10 +729,12 @@ mod tests {
 
     #[test]
     fn task_status_uses_protocol_friendly_serialization() {
-        let serialized = serde_json::to_string(&types::TaskStatus::InputRequired).expect("test serialization");
+        let serialized =
+            serde_json::to_string(&types::TaskStatus::InputRequired).expect("test serialization");
         assert_eq!(serialized, "\"inputRequired\"");
 
-        let deserialized: types::TaskStatus = serde_json::from_str("\"completed\"").expect("test deserialization");
+        let deserialized: types::TaskStatus =
+            serde_json::from_str("\"completed\"").expect("test deserialization");
         assert_eq!(deserialized, types::TaskStatus::Completed);
     }
 
@@ -771,7 +773,9 @@ mod tests {
         };
 
         let response = server.handle_request(request).await;
-        let task: types::Task = serde_json::from_value(response.result.expect("test result present")).expect("test deserialization");
+        let task: types::Task =
+            serde_json::from_value(response.result.expect("test result present"))
+                .expect("test deserialization");
 
         assert_eq!(response.error, None);
         assert_eq!(task.id, "task-1");
@@ -839,7 +843,10 @@ mod tests {
         let response = server.handle_request(cancel_request).await;
 
         assert_eq!(response.error, None);
-        assert_eq!(response.result.expect("test result present")["success"], true);
+        assert_eq!(
+            response.result.expect("test result present")["success"],
+            true
+        );
     }
 
     #[tokio::test]

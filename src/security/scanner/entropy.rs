@@ -102,20 +102,16 @@ static DEFAULT_PATTERNS: LazyLock<Vec<(String, regex::Regex)>> = LazyLock::new(|
     vec![
         (
             "GitHub Token".to_string(),
-            regex::Regex::new(r"gh[pousr]_[A-Za-z0-9_]{36,}")
-                .expect("invalid regex: GitHub Token"),
+            regex::Regex::new(r"gh[pousr]_[A-Za-z0-9_]{36,}").expect("invalid regex: GitHub Token"),
         ),
         (
             "AWS Key".to_string(),
-            regex::Regex::new(r"(?i)AKIA[0-9A-Z]{16}")
-                .expect("invalid regex: AWS Key"),
+            regex::Regex::new(r"(?i)AKIA[0-9A-Z]{16}").expect("invalid regex: AWS Key"),
         ),
         (
             "Generic API Key".to_string(),
-            regex::Regex::new(
-                r#"(?i)(api[_-]?key|apikey)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#,
-            )
-            .expect("invalid regex: Generic API Key"),
+            regex::Regex::new(r#"(?i)(api[_-]?key|apikey)[=:]{1}\s*['"]?[a-zA-Z0-9+/]{16,}['"]?"#)
+                .expect("invalid regex: Generic API Key"),
         ),
         (
             "Generic Secret".to_string(),

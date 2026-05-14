@@ -1,6 +1,5 @@
 //! CLI configuration utilities
 
-
 use anyhow::{anyhow, Result};
 use rand::{rngs::OsRng, RngCore};
 use std::path::PathBuf;

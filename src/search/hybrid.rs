@@ -206,7 +206,10 @@ mod tests {
             .expect("test assertion");
 
         let searcher = HybridSearcher::new();
-        let results = searcher.search(&memory, "quick", 10, None).await.expect("test assertion");
+        let results = searcher
+            .search(&memory, "quick", 10, None)
+            .await
+            .expect("test assertion");
 
         assert!(!results.is_empty());
         assert_eq!(results[0].path, "doc1");
@@ -246,7 +249,10 @@ mod tests {
         searcher.hooks.add_hook(Arc::new(QueryExpander));
 
         // "fast" should be expanded to "quick" and match doc1
-        let results = searcher.search(&memory, "fast", 10, None).await.expect("test assertion");
+        let results = searcher
+            .search(&memory, "fast", 10, None)
+            .await
+            .expect("test assertion");
         assert!(!results.is_empty());
         assert_eq!(results[0].path, "doc1");
     }

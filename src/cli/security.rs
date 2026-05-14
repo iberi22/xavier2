@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 
-
 use xavier::security::{ProcessResult, SecurityService};
 
 pub fn blocked_external_input_response(label: &str, result: &ProcessResult) -> serde_json::Value {

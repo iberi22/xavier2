@@ -20,26 +20,23 @@ use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
+use super::code_graph::{code_find_symbols, filter_symbols_by_query};
+use super::security::{secure_cli_input, secure_external_input, secure_optional_request_field};
+use super::utils::estimate_tokens;
 use crate::cli::config::{
     code_graph_db_path, resolve_base_url, resolve_base_url_for_port, resolve_http_bind_host,
     resolve_http_port, resolve_http_token, state_panel_root, xavier_token,
 };
-use xavier::agents::rate_limit::RateLimitManager;
-use xavier::agents::system3::{System3Actor, ActorConfig};
 use crate::cli::state::CliState;
-use super::code_graph::{
-    code_find_symbols, filter_symbols_by_query,
-};
-use super::security::{
-    secure_cli_input, secure_external_input, secure_optional_request_field,
-};
-use super::utils::estimate_tokens;
 use xavier::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
 };
 use xavier::adapters::outbound::http_health_adapter::HttpHealthAdapter;
+use xavier::agents::rate_limit::RateLimitManager;
+use xavier::agents::system3::{ActorConfig, System3Actor};
 use xavier::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier::coordination::SimpleAgentRegistry;
+use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 use xavier::memory::qmd_memory::{MemoryDocument, QmdMemory};
 use xavier::memory::schema::MemoryQueryFilters;
 use xavier::memory::session_store::{PanelMessage, SessionStore};
@@ -54,9 +51,8 @@ use xavier::server::panel::{
 use xavier::session::event_mapper::PanelThreadEntry;
 use xavier::session::types::SessionEvent;
 use xavier::tasks::session_sync_task::SessionSyncTask;
-use xavier::tasks::store::{TaskService, InMemoryTaskStore};
+use xavier::tasks::store::{InMemoryTaskStore, TaskService};
 use xavier::time::TimeMetricsStore;
-use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 
 pub async fn start_http_server(port: u16) -> Result<()> {
     std::env::set_var("XAVIER_PORT", port.to_string());
@@ -146,7 +142,9 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     let panel_root = state_panel_root(&workspace_dir, &workspace_id);
     let panel_store = Arc::new(SessionStore::new(panel_root).await?);
 
-    let _audit_logger = Arc::new(xavier::secrets::audit::QmdAuditLogger::new(store.clone_inner_conn()));
+    let _audit_logger = Arc::new(xavier::secrets::audit::QmdAuditLogger::new(
+        store.clone_inner_conn(),
+    ));
     {
         let conn = store.clone_inner_conn();
         let conn_lock = conn.lock();
@@ -160,9 +158,13 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         RateLimitManager::init_schema(&conn_lock)?;
     }
 
-    let secrets_engine = Arc::new(KeyLendingEngine::new(Box::new(xavier::secrets::audit::QmdAuditLogger::new(store.clone_inner_conn()))));
+    let secrets_engine = Arc::new(KeyLendingEngine::new(Box::new(
+        xavier::secrets::audit::QmdAuditLogger::new(store.clone_inner_conn()),
+    )));
     let event_bus = XavierEventBus::new(100);
-    let tasks = Arc::new(TaskService::new(Arc::new(InMemoryTaskStore::new())).with_event_bus(event_bus.clone()));
+    let tasks = Arc::new(
+        TaskService::new(Arc::new(InMemoryTaskStore::new())).with_event_bus(event_bus.clone()),
+    );
 
     // Subscribe secrets engine to task completion events
     let secrets_engine_for_bus = secrets_engine.clone();
@@ -172,8 +174,13 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         while let Ok(event) = receiver.recv().await {
             if let xavier::coordination::events::XavierEvent::TaskCompleted { task } = event {
                 if let Some(agent_id) = &task.assignee {
-                    info!("Task {} completed by agent {}. Revoking ephemeral keys...", task.id, agent_id);
-                    secrets_engine_for_bus.revoke_for_agent(agent_id, "Task Completed").await;
+                    info!(
+                        "Task {} completed by agent {}. Revoking ephemeral keys...",
+                        task.id, agent_id
+                    );
+                    secrets_engine_for_bus
+                        .revoke_for_agent(agent_id, "Task Completed")
+                        .await;
                 }
             }
         }
@@ -265,8 +272,14 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/secrets/leases", get(leases_handler))
         .route("/secrets/revoke", post(revoke_handler))
         .route("/secrets/status/{token}", get(status_handler))
-        .route("/v1/proxy/chat/completions", post(crate::cli::proxy::chat_proxy))
-        .route("/v1/proxy/chat/completions/batch", post(crate::cli::proxy::chat_batch_proxy))
+        .route(
+            "/v1/proxy/chat/completions",
+            post(crate::cli::proxy::chat_proxy),
+        )
+        .route(
+            "/v1/proxy/chat/completions/batch",
+            post(crate::cli::proxy::chat_batch_proxy),
+        )
         .route("/v1/usage/status/{provider}", get(usage_status_handler))
         .route("/v1/usage/update", post(usage_update_handler))
         .route("/v1/usage/cooldown", post(usage_cooldown_handler))
@@ -1128,7 +1141,9 @@ pub async fn code_find_handler(
     }))
 }
 
-pub async fn code_stats_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
+pub async fn code_stats_handler(
+    State(state): State<CliState>,
+) -> impl axum::response::IntoResponse {
     match state.code_db.stats() {
         Ok(stats) => axum::Json(serde_json::json!({
             "status": "ok",
@@ -1492,7 +1507,9 @@ pub async fn agent_heartbeat_handler(
     }))
 }
 
-pub async fn agent_active_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
+pub async fn agent_active_handler(
+    State(state): State<CliState>,
+) -> impl axum::response::IntoResponse {
     let active = state.agent_registry.get_active_agents().await;
 
     axum::Json(serde_json::json!({
@@ -1771,24 +1788,49 @@ pub async fn lend_handler(
     State(state): State<CliState>,
     Json(payload): Json<LendSecretPayload>,
 ) -> Response {
-    match state.secrets_engine.lend(&payload.secret_name, &payload.secret_value, &payload.agent_id, payload.ttl_seconds).await {
-        Ok(lease) => json_response(StatusCode::OK, serde_json::to_value(lease).unwrap_or_default()),
-        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+    match state
+        .secrets_engine
+        .lend(
+            &payload.secret_name,
+            &payload.secret_value,
+            &payload.agent_id,
+            payload.ttl_seconds,
+        )
+        .await
+    {
+        Ok(lease) => json_response(
+            StatusCode::OK,
+            serde_json::to_value(lease).unwrap_or_default(),
+        ),
+        Err(e) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": e.to_string() }),
+        ),
     }
 }
 
 pub async fn leases_handler(State(state): State<CliState>) -> Response {
     let leases = state.secrets_engine.list_leases().await;
-    json_response(StatusCode::OK, serde_json::to_value(leases).unwrap_or_default())
+    json_response(
+        StatusCode::OK,
+        serde_json::to_value(leases).unwrap_or_default(),
+    )
 }
 
 pub async fn revoke_handler(
     State(state): State<CliState>,
     Json(payload): Json<RevokeLeasePayload>,
 ) -> Response {
-    match state.secrets_engine.revoke(&payload.token, "Manual API Call").await {
+    match state
+        .secrets_engine
+        .revoke(&payload.token, "Manual API Call")
+        .await
+    {
         Ok(_) => json_response(StatusCode::OK, serde_json::json!({ "status": "revoked" })),
-        Err(e) => json_response(StatusCode::NOT_FOUND, serde_json::json!({ "error": e.to_string() })),
+        Err(e) => json_response(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({ "error": e.to_string() }),
+        ),
     }
 }
 
@@ -1797,8 +1839,14 @@ pub async fn status_handler(
     AxumPath(token): AxumPath<String>,
 ) -> Response {
     match state.secrets_engine.get_lease(&token).await {
-        Some(status) => json_response(StatusCode::OK, serde_json::to_value(status).unwrap_or_default()),
-        None => json_response(StatusCode::NOT_FOUND, serde_json::json!({ "error": "Lease not found" })),
+        Some(status) => json_response(
+            StatusCode::OK,
+            serde_json::to_value(status).unwrap_or_default(),
+        ),
+        None => json_response(
+            StatusCode::NOT_FOUND,
+            serde_json::json!({ "error": "Lease not found" }),
+        ),
     }
 }
 
@@ -1830,8 +1878,14 @@ pub async fn usage_status_handler(
     AxumPath(provider): AxumPath<String>,
 ) -> Response {
     match state.rate_manager.get_status(&provider).await {
-        Ok(status) => json_response(StatusCode::OK, serde_json::to_value(status).unwrap_or_default()),
-        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+        Ok(status) => json_response(
+            StatusCode::OK,
+            serde_json::to_value(status).unwrap_or_default(),
+        ),
+        Err(e) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": e.to_string() }),
+        ),
     }
 }
 
@@ -1839,15 +1893,22 @@ pub async fn usage_track_handler(
     State(state): State<CliState>,
     Json(payload): Json<UsageTrackPayload>,
 ) -> Response {
-    match state.rate_manager.track_request(
-        &payload.provider,
-        payload.tokens,
-        payload.status,
-        payload.cost_usd,
-        payload.is_cache_hit
-    ).await {
+    match state
+        .rate_manager
+        .track_request(
+            &payload.provider,
+            payload.tokens,
+            payload.status,
+            payload.cost_usd,
+            payload.is_cache_hit,
+        )
+        .await
+    {
         Ok(_) => json_response(StatusCode::OK, serde_json::json!({ "status": "ok" })),
-        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+        Err(e) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": e.to_string() }),
+        ),
     }
 }
 
@@ -1857,7 +1918,10 @@ pub async fn usage_summary_handler(
 ) -> Response {
     match state.rate_manager.get_daily_summary(&provider).await {
         Ok(summary) => json_response(StatusCode::OK, summary),
-        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+        Err(e) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": e.to_string() }),
+        ),
     }
 }
 
@@ -1865,9 +1929,16 @@ pub async fn usage_update_handler(
     State(state): State<CliState>,
     Json(payload): Json<UsageUpdatePayload>,
 ) -> Response {
-    match state.rate_manager.update_manual_limit(&payload.provider, payload.percentage).await {
+    match state
+        .rate_manager
+        .update_manual_limit(&payload.provider, payload.percentage)
+        .await
+    {
         Ok(_) => json_response(StatusCode::OK, serde_json::json!({ "status": "ok" })),
-        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+        Err(e) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": e.to_string() }),
+        ),
     }
 }
 
@@ -1875,8 +1946,15 @@ pub async fn usage_cooldown_handler(
     State(state): State<CliState>,
     Json(payload): Json<UsageCooldownPayload>,
 ) -> Response {
-    match state.rate_manager.report_429(&payload.provider, payload.minutes).await {
+    match state
+        .rate_manager
+        .report_429(&payload.provider, payload.minutes)
+        .await
+    {
         Ok(_) => json_response(StatusCode::OK, serde_json::json!({ "status": "ok" })),
-        Err(e) => json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+        Err(e) => json_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::json!({ "error": e.to_string() }),
+        ),
     }
 }

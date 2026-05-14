@@ -227,7 +227,11 @@ fn render_stats(f: &mut Frame, metrics: &DashboardMetrics, area: Rect) {
         );
 
         let gauge = Gauge::default()
-            .block(Block::default().borders(Borders::ALL).title(format!("Provider: {}", name)))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(format!("Provider: {}", name)),
+            )
             .gauge_style(Style::default().fg(color).bg(Color::Black))
             .ratio(ratio)
             .label(label);

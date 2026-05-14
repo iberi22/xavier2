@@ -62,7 +62,9 @@ impl XavierClient {
         let mut provider_quotas = HashMap::new();
         if let Some(quotas) = resp["provider_quotas"].as_object() {
             for (name, value) in quotas {
-                if let Ok(status) = serde_json::from_value::<xavier::agents::rate_limit::QuotaStatus>(value.clone()) {
+                if let Ok(status) =
+                    serde_json::from_value::<xavier::agents::rate_limit::QuotaStatus>(value.clone())
+                {
                     provider_quotas.insert(name.clone(), status);
                 }
             }

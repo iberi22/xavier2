@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use super::lending::AuditLogger;
+use chrono::Utc;
 use parking_lot::Mutex;
 use rusqlite::params;
-use chrono::Utc;
-use super::lending::AuditLogger;
+use std::sync::Arc;
 
 pub struct QmdAuditLogger {
     conn: Arc<Mutex<rusqlite::Connection>>,

@@ -221,10 +221,14 @@ mod tests {
         let kek = KEK::derive_from_password(password, &salt).expect("test assertion");
 
         // Verify correct password
-        assert!(kek.verify_password(password, &salt).expect("test assertion"));
+        assert!(kek
+            .verify_password(password, &salt)
+            .expect("test assertion"));
 
         // Verify wrong password
-        assert!(!kek.verify_password("wrong_password", &salt).expect("test assertion"));
+        assert!(!kek
+            .verify_password("wrong_password", &salt)
+            .expect("test assertion"));
     }
 
     #[test]
@@ -258,7 +262,9 @@ mod tests {
         let encrypted_dek = manager.encrypt_dek(&dek, &kek).expect("test assertion");
 
         // Decrypt DEK
-        let decrypted_dek = manager.decrypt_dek(&encrypted_dek, &kek).expect("test assertion");
+        let decrypted_dek = manager
+            .decrypt_dek(&encrypted_dek, &kek)
+            .expect("test assertion");
 
         assert_eq!(dek.0, decrypted_dek.0);
     }

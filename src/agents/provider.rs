@@ -532,7 +532,10 @@ impl ModelProviderClient {
         if use_cache && self.config.provider_label == "deepseek" {
             if let Some(msg) = messages.get_mut(0) {
                 if let Some(obj) = msg.as_object_mut() {
-                    obj.insert("cache_control".to_string(), serde_json::json!({"type": "ephemeral"}));
+                    obj.insert(
+                        "cache_control".to_string(),
+                        serde_json::json!({"type": "ephemeral"}),
+                    );
                 }
             }
         }
@@ -587,7 +590,9 @@ impl ModelProviderClient {
             }
         ]);
 
-        let mut builder = self.client.post(endpoint)
+        let mut builder = self
+            .client
+            .post(endpoint)
             .header("x-api-key", api_key)
             .header("anthropic-version", "2023-06-01");
 
@@ -595,7 +600,10 @@ impl ModelProviderClient {
             if let Some(arr) = system_json.as_array_mut() {
                 if let Some(first) = arr.get_mut(0) {
                     if let Some(obj) = first.as_object_mut() {
-                        obj.insert("cache_control".to_string(), serde_json::json!({"type": "ephemeral"}));
+                        obj.insert(
+                            "cache_control".to_string(),
+                            serde_json::json!({"type": "ephemeral"}),
+                        );
                     }
                 }
             }

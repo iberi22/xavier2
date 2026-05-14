@@ -11,8 +11,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
-static BASE64_ENCODED_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[A-Za-z0-9+/]{20,}={0,2}").expect("invalid regex: base64 encoded"));
+static BASE64_ENCODED_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"[A-Za-z0-9+/]{20,}={0,2}").expect("invalid regex: base64 encoded")
+});
 static HEX_ENCODED_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?:0x)?[a-fA-F0-9]{20,}").expect("invalid regex: hex encoded"));
 static URL_ENCODED_RE: LazyLock<Regex> =
