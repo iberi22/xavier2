@@ -76,6 +76,12 @@ footer { margin-top: 80px; padding: 40px 0; border-top: 1px solid var(--border-c
 /// Default fallback JS (used when theme file is missing)
 const FALLBACK_JS: &str = r#"console.log("Xavier DevLog loaded.");"#;
 
+impl Default for DevLogSSG {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DevLogSSG {
     pub fn new() -> Self {
         Self {
@@ -255,7 +261,7 @@ impl DevLogSSG {
         for entry in WalkDir::new(&self.input_dir).max_depth(1) {
             let entry = entry?;
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
                 posts.push(path.to_path_buf());
             }
         }

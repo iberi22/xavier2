@@ -42,7 +42,7 @@ mod tests {
                 f,
                 Rect::new(0, 0, 40, 1),
                 "Label",
-                "Value",
+                "🦀Rust",
                 false,
                 0,
                 false,
@@ -60,16 +60,10 @@ mod tests {
 
 
         // Check emoji
-        assert_eq!(buf[(6, 0)].symbol(), "🦀");
+        assert_eq!(buf[(7, 0)].symbol(), "🦀");
 
-        // The emoji 🦀 is width 2. Ratatui renders it in one cell and
-        // usually leaves the next cell empty or with a generic filler.
-        // In this environment, it seems cell 7 is a space.
-        let rust_start = if buf[(7, 0)].symbol() == " " || buf[(7, 0)].symbol() == "" {
-            8
-        } else {
-            7
-        };
+        // The emoji 🦀 is width 2. Index 8 is the filler.
+        let rust_start = 9;
 
         let mut rust = String::new();
         for i in rust_start..rust_start+4 {
@@ -99,7 +93,7 @@ mod tests {
         // "Input: " (7) + "A" (1) + "🦀" (1) + "C" (1) = 10
         // Cursor at pos 1 of "A🦀C" means it's on "🦀"
         assert_eq!(buf[(8, 0)].symbol(), "🦀");
-        // Check background color of cursor cell (ACCENT is Cyan)
+        // Check background color of cursor cell (ACCENT is Color::Cyan)
         // ACCENT is Color::Cyan
         use ratatui::style::Color;
         assert_eq!(buf[(8, 0)].bg, Color::Cyan);

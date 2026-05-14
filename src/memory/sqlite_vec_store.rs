@@ -2705,6 +2705,9 @@ mod tests {
                     revision INTEGER NOT NULL DEFAULT 1,
                     primary_flag INTEGER NOT NULL DEFAULT 1,
                     parent_id TEXT,
+                    cluster_id TEXT,
+                    level TEXT NOT NULL DEFAULT 'raw',
+                    relation TEXT,
                     revisions TEXT NOT NULL DEFAULT '[]'
                 );
                 CREATE VIRTUAL TABLE memory_fts USING fts5(

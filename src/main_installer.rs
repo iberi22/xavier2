@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             println!("✗ Wizard cancelled.");
         }
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(feature = "cli-interactive"))]
