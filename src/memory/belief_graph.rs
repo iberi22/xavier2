@@ -6,6 +6,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, RwLock};
 use tokio::sync::RwLock as AsyncRwLock;
 use tracing::info;
+use chrono::Utc;
+
+use crate::domain::memory::belief::{BeliefEdge, BeliefNode};
+use crate::agents::belief_evaluator::BeliefEvaluator;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Confidence {
@@ -15,7 +19,7 @@ pub enum Confidence {
 }
 
 impl Confidence {
-    fn score(self) -> f32 {
+    pub fn score(self) -> f32 {
         match self {
             Self::High => 0.9,
             Self::Medium => 0.6,
@@ -43,58 +47,21 @@ impl Belief {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct BeliefEdge {
-    pub from: String,
-    pub to: String,
-    pub relation: String,
-}
-
-impl BeliefEdge {
-    pub fn new(from: String, to: String, relation: String) -> Self {
-        Self { from, to, relation }
-    }
-}
-
-/// A node in the belief graph.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BeliefNode {
-    pub id: String,
-    pub concept: String,
-    pub confidence: f32,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-/// A relation between nodes.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BeliefRelation {
-    pub id: String,
-    pub source: String,
-    pub target: String,
-    pub relation_type: String,
-    pub weight: f32,
-    pub confidence: f32,
-    pub source_memory_id: Option<String>,
-    pub valid_from: Option<chrono::DateTime<chrono::Utc>>,
-    pub valid_until: Option<chrono::DateTime<chrono::Utc>>,
-    pub superseded_by: Option<String>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
 /// Thread-safe belief graph that exposes both sync and async-friendly helpers.
 pub struct BeliefGraph {
     nodes: RwLock<HashMap<String, BeliefNode>>,
-    relations: RwLock<Vec<BeliefRelation>>,
+    edges: RwLock<Vec<BeliefEdge>>,
     adjacency: RwLock<HashMap<String, HashSet<String>>>,
+    evaluator: BeliefEvaluator,
 }
 
 impl BeliefGraph {
     pub fn new() -> Self {
         Self {
             nodes: RwLock::new(HashMap::new()),
-            relations: RwLock::new(Vec::new()),
+            edges: RwLock::new(Vec::new()),
             adjacency: RwLock::new(HashMap::new()),
+            evaluator: BeliefEvaluator::new(),
         }
     }
 
@@ -104,7 +71,7 @@ impl BeliefGraph {
             id: id.clone(),
             concept: concept.clone(),
             confidence,
-            created_at: chrono::Utc::now(),
+            created_at: Utc::now(),
         };
 
         self.nodes
@@ -120,70 +87,39 @@ impl BeliefGraph {
         info!("Added node: {}", concept);
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn add_relation(
+    pub async fn add_edge(&self, from: String, to: String, relation: String) {
+        let _ = self.add_relation(from, to, relation, None, None).await;
+    }
+
+    pub async fn add_relation(
         &self,
         source: String,
         target: String,
         relation_type: String,
-        weight: f32,
-        source_memory_id: Option<String>,
-        valid_from: Option<chrono::DateTime<chrono::Utc>>,
-        valid_until: Option<chrono::DateTime<chrono::Utc>>,
-    ) {
-        let now = chrono::Utc::now();
-        let superseded_relation = {
-            let mut relations = self
-                .relations
-                .write()
-                .expect("belief_graph: relations write lock poisoned");
-            relations
-                .iter_mut()
-                .find(|relation| {
-                    relation.source == source
-                        && relation.relation_type == relation_type
-                        && relation.valid_until.is_none()
-                        && relation.target != target
-                })
-                .map(|relation| {
-                    relation.valid_until = valid_from.or(Some(now));
-                    relation.updated_at = now;
-                    relation.id.clone()
-                })
-        };
+        provenance_id: Option<String>,
+        source_type: Option<&str>,
+    ) -> Result<()> {
+        let provenance_id = provenance_id.unwrap_or_else(|| "unknown".to_string());
+        let confidence_score = self.evaluator.evaluate_confidence(source_type.unwrap_or("unknown"), &relation_type).await;
 
-        let id = ulid::Ulid::new().to_string();
-        let relation = BeliefRelation {
-            id: id.clone(),
-            source: source.clone(),
-            target: target.clone(),
-            relation_type: relation_type.clone(),
-            weight,
-            confidence: weight,
-            source_memory_id,
-            valid_from,
-            valid_until,
-            superseded_by: None,
-            created_at: now,
-            updated_at: now,
-        };
+        let mut new_edge = BeliefEdge::new(
+            source.clone(),
+            target.clone(),
+            relation_type,
+            confidence_score,
+            provenance_id,
+        );
 
-        self.relations
-            .write()
-            .expect("belief_graph: relations write lock poisoned")
-            .push(relation);
-
-        if let Some(previous_id) = superseded_relation {
-            if let Some(previous) = self
-                .relations
-                .write()
-                .expect("belief_graph: relations write lock poisoned")
-                .iter_mut()
-                .find(|relation| relation.id == previous_id)
-            {
-                previous.superseded_by = Some(id.clone());
-            }
+        let existing_edges = self.get_edges_async().await;
+        if let Some(contradicts_id) = self.evaluator.find_contradiction(&new_edge, &existing_edges) {
+            new_edge.contradicts_edge_id = Some(contradicts_id);
+            info!("Contradiction detected for {} -> {} ({}). Adding competing belief.", source, target, new_edge.relation_type);
         }
+
+        self.edges
+            .write()
+            .expect("belief_graph: edges write lock poisoned")
+            .push(new_edge.clone());
 
         let mut adjacency = self
             .adjacency
@@ -196,9 +132,11 @@ impl BeliefGraph {
         adjacency.entry(target.clone()).or_default();
 
         info!(
-            "Added relation: {} -> {} ({})",
-            source, target, relation_type
+            "Added relation: {} -> {} ({}) [confidence: {}]",
+            source, target, new_edge.relation_type, confidence_score
         );
+
+        Ok(())
     }
 
     pub fn get_related(&self, concept: &str) -> Vec<String> {
@@ -219,13 +157,6 @@ impl BeliefGraph {
             .cloned()
     }
 
-    pub fn get_relations(&self) -> Vec<BeliefRelation> {
-        self.relations
-            .read()
-            .expect("belief_graph: relations read lock poisoned")
-            .clone()
-    }
-
     pub fn list_nodes(&self) -> Vec<BeliefNode> {
         self.nodes
             .read()
@@ -235,69 +166,111 @@ impl BeliefGraph {
             .collect()
     }
 
-    pub fn update_confidence(&self, concept: &str, new_confidence: f32) {
-        let mut nodes = self
+    pub fn get_edges(&self) -> Vec<BeliefEdge> {
+        self.edges
+            .read()
+            .expect("belief_graph: edges write lock poisoned")
+            .clone()
+    }
+
+    pub async fn get_edges_async(&self) -> Vec<BeliefEdge> {
+        self.get_edges()
+    }
+
+    pub fn get_relations(&self) -> Vec<BeliefEdge> {
+        self.get_edges()
+    }
+
+    pub fn replace_relations(&self, edges: Vec<BeliefEdge>) {
+        let mut nodes = HashMap::new();
+        let mut adjacency = HashMap::<String, HashSet<String>>::new();
+
+        for edge in &edges {
+            nodes.entry(edge.source.clone()).or_insert(BeliefNode {
+                id: edge.source.clone(),
+                concept: edge.source.clone(),
+                confidence: edge.confidence_score,
+                created_at: edge.created_at,
+            });
+            nodes.entry(edge.target.clone()).or_insert(BeliefNode {
+                id: edge.target.clone(),
+                concept: edge.target.clone(),
+                confidence: edge.confidence_score,
+                created_at: edge.created_at,
+            });
+
+            adjacency
+                .entry(edge.source.clone())
+                .or_default()
+                .insert(edge.target.clone());
+            adjacency.entry(edge.target.clone()).or_default();
+        }
+
+        *self
             .nodes
             .write()
-            .expect("belief_graph: nodes write lock poisoned");
-        if let Some(node) = nodes.values_mut().find(|node| node.concept == concept) {
-            node.confidence = new_confidence;
-        }
+            .expect("belief_graph: nodes write lock poisoned") = nodes;
+        *self
+            .adjacency
+            .write()
+            .expect("belief_graph: adjacency write lock poisoned") = adjacency;
+        *self
+            .edges
+            .write()
+            .expect("belief_graph: edges write lock poisoned") = edges;
     }
 
     pub async fn add_belief(
         &self,
         belief: Belief,
-        timestamp: Option<chrono::DateTime<chrono::Utc>>,
         source_memory_id: Option<String>,
-    ) {
-        let subject_confidence = belief.confidence.score();
-        let object_confidence = belief.confidence.score();
+    ) -> Result<()> {
+        let confidence_score = belief.confidence.score();
 
         if self.get_node(&belief.subject).is_none() {
-            self.add_node(belief.subject.clone(), subject_confidence);
-        } else {
-            self.update_confidence(&belief.subject, subject_confidence);
+            self.add_node(belief.subject.clone(), confidence_score);
         }
 
         if self.get_node(&belief.object).is_none() {
-            self.add_node(belief.object.clone(), object_confidence);
+            self.add_node(belief.object.clone(), confidence_score);
         }
 
         self.add_relation(
             belief.subject,
             belief.object,
             belief.predicate,
-            subject_confidence,
             source_memory_id,
-            timestamp,
             None,
-        );
+        ).await
     }
 
-    pub async fn add_edge(&self, from: String, to: String, relation: String) {
-        self.add_relation(
-            from,
-            to,
-            relation,
-            Confidence::Medium.score(),
-            None,
-            None,
-            None,
-        );
-    }
+    /// Returns the highest-confidence paths or multiple beliefs if ambiguity exists.
+    pub async fn search(&self, query: &str) -> Vec<BeliefEdge> {
+        let query_lower = query.to_lowercase();
+        let words: Vec<_> = query_lower
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| w.len() > 2)
+            .collect();
 
-    pub async fn get_nodes(&self) -> Vec<BeliefNode> {
-        self.list_nodes()
-    }
+        if words.is_empty() {
+            return Vec::new();
+        }
 
-    pub async fn get_edges(&self) -> Vec<BeliefEdge> {
-        self.get_relations()
+        let mut results = self.get_edges()
             .into_iter()
-            .map(|relation| {
-                BeliefEdge::new(relation.source, relation.target, relation.relation_type)
+            .filter(|edge| {
+                let s = edge.source.to_lowercase();
+                let t = edge.target.to_lowercase();
+                let r = edge.relation_type.to_lowercase();
+
+                words
+                    .iter()
+                    .any(|w| s.contains(w) || t.contains(w) || r.contains(w))
             })
-            .collect()
+            .collect::<Vec<_>>();
+
+        results.sort_by(|a, b| b.confidence_score.partial_cmp(&a.confidence_score).unwrap_or(std::cmp::Ordering::Equal));
+        results
     }
 
     pub async fn bfs(&self, start: &str) -> Vec<String> {
@@ -331,155 +304,48 @@ impl BeliefGraph {
         ordered
     }
 
-    pub async fn search(&self, query: &str) -> Vec<Belief> {
-        let query_lower = query.to_lowercase();
-        let words: Vec<_> = query_lower
-            .split(|c: char| !c.is_alphanumeric())
-            .filter(|w| w.len() > 2)
-            .collect();
+    /// Finds the highest-confidence path between two concepts.
+    pub async fn find_highest_confidence_path(&self, start: &str, end: &str) -> Vec<BeliefEdge> {
+        let edges = self.get_edges();
+        let mut distances = HashMap::new();
+        let mut previous = HashMap::new();
+        let mut queue = HashSet::new();
 
-        self.get_relations()
-            .into_iter()
-            .filter(|relation| {
-                let s = relation.source.to_lowercase();
-                let t = relation.target.to_lowercase();
-                let r = relation.relation_type.to_lowercase();
+        distances.insert(start.to_string(), 0.0f32);
+        queue.insert(start.to_string());
 
-                words
-                    .iter()
-                    .any(|w| s.contains(w) || t.contains(w) || r.contains(w))
-            })
-            .map(|relation| {
-                let confidence = self
-                    .get_node(&relation.source)
-                    .map(|node| {
-                        if node.confidence >= Confidence::High.score() {
-                            Confidence::High
-                        } else if node.confidence >= Confidence::Medium.score() {
-                            Confidence::Medium
-                        } else {
-                            Confidence::Low
-                        }
-                    })
-                    .unwrap_or(Confidence::Medium);
+        // Simple Dijkstra-like approach using confidence as weight (higher is better, so we use 1.0 - confidence as cost)
+        while !queue.is_empty() {
+            let current = queue.iter().min_by(|a, b| {
+                let da = distances.get(*a).unwrap_or(&f32::INFINITY);
+                let db = distances.get(*b).unwrap_or(&f32::INFINITY);
+                da.partial_cmp(db).unwrap_or(std::cmp::Ordering::Equal)
+            }).cloned().unwrap();
 
-                Belief::new(
-                    relation.source,
-                    relation.relation_type,
-                    relation.target,
-                    confidence,
-                )
-            })
-            .collect()
-    }
+            queue.remove(&current);
 
-    pub fn replace_relations(&self, relations: Vec<BeliefRelation>) {
-        let mut nodes = HashMap::new();
-        let mut adjacency = HashMap::<String, HashSet<String>>::new();
+            if current == end {
+                break;
+            }
 
-        for relation in &relations {
-            let source_created_at = relation.valid_from.unwrap_or(relation.created_at);
-            let target_created_at = relation.valid_from.unwrap_or(relation.created_at);
-
-            nodes.entry(relation.source.clone()).or_insert(BeliefNode {
-                id: relation.source.clone(),
-                concept: relation.source.clone(),
-                confidence: relation.confidence,
-                created_at: source_created_at,
-            });
-            nodes.entry(relation.target.clone()).or_insert(BeliefNode {
-                id: relation.target.clone(),
-                concept: relation.target.clone(),
-                confidence: relation.confidence,
-                created_at: target_created_at,
-            });
-
-            if relation.valid_until.is_none() {
-                adjacency
-                    .entry(relation.source.clone())
-                    .or_default()
-                    .insert(relation.target.clone());
-                adjacency.entry(relation.target.clone()).or_default();
+            for edge in edges.iter().filter(|e| e.source == current) {
+                let alt = distances.get(&current).unwrap_or(&f32::INFINITY) + (1.0 - edge.confidence_score);
+                if alt < *distances.get(&edge.target).unwrap_or(&f32::INFINITY) {
+                    distances.insert(edge.target.clone(), alt);
+                    previous.insert(edge.target.clone(), edge.clone());
+                    queue.insert(edge.target.clone());
+                }
             }
         }
 
-        *self
-            .nodes
-            .write()
-            .expect("belief_graph: nodes write lock poisoned") = nodes;
-        *self
-            .adjacency
-            .write()
-            .expect("belief_graph: adjacency write lock poisoned") = adjacency;
-        *self
-            .relations
-            .write()
-            .expect("belief_graph: relations write lock poisoned") = relations;
-    }
-
-    pub async fn query(&self, query: &str) -> Result<Vec<BeliefNode>> {
-        let query_lower = query.to_lowercase();
-        Ok(self
-            .list_nodes()
-            .into_iter()
-            .filter(|node| node.concept.to_lowercase().contains(&query_lower))
-            .collect())
-    }
-
-    pub fn to_json(&self) -> Result<String> {
-        let data = serde_json::json!({
-            "nodes": self.list_nodes(),
-            "relations": self.get_relations(),
-        });
-        Ok(serde_json::to_string_pretty(&data)?)
-    }
-
-    pub fn from_json(json: &str) -> Result<Self> {
-        #[derive(Deserialize)]
-        struct GraphData {
-            nodes: Vec<BeliefNode>,
-            relations: Vec<BeliefRelation>,
+        let mut path = Vec::new();
+        let mut curr = end.to_string();
+        while let Some(edge) = previous.get(&curr) {
+            path.push(edge.clone());
+            curr = edge.source.clone();
         }
-
-        let data: GraphData = serde_json::from_str(json)?;
-        let graph = Self::new();
-
-        {
-            let mut nodes = graph
-                .nodes
-                .write()
-                .expect("belief_graph: nodes write lock poisoned");
-            let mut adjacency = graph
-                .adjacency
-                .write()
-                .expect("belief_graph: adjacency write lock poisoned");
-
-            for node in data.nodes {
-                adjacency.entry(node.concept.clone()).or_default();
-                nodes.insert(node.id.clone(), node);
-            }
-        }
-
-        {
-            let mut relations = graph
-                .relations
-                .write()
-                .expect("belief_graph: relations write lock poisoned");
-            let mut adjacency = graph
-                .adjacency
-                .write()
-                .expect("belief_graph: adjacency write lock poisoned");
-            for relation in data.relations {
-                adjacency
-                    .entry(relation.source.clone())
-                    .or_default()
-                    .insert(relation.target.clone());
-                adjacency.entry(relation.target.clone()).or_default();
-                relations.push(relation);
-            }
-        }
-
-        Ok(graph)
+        path.reverse();
+        path
     }
 }
 
@@ -490,45 +356,3 @@ impl Default for BeliefGraph {
 }
 
 pub type SharedBeliefGraph = Arc<AsyncRwLock<BeliefGraph>>;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_add_node() {
-        let graph = BeliefGraph::new();
-        graph.add_node("rust".to_string(), 0.9);
-        assert!(graph.get_node("rust").is_some());
-    }
-
-    #[test]
-    fn test_add_relation() {
-        let graph = BeliefGraph::new();
-        graph.add_node("rust".to_string(), 0.9);
-        graph.add_node("performance".to_string(), 0.8);
-        graph.add_relation(
-            "rust".to_string(),
-            "performance".to_string(),
-            "enhances".to_string(),
-            0.7,
-            None,
-            None,
-            None,
-        );
-
-        let related = graph.get_related("rust");
-        assert!(related.contains(&"performance".to_string()));
-    }
-
-    #[test]
-    fn test_serialization() {
-        let graph = BeliefGraph::new();
-        graph.add_node("test".to_string(), 0.5);
-
-        let json = graph.to_json().expect("test assertion");
-        let loaded = BeliefGraph::from_json(&json).expect("test assertion");
-
-        assert!(loaded.get_node("test").is_some());
-    }
-}

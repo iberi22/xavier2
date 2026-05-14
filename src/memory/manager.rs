@@ -290,7 +290,7 @@ impl Default for MemoryManagerConfig {
 /// Intelligent Memory Manager - manages memory lifecycle autonomously
 pub struct MemoryManager {
     memory: Arc<QmdMemory>,
-    belief_graph: Option<crate::memory::belief_graph::SharedBeliefGraph>,
+    _belief_graph: Option<crate::memory::belief_graph::SharedBeliefGraph>,
     config: MemoryManagerConfig,
     /// Track access counts per document
     access_counts: std::sync::Mutex<HashMap<String, usize>>,
@@ -309,7 +309,7 @@ impl MemoryManager {
     ) -> Self {
         Self {
             memory,
-            belief_graph,
+            _belief_graph: belief_graph,
             config: MemoryManagerConfig::default(),
             access_counts: std::sync::Mutex::new(HashMap::new()),
             last_access_times: std::sync::Mutex::new(HashMap::new()),
@@ -325,7 +325,7 @@ impl MemoryManager {
     ) -> Self {
         Self {
             memory,
-            belief_graph,
+            _belief_graph: belief_graph,
             config,
             access_counts: std::sync::Mutex::new(HashMap::new()),
             last_access_times: std::sync::Mutex::new(HashMap::new()),

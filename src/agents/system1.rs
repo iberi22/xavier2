@@ -323,7 +323,7 @@ impl System1Retriever {
                 let belief_text = beliefs
                     .iter()
                     .take(5)
-                    .map(|b| format!("FACT: {} {} {}", b.subject, b.predicate, b.object))
+                    .map(|b| format!("FACT: {} {} {}", b.source, b.relation_type, b.target))
                     .collect::<Vec<_>>()
                     .join("\n");
 

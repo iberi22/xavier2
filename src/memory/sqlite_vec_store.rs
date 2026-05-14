@@ -21,7 +21,7 @@ use tokio::fs;
 use tokio::sync::broadcast;
 
 use crate::checkpoint::Checkpoint;
-use crate::memory::belief_graph::BeliefRelation;
+use crate::domain::memory::belief::BeliefEdge;
 use crate::memory::embedder::EmbeddingClient;
 use crate::memory::schema::MemoryQueryFilters;
 use crate::memory::sqlite_store::{
@@ -932,7 +932,7 @@ impl VecSqliteMemoryStore {
                 ],
             )?;
             conn.execute(
-                "INSERT OR REPLACE INTO relations (id, source_id, target_id, relation_type, properties) VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO relations (id, source_id, target_id, relation_type, properties, confidence_score, provenance_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 params![
                     stable_key("memory_relation", &[workspace_id, &memory_node_id, &entity_id, entity.relation_type]),
                     &memory_node_id,
@@ -943,7 +943,9 @@ impl VecSqliteMemoryStore {
                         "path": record.path,
                         "entity_type": entity.entity_type,
                     })
-                    .to_string()
+                    .to_string(),
+                    1.0,
+                    record.id
                 ],
             )?;
         }
@@ -1340,10 +1342,10 @@ impl VecSqliteMemoryStore {
                         .ok();
 
                     if let Some(payload) = beliefs_json {
-                        let beliefs: Vec<BeliefRelation> =
+                        let beliefs: Vec<BeliefEdge> =
                             serde_json::from_str(&payload).unwrap_or_default();
                         let mut kg_rank = 0usize;
-                        let mut seen_ids = HashSet::new();
+                        let mut seen_ids = HashSet::<String>::new();
 
                         for belief in beliefs.into_iter().filter(|belief| {
                             let haystack = format!(
@@ -1355,27 +1357,26 @@ impl VecSqliteMemoryStore {
                                 .iter()
                                 .any(|term| haystack.contains(&term.to_ascii_lowercase()))
                         }) {
-                            if let Some(memory_id) = belief.source_memory_id.as_deref() {
-                                if seen_ids.insert(memory_id.to_string()) {
-                                    if let Some(record) =
-                                        Self::load_record_by_id(&conn, workspace_id, memory_id)?
+                            let memory_id = &belief.provenance_id;
+                            if seen_ids.insert(memory_id.to_string()) {
+                                if let Some(record) =
+                                    Self::load_record_by_id(&conn, workspace_id, memory_id)?
+                                {
+                                    if Self::row_matches_filters(workspace_id, &record, filters)
                                     {
-                                        if Self::row_matches_filters(workspace_id, &record, filters)
-                                        {
-                                            kg_rank += 1;
-                                            Self::merge_rrf_result(
-                                                &mut scored,
-                                                FusionSource::Kg,
-                                                rrf_k,
-                                                kg_rank,
-                                                None,
-                                                record,
-                                            );
-                                        }
+                                        kg_rank += 1;
+                                        Self::merge_rrf_result(
+                                            &mut scored,
+                                            FusionSource::Kg,
+                                            rrf_k,
+                                            kg_rank,
+                                            None,
+                                            record,
+                                       );
+                                   }
                                     }
                                 }
                             }
-                        }
                     }
                 }
             }
@@ -1543,8 +1544,8 @@ impl VecSqliteMemoryStore {
     ) -> Result<()> {
         let conn = self.conn.lock();
         conn.execute(
-            "INSERT OR REPLACE INTO relations (id, source_id, target_id, relation_type) VALUES (?, ?, ?, ?)",
-            params![id, source_id, target_id, relation_type],
+            "INSERT OR REPLACE INTO relations (id, source_id, target_id, relation_type, confidence_score) VALUES (?, ?, ?, ?, ?)",
+            params![id, source_id, target_id, relation_type, 1.0],
         )?;
         Ok(())
     }
@@ -1631,6 +1632,9 @@ impl SchemaInitializer for VecSqliteMemoryStore {
                 target_id TEXT NOT NULL,
                 relation_type TEXT NOT NULL,
                 properties TEXT DEFAULT '{}',
+                confidence_score REAL DEFAULT 1.0,
+                provenance_id TEXT,
+                contradicts_edge_id TEXT,
                 FOREIGN KEY (source_id) REFERENCES entities(id),
                 FOREIGN KEY (target_id) REFERENCES entities(id)
             );
@@ -2095,7 +2099,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         })
     }
 
-    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()> {
+    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefEdge>) -> Result<()> {
         let belief_key = stable_key("belief_row", &[workspace_id]);
         let conn = self.conn.lock();
         let beliefs_json = serde_json::to_string(&beliefs)?;
@@ -2370,17 +2374,15 @@ mod tests {
         store
             .save_beliefs(
                 workspace_id,
-                vec![BeliefRelation {
+                vec![BeliefEdge {
                     id: ulid::Ulid::new().to_string(),
                     source: "ACCT-9F3A".to_string(),
                     target: "Alice Johnson".to_string(),
                     relation_type: "approved_by".to_string(),
                     weight: 0.9,
-                    confidence: 0.9,
-                    source_memory_id: Some(lexical_winner.id.clone()),
-                    valid_from: None,
-                    valid_until: None,
-                    superseded_by: None,
+                    confidence_score: 0.9,
+                    provenance_id: lexical_winner.id.clone(),
+                    contradicts_edge_id: None,
                     created_at: chrono::Utc::now(),
                     updated_at: chrono::Utc::now(),
                 }],
