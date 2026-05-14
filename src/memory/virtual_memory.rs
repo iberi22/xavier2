@@ -176,7 +176,7 @@ impl TokenSavings {
         let virtual_size = virtual_entry.summary.len() + virtual_entry.keywords.join(" ").len();
 
         let reduction = if original_size > 0 {
-            ((original_size - virtual_size) as f32 / original_size as f32) * 100.0
+            (original_size.saturating_sub(virtual_size) as f32 / original_size as f32) * 100.0
         } else {
             0.0
         };

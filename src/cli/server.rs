@@ -34,6 +34,7 @@ use xavier::adapters::inbound::http::routes::{
 use xavier::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier::agents::rate_limit::RateLimitManager;
 use xavier::agents::system3::{ActorConfig, System3Actor};
+use xavier::app::proxy_use_case::ProxyUseCase;
 use xavier::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier::coordination::SimpleAgentRegistry;
 use xavier::coordination::{KeyLendingEngine, XavierEventBus};
@@ -157,6 +158,8 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         let conn_lock = conn.lock();
         RateLimitManager::init_schema(&conn_lock)?;
     }
+    let prompt_cache = Arc::new(parking_lot::Mutex::new(HashMap::new()));
+    let proxy_use_case = Arc::new(ProxyUseCase::new(rate_manager.clone(), prompt_cache.clone()));
 
     let secrets_engine = Arc::new(KeyLendingEngine::new(Box::new(
         xavier::secrets::audit::QmdAuditLogger::new(store.clone_inner_conn()),
@@ -215,7 +218,8 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         event_bus,
         tasks,
         rate_manager: rate_manager.clone(),
-        prompt_cache: Arc::new(parking_lot::Mutex::new(HashMap::new())),
+        prompt_cache,
+        proxy_use_case,
     };
 
     info!(
