@@ -4,8 +4,11 @@ pub mod tests;
 
 use crate::db::CodeGraphDB;
 use crate::error::Result;
-use crate::types::{QueryResult, Symbol, SymbolKind};
+use crate::types::{
+    CodeEdge, ComplexityHotspot, EdgeType, HubNode, QueryResult, Symbol, SymbolKind,
+};
 use std::collections::HashMap;
+use std::collections::{HashSet, VecDeque};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -152,11 +155,109 @@ impl QueryEngine {
         self.db.find_by_kind(SymbolKind::Enum, limit)
     }
 
+    pub fn dependencies(
+        &self,
+        query: &str,
+        edge_type: Option<EdgeType>,
+        depth: usize,
+        limit: usize,
+    ) -> Result<Vec<CodeEdge>> {
+        self.traverse(query, edge_type, depth, limit, false)
+    }
+
+    pub fn reverse_dependencies(
+        &self,
+        query: &str,
+        edge_type: Option<EdgeType>,
+        depth: usize,
+        limit: usize,
+    ) -> Result<Vec<CodeEdge>> {
+        self.traverse(query, edge_type, depth, limit, true)
+    }
+
+    pub fn call_chain(&self, query: &str, depth: usize, limit: usize) -> Result<Vec<CodeEdge>> {
+        self.dependencies(query, Some(EdgeType::Calls), depth, limit)
+    }
+
+    pub fn hubs(&self, min_degree: u64, limit: usize) -> Result<Vec<HubNode>> {
+        self.db.hub_nodes(min_degree, limit)
+    }
+
+    pub fn hotspots(&self, min_complexity: f32, limit: usize) -> Result<Vec<ComplexityHotspot>> {
+        self.db.complexity_hotspots(min_complexity, limit)
+    }
+
+    fn traverse(
+        &self,
+        query: &str,
+        edge_type: Option<EdgeType>,
+        depth: usize,
+        limit: usize,
+        reverse: bool,
+    ) -> Result<Vec<CodeEdge>> {
+        let start = self.resolve_symbol_id(query)?;
+        let Some(start) = start else {
+            return Ok(vec![]);
+        };
+
+        let max_depth = depth.clamp(1, 8);
+        let max_edges = limit.clamp(1, 1000);
+        let mut queue = VecDeque::from([(start, 0usize)]);
+        let mut seen_nodes = HashSet::new();
+        let mut seen_edges = HashSet::new();
+        let mut results = Vec::new();
+
+        while let Some((node, current_depth)) = queue.pop_front() {
+            if current_depth >= max_depth || results.len() >= max_edges {
+                continue;
+            }
+            if !seen_nodes.insert((node.clone(), current_depth)) {
+                continue;
+            }
+
+            let edges = if reverse {
+                self.db.find_edges_to(&node, edge_type.clone(), max_edges)?
+            } else {
+                self.db
+                    .find_edges_from(&node, edge_type.clone(), max_edges)?
+            };
+
+            for edge in edges {
+                let edge_key = edge.id.unwrap_or_default();
+                if !seen_edges.insert(edge_key) {
+                    continue;
+                }
+                let next = if reverse {
+                    edge.from_symbol.clone()
+                } else {
+                    edge.to_symbol.clone()
+                };
+                results.push(edge);
+                if results.len() >= max_edges {
+                    break;
+                }
+                if !next.starts_with("file:") && !next.starts_with("module:") {
+                    queue.push_back((next, current_depth + 1));
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    fn resolve_symbol_id(&self, query: &str) -> Result<Option<String>> {
+        if query.len() == 64 && query.chars().all(|ch| ch.is_ascii_hexdigit()) {
+            return Ok(Some(query.to_string()));
+        }
+        if let Some(symbol) = self.db.find_symbols(query, 1)?.symbols.into_iter().next() {
+            return Ok(symbol.stable_id);
+        }
+        Ok(None)
+    }
+
     /// Find by file
     pub fn in_file(&self, file_path: &str) -> Result<Vec<Symbol>> {
-        // This would need a new db method
-        // For now, use search with file path
-        self.db.find_symbols(file_path, 1000).map(|r| r.symbols)
+        self.db.find_by_file(file_path)
     }
 
     /// Get all symbols of a specific language

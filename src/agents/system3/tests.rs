@@ -85,14 +85,11 @@ fn reasoning_result() -> ReasoningResult {
 }
 
 fn doc(content: &str, session_time: Option<&str>, speaker: Option<&str>) -> RetrievedDocument {
-    let content = content.to_string();
-    let token_count = content.split_whitespace().count();
     RetrievedDocument {
         id: "doc-1".to_string(),
         path: "locomo/conv-1/session_1/D1:1".to_string(),
-        content,
+        content: content.to_string(),
         relevance_score: 1.0,
-        token_count,
         metadata: serde_json::json!({
             "session_time": session_time,
             "speaker": speaker,
@@ -232,7 +229,6 @@ fn doc_answer_text_prefers_clean_structured_values() {
         path: "locomo/conv-26/session_1/D1:17#derived/fact_atom/0".to_string(),
         content: "Caroline researched adoption agencies.".to_string(),
         relevance_score: 1.0,
-        token_count: 4,
         metadata: serde_json::json!({
             "speaker": "Caroline",
             "memory_kind": "fact_atom",

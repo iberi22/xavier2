@@ -1,10 +1,10 @@
 //! CLI commands and subcommand handling
 
-use crate::cli::config::{resolve_http_port, resolve_base_url, xavier_token, require_xavier_token};
-use crate::cli::security::{secure_cli_input};
+use crate::cli::config::{require_xavier_token, resolve_base_url, resolve_http_port, xavier_token};
+use crate::cli::security::secure_cli_input;
 
+use crate::cli::mcp::start_mcp_stdio;
 use crate::cli::server::{search_memories, start_http_server, SessionContext, SwarmConfig};
-use crate::cli::mcp::{start_mcp_stdio};
 use crate::cli::state::Cli;
 use anyhow::{anyhow, Result};
 use clap::Subcommand;
@@ -50,6 +50,11 @@ pub enum Command {
     },
     /// Show statistics
     Stats,
+    /// Query Xavier code graph
+    Code {
+        #[command(subcommand)]
+        cmd: CodeCommand,
+    },
     /// Save current session context to Xavier
     SessionSave { session_id: String, content: String },
     /// Spawn multiple agents with provider routing
@@ -111,15 +116,57 @@ pub enum UsageCommand {
     /// Show current usage status for all providers
     Status,
     /// Manually update a provider's used percentage (for providers without API)
-    Update {
-        provider: String,
-        percentage: f32,
-    },
+    Update { provider: String, percentage: f32 },
     /// Set a manual cooldown for a provider (in minutes)
-    Cooldown {
-        provider: String,
-        minutes: i64,
+    Cooldown { provider: String, minutes: i64 },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum CodeCommand {
+    /// Scan and index a codebase path
+    Scan { path: String },
+    /// Find symbols by name
+    Find {
+        query: String,
+        #[arg(short, long, default_value_t = 10)]
+        limit: usize,
+        #[arg(short, long)]
+        kind: Option<String>,
     },
+    /// Find outgoing dependencies for a symbol/query
+    Dependencies {
+        query: String,
+        #[arg(short, long, default_value_t = 3)]
+        depth: usize,
+        #[arg(short, long, default_value_t = 50)]
+        limit: usize,
+        #[arg(short, long)]
+        edge_type: Option<String>,
+    },
+    /// Find incoming dependencies for a symbol/query
+    ReverseDependencies {
+        query: String,
+        #[arg(short, long, default_value_t = 3)]
+        depth: usize,
+        #[arg(short, long, default_value_t = 50)]
+        limit: usize,
+        #[arg(short, long)]
+        edge_type: Option<String>,
+    },
+    /// Trace a basic call chain
+    CallChain {
+        query: String,
+        #[arg(short, long, default_value_t = 3)]
+        depth: usize,
+        #[arg(short, long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// Show highly connected symbols
+    Hubs,
+    /// Show complexity hotspots
+    Hotspots,
+    /// Show code graph stats
+    Stats,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -161,22 +208,43 @@ impl Cli {
                         let token = require_xavier_token()?;
                         let client = reqwest::Client::new();
                         let providers = ["opencode-go", "deepseek", "groq", "openai", "anthropic"];
-                        println!("{:<15} | {:<10} | {:<10} | {:<10} | {:<20}", "Provider", "Today", "Weekly", "Monthly", "Limited Until");
-                        println!("{:-<15}-+-{:-<10}-+-{:-<10}-+-{:-<10}-+-{:-<20}", "", "", "", "", "");
+                        println!(
+                            "{:<15} | {:<10} | {:<10} | {:<10} | {:<20}",
+                            "Provider", "Today", "Weekly", "Monthly", "Limited Until"
+                        );
+                        println!(
+                            "{:-<15}-+-{:-<10}-+-{:-<10}-+-{:-<10}-+-{:-<20}",
+                            "", "", "", "", ""
+                        );
                         for p in providers {
-                            let resp = client.get(format!("{}/v1/usage/status/{}", base_url, p))
+                            let resp = client
+                                .get(format!("{}/v1/usage/status/{}", base_url, p))
                                 .header("X-Xavier-Token", &token)
-                                .send().await?;
+                                .send()
+                                .await?;
                             if resp.status().is_success() {
-                                let status: xavier::agents::rate_limit::QuotaStatus = resp.json().await?;
-                                let limited = status.rate_limited_until.map(|u| u.to_rfc3339()).unwrap_or_else(|| "No".to_string());
-                                println!("{:<15} | {:<10} | {:<10} | {:<10} | {:<20}", 
-                                    status.provider, status.used_today, status.used_weekly, status.used_monthly, limited);
+                                let status: xavier::agents::rate_limit::QuotaStatus =
+                                    resp.json().await?;
+                                let limited = status
+                                    .rate_limited_until
+                                    .map(|u| u.to_rfc3339())
+                                    .unwrap_or_else(|| "No".to_string());
+                                println!(
+                                    "{:<15} | {:<10} | {:<10} | {:<10} | {:<20}",
+                                    status.provider,
+                                    status.used_today,
+                                    status.used_weekly,
+                                    status.used_monthly,
+                                    limited
+                                );
                             }
                         }
                         Ok(())
                     }
-                    UsageCommand::Update { provider, percentage } => {
+                    UsageCommand::Update {
+                        provider,
+                        percentage,
+                    } => {
                         let token = require_xavier_token()?;
                         let client = reqwest::Client::new();
                         let resp = client.post(format!("{}/v1/usage/update", base_url))
@@ -193,10 +261,12 @@ impl Cli {
                     UsageCommand::Cooldown { provider, minutes } => {
                         let token = require_xavier_token()?;
                         let client = reqwest::Client::new();
-                        let resp = client.post(format!("{}/v1/usage/cooldown", base_url))
+                        let resp = client
+                            .post(format!("{}/v1/usage/cooldown", base_url))
                             .header("X-Xavier-Token", &token)
                             .json(&serde_json::json!({ "provider": provider, "minutes": minutes }))
-                            .send().await?;
+                            .send()
+                            .await?;
                         if resp.status().is_success() {
                             println!("✅ Cooldown set for {} ({} minutes)", provider, minutes);
                         } else {
@@ -219,6 +289,7 @@ impl Cli {
                 println!("Fetching Xavier statistics...");
                 show_stats().await
             }
+            Command::Code { cmd } => handle_code_command(cmd.clone()).await,
             Command::SessionSave {
                 session_id,
                 content,
@@ -445,6 +516,114 @@ pub async fn show_stats() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+async fn handle_code_command(cmd: CodeCommand) -> Result<()> {
+    let token = require_xavier_token()?;
+    let base_url = resolve_base_url();
+    let client = reqwest::Client::new();
+
+    let response = match cmd {
+        CodeCommand::Scan { path } => {
+            client
+                .post(format!("{}/code/scan", base_url))
+                .header("X-Xavier-Token", &token)
+                .json(&serde_json::json!({ "path": path }))
+                .send()
+                .await?
+        }
+        CodeCommand::Find { query, limit, kind } => {
+            client
+                .post(format!("{}/code/find", base_url))
+                .header("X-Xavier-Token", &token)
+                .json(&serde_json::json!({ "query": query, "limit": limit, "kind": kind }))
+                .send()
+                .await?
+        }
+        CodeCommand::Dependencies {
+            query,
+            depth,
+            limit,
+            edge_type,
+        } => {
+            client
+                .post(format!("{}/code/dependencies", base_url))
+                .header("X-Xavier-Token", &token)
+                .json(&serde_json::json!({
+                    "query": query,
+                    "depth": depth,
+                    "limit": limit,
+                    "edge_type": edge_type
+                }))
+                .send()
+                .await?
+        }
+        CodeCommand::ReverseDependencies {
+            query,
+            depth,
+            limit,
+            edge_type,
+        } => {
+            client
+                .post(format!("{}/code/reverse-dependencies", base_url))
+                .header("X-Xavier-Token", &token)
+                .json(&serde_json::json!({
+                    "query": query,
+                    "depth": depth,
+                    "limit": limit,
+                    "edge_type": edge_type
+                }))
+                .send()
+                .await?
+        }
+        CodeCommand::CallChain {
+            query,
+            depth,
+            limit,
+        } => {
+            client
+                .post(format!("{}/code/call-chain", base_url))
+                .header("X-Xavier-Token", &token)
+                .json(&serde_json::json!({
+                    "query": query,
+                    "depth": depth,
+                    "limit": limit
+                }))
+                .send()
+                .await?
+        }
+        CodeCommand::Hubs => {
+            client
+                .get(format!("{}/code/hubs", base_url))
+                .header("X-Xavier-Token", &token)
+                .send()
+                .await?
+        }
+        CodeCommand::Hotspots => {
+            client
+                .get(format!("{}/code/hotspots", base_url))
+                .header("X-Xavier-Token", &token)
+                .send()
+                .await?
+        }
+        CodeCommand::Stats => {
+            client
+                .get(format!("{}/code/stats", base_url))
+                .header("X-Xavier-Token", &token)
+                .send()
+                .await?
+        }
+    };
+
+    let status = response.status();
+    let body: serde_json::Value = response.json().await.unwrap_or_default();
+    if status.is_success() {
+        println!("{}", serde_json::to_string_pretty(&body)?);
+    } else {
+        println!("Code graph request failed ({}):", status);
+        println!("{}", serde_json::to_string_pretty(&body)?);
+    }
     Ok(())
 }
 
@@ -749,9 +928,11 @@ pub fn load_skill(skill_name: &str) -> Option<String> {
 }
 async fn handle_secrets_command(cmd: SecretsCommand) -> Result<()> {
     match cmd {
-        SecretsCommand::Lend { secret_name, agent, ttl } => {
-            lend_secret(&secret_name, &agent, ttl).await
-        }
+        SecretsCommand::Lend {
+            secret_name,
+            agent,
+            ttl,
+        } => lend_secret(&secret_name, &agent, ttl).await,
         SecretsCommand::ListLeases => list_leases().await,
         SecretsCommand::Revoke { token } => revoke_lease(&token).await,
         SecretsCommand::Status { token } => check_lease_status(&token).await,
@@ -762,8 +943,9 @@ async fn lend_secret(name: &str, agent: &str, ttl: u64) -> Result<()> {
     let token = xavier_token();
     let url = format!("{}/secrets/lend", resolve_base_url());
     let client = reqwest::Client::new();
-    
-    let response = client.post(&url)
+
+    let response = client
+        .post(&url)
         .header("X-Xavier-Token", &token)
         .json(&serde_json::json!({
             "secret_name": name,
@@ -788,21 +970,30 @@ async fn list_leases() -> Result<()> {
     let token = xavier_token();
     let url = format!("{}/secrets/leases", resolve_base_url());
     let client = reqwest::Client::new();
-    
-    let response = client.get(&url)
+
+    let response = client
+        .get(&url)
         .header("X-Xavier-Token", &token)
         .send()
         .await?;
 
     if response.status().is_success() {
         let leases: Vec<serde_json::Value> = response.json().await?;
-        println!("{:<20} {:<20} {:<20} {:<10}", "Agent", "Secret", "Expires", "Status");
+        println!(
+            "{:<20} {:<20} {:<20} {:<10}",
+            "Agent", "Secret", "Expires", "Status"
+        );
         for lease in leases {
-            println!("{:<20} {:<20} {:<20} {:<10}", 
+            println!(
+                "{:<20} {:<20} {:<20} {:<10}",
                 lease["agent_id"].as_str().unwrap_or("?"),
                 lease["secret_name"].as_str().unwrap_or("?"),
                 lease["expires_at"].as_str().unwrap_or("?"),
-                if lease["revoked"].as_bool().unwrap_or(false) { "Revoked" } else { "Active" }
+                if lease["revoked"].as_bool().unwrap_or(false) {
+                    "Revoked"
+                } else {
+                    "Active"
+                }
             );
         }
     } else {
@@ -815,8 +1006,9 @@ async fn revoke_lease(token_str: &str) -> Result<()> {
     let token = xavier_token();
     let url = format!("{}/secrets/revoke", resolve_base_url());
     let client = reqwest::Client::new();
-    
-    let response = client.post(&url)
+
+    let response = client
+        .post(&url)
         .header("X-Xavier-Token", &token)
         .json(&serde_json::json!({ "token": token_str }))
         .send()
@@ -834,15 +1026,23 @@ async fn check_lease_status(token_str: &str) -> Result<()> {
     let token = xavier_token();
     let url = format!("{}/secrets/status/{}", resolve_base_url(), token_str);
     let client = reqwest::Client::new();
-    
-    let response = client.get(&url)
+
+    let response = client
+        .get(&url)
         .header("X-Xavier-Token", &token)
         .send()
         .await?;
 
     if response.status().is_success() {
         let status: serde_json::Value = response.json().await?;
-        println!("Lease Status: {}", if status["revoked"].as_bool().unwrap_or(false) { "Revoked" } else { "Active" });
+        println!(
+            "Lease Status: {}",
+            if status["revoked"].as_bool().unwrap_or(false) {
+                "Revoked"
+            } else {
+                "Active"
+            }
+        );
         println!("Agent: {}", status["agent_id"]);
         println!("Expires: {}", status["expires_at"]);
     } else {

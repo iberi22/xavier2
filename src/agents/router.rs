@@ -57,10 +57,6 @@ pub struct ModelCandidatePolicy {
     pub quality_score: Option<f32>,
     #[serde(default)]
     pub health: Option<String>,
-    #[serde(default)]
-    pub cost_per_input_token: Option<f32>,
-    #[serde(default)]
-    pub cost_per_output_token: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -241,7 +237,7 @@ fn routing_policy_cache() -> &'static Mutex<Option<CachedPolicy>> {
     CACHE.get_or_init(|| Mutex::new(None))
 }
 
-pub fn load_routing_policy() -> Option<RoutingPolicy> {
+fn load_routing_policy() -> Option<RoutingPolicy> {
     let path = std::env::var("XAVIER_ROUTER_POLICY_PATH")
         .ok()
         .map(|value| value.trim().to_string())
@@ -446,7 +442,6 @@ mod tests {
             path: "memory/doc-1".to_string(),
             content: "Relevant memory".to_string(),
             relevance_score: 1.0,
-            token_count: 2,
             metadata: serde_json::json!({
                 "memory_priority": priority,
                 "evidence_kind": "fact_atom",

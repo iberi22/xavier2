@@ -16,10 +16,7 @@
 // ============================================
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use sha2::{Digest, Sha256};
 
 /// Checkpoint for session continuity
 /// Allows AI to remember past decisions even after context reset
@@ -93,7 +90,9 @@ pub struct VirtualMemoryEntry {
 
 impl VirtualMemoryEntry {
     pub fn new(path: String, content: String, metadata: serde_json::Value) -> Self {
-        let content_hash = format!("{:x}", md5::compute(content.as_bytes()));
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_bytes());
+        let content_hash = format!("{:x}", hasher.finalize());
         let summary = create_summary(&content);
         let keywords = extract_keywords(&content);
 

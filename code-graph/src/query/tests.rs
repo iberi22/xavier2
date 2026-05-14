@@ -3,7 +3,9 @@
 #[cfg(test)]
 mod tests_inner {
     use crate::db::CodeGraphDB;
-    use crate::types::{Language, Symbol, SymbolKind};
+    use crate::query::QueryEngine;
+    use crate::types::{CodeEdge, EdgeType, Language, Symbol, SymbolKind};
+    use std::sync::Arc;
 
     /// Create a test database with sample symbols
     fn setup_test_db() -> CodeGraphDB {
@@ -12,6 +14,7 @@ mod tests_inner {
         // Insert test symbols
         let sym1 = Symbol {
             id: None,
+            stable_id: None,
             name: "main".to_string(),
             kind: SymbolKind::Function,
             lang: Language::Rust,
@@ -22,11 +25,13 @@ mod tests_inner {
             end_col: 0,
             signature: Some("fn main()".to_string()),
             parent: None,
+            complexity: None,
         };
         db.insert_symbol(&sym1).expect("test assertion");
 
         let sym2 = Symbol {
             id: None,
+            stable_id: None,
             name: "process_data".to_string(),
             kind: SymbolKind::Function,
             lang: Language::Rust,
@@ -37,11 +42,13 @@ mod tests_inner {
             end_col: 0,
             signature: Some("fn process_data(data: String) -> Result<()>".to_string()),
             parent: None,
+            complexity: None,
         };
         db.insert_symbol(&sym2).expect("test assertion");
 
         let sym3 = Symbol {
             id: None,
+            stable_id: None,
             name: "User".to_string(),
             kind: SymbolKind::Struct,
             lang: Language::Rust,
@@ -52,11 +59,13 @@ mod tests_inner {
             end_col: 0,
             signature: Some("struct User { name: String }".to_string()),
             parent: None,
+            complexity: None,
         };
         db.insert_symbol(&sym3).expect("test assertion");
 
         let sym4 = Symbol {
             id: None,
+            stable_id: None,
             name: "calculate_total".to_string(),
             kind: SymbolKind::Function,
             lang: Language::TypeScript,
@@ -67,6 +76,7 @@ mod tests_inner {
             end_col: 0,
             signature: Some("function calculateTotal(items: Item[]): number".to_string()),
             parent: None,
+            complexity: None,
         };
         db.insert_symbol(&sym4).expect("test assertion");
 
@@ -107,11 +117,15 @@ mod tests_inner {
         let db = setup_test_db();
 
         // Find all functions
-        let functions = db.find_by_kind(SymbolKind::Function, 100).expect("test assertion");
+        let functions = db
+            .find_by_kind(SymbolKind::Function, 100)
+            .expect("test assertion");
         assert_eq!(functions.len(), 3); // main, process_data, calculate_total
 
         // Find all structs
-        let structs = db.find_by_kind(SymbolKind::Struct, 100).expect("test assertion");
+        let structs = db
+            .find_by_kind(SymbolKind::Struct, 100)
+            .expect("test assertion");
         assert_eq!(structs.len(), 1); // User
     }
 
@@ -128,7 +142,9 @@ mod tests_inner {
     fn test_no_results() {
         let db = setup_test_db();
 
-        let result = db.find_symbols("nonexistent_symbol_xyz", 10).expect("test assertion");
+        let result = db
+            .find_symbols("nonexistent_symbol_xyz", 10)
+            .expect("test assertion");
         assert!(result.symbols.is_empty());
     }
 
@@ -150,5 +166,42 @@ mod tests_inner {
 
         assert!(result.total > 0);
         assert!(result.query_time_ms >= 0, "query time should be recorded");
+    }
+
+    #[test]
+    fn test_graph_queries_follow_edges() {
+        let db = setup_test_db();
+        let main = db.find_symbols("main", 1).expect("main").symbols[0]
+            .stable_id
+            .clone()
+            .expect("stable main");
+        let process = db.find_symbols("process_data", 1).expect("process").symbols[0]
+            .stable_id
+            .clone()
+            .expect("stable process");
+        db.insert_edge(&CodeEdge {
+            id: None,
+            from_symbol: main.clone(),
+            to_symbol: process.clone(),
+            edge_type: EdgeType::Calls,
+            file_path: "/src/main.rs".to_string(),
+            line: 2,
+            confidence: 0.9,
+            metadata: None,
+        })
+        .expect("edge");
+
+        let query = QueryEngine::new(Arc::new(db));
+        let deps = query
+            .dependencies("main", Some(EdgeType::Calls), 1, 10)
+            .expect("deps");
+        assert_eq!(deps.len(), 1);
+        assert_eq!(deps[0].to_symbol, process);
+
+        let reverse = query
+            .reverse_dependencies("process_data", Some(EdgeType::Calls), 1, 10)
+            .expect("reverse");
+        assert_eq!(reverse.len(), 1);
+        assert_eq!(reverse[0].from_symbol, main);
     }
 }

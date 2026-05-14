@@ -1,6 +1,7 @@
 //! Core types for code-graph
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// Programming language supported
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -53,10 +54,35 @@ pub enum SymbolKind {
     Symbol, // Fallback
 }
 
+/// Relationship type between indexed code entities.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum EdgeType {
+    Calls,
+    Defines,
+    Uses,
+    Imports,
+    Contains,
+    References,
+}
+
+impl EdgeType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EdgeType::Calls => "Calls",
+            EdgeType::Defines => "Defines",
+            EdgeType::Uses => "Uses",
+            EdgeType::Imports => "Imports",
+            EdgeType::Contains => "Contains",
+            EdgeType::References => "References",
+        }
+    }
+}
+
 /// A code symbol with location
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Symbol {
     pub id: Option<i64>,
+    pub stable_id: Option<String>,
     pub name: String,
     pub kind: SymbolKind,
     pub lang: Language,
@@ -67,6 +93,75 @@ pub struct Symbol {
     pub end_col: u32,
     pub signature: Option<String>,
     pub parent: Option<String>, // parent struct/class
+    pub complexity: Option<f32>,
+}
+
+impl Symbol {
+    pub fn deterministic_id(&self, project_id: &str) -> String {
+        stable_symbol_id(
+            project_id,
+            &self.file_path,
+            &self.name,
+            &format!("{:?}", self.kind),
+            self.start_line,
+        )
+    }
+
+    pub fn stable_key(&self, project_id: &str) -> String {
+        self.stable_id
+            .clone()
+            .unwrap_or_else(|| self.deterministic_id(project_id))
+    }
+}
+
+/// A graph edge. Endpoints are stable symbol IDs or prefixed pseudo-nodes:
+/// `file:<path>` and `module:<name>`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeEdge {
+    pub id: Option<i64>,
+    pub from_symbol: String,
+    pub to_symbol: String,
+    pub edge_type: EdgeType,
+    pub file_path: String,
+    pub line: u32,
+    pub confidence: f32,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HubNode {
+    pub symbol: Symbol,
+    pub incoming: u64,
+    pub outgoing: u64,
+    pub total: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComplexityHotspot {
+    pub symbol: Symbol,
+    pub incoming: u64,
+    pub outgoing: u64,
+    pub risk_score: f32,
+}
+
+pub fn stable_symbol_id(
+    project_id: &str,
+    file_path: &str,
+    name: &str,
+    kind: &str,
+    start_line: u32,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(project_id.as_bytes());
+    hasher.update(b"|");
+    hasher.update(file_path.as_bytes());
+    hasher.update(b"|");
+    hasher.update(name.as_bytes());
+    hasher.update(b"|");
+    hasher.update(kind.as_bytes());
+    hasher.update(b"|");
+    hasher.update(start_line.to_le_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 /// Reference to a symbol (caller/callee)

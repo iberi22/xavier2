@@ -11,7 +11,6 @@ use crate::context::orchestrator::Orchestrator;
 
 use crate::utils::crypto::sha256_hex;
 
-use crate::agents::rate_limit::RateLimitManager;
 use crate::agents::router::{RouteCategory, Router};
 use crate::agents::system1::{RetrieverConfig, System1Retriever};
 use crate::agents::system2::{ReasonerConfig, System2Reasoner};
@@ -98,7 +97,6 @@ pub struct RuntimeConfig {
     pub model_provider: Option<String>,
     pub model_api_key: Option<String>,
     pub model_url: Option<String>,
-    pub max_context_tokens: usize,
 }
 
 impl Default for RuntimeConfig {
@@ -109,7 +107,6 @@ impl Default for RuntimeConfig {
             model_provider: None,
             model_api_key: None,
             model_url: None,
-            max_context_tokens: 4000,
         }
     }
 }
@@ -124,12 +121,6 @@ impl RuntimeConfig {
         F: FnMut(&str) -> Option<String>,
     {
         let mut config = Self::default();
-
-        if let Some(tokens) =
-            lookup("XAVIER_MAX_CONTEXT_TOKENS").and_then(|v| v.parse::<usize>().ok())
-        {
-            config.max_context_tokens = tokens;
-        }
 
         if let Some(provider) =
             lookup("XAVIER_MODEL_PROVIDER").map(|value| value.trim().to_ascii_lowercase())
@@ -195,7 +186,6 @@ pub struct AgentRuntime {
     checkpoint_manager: Option<Arc<CheckpointManager>>,
     scheduler: Option<Arc<tokio::sync::Mutex<JobScheduler>>>,
     orchestrator: Option<Orchestrator>,
-    rate_manager: Option<Arc<RateLimitManager>>,
 }
 
 impl AgentRuntime {
@@ -219,7 +209,6 @@ impl AgentRuntime {
             checkpoint_manager: None,
             scheduler: None,
             orchestrator: None,
-            rate_manager: None,
         })
     }
 
@@ -235,11 +224,6 @@ impl AgentRuntime {
 
     pub fn with_orchestrator(mut self, orchestrator: Orchestrator) -> Self {
         self.orchestrator = Some(orchestrator);
-        self
-    }
-
-    pub fn with_rate_manager(mut self, manager: Arc<RateLimitManager>) -> Self {
-        self.rate_manager = Some(manager);
         self
     }
 
@@ -441,20 +425,9 @@ impl AgentRuntime {
         let (retrieval_result, reasoning_result) = loop {
             // System 1: Retrieval
             let s1_start = std::time::Instant::now();
-
-            let mut budget = self.config.max_context_tokens;
-            if let Some(rate_manager) = &self.rate_manager {
-                if let Some(provider) = &self.config.model_provider {
-                    if let Ok(true) = rate_manager.is_quota_low(provider).await {
-                        debug!("Low quota detected for provider {}, halving token budget", provider);
-                        budget /= 2;
-                    }
-                }
-            }
-
             let retrieval_result = self
                 .system1
-                .run_with_filters_and_budget(&current_query, None, filters.as_ref(), budget)
+                .run_with_filters(&current_query, None, filters.as_ref())
                 .await?;
             s1_total_ms += s1_start.elapsed().as_millis() as u64;
 
@@ -707,7 +680,6 @@ pub struct RuntimeBuilder {
     belief_graph: Option<SharedBeliefGraph>,
     checkpoint_manager: Option<Arc<CheckpointManager>>,
     scheduler: Option<JobScheduler>,
-    rate_manager: Option<Arc<RateLimitManager>>,
 }
 
 impl RuntimeBuilder {
@@ -718,7 +690,6 @@ impl RuntimeBuilder {
             belief_graph: None,
             checkpoint_manager: None,
             scheduler: None,
-            rate_manager: None,
         }
     }
 
@@ -747,11 +718,6 @@ impl RuntimeBuilder {
         self
     }
 
-    pub fn with_rate_manager(mut self, manager: Arc<RateLimitManager>) -> Self {
-        self.rate_manager = Some(manager);
-        self
-    }
-
     pub fn build(self) -> Result<AgentRuntime> {
         let memory = self
             .memory
@@ -762,13 +728,8 @@ impl RuntimeBuilder {
         } else {
             runtime
         };
-        let runtime = if let Some(scheduler) = self.scheduler {
+        Ok(if let Some(scheduler) = self.scheduler {
             runtime.with_scheduler(scheduler)
-        } else {
-            runtime
-        };
-        Ok(if let Some(manager) = self.rate_manager {
-            runtime.with_rate_manager(manager)
         } else {
             runtime
         })

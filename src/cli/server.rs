@@ -231,6 +231,11 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/code/find", post(code_find_handler))
         .route("/code/context", post(code_context_handler))
         .route("/code/stats", get(code_stats_handler))
+        .route("/code/dependencies", post(code_dependencies_handler))
+        .route("/code/reverse-dependencies", post(code_reverse_dependencies_handler))
+        .route("/code/call-chain", post(code_call_chain_handler))
+        .route("/code/hubs", get(code_hubs_handler))
+        .route("/code/hotspots", get(code_hotspots_handler))
         .route("/v1/account/usage", get(account_usage_handler))
         .route("/security/scan", post(security_scan_handler))
         .route("/memory/query", post(memory_query_handler))
@@ -265,6 +270,7 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/secrets/revoke", post(revoke_handler))
         .route("/secrets/status/{token}", get(status_handler))
         .route("/v1/proxy/chat/completions", post(crate::cli::proxy::chat_proxy))
+        .route("/v1/proxy/chat/completions/batch", post(crate::cli::proxy::chat_batch_proxy))
         .route("/v1/usage/status/{provider}", get(usage_status_handler))
         .route("/v1/usage/update", post(usage_update_handler))
         .route("/v1/usage/cooldown", post(usage_cooldown_handler))
@@ -1082,6 +1088,7 @@ pub async fn code_find_handler(
         .map(|symbol| {
             serde_json::json!({
                 "id": symbol.id,
+                "stable_id": symbol.stable_id,
                 "path": symbol.file_path,
                 "symbol": symbol.name,
                 "symbol_type": format!("{:?}", symbol.kind),
@@ -1090,6 +1097,7 @@ pub async fn code_find_handler(
                 "end_line": symbol.end_line,
                 "signature": symbol.signature,
                 "parent": symbol.parent,
+                "complexity": symbol.complexity,
             })
         })
         .collect();
@@ -1187,6 +1195,8 @@ pub async fn code_context_handler(
             "line": symbol.start_line,
             "end_line": symbol.end_line,
             "signature": signature,
+            "stable_id": symbol.stable_id,
+            "complexity": symbol.complexity,
         });
         let estimated = estimate_tokens(&compact.to_string());
         if used_tokens + estimated > budget_tokens && !context.is_empty() {
@@ -1204,6 +1214,181 @@ pub async fn code_context_handler(
         "count": context.len(),
         "context": context,
     }))
+}
+
+pub async fn code_dependencies_handler(
+    State(state): State<CliState>,
+    axum::Json(payload): axum::Json<CodeGraphQueryPayload>,
+) -> impl axum::response::IntoResponse {
+    code_graph_edges_response(&state, payload, false, false)
+}
+
+pub async fn code_reverse_dependencies_handler(
+    State(state): State<CliState>,
+    axum::Json(payload): axum::Json<CodeGraphQueryPayload>,
+) -> impl axum::response::IntoResponse {
+    code_graph_edges_response(&state, payload, true, false)
+}
+
+pub async fn code_call_chain_handler(
+    State(state): State<CliState>,
+    axum::Json(payload): axum::Json<CodeGraphQueryPayload>,
+) -> impl axum::response::IntoResponse {
+    code_graph_edges_response(&state, payload, false, true)
+}
+
+pub async fn code_hubs_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
+    match state.code_query.hubs(default_min_degree(), default_graph_limit()) {
+        Ok(hubs) => {
+            let (items, truncated, estimated_tokens) =
+                truncate_json_items(hubs, default_graph_budget());
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "count": items.len(),
+                "min_degree": default_min_degree(),
+                "estimated_tokens": estimated_tokens,
+                "_truncated": truncated,
+                "results": items,
+            }))
+        }
+        Err(error) => axum::Json(serde_json::json!({
+            "status": "error",
+            "message": error.to_string(),
+        })),
+    }
+}
+
+pub async fn code_hotspots_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
+    match state
+        .code_query
+        .hotspots(default_min_complexity(), default_graph_limit())
+    {
+        Ok(hotspots) => {
+            let (items, truncated, estimated_tokens) =
+                truncate_json_items(hotspots, default_graph_budget());
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "count": items.len(),
+                "min_complexity": default_min_complexity(),
+                "estimated_tokens": estimated_tokens,
+                "_truncated": truncated,
+                "results": items,
+            }))
+        }
+        Err(error) => axum::Json(serde_json::json!({
+            "status": "error",
+            "message": error.to_string(),
+        })),
+    }
+}
+
+fn code_graph_edges_response(
+    state: &CliState,
+    payload: CodeGraphQueryPayload,
+    reverse: bool,
+    call_chain: bool,
+) -> axum::Json<serde_json::Value> {
+    let sec_result = state.security.process_input(&payload.query);
+    if !sec_result.allowed {
+        return axum::Json(serde_json::json!({
+            "status": "blocked",
+            "reason": "security_policy_violation",
+            "blocked": true,
+            "detection": {
+                "is_injection": sec_result.detection.is_injection,
+                "confidence": sec_result.detection.confidence,
+                "attack_type": sec_result.detection.attack_type.as_str(),
+            }
+        }));
+    }
+
+    let query = sec_result.effective_input().to_string();
+    let edge_type = if call_chain {
+        Some(::code_graph::types::EdgeType::Calls)
+    } else {
+        match parse_code_edge_type(payload.edge_type.as_deref()) {
+            Ok(edge_type) => edge_type,
+            Err(message) => {
+                return axum::Json(serde_json::json!({
+                    "status": "error",
+                    "message": message,
+                }))
+            }
+        }
+    };
+    let depth = payload.depth.clamp(1, 8);
+    let limit = payload.limit.clamp(1, 1000);
+    let budget_tokens = payload.budget_tokens.clamp(100, 16_000);
+
+    let result = if call_chain {
+        state.code_query.call_chain(&query, depth, limit)
+    } else if reverse {
+        state
+            .code_query
+            .reverse_dependencies(&query, edge_type, depth, limit)
+    } else {
+        state.code_query.dependencies(&query, edge_type, depth, limit)
+    };
+
+    match result {
+        Ok(edges) => {
+            let (items, truncated, estimated_tokens) = truncate_json_items(edges, budget_tokens);
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "query": query,
+                "depth": depth,
+                "limit": limit,
+                "budget_tokens": budget_tokens,
+                "estimated_tokens": estimated_tokens,
+                "count": items.len(),
+                "_truncated": truncated,
+                "results": items,
+            }))
+        }
+        Err(error) => axum::Json(serde_json::json!({
+            "status": "error",
+            "message": error.to_string(),
+        })),
+    }
+}
+
+fn parse_code_edge_type(
+    value: Option<&str>,
+) -> std::result::Result<Option<::code_graph::types::EdgeType>, String> {
+    let Some(value) = value.filter(|value| !value.trim().is_empty()) else {
+        return Ok(None);
+    };
+    match value.to_ascii_lowercase().as_str() {
+        "calls" | "call" => Ok(Some(::code_graph::types::EdgeType::Calls)),
+        "defines" | "define" => Ok(Some(::code_graph::types::EdgeType::Defines)),
+        "uses" | "use" => Ok(Some(::code_graph::types::EdgeType::Uses)),
+        "imports" | "import" => Ok(Some(::code_graph::types::EdgeType::Imports)),
+        "contains" | "contain" => Ok(Some(::code_graph::types::EdgeType::Contains)),
+        "references" | "reference" | "refs" => Ok(Some(::code_graph::types::EdgeType::References)),
+        _ => Err(format!("unsupported edge_type: {}", value)),
+    }
+}
+
+fn truncate_json_items<T: Serialize>(
+    items: Vec<T>,
+    budget_tokens: usize,
+) -> (Vec<serde_json::Value>, bool, usize) {
+    let mut output = Vec::new();
+    let mut used_tokens = 0usize;
+    let mut truncated = false;
+
+    for item in items {
+        let value = serde_json::to_value(item).unwrap_or_else(|_| serde_json::json!({}));
+        let estimated = estimate_tokens(&value.to_string());
+        if used_tokens + estimated > budget_tokens && !output.is_empty() {
+            truncated = true;
+            break;
+        }
+        used_tokens += estimated;
+        output.push(value);
+    }
+
+    (output, truncated, used_tokens)
 }
 
 pub async fn session_event_handler(
@@ -1634,6 +1819,19 @@ pub(crate) struct CodeContextPayload {
 }
 
 #[derive(Debug, Deserialize)]
+pub(crate) struct CodeGraphQueryPayload {
+    query: String,
+    #[serde(default = "default_graph_depth")]
+    depth: usize,
+    #[serde(default = "default_graph_limit")]
+    limit: usize,
+    #[serde(default)]
+    edge_type: Option<String>,
+    #[serde(default = "default_graph_budget")]
+    budget_tokens: usize,
+}
+
+#[derive(Debug, Deserialize)]
 pub(crate) struct AddPayload {
     content: String,
     #[serde(default)]
@@ -1721,6 +1919,26 @@ pub fn default_limit() -> usize {
 
 pub fn default_token_budget() -> usize {
     800
+}
+
+pub fn default_graph_depth() -> usize {
+    3
+}
+
+pub fn default_graph_limit() -> usize {
+    50
+}
+
+pub fn default_graph_budget() -> usize {
+    1200
+}
+
+pub fn default_min_degree() -> u64 {
+    3
+}
+
+pub fn default_min_complexity() -> f32 {
+    5.0
 }
 
 pub fn default_compaction_threshold() -> f64 {

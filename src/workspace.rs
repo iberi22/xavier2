@@ -329,7 +329,13 @@ impl UsageEvent {
                 category: UsageCategory::Code,
                 units: 4,
             },
-            ("POST", "/code/find") | ("GET", "/code/stats") => Self {
+            ("POST", "/code/find")
+            | ("GET", "/code/stats")
+            | ("POST", "/code/dependencies")
+            | ("POST", "/code/reverse-dependencies")
+            | ("POST", "/code/call-chain")
+            | ("GET", "/code/hubs")
+            | ("GET", "/code/hotspots") => Self {
                 category: UsageCategory::Code,
                 units: 1,
             },
@@ -757,7 +763,9 @@ impl WorkspaceState {
     }
 
     pub async fn export_sync(&self) -> Result<String> {
-        let sync_dir = self.usage_state_path.parent()
+        let sync_dir = self
+            .usage_state_path
+            .parent()
             .ok_or_else(|| anyhow!("usage_state_path has no parent directory"))?
             .join("sync");
         let mut manifest = crate::sync::chunks::load_manifest(&sync_dir)?;
@@ -767,7 +775,9 @@ impl WorkspaceState {
     }
 
     pub async fn import_sync(&self) -> Result<usize> {
-        let sync_dir = self.usage_state_path.parent()
+        let sync_dir = self
+            .usage_state_path
+            .parent()
             .ok_or_else(|| anyhow!("usage_state_path has no parent directory"))?
             .join("sync");
         let manifest = crate::sync::chunks::load_manifest(&sync_dir)?;
@@ -1576,7 +1586,12 @@ mod tests {
         let reloaded = WorkspaceState::new(config, RuntimeConfig::default(), &root)
             .await
             .expect("test assertion");
-        let doc = reloaded.memory.get(&doc_id).await.expect("test assertion").expect("test assertion");
+        let doc = reloaded
+            .memory
+            .get(&doc_id)
+            .await
+            .expect("test assertion")
+            .expect("test assertion");
         assert_eq!(doc.content, "Durable memory survives restarts.");
         assert_eq!(doc.metadata["kind"].as_str(), Some("semantic"));
     }
@@ -1600,7 +1615,10 @@ mod tests {
         let workspace = WorkspaceState::new(config.clone(), RuntimeConfig::default(), &root)
             .await
             .expect("test assertion");
-        let session_token = workspace.generate_session_token().await.expect("test assertion");
+        let session_token = workspace
+            .generate_session_token()
+            .await
+            .expect("test assertion");
         workspace
             .belief_graph
             .read()

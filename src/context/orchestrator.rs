@@ -5,6 +5,7 @@ use super::{
     hybrid::{ContextSearchHit, HybridContextSearch},
     ContextDocument,
 };
+use crate::memory::virtual_memory::{MemoryReference, VirtualMemoryEntry};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HookKind {
@@ -108,7 +109,7 @@ impl Orchestrator {
         &self,
         plan: &ExecutionPlan,
         documents: &'a [ContextDocument],
-    ) -> Vec<&'a ContextDocument> {
+    ) -> Vec<ContextDocument> {
         let mut by_id = std::collections::HashMap::new();
         for document in documents {
             by_id.insert(document.id.as_str(), document);
@@ -129,7 +130,34 @@ impl Orchestrator {
             selected.push(document);
         }
 
-        selected
+        let mut final_docs = Vec::new();
+        for document in selected {
+            if plan.level == ContextLevel::Minimal {
+                // L0/L1 Virtualization: Only send summary and keywords
+                let path = document.metadata["path"].as_str().unwrap_or("unknown").to_string();
+                let virtual_entry = VirtualMemoryEntry::new(
+                    path,
+                    document.content.clone(),
+                    document.metadata.clone(),
+                );
+                let reference = virtual_entry.to_reference();
+                let virtual_content = format!(
+                    "REF: {} | SUMMARY: {} | KEYWORDS: {}",
+                    reference.path,
+                    reference.summary,
+                    reference.keywords.join(", ")
+                );
+                
+                let mut virtual_doc = document.clone();
+                virtual_doc.content = virtual_content;
+                virtual_doc.token_count = virtual_doc.content.split_whitespace().count();
+                final_docs.push(virtual_doc);
+            } else {
+                final_docs.push(document.clone());
+            }
+        }
+
+        final_docs
     }
 
     pub fn ranked_hits(

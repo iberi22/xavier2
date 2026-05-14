@@ -13,6 +13,7 @@ mod benchmarks_inner {
         for i in 0..1000 {
             let sym = Symbol {
                 id: None,
+                stable_id: None,
                 name: format!("function_{}", i),
                 kind: SymbolKind::Function,
                 lang: Language::Rust,
@@ -23,6 +24,7 @@ mod benchmarks_inner {
                 end_col: 0,
                 signature: Some(format!("fn function_{}() -> Result<()>", i)),
                 parent: None,
+                complexity: None,
             };
             db.insert_symbol(&sym).expect("benchmark assertion");
         }
@@ -36,7 +38,8 @@ mod benchmarks_inner {
 
         let start = Instant::now();
         for _ in 0..100 {
-            db.find_symbols("function_500", 10).expect("benchmark assertion");
+            db.find_symbols("function_500", 10)
+                .expect("benchmark assertion");
         }
         let elapsed = start.elapsed();
 
@@ -50,7 +53,8 @@ mod benchmarks_inner {
 
         let start = Instant::now();
         for _ in 0..100 {
-            db.find_symbols("function_", 10).expect("benchmark assertion");
+            db.find_symbols("function_", 10)
+                .expect("benchmark assertion");
         }
         let elapsed = start.elapsed();
 
@@ -66,6 +70,7 @@ mod benchmarks_inner {
         for i in 0..100 {
             let sym = Symbol {
                 id: None,
+                stable_id: None,
                 name: format!("bench_{}", i),
                 kind: SymbolKind::Function,
                 lang: Language::Rust,
@@ -76,6 +81,7 @@ mod benchmarks_inner {
                 end_col: 0,
                 signature: Some("fn bench()".to_string()),
                 parent: None,
+                complexity: None,
             };
             db.insert_symbol(&sym).expect("benchmark assertion");
         }
@@ -91,7 +97,8 @@ mod benchmarks_inner {
 
         let start = Instant::now();
         for _ in 0..100 {
-            db.find_by_kind(SymbolKind::Function, 100).expect("benchmark assertion");
+            db.find_by_kind(SymbolKind::Function, 100)
+                .expect("benchmark assertion");
         }
         let elapsed = start.elapsed();
 

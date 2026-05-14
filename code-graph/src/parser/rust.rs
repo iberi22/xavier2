@@ -1,6 +1,7 @@
 //! Simplified Rust parser using tree-sitter
 
 use crate::error::{GraphError, Result};
+use crate::parser::{compact_node_signature, cyclomatic_complexity};
 use crate::types::{Language, Symbol, SymbolKind};
 use tree_sitter::{Node, Parser, Tree};
 
@@ -12,7 +13,9 @@ impl RustParser {
     pub fn new() -> Self {
         let mut parser = Parser::new();
         let lang = tree_sitter_rust::LANGUAGE.into();
-        parser.set_language(&lang).expect("failed to set Rust tree-sitter language");
+        parser
+            .set_language(&lang)
+            .expect("failed to set Rust tree-sitter language");
         Self { parser }
     }
 
@@ -116,9 +119,12 @@ impl RustParser {
     ) {
         let start = node.start_position();
         let end = node.end_position();
+        let complexity =
+            (kind == SymbolKind::Function).then(|| cyclomatic_complexity(node, source));
 
         symbols.push(Symbol {
             id: None,
+            stable_id: None,
             name: name_node
                 .utf8_text(source.as_bytes())
                 .unwrap_or("?")
@@ -130,37 +136,10 @@ impl RustParser {
             end_line: (end.row + 1) as u32,
             start_col: start.column as u32,
             end_col: end.column as u32,
-            signature: compact_signature(node, source),
+            signature: compact_node_signature(node, source),
             parent: None,
+            complexity,
         });
-    }
-}
-
-fn compact_signature(node: Node, source: &str) -> Option<String> {
-    let raw = node.utf8_text(source.as_bytes()).ok()?;
-    let header = if let Some(body) = node.child_by_field_name("body") {
-        let index = body.start_byte().saturating_sub(node.start_byte());
-        format!("{} {{ ... }}", raw.get(..index).unwrap_or(raw))
-    } else {
-        match raw.find('{') {
-            Some(index) => format!("{} {{ ... }}", &raw[..index]),
-            None => raw
-                .find(';')
-                .map(|index| raw[..=index].to_string())
-                .unwrap_or_else(|| raw.to_string()),
-        }
-    };
-
-    let compact = header.split_whitespace().collect::<Vec<_>>().join(" ");
-    if compact.is_empty() {
-        None
-    } else if compact.len() > 400 {
-        Some(format!(
-            "{}...",
-            compact.chars().take(400).collect::<String>()
-        ))
-    } else {
-        Some(compact)
     }
 }
 

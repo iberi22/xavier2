@@ -16,8 +16,8 @@ tokio = { version = "1", features = ["full"] }
 clap = { version = "4", features = ["derive", "env"] }
 
 # Tree-sitter - todas las versiones 0.23 (últimas estables)
-tree-sitter = "0.23"
-tree-sitter-rust = "0.23"
+tree-sitter = "0.25"
+tree-sitter-rust = "0.24"
 tree-sitter-typescript = "0.23"
 tree-sitter-python = "0.25"
 tree-sitter-go = "0.25"
@@ -25,10 +25,13 @@ tree-sitter-java = "0.23"
 
 # File traversal
 walkdir = "2"
+ignore = "0.4"
+globset = "0.4"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 
 # Error handling
 thiserror = "2"
@@ -52,6 +55,7 @@ parking_lot = "0.12"
 rusqlite = { version = "0.32.0", features = ["bundled"] }
 
 [dev-dependencies]
+tempfile = "3"
 
 [[bin]]
 name = "code-graph"

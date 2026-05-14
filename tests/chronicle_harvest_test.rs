@@ -46,6 +46,7 @@ async fn test_full_harvest_workflow() {
     code_db
         .insert_symbol(&Symbol {
             id: None,
+            stable_id: None,
             name: "main".into(),
             kind: SymbolKind::Function,
             lang: Language::Rust,
@@ -56,6 +57,7 @@ async fn test_full_harvest_workflow() {
             end_col: 10,
             signature: Some("fn main()".into()),
             parent: None,
+            complexity: None,
         })
         .expect("test assertion");
 

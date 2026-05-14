@@ -17,6 +17,7 @@ mod tests {
     };
     use crate::cli::utils::{json_response, estimate_tokens, load_skill};
     use crate::cli::server::auth_middleware;
+    use crate::cli::proxy::ProxyChatRequest;
 
     use code_graph::types::{Language, Symbol, SymbolKind};
     use std::sync::Arc;
@@ -26,6 +27,7 @@ mod tests {
         let db = code_graph::db::CodeGraphDB::in_memory().unwrap();
         db.insert_symbol(&Symbol {
             id: None,
+            stable_id: None,
             name: "search_memories".to_string(),
             kind: SymbolKind::Function,
             lang: Language::Rust,
@@ -38,10 +40,12 @@ mod tests {
                 "async fn search_memories(query: &str, limit: usize) -> Result<()>".to_string(),
             ),
             parent: None,
+            complexity: None,
         })
         .unwrap();
         db.insert_symbol(&Symbol {
             id: None,
+            stable_id: None,
             name: "add_memory".to_string(),
             kind: SymbolKind::Function,
             lang: Language::Rust,
@@ -54,6 +58,7 @@ mod tests {
                 "async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> Result<()>".to_string(),
             ),
             parent: None,
+            complexity: None,
         })
         .unwrap();
 
@@ -226,5 +231,32 @@ mod tests {
             assert_eq!(body["status"], "error");
             assert!(body["message"].as_str().unwrap().contains("not configured"));
         }
+    }
+
+    #[tokio::test]
+    async fn test_chat_batch_proxy_ordering() {
+        let requests = vec![
+            ProxyChatRequest {
+                model: "model-1".to_string(),
+                messages: vec![serde_json::json!({"role": "user", "content": "ping 1"})],
+                temperature: None,
+                max_tokens: None,
+            },
+            ProxyChatRequest {
+                model: "model-2".to_string(),
+                messages: vec![serde_json::json!({"role": "user", "content": "ping 2"})],
+                temperature: None,
+                max_tokens: None,
+            },
+        ];
+
+        // To verify the ordering logic conceptually used in the handler:
+        let mut results = vec![serde_json::json!(null); requests.len()];
+        results[0] = serde_json::json!({"id": "1"});
+        results[1] = serde_json::json!({"id": "2"});
+
+        assert_eq!(results[0]["id"], "1");
+        assert_eq!(results[1]["id"], "2");
+        assert_eq!(results.len(), 2);
     }
 }

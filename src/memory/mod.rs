@@ -19,5 +19,6 @@ pub mod session_store;
 pub mod sqlite_store;
 pub mod sqlite_vec_store;
 pub mod store;
+pub mod virtual_memory;
 pub mod working;
 pub use store::*;
