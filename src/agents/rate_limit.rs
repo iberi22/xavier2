@@ -5,6 +5,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::ports::outbound::schema_init::SchemaInitializer;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuotaStatus {
     pub provider: String,
@@ -25,79 +27,6 @@ pub struct RateLimitManager {
 impl RateLimitManager {
     pub fn new(db: Arc<Mutex<Connection>>) -> Self {
         Self { db }
-    }
-
-    pub fn init_schema(conn: &Connection) -> Result<()> {
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS rate_limit_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                provider TEXT NOT NULL,
-                timestamp DATETIME DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
-                tokens_used INTEGER DEFAULT 0,
-                cost_usd REAL DEFAULT 0.0,
-                status_code INTEGER,
-                is_error BOOLEAN DEFAULT 0
-            )",
-            [],
-        )?;
-
-        // Migration: Add cache_hits column if it doesn't exist
-        let has_cache_hits: bool = conn.query_row(
-            "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cache_hits'",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(0) > 0;
-
-        if !has_cache_hits {
-            conn.execute(
-                "ALTER TABLE rate_limit_usage ADD COLUMN cache_hits INTEGER DEFAULT 0",
-                [],
-            )?;
-        }
-
-        // Migration: Add cost_usd column if it doesn't exist
-        let column_exists: bool = conn
-            .query_row(
-                "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cost_usd'",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0)
-            > 0;
-
-        if !column_exists {
-            conn.execute(
-                "ALTER TABLE rate_limit_usage ADD COLUMN cost_usd REAL DEFAULT 0.0",
-                [],
-            )?;
-        }
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS provider_quotas (
-                provider TEXT PRIMARY KEY,
-                rate_limited_until DATETIME,
-                manual_limit_percentage REAL DEFAULT 0.0,
-                last_manual_update DATETIME,
-                weekly_quota INTEGER DEFAULT 1000000
-            )",
-            [],
-        )?;
-
-        // Defensive schema evolution: add weekly_quota if it doesn't exist
-        let has_weekly_quota: bool = conn.query_row(
-            "SELECT count(*) FROM pragma_table_info('provider_quotas') WHERE name = 'weekly_quota'",
-            [],
-            |row| row.get::<_, i32>(0),
-        ).map(|count| count > 0).unwrap_or(false);
-
-        if !has_weekly_quota {
-            let _ = conn.execute(
-                "ALTER TABLE provider_quotas ADD COLUMN weekly_quota INTEGER DEFAULT 1000000",
-                [],
-            );
-        }
-
-        Ok(())
     }
 
     pub async fn track_request(
@@ -283,6 +212,82 @@ impl RateLimitManager {
     }
 }
 
+impl SchemaInitializer for RateLimitManager {
+    fn init_schema(&self) -> Result<()> {
+        let conn = self.db.lock();
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS rate_limit_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                timestamp DATETIME DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
+                tokens_used INTEGER DEFAULT 0,
+                cost_usd REAL DEFAULT 0.0,
+                status_code INTEGER,
+                is_error BOOLEAN DEFAULT 0
+            )",
+            [],
+        )?;
+
+        // Migration: Add cache_hits column if it doesn't exist
+        let has_cache_hits: bool = conn.query_row(
+            "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cache_hits'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0) > 0;
+
+        if !has_cache_hits {
+            conn.execute(
+                "ALTER TABLE rate_limit_usage ADD COLUMN cache_hits INTEGER DEFAULT 0",
+                [],
+            )?;
+        }
+
+        // Migration: Add cost_usd column if it doesn't exist
+        let column_exists: bool = conn
+            .query_row(
+                "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cost_usd'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0)
+            > 0;
+
+        if !column_exists {
+            conn.execute(
+                "ALTER TABLE rate_limit_usage ADD COLUMN cost_usd REAL DEFAULT 0.0",
+                [],
+            )?;
+        }
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS provider_quotas (
+                provider TEXT PRIMARY KEY,
+                rate_limited_until DATETIME,
+                manual_limit_percentage REAL DEFAULT 0.0,
+                last_manual_update DATETIME,
+                weekly_quota INTEGER DEFAULT 1000000
+            )",
+            [],
+        )?;
+
+        // Defensive schema evolution: add weekly_quota if it doesn't exist
+        let has_weekly_quota: bool = conn.query_row(
+            "SELECT count(*) FROM pragma_table_info('provider_quotas') WHERE name = 'weekly_quota'",
+            [],
+            |row| row.get::<_, i32>(0),
+        ).map(|count| count > 0).unwrap_or(false);
+
+        if !has_weekly_quota {
+            let _ = conn.execute(
+                "ALTER TABLE provider_quotas ADD COLUMN weekly_quota INTEGER DEFAULT 1000000",
+                [],
+            );
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,8 +297,9 @@ mod tests {
 
     async fn setup_manager() -> RateLimitManager {
         let conn = Connection::open_in_memory().unwrap();
-        RateLimitManager::init_schema(&conn).unwrap();
-        RateLimitManager::new(Arc::new(Mutex::new(conn)))
+        let manager = RateLimitManager::new(Arc::new(Mutex::new(conn)));
+        manager.init_schema().unwrap();
+        manager
     }
 
     #[tokio::test]
