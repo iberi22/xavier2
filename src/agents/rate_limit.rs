@@ -5,6 +5,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::ports::outbound::schema_init::SchemaInitializer;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuotaStatus {
     pub provider: String,
@@ -25,79 +27,6 @@ pub struct RateLimitManager {
 impl RateLimitManager {
     pub fn new(db: Arc<Mutex<Connection>>) -> Self {
         Self { db }
-    }
-
-    pub fn init_schema(conn: &Connection) -> Result<()> {
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS rate_limit_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                provider TEXT NOT NULL,
-                timestamp DATETIME DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
-                tokens_used INTEGER DEFAULT 0,
-                cost_usd REAL DEFAULT 0.0,
-                status_code INTEGER,
-                is_error BOOLEAN DEFAULT 0
-            )",
-            [],
-        )?;
-
-        // Migration: Add cache_hits column if it doesn't exist
-        let has_cache_hits: bool = conn.query_row(
-            "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cache_hits'",
-            [],
-            |row| row.get(0),
-        ).unwrap_or(0) > 0;
-
-        if !has_cache_hits {
-            conn.execute(
-                "ALTER TABLE rate_limit_usage ADD COLUMN cache_hits INTEGER DEFAULT 0",
-                [],
-            )?;
-        }
-
-        // Migration: Add cost_usd column if it doesn't exist
-        let column_exists: bool = conn
-            .query_row(
-                "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cost_usd'",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap_or(0)
-            > 0;
-
-        if !column_exists {
-            conn.execute(
-                "ALTER TABLE rate_limit_usage ADD COLUMN cost_usd REAL DEFAULT 0.0",
-                [],
-            )?;
-        }
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS provider_quotas (
-                provider TEXT PRIMARY KEY,
-                rate_limited_until DATETIME,
-                manual_limit_percentage REAL DEFAULT 0.0,
-                last_manual_update DATETIME,
-                weekly_quota INTEGER DEFAULT 1000000
-            )",
-            [],
-        )?;
-
-        // Defensive schema evolution: add weekly_quota if it doesn't exist
-        let has_weekly_quota: bool = conn.query_row(
-            "SELECT count(*) FROM pragma_table_info('provider_quotas') WHERE name = 'weekly_quota'",
-            [],
-            |row| row.get::<_, i32>(0),
-        ).map(|count| count > 0).unwrap_or(false);
-
-        if !has_weekly_quota {
-            let _ = conn.execute(
-                "ALTER TABLE provider_quotas ADD COLUMN weekly_quota INTEGER DEFAULT 1000000",
-                [],
-            );
-        }
-
-        Ok(())
     }
 
     pub async fn track_request(
@@ -145,34 +74,31 @@ impl RateLimitManager {
         let week_ago = now - Duration::days(7);
         let month_ago = now - Duration::days(30);
 
-        let used_hourly: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
-            params![provider, hour_ago],
-            |row| row.get(0),
-        )?;
-
-        let used_today: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
-            params![provider, day_ago],
-            |row| row.get(0),
-        )?;
-
-        let used_weekly: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
-            params![provider, week_ago],
-            |row| row.get(0),
-        )?;
-
-        let used_monthly: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
-            params![provider, month_ago],
-            |row| row.get(0),
-        )?;
-
-        let cache_hits: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(cache_hits), 0) FROM rate_limit_usage WHERE provider = ?1",
-            params![provider],
-            |row| row.get(0),
+        let (used_hourly, used_today, used_weekly, used_monthly, cache_hits): (
+            i64,
+            i64,
+            i64,
+            i64,
+            i64,
+        ) = conn.query_row(
+            "SELECT
+                COALESCE(SUM(CASE WHEN timestamp > ?1 THEN tokens_used ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN timestamp > ?2 THEN tokens_used ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN timestamp > ?3 THEN tokens_used ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN timestamp > ?4 THEN tokens_used ELSE 0 END), 0),
+                COALESCE(SUM(cache_hits), 0)
+             FROM rate_limit_usage
+             WHERE provider = ?5",
+            params![hour_ago, day_ago, week_ago, month_ago, provider],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )?;
 
         let (rate_limited_until, weekly_quota): (Option<DateTime<Utc>>, usize) = conn.query_row(
@@ -283,6 +209,82 @@ impl RateLimitManager {
     }
 }
 
+impl SchemaInitializer for RateLimitManager {
+    fn init_schema(&self) -> Result<()> {
+        let conn = self.db.lock();
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS rate_limit_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                timestamp DATETIME DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
+                tokens_used INTEGER DEFAULT 0,
+                cost_usd REAL DEFAULT 0.0,
+                status_code INTEGER,
+                is_error BOOLEAN DEFAULT 0
+            )",
+            [],
+        )?;
+
+        // Migration: Add cache_hits column if it doesn't exist
+        let has_cache_hits: bool = conn.query_row(
+            "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cache_hits'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0) > 0;
+
+        if !has_cache_hits {
+            conn.execute(
+                "ALTER TABLE rate_limit_usage ADD COLUMN cache_hits INTEGER DEFAULT 0",
+                [],
+            )?;
+        }
+
+        // Migration: Add cost_usd column if it doesn't exist
+        let column_exists: bool = conn
+            .query_row(
+                "SELECT count(*) FROM pragma_table_info('rate_limit_usage') WHERE name='cost_usd'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0)
+            > 0;
+
+        if !column_exists {
+            conn.execute(
+                "ALTER TABLE rate_limit_usage ADD COLUMN cost_usd REAL DEFAULT 0.0",
+                [],
+            )?;
+        }
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS provider_quotas (
+                provider TEXT PRIMARY KEY,
+                rate_limited_until DATETIME,
+                manual_limit_percentage REAL DEFAULT 0.0,
+                last_manual_update DATETIME,
+                weekly_quota INTEGER DEFAULT 1000000
+            )",
+            [],
+        )?;
+
+        // Defensive schema evolution: add weekly_quota if it doesn't exist
+        let has_weekly_quota: bool = conn.query_row(
+            "SELECT count(*) FROM pragma_table_info('provider_quotas') WHERE name = 'weekly_quota'",
+            [],
+            |row| row.get::<_, i32>(0),
+        ).map(|count| count > 0).unwrap_or(false);
+
+        if !has_weekly_quota {
+            let _ = conn.execute(
+                "ALTER TABLE provider_quotas ADD COLUMN weekly_quota INTEGER DEFAULT 1000000",
+                [],
+            );
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,8 +294,9 @@ mod tests {
 
     async fn setup_manager() -> RateLimitManager {
         let conn = Connection::open_in_memory().unwrap();
-        RateLimitManager::init_schema(&conn).unwrap();
-        RateLimitManager::new(Arc::new(Mutex::new(conn)))
+        let manager = RateLimitManager::new(Arc::new(Mutex::new(conn)));
+        manager.init_schema().unwrap();
+        manager
     }
 
     #[tokio::test]

@@ -2,8 +2,12 @@ use anyhow::{anyhow, bail, Context, Result};
 use reqwest::Client;
 use serde::Serialize;
 use std::time::Duration;
+use tokio::time::timeout;
+use tracing::warn;
 
 use crate::agents::system1::RetrievedDocument;
+
+pub const LLM_TIMEOUT: Duration = Duration::from_secs(30);
 
 const DEFAULT_LOCAL_BASE_URL: &str = "http://localhost:11434/v1";
 const DEFAULT_LOCAL_ANTHROPIC_BASE_URL: &str = "http://localhost:11434";
@@ -477,24 +481,31 @@ impl ModelProviderClient {
             bail!("no LLM provider configured");
         }
 
-        match self.config.target {
-            ProviderTarget::GenericOpenAICompatible => {
-                self.generate_openai_compatible(system_prompt, user_prompt, use_cache)
-                    .await
+        let future = async {
+            match self.config.target {
+                ProviderTarget::GenericOpenAICompatible => {
+                    self.generate_openai_compatible(system_prompt, user_prompt, use_cache)
+                        .await
+                }
+                ProviderTarget::AnthropicMessages => {
+                    self.generate_anthropic_compatible(system_prompt, user_prompt, use_cache)
+                        .await
+                }
+                ProviderTarget::GeminiLegacy => {
+                    self.generate_gemini_legacy(system_prompt, user_prompt, use_cache)
+                        .await
+                }
+                ProviderTarget::MiniMaxLegacy => {
+                    self.generate_minimax_legacy(system_prompt, user_prompt, use_cache)
+                        .await
+                }
             }
-            ProviderTarget::AnthropicMessages => {
-                self.generate_anthropic_compatible(system_prompt, user_prompt, use_cache)
-                    .await
-            }
-            ProviderTarget::GeminiLegacy => {
-                self.generate_gemini_legacy(system_prompt, user_prompt, use_cache)
-                    .await
-            }
-            ProviderTarget::MiniMaxLegacy => {
-                self.generate_minimax_legacy(system_prompt, user_prompt, use_cache)
-                    .await
-            }
-        }
+        };
+
+        timeout(LLM_TIMEOUT, future).await.map_err(|_| {
+            warn!("LLM provider timed out after {}s", LLM_TIMEOUT.as_secs());
+            anyhow!("LLM provider timed out after {} seconds", LLM_TIMEOUT.as_secs())
+        })?
     }
 
     async fn generate_openai_compatible(
@@ -842,6 +853,45 @@ mod tests {
 
         assert_eq!(status.model, "gpt-4o-override");
         assert_eq!(client.config.model, "gpt-4o-override");
+    }
+
+    #[tokio::test]
+    async fn test_llm_timeout() {
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // Spawn a task that accepts one connection but never responds
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = listener.accept().await {
+                // Keep the connection open but don't send anything
+                tokio::time::sleep(Duration::from_secs(40)).await;
+                use tokio::io::AsyncWriteExt;
+                let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").await;
+            }
+        });
+
+        let config = ModelProviderConfig {
+            provider_mode: ProviderMode::Local,
+            api_flavor: ApiFlavor::OpenAICompatible,
+            provider_label: "test-timeout".to_string(),
+            model: "test-model".to_string(),
+            api_key: None,
+            base_url: Some(format!("http://{}", addr)),
+            target: ProviderTarget::GenericOpenAICompatible,
+        };
+        let client = ModelProviderClient::new(config);
+
+        let start = std::time::Instant::now();
+        let result = client.generate_text("system", "user").await;
+        let elapsed = start.elapsed();
+
+        assert!(result.is_err(), "Expected error but got: {:?}", result);
+        let err_msg = format!("{:?}", result.err().unwrap());
+        assert!(err_msg.contains("timed out") || err_msg.contains("timeout"), "Error message '{}' did not contain 'timed out' or 'timeout'", err_msg);
+        // Should be around 30s
+        assert!(elapsed.as_secs() >= 30 && elapsed.as_secs() < 40, "Elapsed time was {}s, expected around 30s", elapsed.as_secs());
     }
 
     #[tokio::test]

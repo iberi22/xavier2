@@ -31,6 +31,7 @@ use crate::memory::store::{
     stable_key, DurableWorkspaceState, GraphHopPath, GraphHopResult, HybridSearchMode,
     HybridSearchResult, MemoryBackend, MemoryRecord, MemoryStore, SessionTokenRecord,
 };
+use crate::ports::outbound::schema_init::SchemaInitializer;
 use crate::settings::XavierSettings;
 
 const DB_FILENAME: &str = "xavier_memory_vec.db";
@@ -146,11 +147,6 @@ pub struct VecSqliteMemoryStore {
 }
 
 impl VecSqliteMemoryStore {
-    /// Get a clone of the inner connection (for PatternStore)
-    pub fn clone_inner_conn(&self) -> Arc<Mutex<Connection>> {
-        self.conn.clone()
-    }
-
     pub async fn from_env() -> Result<Self> {
         Self::new(VecSqliteStoreConfig::from_env()).await
     }
@@ -193,17 +189,28 @@ impl VecSqliteMemoryStore {
         conn.query_row("SELECT vec_version()", [], |row| row.get::<_, String>(0))
             .context("sqlite-vec extension is not active on this connection")?;
 
-        // Initialize schema
-        Self::init_schema(&conn, config.embedding_dimensions)?;
-
-        Ok(Self {
+        let store = Self {
             conn: Arc::new(Mutex::new(conn)),
             config,
             event_tx: None,
-        })
+        };
+
+        // Initialize schema
+        store.init_schema()?;
+
+        Ok(store)
     }
 
-    fn register_sqlite_vec_extension() -> Result<()> {
+    pub fn new_with_conn(conn: Arc<Mutex<Connection>>, config: VecSqliteStoreConfig) -> Self {
+        let _ = Self::register_sqlite_vec_extension();
+        Self {
+            conn,
+            config,
+            event_tx: None,
+        }
+    }
+
+    pub fn register_sqlite_vec_extension() -> Result<()> {
         SQLITE_VEC_EXTENSION_INIT
             .get_or_init(|| {
                 // SAFETY: sqlite3_vec_init is the well-known sqlite-vec extension entry point
@@ -232,189 +239,6 @@ impl VecSqliteMemoryStore {
             })
             .clone()
             .map_err(anyhow::Error::msg)
-    }
-
-    fn init_schema(conn: &Connection, embedding_dimensions: usize) -> Result<()> {
-        // Create main memory table (same as SqliteMemoryStore)
-        conn.execute_batch(&format!(
-            r#"
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                path TEXT NOT NULL,
-                content TEXT NOT NULL,
-                metadata TEXT NOT NULL DEFAULT '{{}}',
-                embedding BLOB,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                revision INTEGER NOT NULL DEFAULT 1,
-                primary_flag INTEGER NOT NULL DEFAULT 1,
-                parent_id TEXT,
-                revisions TEXT NOT NULL DEFAULT '[]'
-            );
-
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                beliefs TEXT NOT NULL DEFAULT '[]',
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                token TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                expires_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                task_id TEXT NOT NULL,
-                name TEXT NOT NULL,
-                data TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_memories_workspace ON {}(workspace_id);
-            CREATE INDEX IF NOT EXISTS idx_memories_path ON {}(workspace_id, path);
-            CREATE INDEX IF NOT EXISTS idx_session_tokens_workspace ON {}(workspace_id);
-            CREATE INDEX IF NOT EXISTS idx_checkpoints_workspace ON {}(workspace_id);
-            CREATE INDEX IF NOT EXISTS idx_checkpoints_task ON {}(workspace_id, task_id);
-            "#,
-            TABLE_MEMORIES,
-            TABLE_BELIEFS,
-            TABLE_SESSION_TOKENS,
-            TABLE_CHECKPOINTS,
-            TABLE_MEMORIES,
-            TABLE_MEMORIES,
-            TABLE_SESSION_TOKENS,
-            TABLE_CHECKPOINTS,
-            TABLE_CHECKPOINTS
-        ))?;
-
-        Self::ensure_vector_index(conn, embedding_dimensions)?;
-        Self::ensure_fts_index(conn)?;
-
-        // Knowledge graph for entity/relationship memory
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS entities (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                entity_type TEXT,
-                properties TEXT DEFAULT '{}',
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS relations (
-                id TEXT PRIMARY KEY,
-                source_id TEXT NOT NULL,
-                target_id TEXT NOT NULL,
-                relation_type TEXT NOT NULL,
-                properties TEXT DEFAULT '{}',
-                FOREIGN KEY (source_id) REFERENCES entities(id),
-                FOREIGN KEY (target_id) REFERENCES entities(id)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(entity_type);
-            CREATE INDEX IF NOT EXISTS idx_relations_source ON relations(source_id);
-            CREATE INDEX IF NOT EXISTS idx_relations_target ON relations(target_id);
-
-            CREATE TABLE IF NOT EXISTS memory_entities (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                memory_id TEXT NOT NULL,
-                entity_id TEXT NOT NULL,
-                relation_type TEXT NOT NULL DEFAULT 'mentions',
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                FOREIGN KEY (memory_id) REFERENCES memory_records(id),
-                FOREIGN KEY (entity_id) REFERENCES entities(id)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_memory_entities_memory ON memory_entities(workspace_id, memory_id);
-            CREATE INDEX IF NOT EXISTS idx_memory_entities_entity ON memory_entities(workspace_id, entity_id);
-        "#,
-        )?;
-
-        // Tamper-evident hash chain (content chaining for integrity verification)
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS memory_chain (
-                id TEXT PRIMARY KEY,
-                prev_hash TEXT,
-                content_hash TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS timeline_events (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                memory_id TEXT NOT NULL,
-                sequence INTEGER,
-                agent_id TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                operation TEXT NOT NULL,
-                prev_hash TEXT,
-                curr_hash TEXT NOT NULL,
-                payload TEXT NOT NULL DEFAULT '{}'
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_timeline_events_workspace ON timeline_events(workspace_id, timestamp);
-            CREATE INDEX IF NOT EXISTS idx_timeline_events_memory ON timeline_events(workspace_id, memory_id);
-        "#,
-        )?;
-        Self::ensure_timeline_sequence(conn)?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_timeline_events_sequence ON timeline_events(workspace_id, sequence)",
-            [],
-        )?;
-
-        // Pattern Protocol - verified patterns discovered by agents
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS patterns (
-                id TEXT PRIMARY KEY,
-                category TEXT NOT NULL,
-                pattern TEXT NOT NULL,
-                project TEXT NOT NULL,
-                discovered_by TEXT NOT NULL,
-                confidence REAL NOT NULL DEFAULT 0.5,
-                source_file TEXT DEFAULT '',
-                source_occurrences INTEGER DEFAULT 0,
-                source_snippet TEXT DEFAULT '',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                usage_count INTEGER DEFAULT 0,
-                verification TEXT DEFAULT 'pending'
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_patterns_project ON patterns(project);
-            CREATE INDEX IF NOT EXISTS idx_patterns_category ON patterns(category);
-            CREATE INDEX IF NOT EXISTS idx_patterns_confidence ON patterns(confidence);
-        "#,
-        )?;
-
-        // Security threats log
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS security_threats (
-                id TEXT PRIMARY KEY,
-                severity TEXT NOT NULL,
-                layer TEXT NOT NULL,
-                category TEXT NOT NULL,
-                message TEXT NOT NULL,
-                evidence TEXT NOT NULL,
-                context TEXT DEFAULT '',
-                created_at TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_threats_severity ON security_threats(severity);
-            CREATE INDEX IF NOT EXISTS idx_threats_created ON security_threats(created_at);
-        "#,
-        )?;
-
-        Ok(())
     }
 
     fn virtual_table_columns(conn: &Connection, table: &str) -> Result<Vec<String>> {
@@ -1722,6 +1546,148 @@ impl VecSqliteMemoryStore {
             "INSERT OR REPLACE INTO relations (id, source_id, target_id, relation_type) VALUES (?, ?, ?, ?)",
             params![id, source_id, target_id, relation_type],
         )?;
+        Ok(())
+    }
+}
+
+impl SchemaInitializer for VecSqliteMemoryStore {
+    fn init_schema(&self) -> Result<()> {
+        let conn = self.conn.lock();
+        // Create main memory table (same as SqliteMemoryStore)
+        conn.execute_batch(&format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS {} (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                path TEXT NOT NULL,
+                content TEXT NOT NULL,
+                metadata TEXT NOT NULL DEFAULT '{{}}',
+                embedding BLOB,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                revision INTEGER NOT NULL DEFAULT 1,
+                primary_flag INTEGER NOT NULL DEFAULT 1,
+                parent_id TEXT,
+                revisions TEXT NOT NULL DEFAULT '[]'
+            );
+
+            CREATE TABLE IF NOT EXISTS {} (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                beliefs TEXT NOT NULL DEFAULT '[]',
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS {} (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                token TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS {} (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                task_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                data TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_memories_workspace ON {}(workspace_id);
+            CREATE INDEX IF NOT EXISTS idx_memories_path ON {}(workspace_id, path);
+            CREATE INDEX IF NOT EXISTS idx_session_tokens_workspace ON {}(workspace_id);
+            CREATE INDEX IF NOT EXISTS idx_checkpoints_workspace ON {}(workspace_id);
+            CREATE INDEX IF NOT EXISTS idx_checkpoints_task ON {}(workspace_id, task_id);
+            "#,
+            TABLE_MEMORIES,
+            TABLE_BELIEFS,
+            TABLE_SESSION_TOKENS,
+            TABLE_CHECKPOINTS,
+            TABLE_MEMORIES,
+            TABLE_MEMORIES,
+            TABLE_SESSION_TOKENS,
+            TABLE_CHECKPOINTS,
+            TABLE_CHECKPOINTS
+        ))?;
+
+        Self::ensure_vector_index(&conn, self.config.embedding_dimensions)?;
+        Self::ensure_fts_index(&conn)?;
+
+        // Knowledge graph for entity/relationship memory
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS entities (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                entity_type TEXT,
+                properties TEXT DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS relations (
+                id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                relation_type TEXT NOT NULL,
+                properties TEXT DEFAULT '{}',
+                FOREIGN KEY (source_id) REFERENCES entities(id),
+                FOREIGN KEY (target_id) REFERENCES entities(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_entities_type ON entities(entity_type);
+            CREATE INDEX IF NOT EXISTS idx_relations_source ON relations(source_id);
+            CREATE INDEX IF NOT EXISTS idx_relations_target ON relations(target_id);
+
+            CREATE TABLE IF NOT EXISTS memory_entities (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                memory_id TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                relation_type TEXT NOT NULL DEFAULT 'mentions',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (memory_id) REFERENCES memory_records(id),
+                FOREIGN KEY (entity_id) REFERENCES entities(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_memory_entities_memory ON memory_entities(workspace_id, memory_id);
+            CREATE INDEX IF NOT EXISTS idx_memory_entities_entity ON memory_entities(workspace_id, entity_id);
+        "#,
+        )?;
+
+        // Tamper-evident hash chain (content chaining for integrity verification)
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS memory_chain (
+                id TEXT PRIMARY KEY,
+                prev_hash TEXT,
+                content_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS timeline_events (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                memory_id TEXT NOT NULL,
+                sequence INTEGER,
+                agent_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                prev_hash TEXT,
+                curr_hash TEXT NOT NULL,
+                payload TEXT NOT NULL DEFAULT '{}'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_timeline_events_workspace ON timeline_events(workspace_id, timestamp);
+            CREATE INDEX IF NOT EXISTS idx_timeline_events_memory ON timeline_events(workspace_id, memory_id);
+        "#,
+        )?;
+        Self::ensure_timeline_sequence(&conn)?;
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_timeline_events_sequence ON timeline_events(workspace_id, sequence)",
+            [],
+        )?;
+
         Ok(())
     }
 }
