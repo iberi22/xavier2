@@ -32,6 +32,12 @@ pub struct Checkpoint {
     pub errors: Vec<String>,
 }
 
+impl Default for Checkpoint {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Checkpoint {
     pub fn new() -> Self {
         Self {
