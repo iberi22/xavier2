@@ -20,8 +20,8 @@ use xavier::adapters::inbound::http::routes::create_router;
 use xavier::adapters::inbound::http::routes::create_router_with_agent_registry;
 use xavier::coordination::SimpleAgentRegistry;
 use xavier::domain::agent::AgentMetadata;
-use xavier::time::TimeMetricsStore;
 use xavier::ports::outbound::schema_init::SchemaInitializer;
+use xavier::time::TimeMetricsStore;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

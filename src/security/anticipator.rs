@@ -4,11 +4,13 @@
 //! All detection is deterministic (no LLLM, no external APIs).
 
 use crate::security::detections::{ScanResult, Severity, Threat, ThreatCategory};
+use crate::security::encoding::scan_recursive;
+use crate::security::entropy::{detect_secrets as find_secrets, shannon_entropy};
 use crate::security::layers::{
-    contains_injection, detect_canary, detect_config_drift_full, detect_encoding_attacks,
-    detect_heuristic, detect_high_entropy, detect_homoglyph, detect_path_traversal, detect_secrets,
-    detect_threat_categories, detect_tool_alias_full,
+    detect_canary, detect_config_drift_full, detect_heuristic, detect_homoglyph,
+    detect_path_traversal, detect_threat_categories, detect_tool_alias_full,
 };
+use crate::security::phrase::contains_injection;
 
 /// Layer names for reporting
 const LAYER_PHRASE: &str = "phrase";
@@ -99,13 +101,49 @@ impl Anticipator {
 
         // Layer 2: Encoding Detection (base64, hex, URL)
         if self.config.enable_encoding {
-            detect_encoding_attacks(message, &mut result);
+            if let Some(m) = scan_recursive(message, 3) {
+                result.add_layer(LAYER_ENCODING);
+                result.clean = false;
+                result.threats.push(Threat::new(
+                    Severity::Critical,
+                    LAYER_ENCODING,
+                    ThreatCategory::EncodingAttack,
+                    &format!("{} encoded prompt injection detected", m.encoding),
+                    &m.evidence,
+                    "recursive_decoding_phrase_match",
+                ));
+            }
         }
 
         // Layer 3: Entropy & Secrets Detection
         if self.config.enable_entropy {
-            detect_secrets(message, &mut result);
-            detect_high_entropy(message, &mut result);
+            let secrets = find_secrets(message);
+            for s in secrets {
+                result.add_layer(LAYER_ENTROPY);
+                result.clean = false;
+                result.threats.push(Threat::new(
+                    Severity::Warning,
+                    LAYER_ENTROPY,
+                    ThreatCategory::CredentialLeak,
+                    &format!("Potential {} detected", s.name),
+                    &s.value[..s.value.len().min(20)],
+                    "regex_secret_pattern",
+                ));
+            }
+
+            let entropy = shannon_entropy(message);
+            if entropy > 4.5 && message.len() > 32 {
+                result.add_layer(LAYER_ENTROPY);
+                result.clean = false;
+                result.threats.push(Threat::new(
+                    Severity::Info,
+                    LAYER_ENTROPY,
+                    ThreatCategory::EncodingAttack,
+                    &format!("High entropy content ({:.1} bits)", entropy),
+                    &message[..message.len().min(30)],
+                    "shannon_entropy",
+                ));
+            }
         }
 
         // Layer 4: Heuristic Detection

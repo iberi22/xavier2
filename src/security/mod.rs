@@ -6,10 +6,13 @@
 pub mod anticipator;
 pub mod auth;
 pub mod detections;
-pub mod threat_store;
+pub mod encoding;
+pub mod entropy;
 pub mod layers;
+pub mod phrase;
 pub mod prompt_guard;
 pub mod scanner;
+pub mod threat_store;
 pub mod url_validator;
 
 pub use anticipator::{Anticipator, AnticipatorConfig};

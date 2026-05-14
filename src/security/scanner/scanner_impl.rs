@@ -3,21 +3,19 @@
 //! Combines phrase matching, encoding detection, entropy analysis,
 //! heuristic detection, and homoglyph detection into a single scanner.
 
-use super::entropy::{EntropyCalculator, EntropyScanner, SecretDetector};
-use super::phrase_matcher::PhraseMatcher;
+use crate::security::encoding::{
+    scan_recursive, try_base64, try_hex, try_url_decode, BASE64_RE, HEX_RE, URL_ENC_RE,
+};
+use crate::security::entropy::{
+    detect_secrets as find_secrets, find_high_entropy_regions, shannon_entropy,
+};
+use crate::security::phrase::find_matches as phrase_find_matches;
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 
-static BASE64_ENCODED_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"[A-Za-z0-9+/]{20,}={0,2}").expect("invalid regex: base64 encoded")
-});
-static HEX_ENCODED_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?:0x)?[a-fA-F0-9]{20,}").expect("invalid regex: hex encoded"));
-static URL_ENCODED_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"%[0-9A-Fa-f]{2}{5,}").expect("invalid regex: URL encoded"));
 static REPEATED_PUNCTUATION_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[!?\\]{5,}").expect("invalid regex: repeated punctuation"));
 
@@ -102,7 +100,6 @@ impl DetectionLayer {
 
 /// Main security scanner
 pub struct SecurityScanner {
-    phrase_matcher: PhraseMatcher,
     config: ScannerConfig,
 }
 
@@ -150,16 +147,12 @@ impl SecurityScanner {
 
     /// Create a scanner with custom config
     pub fn with_config(config: ScannerConfig) -> Self {
-        let _ = &*BASE64_ENCODED_RE;
-        let _ = &*HEX_ENCODED_RE;
-        let _ = &*URL_ENCODED_RE;
+        let _ = &*BASE64_RE;
+        let _ = &*HEX_RE;
+        let _ = &*URL_ENC_RE;
         let _ = &*REPEATED_PUNCTUATION_RE;
-        SecretDetector::warm_up();
 
-        SecurityScanner {
-            phrase_matcher: PhraseMatcher::new(),
-            config,
-        }
+        SecurityScanner { config }
     }
 
     /// Scan input text for all threat types
@@ -212,7 +205,7 @@ impl SecurityScanner {
 
     /// Layer 1: Phrase matching with Aho-Corasick
     fn detect_phrases(&self, input: &str, triggered: &mut Vec<TriggeredDetection>) {
-        let matches = self.phrase_matcher.find_matches(input);
+        let matches = phrase_find_matches(input);
 
         for m in matches {
             triggered.push(TriggeredDetection {
@@ -230,41 +223,52 @@ impl SecurityScanner {
             return;
         }
 
+        // Recursive check for nested encodings containing injection phrases
+        if let Some(m) = scan_recursive(input, 3) {
+            triggered.push(TriggeredDetection {
+                layer: DetectionLayer::EncodedContent,
+                matched: format!("{} encoded injection", m.encoding),
+                severity: 0.95,
+                context: Some(format!(
+                    "Decoded: {}",
+                    &m.decoded[..m.decoded.len().min(50)]
+                )),
+            });
+        }
+
+        // Non-recursive heuristic checks for all encoded blocks
         for (re, encoding) in [
-            (&*BASE64_ENCODED_RE, "base64"),
-            (&*HEX_ENCODED_RE, "hex"),
-            (&*URL_ENCODED_RE, "url"),
+            (&*BASE64_RE, "base64"),
+            (&*HEX_RE, "hex"),
+            (&*URL_ENC_RE, "url"),
         ] {
             for m in re.find_iter(input) {
                 let encoded = m.as_str();
 
                 if let Some(decoded) = self.try_decode(encoded) {
-                    if self.phrase_matcher.contains_injection(&decoded) {
-                        triggered.push(TriggeredDetection {
-                            layer: DetectionLayer::EncodedContent,
-                            matched: format!("{encoding} encoded injection"),
-                            severity: 0.95,
-                            context: Some(format!(
-                                "Decoded: {}",
-                                &decoded[..decoded.len().min(50)]
-                            )),
-                        });
-                    }
-
                     if decoded.len() >= 8
                         && decoded
                             .chars()
                             .all(|c| !c.is_control() || c.is_whitespace())
                     {
-                        triggered.push(TriggeredDetection {
-                            layer: DetectionLayer::EncodedContent,
-                            matched: format!("{encoding} encoded content"),
-                            severity: 0.35,
-                            context: Some(format!("Decoded length: {}", decoded.len())),
+                        // Check if we already triggered for this block via scan_recursive
+                        let is_already_triggered = triggered.iter().any(|t| {
+                            t.layer == DetectionLayer::EncodedContent
+                                && t.matched.contains(encoding)
+                                && t.severity > 0.9
                         });
+
+                        if !is_already_triggered {
+                            triggered.push(TriggeredDetection {
+                                layer: DetectionLayer::EncodedContent,
+                                matched: format!("{encoding} encoded content"),
+                                severity: 0.35,
+                                context: Some(format!("Decoded length: {}", decoded.len())),
+                            });
+                        }
                     }
 
-                    let entropy = EntropyCalculator::shannon_entropy(&decoded);
+                    let entropy = shannon_entropy(&decoded);
                     if entropy > self.config.entropy_threshold {
                         triggered.push(TriggeredDetection {
                             layer: DetectionLayer::HighEntropy,
@@ -281,21 +285,17 @@ impl SecurityScanner {
     /// Try to decode an encoded string
     fn try_decode(&self, encoded: &str) -> Option<String> {
         // Try base64
-        if let Ok(decoded) = base64_decode(encoded) {
+        if let Some(decoded) = try_base64(encoded) {
             return Some(decoded);
         }
 
         // Try hex
-        let without_prefix = encoded.trim_start_matches("0x").trim_start_matches("0X");
-        if let Ok(decoded) = hex::decode(without_prefix) {
-            if let Ok(s) = String::from_utf8(decoded) {
-                return Some(s);
-            }
+        if let Some(decoded) = try_hex(encoded) {
+            return Some(decoded);
         }
 
         // Try URL decode
-        let decoded = url_decode(encoded);
-        if decoded != encoded {
+        if let Some(decoded) = try_url_decode(encoded) {
             return Some(decoded);
         }
 
@@ -304,7 +304,7 @@ impl SecurityScanner {
 
     /// Layer 3: High entropy detection
     fn detect_high_entropy(&self, input: &str, triggered: &mut Vec<TriggeredDetection>) {
-        let regions = EntropyScanner::scan(input, self.config.entropy_threshold);
+        let regions = find_high_entropy_regions(input, self.config.entropy_threshold);
 
         for region in regions {
             // Skip if this is likely legitimate (longer high-entropy regions like hashes)
@@ -447,12 +447,12 @@ impl SecurityScanner {
 
     /// Layer 6: Secret/key detection
     fn detect_secrets(&self, input: &str, triggered: &mut Vec<TriggeredDetection>) {
-        let secrets = SecretDetector::extract_secrets(input);
+        let secrets = find_secrets(input);
 
         for secret in secrets {
             triggered.push(TriggeredDetection {
                 layer: DetectionLayer::SecretDetection,
-                matched: format!("Potential {} detected", secret.pattern_name),
+                matched: format!("Potential {} detected", secret.name),
                 severity: 0.4,
                 context: Some(format!(
                     "Value: {}... (redacted)",
@@ -503,39 +503,6 @@ impl SecurityScanner {
 
         details.trim().to_string()
     }
-}
-
-// Base64 decode helper
-fn base64_decode(input: &str) -> Result<String, &'static str> {
-    use base64::{engine::general_purpose::STANDARD, Engine};
-    let decoded = STANDARD.decode(input).map_err(|_| "invalid base64")?;
-    String::from_utf8(decoded).map_err(|_| "invalid utf8")
-}
-
-// URL decode helper
-fn url_decode(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    let mut chars = input.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        if c == '%' {
-            let hex: String = chars.by_ref().take(2).collect();
-            if hex.len() == 2 {
-                if let Ok(byte) = u8::from_str_radix(&hex, 16) {
-                    result.push(byte as char);
-                    continue;
-                }
-            }
-            result.push('%');
-            result.push_str(&hex);
-        } else if c == '+' {
-            result.push(' ');
-        } else {
-            result.push(c);
-        }
-    }
-
-    result
 }
 
 /// Global scanner instance

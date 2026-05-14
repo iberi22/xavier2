@@ -504,7 +504,10 @@ impl ModelProviderClient {
 
         timeout(LLM_TIMEOUT, future).await.map_err(|_| {
             warn!("LLM provider timed out after {}s", LLM_TIMEOUT.as_secs());
-            anyhow!("LLM provider timed out after {} seconds", LLM_TIMEOUT.as_secs())
+            anyhow!(
+                "LLM provider timed out after {} seconds",
+                LLM_TIMEOUT.as_secs()
+            )
         })?
     }
 
@@ -868,7 +871,9 @@ mod tests {
                 // Keep the connection open but don't send anything
                 tokio::time::sleep(Duration::from_secs(40)).await;
                 use tokio::io::AsyncWriteExt;
-                let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").await;
+                let _ = stream
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                    .await;
             }
         });
 
@@ -889,9 +894,17 @@ mod tests {
 
         assert!(result.is_err(), "Expected error but got: {:?}", result);
         let err_msg = format!("{:?}", result.err().unwrap());
-        assert!(err_msg.contains("timed out") || err_msg.contains("timeout"), "Error message '{}' did not contain 'timed out' or 'timeout'", err_msg);
+        assert!(
+            err_msg.contains("timed out") || err_msg.contains("timeout"),
+            "Error message '{}' did not contain 'timed out' or 'timeout'",
+            err_msg
+        );
         // Should be around 30s
-        assert!(elapsed.as_secs() >= 30 && elapsed.as_secs() < 40, "Elapsed time was {}s, expected around 30s", elapsed.as_secs());
+        assert!(
+            elapsed.as_secs() >= 30 && elapsed.as_secs() < 40,
+            "Elapsed time was {}s, expected around 30s",
+            elapsed.as_secs()
+        );
     }
 
     #[tokio::test]

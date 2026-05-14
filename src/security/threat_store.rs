@@ -1,8 +1,8 @@
+use crate::ports::outbound::schema_init::SchemaInitializer;
 use anyhow::Result;
 use parking_lot::Mutex;
 use rusqlite::Connection;
 use std::sync::Arc;
-use crate::ports::outbound::schema_init::SchemaInitializer;
 
 pub struct SecurityThreatStore {
     conn: Arc<Mutex<Connection>>,
