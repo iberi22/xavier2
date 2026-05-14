@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 pub use crate::memory::schema::MemoryQueryFilters;
 pub use crate::memory::store::MemoryRecord;
 
+pub mod graph;
+
 /// Core TimeMetric domain value — NOT a DTO.
 /// Used by the TimeMetrics inbound port to decouple from HTTP DTOs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
