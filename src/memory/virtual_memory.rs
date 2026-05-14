@@ -15,8 +15,76 @@
 // - VirtualMemory: Smart content retrieval
 // ============================================
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
+
+use crate::memory::belief_graph::SharedBeliefGraph;
+use crate::memory::qmd_memory::QmdMemory;
+
+/// Virtual Memory Engine
+/// Integrates L0-L1-L2 memory hierarchy with deterministic graph traversal
+pub struct VirtualMemory {
+    pub memory: Arc<QmdMemory>,
+    pub belief_graph: Option<SharedBeliefGraph>,
+}
+
+impl VirtualMemory {
+    pub fn new(memory: Arc<QmdMemory>, belief_graph: Option<SharedBeliefGraph>) -> Self {
+        Self {
+            memory,
+            belief_graph,
+        }
+    }
+
+    /// Retrieve context using deterministic graph traversal (Belief paths)
+    /// alongside vector similarity search.
+    pub async fn page_in(&self, query: &str, limit: usize) -> Result<Vec<VirtualMemoryEntry>> {
+        let mut entries = Vec::new();
+
+        // 1. Deterministic Graph Traversal (L1/L2 index)
+        if let Some(graph_lock) = &self.belief_graph {
+            let graph = graph_lock.read().await;
+            let relations = graph.search_relations(query).await;
+
+            for rel in relations {
+                if let Some(source_id) = rel.source_memory_id {
+                    if let Ok(Some(doc)) = self.memory.get(&source_id).await {
+                        let mut entry = VirtualMemoryEntry::new(doc.path, doc.content, doc.metadata);
+                        // Ensure the entry ID matches the source document ID
+                        if let Some(doc_id) = doc.id {
+                            entry.id = doc_id;
+                        }
+                        entries.push(entry);
+                    }
+                }
+                if entries.len() >= limit {
+                    break;
+                }
+            }
+        }
+
+        // 2. Tandem Vector Search (Probabilistic) - if we still need more context
+        if entries.len() < limit {
+            let remaining = limit - entries.len();
+            if let Ok(docs) = self.memory.search(query, remaining).await {
+                for doc in docs {
+                    // Avoid duplicates
+                    if !entries.iter().any(|e| e.path == doc.path) {
+                        let mut entry = VirtualMemoryEntry::new(doc.path, doc.content, doc.metadata);
+                        if let Some(doc_id) = doc.id {
+                            entry.id = doc_id;
+                        }
+                        entries.push(entry);
+                    }
+                }
+            }
+        }
+
+        Ok(entries)
+    }
+}
 
 /// Checkpoint for session continuity
 /// Allows AI to remember past decisions even after context reset

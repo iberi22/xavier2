@@ -4,6 +4,8 @@ use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
 use tokio::sync::RwLock as AsyncRwLock;
 
+use std::fmt;
+
 pub mod cache;
 pub mod index;
 pub mod search;
@@ -28,6 +30,14 @@ pub struct QmdMemory {
     pub(crate) search_cache: Arc<AsyncRwLock<HashMap<SearchCacheKey, Vec<MemoryDocument>>>>,
     pub(crate) cache_counters: Arc<CacheCounters>,
     pub(crate) store: Arc<AsyncRwLock<Option<Arc<dyn MemoryStore>>>>,
+}
+
+impl fmt::Debug for QmdMemory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("QmdMemory")
+            .field("workspace_id", &self.workspace_id)
+            .finish()
+    }
 }
 
 impl QmdMemory {

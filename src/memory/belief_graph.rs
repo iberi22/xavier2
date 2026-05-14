@@ -83,6 +83,7 @@ pub struct BeliefRelation {
 }
 
 /// Thread-safe belief graph that exposes both sync and async-friendly helpers.
+#[derive(Debug)]
 pub struct BeliefGraph {
     nodes: RwLock<HashMap<String, BeliefNode>>,
     relations: RwLock<Vec<BeliefRelation>>,
@@ -332,23 +333,9 @@ impl BeliefGraph {
     }
 
     pub async fn search(&self, query: &str) -> Vec<Belief> {
-        let query_lower = query.to_lowercase();
-        let words: Vec<_> = query_lower
-            .split(|c: char| !c.is_alphanumeric())
-            .filter(|w| w.len() > 2)
-            .collect();
-
-        self.get_relations()
+        self.search_relations(query)
+            .await
             .into_iter()
-            .filter(|relation| {
-                let s = relation.source.to_lowercase();
-                let t = relation.target.to_lowercase();
-                let r = relation.relation_type.to_lowercase();
-
-                words
-                    .iter()
-                    .any(|w| s.contains(w) || t.contains(w) || r.contains(w))
-            })
             .map(|relation| {
                 let confidence = self
                     .get_node(&relation.source)
@@ -369,6 +356,31 @@ impl BeliefGraph {
                     relation.target,
                     confidence,
                 )
+            })
+            .collect()
+    }
+
+    pub async fn search_relations(&self, query: &str) -> Vec<BeliefRelation> {
+        let query_lower = query.to_lowercase();
+        let words: Vec<_> = query_lower
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| w.len() > 2)
+            .collect();
+
+        if words.is_empty() {
+            return Vec::new();
+        }
+
+        self.get_relations()
+            .into_iter()
+            .filter(|relation| {
+                let s = relation.source.to_lowercase();
+                let t = relation.target.to_lowercase();
+                let r = relation.relation_type.to_lowercase();
+
+                words
+                    .iter()
+                    .any(|w| s.contains(w) || t.contains(w) || r.contains(w))
             })
             .collect()
     }
