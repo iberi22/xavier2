@@ -888,7 +888,7 @@ mod tests {
         let elapsed = start.elapsed();
 
         assert!(result.is_err(), "Expected error but got: {:?}", result);
-        let err_msg = result.err().unwrap().to_string();
+        let err_msg = format!("{:?}", result.err().unwrap());
         assert!(err_msg.contains("timed out") || err_msg.contains("timeout"), "Error message '{}' did not contain 'timed out' or 'timeout'", err_msg);
         // Should be around 30s
         assert!(elapsed.as_secs() >= 30 && elapsed.as_secs() < 40, "Elapsed time was {}s, expected around 30s", elapsed.as_secs());
