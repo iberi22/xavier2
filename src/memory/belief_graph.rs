@@ -360,6 +360,12 @@ impl BeliefGraph {
             .collect()
     }
 
+    pub async fn has_supporting_beliefs(&self, memory_id: &str) -> bool {
+        self.get_relations()
+            .iter()
+            .any(|r| r.source_memory_id.as_deref() == Some(memory_id))
+    }
+
     pub async fn search_relations(&self, query: &str) -> Vec<BeliefRelation> {
         let query_lower = query.to_lowercase();
         let words: Vec<_> = query_lower

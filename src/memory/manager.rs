@@ -417,8 +417,14 @@ impl MemoryManager {
                 .copied()
                 .unwrap_or(0);
             let last_access = doc.id.as_ref().and_then(|id| times.get(id)).copied();
+
+            let mut verified = false;
+            if let (Some(graph_lock), Some(doc_id)) = (&self.belief_graph, &doc.id) {
+                verified = graph_lock.read().await.has_supporting_beliefs(doc_id).await;
+            }
+
             let quality =
-                MemoryQuality::calculate(&doc, priority, access_count, last_access, false);
+                MemoryQuality::calculate(&doc, priority, access_count, last_access, verified);
 
             let bucket = if quality.overall >= 0.7 {
                 "high"
@@ -474,8 +480,14 @@ impl MemoryManager {
                 .unwrap_or(0);
             let last_access = doc.id.as_ref().and_then(|id| times.get(id)).copied();
             let created_at = doc.id.as_ref().and_then(|id| created.get(id)).copied();
+
+            let mut verified = false;
+            if let (Some(graph_lock), Some(doc_id)) = (&self.belief_graph, &doc.id) {
+                verified = graph_lock.read().await.has_supporting_beliefs(doc_id).await;
+            }
+
             let quality =
-                MemoryQuality::calculate(&doc, priority, access_count, last_access, false);
+                MemoryQuality::calculate(&doc, priority, access_count, last_access, verified);
 
             memories.push(ManagedMemory {
                 doc,

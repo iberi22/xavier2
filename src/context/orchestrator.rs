@@ -115,15 +115,9 @@ impl Orchestrator {
             let vm = VirtualMemory::new(Arc::clone(memory), Some(Arc::clone(graph)));
             if let Ok(graph_entries) = vm.page_in(&query, config.max_documents).await {
                 for entry in graph_entries {
-                    // Map VirtualMemoryEntry back to ContextDocument ID
-                    if let Some(doc) = session_documents.iter().find(|d| d.id == entry.id) {
-                        selected_document_ids.push(doc.id.clone());
-                    } else if let Some(doc) = session_documents.iter().find(|d| {
-                        d.metadata["path"]
-                            .as_str()
-                            .is_some_and(|p| p == entry.path)
-                    }) {
-                        selected_document_ids.push(doc.id.clone());
+                    // Prioritize deterministic nodes by placing them at the beginning
+                    if !selected_document_ids.contains(&entry.id) {
+                        selected_document_ids.push(entry.id.clone());
                     }
                 }
             }
@@ -462,8 +456,8 @@ mod tests {
         assert!(compact.include_metadata);
     }
 
-    #[test]
-    fn execute_respects_token_budget_after_first_document() {
+    #[tokio::test]
+    async fn execute_respects_token_budget_after_first_document() {
         let orchestrator = Orchestrator::new();
         let documents = vec![
             doc("1", "s-1", "assistant", "build regression in rust", 700, 1),
