@@ -9,9 +9,17 @@ use crate::cli::state::Cli;
 use anyhow::{anyhow, Result};
 use clap::Subcommand;
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, sync::LazyLock, time::Duration};
 
 use tokio::sync::RwLock;
+
+pub static CLI_HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .user_agent(concat!("xavier-cli/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .expect("failed to build HTTP client")
+});
 
 use xavier::adapters::inbound::http::routes::{
     sync_check_handler, time_metric_handler, verify_save_handler,
@@ -206,7 +214,7 @@ impl Cli {
                 match cmd {
                     UsageCommand::Status => {
                         let token = require_xavier_token()?;
-                        let client = reqwest::Client::new();
+                        let client = CLI_HTTP_CLIENT.clone();
                         let providers = ["opencode-go", "deepseek", "groq", "openai", "anthropic"];
                         println!(
                             "{:<15} | {:<10} | {:<10} | {:<10} | {:<10} | {:<20}",
@@ -247,7 +255,7 @@ impl Cli {
                         percentage,
                     } => {
                         let token = require_xavier_token()?;
-                        let client = reqwest::Client::new();
+                        let client = CLI_HTTP_CLIENT.clone();
                         let resp = client.post(format!("{}/v1/usage/update", base_url))
                             .header("X-Xavier-Token", &token)
                             .json(&serde_json::json!({ "provider": provider, "percentage": percentage }))
@@ -261,7 +269,7 @@ impl Cli {
                     }
                     UsageCommand::Cooldown { provider, minutes } => {
                         let token = require_xavier_token()?;
-                        let client = reqwest::Client::new();
+                        let client = CLI_HTTP_CLIENT.clone();
                         let resp = client
                             .post(format!("{}/v1/usage/cooldown", base_url))
                             .header("X-Xavier-Token", &token)
@@ -348,7 +356,7 @@ pub async fn session_load(ctx: &str) -> Result<String> {
     let token = require_xavier_token()?;
     let url = format!("{}/memory/search", resolve_base_url());
 
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
     let response = client
         .get(&url)
         .header("X-Xavier-Token", &token)
@@ -410,7 +418,7 @@ pub async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) 
         body["metadata"]["kind"] = serde_json::json!(k);
     }
 
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
     let response = client
         .post(&url)
         .header("X-Xavier-Token", &token)
@@ -447,7 +455,7 @@ pub async fn recall_memories(query: &str, limit: usize) -> Result<()> {
         "include_scores": true,
     });
 
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
     let response = client
         .post(&url)
         .header("X-Xavier-Token", &token)
@@ -493,7 +501,7 @@ pub async fn show_stats() -> Result<()> {
     let base_url = resolve_base_url();
     let url = format!("{}/memory/stats", base_url);
 
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
     let response = client
         .get(&url)
         .header("X-Xavier-Token", &token)
@@ -523,7 +531,7 @@ pub async fn show_stats() -> Result<()> {
 async fn handle_code_command(cmd: CodeCommand) -> Result<()> {
     let token = require_xavier_token()?;
     let base_url = resolve_base_url();
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
 
     let response = match cmd {
         CodeCommand::Scan { path } => {
@@ -643,7 +651,7 @@ pub async fn session_save(session_id: &str, content: &str) -> Result<()> {
         }
     });
 
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
     let response = client
         .post(&url)
         .header("X-Xavier-Token", &token)
@@ -943,7 +951,7 @@ async fn handle_secrets_command(cmd: SecretsCommand) -> Result<()> {
 async fn lend_secret(name: &str, agent: &str, ttl: u64) -> Result<()> {
     let token = xavier_token();
     let url = format!("{}/secrets/lend", resolve_base_url());
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
 
     let response = client
         .post(&url)
@@ -970,7 +978,7 @@ async fn lend_secret(name: &str, agent: &str, ttl: u64) -> Result<()> {
 async fn list_leases() -> Result<()> {
     let token = xavier_token();
     let url = format!("{}/secrets/leases", resolve_base_url());
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
 
     let response = client
         .get(&url)
@@ -1006,7 +1014,7 @@ async fn list_leases() -> Result<()> {
 async fn revoke_lease(token_str: &str) -> Result<()> {
     let token = xavier_token();
     let url = format!("{}/secrets/revoke", resolve_base_url());
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
 
     let response = client
         .post(&url)
@@ -1026,7 +1034,7 @@ async fn revoke_lease(token_str: &str) -> Result<()> {
 async fn check_lease_status(token_str: &str) -> Result<()> {
     let token = xavier_token();
     let url = format!("{}/secrets/status/{}", resolve_base_url(), token_str);
-    let client = reqwest::Client::new();
+    let client = CLI_HTTP_CLIENT.clone();
 
     let response = client
         .get(&url)

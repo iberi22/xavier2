@@ -35,6 +35,7 @@ pub struct CliState {
     pub tasks: Arc<TaskService<InMemoryTaskStore>>,
     pub rate_manager: Arc<RateLimitManager>,
     pub prompt_cache: Arc<Mutex<HashMap<String, Vec<String>>>>,
+    pub http_client: reqwest::Client,
 }
 
 #[derive(Parser)]

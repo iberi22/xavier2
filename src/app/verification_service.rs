@@ -7,16 +7,14 @@ pub struct VerificationService {
 }
 
 impl VerificationService {
-    pub fn new() -> Self {
-        Self {
-            client: reqwest::Client::new(),
-        }
+    pub fn new(client: reqwest::Client) -> Self {
+        Self { client }
     }
 }
 
 impl Default for VerificationService {
     fn default() -> Self {
-        Self::new()
+        Self::new(crate::utils::http::DEFAULT_HTTP_CLIENT.clone())
     }
 }
 

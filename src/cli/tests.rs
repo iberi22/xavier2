@@ -48,6 +48,8 @@ mod tests {
                 "async fn search_memories(query: &str, limit: usize) -> Result<()>".to_string(),
             ),
             parent: None,
+            stable_id: None,
+            complexity: Some(0.0),
         })
         .unwrap();
         db.insert_symbol(&Symbol {
@@ -64,6 +66,8 @@ mod tests {
                 "async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> Result<()>".to_string(),
             ),
             parent: None,
+            stable_id: None,
+            complexity: Some(0.0),
         })
         .unwrap();
 
