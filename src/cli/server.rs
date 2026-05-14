@@ -240,7 +240,10 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/code/context", post(code_context_handler))
         .route("/code/stats", get(code_stats_handler))
         .route("/code/dependencies", post(code_dependencies_handler))
-        .route("/code/reverse-dependencies", post(code_reverse_dependencies_handler))
+        .route(
+            "/code/reverse-dependencies",
+            post(code_reverse_dependencies_handler),
+        )
         .route("/code/call-chain", post(code_call_chain_handler))
         .route("/code/hubs", get(code_hubs_handler))
         .route("/code/hotspots", get(code_hotspots_handler))
@@ -1278,7 +1281,10 @@ pub async fn code_call_chain_handler(
 }
 
 pub async fn code_hubs_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
-    match state.code_query.hubs(default_min_degree(), default_graph_limit()) {
+    match state
+        .code_query
+        .hubs(default_min_degree(), default_graph_limit())
+    {
         Ok(hubs) => {
             let (items, truncated, estimated_tokens) =
                 truncate_json_items(hubs, default_graph_budget());
@@ -1298,7 +1304,9 @@ pub async fn code_hubs_handler(State(state): State<CliState>) -> impl axum::resp
     }
 }
 
-pub async fn code_hotspots_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
+pub async fn code_hotspots_handler(
+    State(state): State<CliState>,
+) -> impl axum::response::IntoResponse {
     match state
         .code_query
         .hotspots(default_min_complexity(), default_graph_limit())
@@ -1367,7 +1375,9 @@ fn code_graph_edges_response(
             .code_query
             .reverse_dependencies(&query, edge_type, depth, limit)
     } else {
-        state.code_query.dependencies(&query, edge_type, depth, limit)
+        state
+            .code_query
+            .dependencies(&query, edge_type, depth, limit)
     };
 
     match result {

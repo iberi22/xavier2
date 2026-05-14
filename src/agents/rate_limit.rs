@@ -145,34 +145,31 @@ impl RateLimitManager {
         let week_ago = now - Duration::days(7);
         let month_ago = now - Duration::days(30);
 
-        let used_hourly: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
-            params![provider, hour_ago],
-            |row| row.get(0),
-        )?;
-
-        let used_today: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
-            params![provider, day_ago],
-            |row| row.get(0),
-        )?;
-
-        let used_weekly: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
-            params![provider, week_ago],
-            |row| row.get(0),
-        )?;
-
-        let used_monthly: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(tokens_used), 0) FROM rate_limit_usage WHERE provider = ?1 AND timestamp > ?2",
-            params![provider, month_ago],
-            |row| row.get(0),
-        )?;
-
-        let cache_hits: i64 = conn.query_row(
-            "SELECT COALESCE(SUM(cache_hits), 0) FROM rate_limit_usage WHERE provider = ?1",
-            params![provider],
-            |row| row.get(0),
+        let (used_hourly, used_today, used_weekly, used_monthly, cache_hits): (
+            i64,
+            i64,
+            i64,
+            i64,
+            i64,
+        ) = conn.query_row(
+            "SELECT
+                COALESCE(SUM(CASE WHEN timestamp > ?1 THEN tokens_used ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN timestamp > ?2 THEN tokens_used ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN timestamp > ?3 THEN tokens_used ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN timestamp > ?4 THEN tokens_used ELSE 0 END), 0),
+                COALESCE(SUM(cache_hits), 0)
+             FROM rate_limit_usage
+             WHERE provider = ?5",
+            params![hour_ago, day_ago, week_ago, month_ago, provider],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )?;
 
         let (rate_limited_until, weekly_quota): (Option<DateTime<Utc>>, usize) = conn.query_row(
