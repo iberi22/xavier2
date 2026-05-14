@@ -291,7 +291,10 @@ mod tests {
         });
 
         scheduler
-            .add_job(ScheduledJob::from_schedule("job-a", "index", "0/30 * * * * * *").expect("test assertion"))
+            .add_job(
+                ScheduledJob::from_schedule("job-a", "index", "0/30 * * * * * *")
+                    .expect("test assertion"),
+            )
             .await
             .expect("test assertion");
 
@@ -332,7 +335,10 @@ mod tests {
             .await
             .expect("test assertion");
 
-        let missed = scheduler.detect_missed_jobs().await.expect("test assertion");
+        let missed = scheduler
+            .detect_missed_jobs()
+            .await
+            .expect("test assertion");
         assert_eq!(missed, 1);
         assert_eq!(scheduler.jobs()[0].status, ScheduledJobStatus::Missed);
 

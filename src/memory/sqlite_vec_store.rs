@@ -212,23 +212,23 @@ impl VecSqliteMemoryStore {
                 //         sqlite3_auto_extension is called once at init; SQLite manages the
                 //         extension lifetime internally.
                 unsafe {
-                type SqliteExtFn = unsafe extern "C" fn(
-                    *mut rusqlite::ffi::sqlite3,
-                    *mut *mut i8,
-                    *const rusqlite::ffi::sqlite3_api_routines,
-                ) -> i32;
-                let entry: SqliteExtFn =
-                    std::mem::transmute(sqlite_vec::sqlite3_vec_init as *const ());
-                let rc = sqlite3_auto_extension(Some(entry));
-                if rc != 0 {
-                    Err(format!(
-                        "failed to register sqlite-vec auto extension: {}",
-                        rc
-                    ))
-                } else {
-                    Ok(())
+                    type SqliteExtFn = unsafe extern "C" fn(
+                        *mut rusqlite::ffi::sqlite3,
+                        *mut *mut i8,
+                        *const rusqlite::ffi::sqlite3_api_routines,
+                    ) -> i32;
+                    let entry: SqliteExtFn =
+                        std::mem::transmute(sqlite_vec::sqlite3_vec_init as *const ());
+                    let rc = sqlite3_auto_extension(Some(entry));
+                    if rc != 0 {
+                        Err(format!(
+                            "failed to register sqlite-vec auto extension: {}",
+                            rc
+                        ))
+                    } else {
+                        Ok(())
+                    }
                 }
-            }
             })
             .clone()
             .map_err(anyhow::Error::msg)
@@ -2339,8 +2339,7 @@ mod tests {
         VecSqliteMemoryStore::register_sqlite_vec_extension()?;
 
         let conn = Connection::open_in_memory()?;
-        let version: String = conn
-            .query_row("SELECT vec_version()", [], |row| row.get(0))?;
+        let version: String = conn.query_row("SELECT vec_version()", [], |row| row.get(0))?;
 
         assert!(version.starts_with('v'));
         Ok(())
@@ -2474,12 +2473,8 @@ mod tests {
                 "memory",
             )
             .await?;
-        store
-            .add_entity("acct", "ACCT-9F3A", "account")
-            .await?;
-        store
-            .add_entity("alice", "Alice Johnson", "person")
-            .await?;
+        store.add_entity("acct", "ACCT-9F3A", "account").await?;
+        store.add_entity("alice", "Alice Johnson", "person").await?;
         store
             .add_entity("finance", "Finance Committee", "team")
             .await?;
@@ -2544,12 +2539,11 @@ mod tests {
         store.put(record.clone()).await?;
 
         let conn = store.conn.lock();
-        let link_count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM memory_entities WHERE workspace_id = ? AND memory_id = ?",
-                params![workspace_id, &record.id],
-                |row| row.get(0),
-            )?;
+        let link_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM memory_entities WHERE workspace_id = ? AND memory_id = ?",
+            params![workspace_id, &record.id],
+            |row| row.get(0),
+        )?;
 
         assert!(link_count >= 4);
         Ok(())
@@ -2607,12 +2601,11 @@ mod tests {
         let columns = VecSqliteMemoryStore::virtual_table_columns(&conn, "memory_fts")?;
         assert!(columns.iter().any(|column| column == "code_tokens"));
 
-        let indexed: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM memory_fts WHERE id = ?",
-                params![record.id],
-                |row| row.get(0),
-            )?;
+        let indexed: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM memory_fts WHERE id = ?",
+            params![record.id],
+            |row| row.get(0),
+        )?;
         assert_eq!(indexed, 1);
         Ok(())
     }
@@ -2646,18 +2639,16 @@ mod tests {
         store.put(record.clone()).await?;
 
         let conn = store.conn.lock();
-        let event_count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM timeline_events WHERE workspace_id = ?",
-                params![workspace_id],
-                |row| row.get(0),
-            )?;
-        let chained_count: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM timeline_events WHERE workspace_id = ? AND prev_hash IS NOT NULL",
-                params![workspace_id],
-                |row| row.get(0),
-            )?;
+        let event_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM timeline_events WHERE workspace_id = ?",
+            params![workspace_id],
+            |row| row.get(0),
+        )?;
+        let chained_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM timeline_events WHERE workspace_id = ? AND prev_hash IS NOT NULL",
+            params![workspace_id],
+            |row| row.get(0),
+        )?;
 
         assert_eq!(event_count, 2);
         assert_eq!(chained_count, 1);
@@ -2711,24 +2702,21 @@ mod tests {
         store.put(record).await?;
 
         let conn = store.conn.lock();
-        let second_hash: String = conn
-            .query_row(
-                "SELECT curr_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 2",
-                params![workspace_id],
-                |row| row.get(0),
-            )?;
-        let third_prev_hash: String = conn
-            .query_row(
-                "SELECT prev_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 3",
-                params![workspace_id],
-                |row| row.get(0),
-            )?;
-        let max_sequence: i64 = conn
-            .query_row(
-                "SELECT MAX(sequence) FROM timeline_events WHERE workspace_id = ?",
-                params![workspace_id],
-                |row| row.get(0),
-            )?;
+        let second_hash: String = conn.query_row(
+            "SELECT curr_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 2",
+            params![workspace_id],
+            |row| row.get(0),
+        )?;
+        let third_prev_hash: String = conn.query_row(
+            "SELECT prev_hash FROM timeline_events WHERE workspace_id = ? AND sequence = 3",
+            params![workspace_id],
+            |row| row.get(0),
+        )?;
+        let max_sequence: i64 = conn.query_row(
+            "SELECT MAX(sequence) FROM timeline_events WHERE workspace_id = ?",
+            params![workspace_id],
+            |row| row.get(0),
+        )?;
 
         assert_eq!(max_sequence, 3);
         assert_eq!(third_prev_hash, second_hash);
@@ -2753,15 +2741,10 @@ mod tests {
         );
 
         store.put(record).await?;
-        let deleted = store
-            .delete(workspace_id, "manual/smoke")
-            .await?;
+        let deleted = store.delete(workspace_id, "manual/smoke").await?;
 
         assert!(deleted.is_some());
-        assert!(store
-            .get(workspace_id, "manual/smoke")
-            .await?
-            .is_none());
+        assert!(store.get(workspace_id, "manual/smoke").await?.is_none());
         Ok(())
     }
 

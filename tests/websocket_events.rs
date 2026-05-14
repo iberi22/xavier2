@@ -150,7 +150,9 @@ async fn test_websocket_streaming() {
         .route("/xavier/events/stream", get(test_ws_handler))
         .with_state(test_state);
 
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("test assertion");
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("test assertion");
     let addr = listener.local_addr().expect("test assertion");
 
     tokio::spawn(async move {
@@ -168,13 +170,20 @@ async fn test_websocket_streaming() {
     };
     ws_stream
         .send(WsProtocolMessage::Text(
-            serde_json::to_string(&sub_msg).expect("test assertion").into(),
+            serde_json::to_string(&sub_msg)
+                .expect("test assertion")
+                .into(),
         ))
         .await
         .expect("test assertion");
 
-    let msg = ws_stream.next().await.expect("test assertion").expect("test assertion");
-    let conf: WsEvent = serde_json::from_str(msg.to_text().expect("test assertion")).expect("test assertion");
+    let msg = ws_stream
+        .next()
+        .await
+        .expect("test assertion")
+        .expect("test assertion");
+    let conf: WsEvent =
+        serde_json::from_str(msg.to_text().expect("test assertion")).expect("test assertion");
     assert!(matches!(conf, WsEvent::SubscriptionConfirmed));
 
     // Add a memory record via HTTP
@@ -197,8 +206,13 @@ async fn test_websocket_streaming() {
     assert_eq!(add_res.status(), StatusCode::OK);
 
     // Wait for the event
-    let msg = ws_stream.next().await.expect("test assertion").expect("test assertion");
-    let event: WsEvent = serde_json::from_str(msg.to_text().expect("test assertion")).expect("test assertion");
+    let msg = ws_stream
+        .next()
+        .await
+        .expect("test assertion")
+        .expect("test assertion");
+    let event: WsEvent =
+        serde_json::from_str(msg.to_text().expect("test assertion")).expect("test assertion");
 
     if let WsEvent::Event(e) = event {
         assert_eq!(e.agent_id, "test_agent");

@@ -1,6 +1,5 @@
 //! MCP server functionality
 
-
 use anyhow::Result;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};

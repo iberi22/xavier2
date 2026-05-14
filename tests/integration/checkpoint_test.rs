@@ -64,7 +64,10 @@ mod checkpoint_tests {
             manager.save(cp).await.expect("test assertion");
         }
 
-        let checkpoints = manager.list("task_list".to_string()).await.expect("test assertion");
+        let checkpoints = manager
+            .list("task_list".to_string())
+            .await
+            .expect("test assertion");
         assert_eq!(checkpoints.len(), 5);
     }
 

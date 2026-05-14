@@ -1,13 +1,17 @@
-use anyhow::Result;
-use tracing::{info, warn};
-use crate::agents::system1::{RetrievalResult, RetrievedDocument};
-use crate::agents::system2::ReasoningResult;
-use super::types::{ActionResult, ActorConfig};
 use super::client::LlmClient;
 use super::helpers::*;
+use super::types::{ActionResult, ActorConfig};
+use crate::agents::system1::{RetrievalResult, RetrievedDocument};
+use crate::agents::system2::ReasoningResult;
+use anyhow::Result;
+use tracing::{info, warn};
 
 impl System3Actor {
-    pub(crate) fn heuristic_answer(query: &str, docs: &[RetrievedDocument], category: Option<&str>) -> String {
+    pub(crate) fn heuristic_answer(
+        query: &str,
+        docs: &[RetrievedDocument],
+        category: Option<&str>,
+    ) -> String {
         if docs.is_empty() {
             return "Not discussed in the available memories.".to_string();
         }

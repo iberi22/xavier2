@@ -209,12 +209,12 @@ impl Cli {
                         let client = reqwest::Client::new();
                         let providers = ["opencode-go", "deepseek", "groq", "openai", "anthropic"];
                         println!(
-                            "{:<15} | {:<10} | {:<10} | {:<10} | {:<20}",
-                            "Provider", "Today", "Weekly", "Monthly", "Limited Until"
+                            "{:<15} | {:<10} | {:<10} | {:<10} | {:<10} | {:<20}",
+                            "Provider", "Today", "Weekly", "Monthly", "Cache Hits", "Limited Until"
                         );
                         println!(
-                            "{:-<15}-+-{:-<10}-+-{:-<10}-+-{:-<10}-+-{:-<20}",
-                            "", "", "", "", ""
+                            "{:-<15}-+-{:-<10}-+-{:-<10}-+-{:-<10}-+-{:-<10}-+-{:-<20}",
+                            "", "", "", "", "", ""
                         );
                         for p in providers {
                             let resp = client
@@ -230,11 +230,12 @@ impl Cli {
                                     .map(|u| u.to_rfc3339())
                                     .unwrap_or_else(|| "No".to_string());
                                 println!(
-                                    "{:<15} | {:<10} | {:<10} | {:<10} | {:<20}",
+                                    "{:<15} | {:<10} | {:<10} | {:<10} | {:<10} | {:<20}",
                                     status.provider,
                                     status.used_today,
                                     status.used_weekly,
                                     status.used_monthly,
+                                    status.cache_hits,
                                     limited
                                 );
                             }

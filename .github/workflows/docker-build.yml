@@ -1,0 +1,91 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - ".gitignore"
+      - "LICENSE"
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - ".gitignore"
+      - "LICENSE"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Docker Build & Smoke Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        id: build
+        with:
+          context: .
+          load: true
+          tags: xavier:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test — version
+        run: |
+          VERSION=$(docker run --rm xavier:ci-${{ github.sha }} --version)
+          echo "Xavier version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Smoke test — HTTP server
+        run: |
+          docker run -d --name xavier-smoke \
+            -e XAVIER_DEV_MODE=true \
+            -e XAVIER_HOST=0.0.0.0 \
+            xavier:ci-${{ github.sha }} \
+            http 8006
+          sleep 3
+          HEALTH=$(docker exec xavier-smoke /bin/sh -c "wget -qO- http://localhost:8006/health" 2>/dev/null || echo "FAIL")
+          docker rm -f xavier-smoke
+          echo "Health: $HEALTH"
+          if [ "$HEALTH" = "FAIL" ] || [ -z "$HEALTH" ]; then
+            echo "❌ Health check failed"
+            exit 1
+          fi
+          echo "✅ Health check passed"
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Docker Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** xavier:ci-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+  lint-dockerfile:
+    name: Dockerfile Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: warning

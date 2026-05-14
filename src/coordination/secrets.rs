@@ -1,10 +1,10 @@
+use anyhow::{anyhow, Result};
+use chrono::{DateTime, Duration, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use chrono::{DateTime, Utc, Duration};
-use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use anyhow::{Result, anyhow};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecretLease {
@@ -38,7 +38,13 @@ impl KeyLendingEngine {
     }
 
     /// Lend a secret to an agent for a specific duration (TTL)
-    pub async fn lend(&self, name: &str, value: &str, agent_id: &str, ttl_secs: u64) -> Result<SecretLease> {
+    pub async fn lend(
+        &self,
+        name: &str,
+        value: &str,
+        agent_id: &str,
+        ttl_secs: u64,
+    ) -> Result<SecretLease> {
         let token = Uuid::new_v4().to_string();
         let now = Utc::now();
         let expires_at = now + Duration::seconds(ttl_secs as i64);
@@ -54,9 +60,14 @@ impl KeyLendingEngine {
 
         let mut leases = self.leases.write().await;
         leases.insert(token.clone(), lease.clone());
-        
+
         self.audit_logger.log_lend(agent_id, name, &token, ttl_secs);
-        tracing::info!("Lent secret '{}' to agent '{}'. Lease token: {}", name, agent_id, lease.token);
+        tracing::info!(
+            "Lent secret '{}' to agent '{}'. Lease token: {}",
+            name,
+            agent_id,
+            lease.token
+        );
         Ok(lease)
     }
 
@@ -89,7 +100,12 @@ impl KeyLendingEngine {
         }
 
         if count > 0 {
-            tracing::info!("Revoked {} leases for agent '{}' (Reason: {})", count, agent_id, reason);
+            tracing::info!(
+                "Revoked {} leases for agent '{}' (Reason: {})",
+                count,
+                agent_id,
+                reason
+            );
         }
         count
     }
@@ -119,10 +135,10 @@ impl KeyLendingEngine {
         let count = tokens_to_remove.len();
         for token in tokens_to_remove {
             if let Some(lease) = leases.remove(&token) {
-                self.audit_logger.log_revoke(&lease.agent_id, &token, "TTL Expired");
+                self.audit_logger
+                    .log_revoke(&lease.agent_id, &token, "TTL Expired");
             }
         }
         count
     }
 }
-

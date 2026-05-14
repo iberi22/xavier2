@@ -510,7 +510,10 @@ Use token auth for local workflows.
                 .expect("test assertion");
 
         assert_eq!(stats.imported, 1);
-        let docs = memory.search("token auth", 5).await.expect("test assertion");
+        let docs = memory
+            .search("token auth", 5)
+            .await
+            .expect("test assertion");
         assert_eq!(docs[0].metadata["kind"], "decision");
         assert_eq!(docs[0].metadata["provenance"]["source_app"], "openclaw");
     }

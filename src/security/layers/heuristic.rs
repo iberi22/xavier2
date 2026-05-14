@@ -9,11 +9,13 @@ use crate::security::detections::{ScanResult, Severity, Threat, ThreatCategory};
 const ZERO_WIDTH_CHARS: &[char] = &['\u{200B}', '\u{200C}', '\u{200D}', '\u{FEFF}'];
 
 /// Repeated punctuation pattern
-static REPEATED_PUNCT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[!?\\/|]{4,}").expect("invalid regex: repeated punctuation"));
+static REPEATED_PUNCT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[!?\\/|]{4,}").expect("invalid regex: repeated punctuation"));
 
 /// Role switch phrases
 static ROLE_SWITCH_PATTERNS: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(you are now|pretend you are|switch to|act as|roleplay as|become)").expect("invalid regex: role switch phrases")
+    Regex::new(r"(?i)(you are now|pretend you are|switch to|act as|roleplay as|become)")
+        .expect("invalid regex: role switch phrases")
 });
 
 /// Authority escalation patterns

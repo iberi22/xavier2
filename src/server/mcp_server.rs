@@ -1359,7 +1359,10 @@ mod tests {
 
     async fn test_state() -> (AppState, WorkspaceContext) {
         let db_path = unique_test_path("xavier-code-mcp", "code_graph.db");
-        let code_db = Arc::new(code_graph::db::CodeGraphDB::new(&db_path).expect("CodeGraphDB creation failed for test"));
+        let code_db = Arc::new(
+            code_graph::db::CodeGraphDB::new(&db_path)
+                .expect("CodeGraphDB creation failed for test"),
+        );
         let code_indexer = Arc::new(code_graph::indexer::Indexer::new(Arc::clone(&code_db)));
         let code_query = Arc::new(code_graph::query::QueryEngine::new(Arc::clone(&code_db)));
         let workspace_registry = Arc::new(WorkspaceRegistry::new());
@@ -1381,8 +1384,14 @@ mod tests {
         )
         .await
         .expect("WorkspaceState creation failed for test");
-        workspace_registry.insert(workspace).await.expect("insert workspace into registry failed");
-        let workspace = workspace_registry.authenticate("test-token").await.expect("authenticate failed for test workspace");
+        workspace_registry
+            .insert(workspace)
+            .await
+            .expect("insert workspace into registry failed");
+        let workspace = workspace_registry
+            .authenticate("test-token")
+            .await
+            .expect("authenticate failed for test workspace");
 
         (
             AppState {
@@ -1418,7 +1427,9 @@ mod tests {
                 .method(Method::POST)
                 .uri("/mcp")
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&body).expect("serialize json body failed")))
+                .body(Body::from(
+                    serde_json::to_vec(&body).expect("serialize json body failed"),
+                ))
                 .expect("build POST request failed"),
         )
         .await
@@ -1439,7 +1450,9 @@ mod tests {
         }
         app.oneshot(
             request
-                .body(Body::from(serde_json::to_vec(&body).expect("serialize json body failed")))
+                .body(Body::from(
+                    serde_json::to_vec(&body).expect("serialize json body failed"),
+                ))
                 .expect("build POST request failed"),
         )
         .await
@@ -1471,7 +1484,9 @@ mod tests {
             .and_then(|value| value.to_str().ok())
             .expect("MCP session header should be present");
         assert!(session_id.starts_with("xavier-"));
-        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read response body failed");
         let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
         assert_eq!(payload["result"]["protocolVersion"], "2025-03-26");
         assert_eq!(payload["result"]["serverInfo"]["name"], "xavier-memory");
@@ -1498,7 +1513,9 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("xavier-session-test")
         );
-        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read response body failed");
         assert!(body.is_empty());
     }
 
@@ -1540,7 +1557,9 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::ACCEPTED);
-        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read response body failed");
         assert!(body.is_empty());
     }
 
@@ -1558,9 +1577,17 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read response body failed");
         let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
-        assert_eq!(payload["result"]["tools"].as_array().expect("tools array expected").len(), 14);
+        assert_eq!(
+            payload["result"]["tools"]
+                .as_array()
+                .expect("tools array expected")
+                .len(),
+            14
+        );
     }
 
     #[tokio::test]
@@ -1595,9 +1622,13 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read response body failed");
         let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
-        let content = payload["result"]["content"].as_array().expect("content array expected");
+        let content = payload["result"]["content"]
+            .as_array()
+            .expect("content array expected");
         assert!(!content.is_empty());
         assert!(content[0]["text"]
             .as_str()
@@ -1665,9 +1696,13 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read response body failed");
         let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
-        let content = payload["result"]["content"].as_array().expect("content array expected");
+        let content = payload["result"]["content"]
+            .as_array()
+            .expect("content array expected");
         assert_eq!(content.len(), 1);
         let text = content[0]["text"].as_str().expect("text string expected");
         assert!(text.contains("Path: bridge/openclaw/task"));
@@ -1815,9 +1850,13 @@ mod tests {
         )
         .await;
         assert_eq!(first.status(), StatusCode::OK);
-        let body = to_bytes(first.into_body(), usize::MAX).await.expect("read first body failed");
+        let body = to_bytes(first.into_body(), usize::MAX)
+            .await
+            .expect("read first body failed");
         let payload: Value = serde_json::from_slice(&body).expect("parse first JSON failed");
-        let text = payload["result"]["content"][0]["text"].as_str().expect("first text expected");
+        let text = payload["result"]["content"][0]["text"]
+            .as_str()
+            .expect("first text expected");
         assert!(text.contains("created=3"));
         assert!(text.contains("updated=0"));
         assert!(text.contains("unchanged=0"));
@@ -1838,9 +1877,13 @@ mod tests {
         )
         .await;
         assert_eq!(second.status(), StatusCode::OK);
-        let body = to_bytes(second.into_body(), usize::MAX).await.expect("read second body failed");
+        let body = to_bytes(second.into_body(), usize::MAX)
+            .await
+            .expect("read second body failed");
         let payload: Value = serde_json::from_slice(&body).expect("parse second JSON failed");
-        let text = payload["result"]["content"][0]["text"].as_str().expect("second text expected");
+        let text = payload["result"]["content"][0]["text"]
+            .as_str()
+            .expect("second text expected");
         assert!(text.contains("created=0"));
         assert!(text.contains("updated=0"));
         assert!(text.contains("unchanged=3"));
@@ -1864,12 +1907,20 @@ mod tests {
         )
         .await;
         assert_eq!(third.status(), StatusCode::OK);
-        let body = to_bytes(third.into_body(), usize::MAX).await.expect("read third body failed");
+        let body = to_bytes(third.into_body(), usize::MAX)
+            .await
+            .expect("read third body failed");
         let payload: Value = serde_json::from_slice(&body).expect("parse third JSON failed");
-        let text = payload["result"]["content"][0]["text"].as_str().expect("third text expected");
+        let text = payload["result"]["content"][0]["text"]
+            .as_str()
+            .expect("third text expected");
         assert!(text.contains("updated=1"));
 
-        let project = root.file_name().expect("root should have file_name").to_str().expect("root file_name should be valid UTF-8");
+        let project = root
+            .file_name()
+            .expect("root should have file_name")
+            .to_str()
+            .expect("root file_name should be valid UTF-8");
         let record = workspace
             .workspace
             .get_memory_record(&format!("gitcore/{project}/README.md"))
@@ -1939,11 +1990,15 @@ mod tests {
         .await;
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), usize::MAX).await.expect("read response body failed");
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read response body failed");
         let payload: Value = serde_json::from_slice(&body).expect("parse response JSON failed");
 
         assert_eq!(payload["result"]["is_error"], true, "{payload:?}");
-        let text = payload["result"]["content"][0]["text"].as_str().expect("text string expected");
+        let text = payload["result"]["content"][0]["text"]
+            .as_str()
+            .expect("text string expected");
         assert!(text.contains("security_policy_violation"));
     }
 

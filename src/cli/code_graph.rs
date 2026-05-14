@@ -1,5 +1,3 @@
-
-
 pub fn code_find_symbols(
     code_query: &::code_graph::query::QueryEngine,
     query: &str,

@@ -1,9 +1,9 @@
+use crate::agents::system1::RetrievedDocument;
+use crate::utils::crypto::sha256_hex;
 use chrono::{Datelike, Duration, NaiveDate};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
-use crate::agents::system1::RetrievedDocument;
-use crate::utils::crypto::sha256_hex;
 
 pub(crate) fn clean_date(text: &str) -> String {
     let trimmed = text.trim();
@@ -888,7 +888,11 @@ fn extract_descriptive_phrases(content: &str) -> Vec<String> {
     phrases
 }
 
-pub(crate) fn best_category_answer(query: &str, docs: &[RetrievedDocument], category: &str) -> Option<String> {
+pub(crate) fn best_category_answer(
+    query: &str,
+    docs: &[RetrievedDocument],
+    category: &str,
+) -> Option<String> {
     let terms = query_terms(query);
     let query_lower = query.to_lowercase();
     docs.iter()
@@ -951,7 +955,10 @@ pub(crate) fn best_category_answer(query: &str, docs: &[RetrievedDocument], cate
         .map(|(_, answer)| answer)
 }
 
-pub(crate) fn best_structured_fact_answer(query: &str, docs: &[RetrievedDocument]) -> Option<String> {
+pub(crate) fn best_structured_fact_answer(
+    query: &str,
+    docs: &[RetrievedDocument],
+) -> Option<String> {
     let query_lower = query.to_lowercase();
     let target_fact_type = if query_lower.contains("research") {
         Some("research_topic")

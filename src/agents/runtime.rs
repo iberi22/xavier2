@@ -5,12 +5,13 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::context::orchestrator::Orchestrator;
 
 use crate::utils::crypto::sha256_hex;
 
+use crate::agents::rate_limit::RateLimitManager;
 use crate::agents::router::{RouteCategory, Router};
 use crate::agents::system1::{RetrieverConfig, System1Retriever};
 use crate::agents::system2::{ReasonerConfig, System2Reasoner};
@@ -97,6 +98,7 @@ pub struct RuntimeConfig {
     pub model_provider: Option<String>,
     pub model_api_key: Option<String>,
     pub model_url: Option<String>,
+    pub max_context_tokens: usize,
 }
 
 impl Default for RuntimeConfig {
@@ -107,6 +109,7 @@ impl Default for RuntimeConfig {
             model_provider: None,
             model_api_key: None,
             model_url: None,
+            max_context_tokens: 4000,
         }
     }
 }
@@ -121,6 +124,12 @@ impl RuntimeConfig {
         F: FnMut(&str) -> Option<String>,
     {
         let mut config = Self::default();
+
+        if let Some(tokens) =
+            lookup("XAVIER_MAX_CONTEXT_TOKENS").and_then(|v| v.parse::<usize>().ok())
+        {
+            config.max_context_tokens = tokens;
+        }
 
         if let Some(provider) =
             lookup("XAVIER_MODEL_PROVIDER").map(|value| value.trim().to_ascii_lowercase())
@@ -186,6 +195,7 @@ pub struct AgentRuntime {
     checkpoint_manager: Option<Arc<CheckpointManager>>,
     scheduler: Option<Arc<tokio::sync::Mutex<JobScheduler>>>,
     orchestrator: Option<Orchestrator>,
+    rate_manager: Option<Arc<RateLimitManager>>,
 }
 
 impl AgentRuntime {
@@ -209,6 +219,7 @@ impl AgentRuntime {
             checkpoint_manager: None,
             scheduler: None,
             orchestrator: None,
+            rate_manager: None,
         })
     }
 
@@ -224,6 +235,11 @@ impl AgentRuntime {
 
     pub fn with_orchestrator(mut self, orchestrator: Orchestrator) -> Self {
         self.orchestrator = Some(orchestrator);
+        self
+    }
+
+    pub fn with_rate_manager(mut self, manager: Arc<RateLimitManager>) -> Self {
+        self.rate_manager = Some(manager);
         self
     }
 
@@ -425,9 +441,23 @@ impl AgentRuntime {
         let (retrieval_result, reasoning_result) = loop {
             // System 1: Retrieval
             let s1_start = std::time::Instant::now();
+
+            let mut budget = self.config.max_context_tokens;
+            if let Some(rate_manager) = &self.rate_manager {
+                if let Some(provider) = &self.config.model_provider {
+                    if let Ok(true) = rate_manager.is_quota_low(provider).await {
+                        debug!(
+                            "Low quota detected for provider {}, halving token budget",
+                            provider
+                        );
+                        budget /= 2;
+                    }
+                }
+            }
+
             let retrieval_result = self
                 .system1
-                .run_with_filters(&current_query, None, filters.as_ref())
+                .run_with_filters_and_budget(&current_query, None, filters.as_ref(), budget)
                 .await?;
             s1_total_ms += s1_start.elapsed().as_millis() as u64;
 
@@ -507,6 +537,26 @@ impl AgentRuntime {
                 .or(route.model_override.clone())
                 .or(self.config.model_url.clone());
 
+            let mut budget_multiplier = 1.0;
+            if let Some(ref rate_manager) = self.rate_manager {
+                if let Some(ref provider) = self.config.model_provider {
+                    if let Ok(status) = rate_manager.get_status(provider).await {
+                        let weekly_budget = std::env::var("XAVIER_WEEKLY_BUDGET")
+                            .ok()
+                            .and_then(|v| v.parse::<usize>().ok())
+                            .unwrap_or(100_000);
+
+                        if status.used_weekly as f64 > 0.9 * weekly_budget as f64 {
+                            info!(
+                                "Weekly budget usage high ({}/{}). Reducing System 3 tokens.",
+                                status.used_weekly, weekly_budget
+                            );
+                            budget_multiplier = 0.5;
+                        }
+                    }
+                }
+            }
+
             let system3 = if let Some(provider) = &self.config.model_provider {
                 // If runtime config has explicit provider, use it
                 let p_config = crate::agents::provider::ModelProviderConfig::new_with_params(
@@ -515,20 +565,31 @@ impl AgentRuntime {
                     self.config.model_api_key.clone(),
                     self.config.model_url.clone(),
                 );
-                System3Actor::with_config(
-                    ActorConfig {
-                        semantic_cache: Some(Arc::clone(&self.semantic_cache)),
-                        model_override: p_config.model.clone().into(),
-                        ..ActorConfig::default()
-                    },
-                    p_config,
-                )
+                let mut actor_config = ActorConfig {
+                    semantic_cache: Some(Arc::clone(&self.semantic_cache)),
+                    model_override: p_config.model.clone().into(),
+                    ..ActorConfig::default()
+                };
+
+                if budget_multiplier < 1.0 {
+                    actor_config.max_actions =
+                        (actor_config.max_actions as f64 * budget_multiplier) as usize;
+                }
+
+                System3Actor::with_config(actor_config, p_config)
             } else {
-                System3Actor::new(ActorConfig {
+                let mut actor_config = ActorConfig {
                     semantic_cache: Some(Arc::clone(&self.semantic_cache)),
                     model_override: selected_model_override,
                     ..ActorConfig::default()
-                })
+                };
+
+                if budget_multiplier < 1.0 {
+                    actor_config.max_actions =
+                        (actor_config.max_actions as f64 * budget_multiplier) as usize;
+                }
+
+                System3Actor::new(actor_config)
             };
 
             let s3_start = std::time::Instant::now();
@@ -544,6 +605,30 @@ impl AgentRuntime {
         };
 
         debug!("✅ System 3 completed in {}ms", s3_ms);
+
+        if action_result.llm_used {
+            if let Some(ref rate_manager) = self.rate_manager {
+                if let Some(ref provider) = self.config.model_provider {
+                    let context_text = retrieval_result
+                        .documents
+                        .iter()
+                        .map(|d| d.content.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                    let estimated_tokens = estimate_tokens(query)
+                        + estimate_tokens(&context_text)
+                        + estimate_tokens(&action_result.response);
+
+                    if let Err(e) = rate_manager
+                        .track_request(provider, estimated_tokens, 200, 0.0, false)
+                        .await
+                    {
+                        warn!("Failed to track runtime LLM usage: {e}");
+                    }
+                }
+            }
+        }
 
         let total_ms = start.elapsed().as_millis() as u64;
 
@@ -673,6 +758,10 @@ fn query_fingerprint(query: &str) -> String {
     sha256_hex(query.as_bytes())[..12].to_string()
 }
 
+fn estimate_tokens(text: &str) -> usize {
+    (text.len() / 4).max(1)
+}
+
 /// Builder para crear el runtime
 pub struct RuntimeBuilder {
     config: RuntimeConfig,
@@ -680,6 +769,7 @@ pub struct RuntimeBuilder {
     belief_graph: Option<SharedBeliefGraph>,
     checkpoint_manager: Option<Arc<CheckpointManager>>,
     scheduler: Option<JobScheduler>,
+    rate_manager: Option<Arc<RateLimitManager>>,
 }
 
 impl RuntimeBuilder {
@@ -690,6 +780,7 @@ impl RuntimeBuilder {
             belief_graph: None,
             checkpoint_manager: None,
             scheduler: None,
+            rate_manager: None,
         }
     }
 
@@ -718,6 +809,11 @@ impl RuntimeBuilder {
         self
     }
 
+    pub fn with_rate_manager(mut self, manager: Arc<RateLimitManager>) -> Self {
+        self.rate_manager = Some(manager);
+        self
+    }
+
     pub fn build(self) -> Result<AgentRuntime> {
         let memory = self
             .memory
@@ -728,8 +824,13 @@ impl RuntimeBuilder {
         } else {
             runtime
         };
-        Ok(if let Some(scheduler) = self.scheduler {
+        let runtime = if let Some(scheduler) = self.scheduler {
             runtime.with_scheduler(scheduler)
+        } else {
+            runtime
+        };
+        Ok(if let Some(manager) = self.rate_manager {
+            runtime.with_rate_manager(manager)
         } else {
             runtime
         })

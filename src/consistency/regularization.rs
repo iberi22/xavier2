@@ -562,8 +562,9 @@ impl RetentionRegularizer {
     /// Extract entity references from content
     fn extract_entity_references(&self, content: &str) -> Vec<(String, String)> {
         use regex::Regex;
-        static ENTITY_RE: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b").expect("test assertion"));
+        static ENTITY_RE: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b").expect("test assertion")
+        });
 
         let mut refs = Vec::new();
         let mut seen = std::collections::HashSet::new();

@@ -28,9 +28,15 @@ mod security_tests {
     fn test_hash_password() {
         let security = SecurityManager::new();
 
-        let hash = security.hash_password("test_password").expect("test assertion");
-        assert!(security.verify_password("test_password", &hash).expect("test assertion"));
-        assert!(!security.verify_password("wrong_password", &hash).expect("test assertion"));
+        let hash = security
+            .hash_password("test_password")
+            .expect("test assertion");
+        assert!(security
+            .verify_password("test_password", &hash)
+            .expect("test assertion"));
+        assert!(!security
+            .verify_password("wrong_password", &hash)
+            .expect("test assertion"));
     }
 
     #[test]

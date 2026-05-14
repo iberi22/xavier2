@@ -182,7 +182,11 @@ mod tests {
         ContextDocument::new(id, "session-1", "assistant", content)
             .with_tool_calls(tools.iter().map(|tool| tool.to_string()).collect())
             .with_metadata(metadata)
-            .with_created_at(Utc.timestamp_opt(seconds, 0).single().expect("test assertion"))
+            .with_created_at(
+                Utc.timestamp_opt(seconds, 0)
+                    .single()
+                    .expect("test assertion"),
+            )
     }
 
     #[test]

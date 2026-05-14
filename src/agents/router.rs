@@ -42,8 +42,29 @@ pub struct RoutingPolicy {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct RoutingPolicyModels {
-    pub fast: Option<ModelCandidatePolicy>,
-    pub quality: Option<ModelCandidatePolicy>,
+    #[serde(default, deserialize_with = "deserialize_candidate_list")]
+    pub fast: Vec<ModelCandidatePolicy>,
+    #[serde(default, deserialize_with = "deserialize_candidate_list")]
+    pub quality: Vec<ModelCandidatePolicy>,
+}
+
+fn deserialize_candidate_list<'de, D>(
+    deserializer: D,
+) -> Result<Vec<ModelCandidatePolicy>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum CandidateOrList {
+        Single(ModelCandidatePolicy),
+        List(Vec<ModelCandidatePolicy>),
+    }
+
+    Ok(match CandidateOrList::deserialize(deserializer)? {
+        CandidateOrList::Single(single) => vec![single],
+        CandidateOrList::List(list) => list,
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -57,6 +78,14 @@ pub struct ModelCandidatePolicy {
     pub quality_score: Option<f32>,
     #[serde(default)]
     pub health: Option<String>,
+    #[serde(default)]
+    pub cost_per_input_token: Option<f32>,
+    #[serde(default)]
+    pub cost_per_output_token: Option<f32>,
+    #[serde(default)]
+    pub cost_per_1k_input: f32,
+    #[serde(default)]
+    pub cost_per_1k_output: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -164,12 +193,12 @@ impl Router {
         let fast_model = env_model("XAVIER_ROUTER_FAST_MODEL").or_else(|| {
             policy
                 .as_ref()
-                .and_then(|policy| candidate_name(&policy.models.fast))
+                .and_then(|policy| select_best_candidate(&policy.models.fast))
         });
         let quality_model = env_model("XAVIER_ROUTER_QUALITY_MODEL").or_else(|| {
             policy
                 .as_ref()
-                .and_then(|policy| candidate_name(&policy.models.quality))
+                .and_then(|policy| select_best_candidate(&policy.models.quality))
         });
 
         match (fast_model, quality_model) {
@@ -237,7 +266,7 @@ fn routing_policy_cache() -> &'static Mutex<Option<CachedPolicy>> {
     CACHE.get_or_init(|| Mutex::new(None))
 }
 
-fn load_routing_policy() -> Option<RoutingPolicy> {
+pub fn load_routing_policy() -> Option<RoutingPolicy> {
     let path = std::env::var("XAVIER_ROUTER_POLICY_PATH")
         .ok()
         .map(|value| value.trim().to_string())
@@ -290,22 +319,39 @@ fn load_routing_policy() -> Option<RoutingPolicy> {
     cache.as_ref().and_then(|entry| entry.policy.clone())
 }
 
-fn candidate_name(candidate: &Option<ModelCandidatePolicy>) -> Option<String> {
-    candidate.as_ref().and_then(|candidate| {
-        let healthy = candidate
-            .health
-            .as_deref()
-            .map(|value| {
-                !matches!(
-                    value.trim().to_ascii_lowercase().as_str(),
-                    "down" | "failed"
-                )
-            })
-            .unwrap_or(true);
-        (candidate.enabled && healthy)
-            .then(|| candidate.name.trim().to_string())
-            .filter(|value| !value.is_empty())
-    })
+fn select_best_candidate(candidates: &[ModelCandidatePolicy]) -> Option<String> {
+    candidates
+        .iter()
+        .filter(|c| {
+            let healthy = c
+                .health
+                .as_deref()
+                .map(|value| {
+                    !matches!(
+                        value.trim().to_ascii_lowercase().as_str(),
+                        "down" | "failed"
+                    )
+                })
+                .unwrap_or(true);
+            c.enabled && healthy && !c.name.trim().is_empty()
+        })
+        .max_by(|a, b| {
+            let ratio_a = a.quality_score.unwrap_or(0.0)
+                / (a.cost_per_1k_input + a.cost_per_1k_output + 0.000001);
+            let ratio_b = b.quality_score.unwrap_or(0.0)
+                / (b.cost_per_1k_input + b.cost_per_1k_output + 0.000001);
+
+            ratio_a
+                .partial_cmp(&ratio_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| {
+                    a.quality_score
+                        .unwrap_or(0.0)
+                        .partial_cmp(&b.quality_score.unwrap_or(0.0))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+        })
+        .map(|c| c.name.trim().to_string())
 }
 
 fn retrieval_confidence(result: &RetrievalResult) -> f32 {
@@ -442,6 +488,7 @@ mod tests {
             path: "memory/doc-1".to_string(),
             content: "Relevant memory".to_string(),
             relevance_score: 1.0,
+            token_count: 2,
             metadata: serde_json::json!({
                 "memory_priority": priority,
                 "evidence_kind": "fact_atom",
@@ -530,6 +577,68 @@ mod tests {
         assert_eq!(
             router.resolve_model_override(RouteCategory::Retrieved, &retrieval, &reasoning),
             Some("fast-model".to_string())
+        );
+    }
+
+    #[test]
+    fn selects_model_with_best_quality_cost_ratio() {
+        let candidates = vec![
+            ModelCandidatePolicy {
+                name: "expensive-quality".to_string(),
+                enabled: true,
+                benchmark_latency_ms: None,
+                quality_score: Some(0.9),
+                health: None,
+                cost_per_input_token: None,
+                cost_per_output_token: None,
+                cost_per_1k_input: 0.1,
+                cost_per_1k_output: 0.2,
+            },
+            ModelCandidatePolicy {
+                name: "cheap-efficient".to_string(),
+                enabled: true,
+                benchmark_latency_ms: None,
+                quality_score: Some(0.7),
+                health: None,
+                cost_per_input_token: None,
+                cost_per_output_token: None,
+                cost_per_1k_input: 0.01,
+                cost_per_1k_output: 0.01,
+            },
+        ];
+
+        // expensive-quality ratio: 0.9 / 0.3 = 3.0
+        // cheap-efficient ratio: 0.7 / 0.02 = 35.0
+        assert_eq!(
+            select_best_candidate(&candidates),
+            Some("cheap-efficient".to_string())
+        );
+    }
+
+    #[test]
+    fn handles_multiple_candidates_in_policy() {
+        let policy_json = r#"{
+            "version": 1,
+            "models": {
+                "fast": [
+                    { "name": "fast-1", "enabled": true, "quality_score": 0.5, "cost_per_1k_input": 0.1, "cost_per_1k_output": 0.1 },
+                    { "name": "fast-2", "enabled": true, "quality_score": 0.8, "cost_per_1k_input": 0.01, "cost_per_1k_output": 0.01 }
+                ],
+                "quality": { "name": "quality-1", "enabled": true, "quality_score": 0.9 }
+            }
+        }"#;
+
+        let policy: RoutingPolicy = serde_json::from_str(policy_json).unwrap();
+        assert_eq!(policy.models.fast.len(), 2);
+        assert_eq!(policy.models.quality.len(), 1);
+
+        assert_eq!(
+            select_best_candidate(&policy.models.fast),
+            Some("fast-2".to_string())
+        );
+        assert_eq!(
+            select_best_candidate(&policy.models.quality),
+            Some("quality-1".to_string())
         );
     }
 }

@@ -146,7 +146,8 @@ static CANDIDATE_ENTITY_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\b(?:[A-Z]{2,}(?:[A-Z0-9_-]*[A-Z0-9])?|[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9_-]*)+(?:\s+[A-Z][A-Za-z0-9_-]*)*|[A-Z][a-z0-9]+(?:\s+[A-Z][a-z0-9]+)*|[A-Za-z]+[0-9]+[A-Za-z0-9_-]*)\b")
         .expect("valid entity regex")
 });
-static EMAIL_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\w.+-]+@[\w-]+\.[\w.-]+").expect("valid email regex"));
+static EMAIL_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"[\w.+-]+@[\w-]+\.[\w.-]+").expect("valid email regex"));
 static URL_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"https?://[^\s]+").expect("valid URL regex"));
 
 static RELATION_PATTERNS: &[(&str, &str, f32)] = &[
@@ -1084,7 +1085,10 @@ mod tests {
 
         let entities = graph.all_entities().await;
         assert!(!entities.is_empty());
-        let primary = graph.merge_entities("Alice", "Alicia").await.expect("test assertion");
+        let primary = graph
+            .merge_entities("Alice", "Alicia")
+            .await
+            .expect("test assertion");
         assert!(primary
             .aliases
             .iter()

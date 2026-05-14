@@ -14,8 +14,8 @@ pub mod secrets;
 
 pub use agent_registry::SimpleAgentRegistry;
 pub use events::{WebhookDispatcher, XavierEvent, XavierEventBus};
-pub use secrets::KeyLendingEngine;
 pub use message_bus::*;
+pub use secrets::KeyLendingEngine;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -738,7 +738,10 @@ mod tests {
         // Get metadata
         let metadata = registry.get_metadata("agent1").await;
         assert!(metadata.is_some());
-        assert_eq!(metadata.expect("test assertion").role, Some("worker".to_string()));
+        assert_eq!(
+            metadata.expect("test assertion").role,
+            Some("worker".to_string())
+        );
     }
 
     #[tokio::test]

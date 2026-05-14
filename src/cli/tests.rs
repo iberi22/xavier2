@@ -1,24 +1,33 @@
 #[cfg(test)]
 mod tests {
-    use axum::{body::Body, http::{Request, StatusCode}, middleware, routing::get, Router};
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+        middleware,
+        routing::get,
+        Router,
+    };
     use tower::ServiceExt;
 
-    use crate::cli::state::CliState;
-    use crate::cli::commands::Command;
     use crate::cli::code_graph::{
-        code_find_symbols, symbols_for_kind, is_supported_code_pattern,
-        search_code_symbols_with_fallback, best_symbol_query_token, filter_symbols_by_query,
+        best_symbol_query_token, code_find_symbols, filter_symbols_by_query,
+        is_supported_code_pattern, search_code_symbols_with_fallback, symbols_for_kind,
     };
-    use crate::cli::security::{blocked_external_input_response, secure_cli_input, secure_external_input, secure_optional_request_field};
+    use crate::cli::commands::Command;
     use crate::cli::config::{
-        resolve_http_token, resolve_http_bind_host, resolve_base_url_for_port, resolve_base_url,
-        resolve_http_port, xavier_token, require_xavier_token, code_graph_db_path, state_panel_root,
-        default_token_budget, default_limit, default_compaction_threshold,
+        code_graph_db_path, default_compaction_threshold, default_limit, default_token_budget,
+        require_xavier_token, resolve_base_url, resolve_base_url_for_port, resolve_http_bind_host,
+        resolve_http_port, resolve_http_token, state_panel_root, xavier_token,
     };
-    use crate::cli::utils::{json_response, estimate_tokens, load_skill};
+    use crate::cli::security::{
+        blocked_external_input_response, secure_cli_input, secure_external_input,
+        secure_optional_request_field,
+    };
     use crate::cli::server::auth_middleware;
-    use crate::cli::proxy::ProxyChatRequest;
+    use crate::cli::state::CliState;
+    use crate::cli::utils::{estimate_tokens, json_response, load_skill};
 
+    use crate::cli::proxy::ProxyChatRequest;
     use code_graph::types::{Language, Symbol, SymbolKind};
     use std::sync::Arc;
     use xavier::security::SecurityService;
@@ -27,7 +36,6 @@ mod tests {
         let db = code_graph::db::CodeGraphDB::in_memory().unwrap();
         db.insert_symbol(&Symbol {
             id: None,
-            stable_id: None,
             name: "search_memories".to_string(),
             kind: SymbolKind::Function,
             lang: Language::Rust,
@@ -40,12 +48,10 @@ mod tests {
                 "async fn search_memories(query: &str, limit: usize) -> Result<()>".to_string(),
             ),
             parent: None,
-            complexity: None,
         })
         .unwrap();
         db.insert_symbol(&Symbol {
             id: None,
-            stable_id: None,
             name: "add_memory".to_string(),
             kind: SymbolKind::Function,
             lang: Language::Rust,
@@ -58,7 +64,6 @@ mod tests {
                 "async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> Result<()>".to_string(),
             ),
             parent: None,
-            complexity: None,
         })
         .unwrap();
 
@@ -250,7 +255,7 @@ mod tests {
             },
         ];
 
-        // To verify the ordering logic conceptually used in the handler:
+        // Verify the ordering logic used in the handler:
         let mut results = vec![serde_json::json!(null); requests.len()];
         results[0] = serde_json::json!({"id": "1"});
         results[1] = serde_json::json!({"id": "2"});

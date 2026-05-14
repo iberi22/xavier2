@@ -463,25 +463,35 @@ impl ModelProviderClient {
     }
 
     pub async fn generate_text(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {
+        self.generate_text_with_cache(system_prompt, user_prompt, false)
+            .await
+    }
+
+    pub async fn generate_text_with_cache(
+        &self,
+        system_prompt: &str,
+        user_prompt: &str,
+        use_cache: bool,
+    ) -> Result<String> {
         if !self.config.is_configured() || self.config.provider_mode == ProviderMode::Disabled {
             bail!("no LLM provider configured");
         }
 
         match self.config.target {
             ProviderTarget::GenericOpenAICompatible => {
-                self.generate_openai_compatible(system_prompt, user_prompt)
+                self.generate_openai_compatible(system_prompt, user_prompt, use_cache)
                     .await
             }
             ProviderTarget::AnthropicMessages => {
-                self.generate_anthropic_compatible(system_prompt, user_prompt)
+                self.generate_anthropic_compatible(system_prompt, user_prompt, use_cache)
                     .await
             }
             ProviderTarget::GeminiLegacy => {
-                self.generate_gemini_legacy(system_prompt, user_prompt)
+                self.generate_gemini_legacy(system_prompt, user_prompt, use_cache)
                     .await
             }
             ProviderTarget::MiniMaxLegacy => {
-                self.generate_minimax_legacy(system_prompt, user_prompt)
+                self.generate_minimax_legacy(system_prompt, user_prompt, use_cache)
                     .await
             }
         }
@@ -491,6 +501,7 @@ impl ModelProviderClient {
         &self,
         system_prompt: &str,
         user_prompt: &str,
+        use_cache: bool,
     ) -> Result<String> {
         let base_url = self
             .config
@@ -512,13 +523,27 @@ impl ModelProviderClient {
             request = request.bearer_auth(api_key);
         }
 
+        let mut messages = vec![
+            serde_json::json!({"role": "system", "content": system_prompt}),
+            serde_json::json!({"role": "user", "content": user_prompt}),
+        ];
+
+        // DeepSeek prompt cache support (OpenAI compatible)
+        if use_cache && self.config.provider_label == "deepseek" {
+            if let Some(msg) = messages.get_mut(0) {
+                if let Some(obj) = msg.as_object_mut() {
+                    obj.insert(
+                        "cache_control".to_string(),
+                        serde_json::json!({"type": "ephemeral"}),
+                    );
+                }
+            }
+        }
+
         let response = request
             .json(&serde_json::json!({
                 "model": self.config.model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+                "messages": messages,
                 "temperature": 0.2,
                 "max_tokens": 500
             }))
@@ -544,6 +569,7 @@ impl ModelProviderClient {
         &self,
         system_prompt: &str,
         user_prompt: &str,
+        use_cache: bool,
     ) -> Result<String> {
         let base_url = self
             .config
@@ -557,14 +583,37 @@ impl ModelProviderClient {
             .context("missing Anthropic-compatible API key")?;
         let endpoint = anthropic_messages_endpoint(base_url);
 
-        let response = self
+        let mut system_json = serde_json::json!([
+            {
+                "type": "text",
+                "text": system_prompt,
+            }
+        ]);
+
+        let mut builder = self
             .client
             .post(endpoint)
             .header("x-api-key", api_key)
-            .header("anthropic-version", "2023-06-01")
+            .header("anthropic-version", "2023-06-01");
+
+        if use_cache {
+            if let Some(arr) = system_json.as_array_mut() {
+                if let Some(first) = arr.get_mut(0) {
+                    if let Some(obj) = first.as_object_mut() {
+                        obj.insert(
+                            "cache_control".to_string(),
+                            serde_json::json!({"type": "ephemeral"}),
+                        );
+                    }
+                }
+            }
+            builder = builder.header("anthropic-beta", "prompt-caching-2024-07-31");
+        }
+
+        let response = builder
             .json(&serde_json::json!({
                 "model": self.config.model,
-                "system": system_prompt,
+                "system": system_json,
                 "max_tokens": 500,
                 "temperature": 0.2,
                 "messages": [
@@ -593,6 +642,7 @@ impl ModelProviderClient {
         &self,
         system_prompt: &str,
         user_prompt: &str,
+        _use_cache: bool,
     ) -> Result<String> {
         let api_key = self
             .config
@@ -642,6 +692,7 @@ impl ModelProviderClient {
         &self,
         system_prompt: &str,
         user_prompt: &str,
+        _use_cache: bool,
     ) -> Result<String> {
         let api_key = self
             .config
@@ -778,6 +829,19 @@ mod tests {
         assert_eq!(config.provider_label, "groq");
         assert_eq!(config.api_key.as_deref(), Some("gsk_test"));
         assert_eq!(config.base_url, Some(DEFAULT_GROQ_BASE_URL.to_string()));
+    }
+
+    #[test]
+    fn test_model_provider_respects_override() {
+        let _guard = env_lock().lock().expect("test assertion");
+        std::env::set_var("XAVIER_MODEL_PROVIDER", "openai");
+        std::env::set_var("OPENAI_API_KEY", "sk-test");
+
+        let client = ModelProviderClient::from_model_override(Some("gpt-4o-override".to_string()));
+        let status = client.status();
+
+        assert_eq!(status.model, "gpt-4o-override");
+        assert_eq!(client.config.model, "gpt-4o-override");
     }
 
     #[tokio::test]

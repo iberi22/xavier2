@@ -8,14 +8,18 @@ use std::sync::LazyLock;
 use crate::security::detections::{ScanResult, Threat};
 
 /// Base64 pattern regex
-static BASE64_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"[A-Za-z0-9+/]{16,}={0,2}").expect("invalid regex: base64 pattern"));
+static BASE64_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"[A-Za-z0-9+/]{16,}={0,2}").expect("invalid regex: base64 pattern")
+});
 
 /// Hex pattern regex
-static HEX_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:0x)?[a-fA-F0-9]{16,}").expect("invalid regex: hex pattern"));
+static HEX_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?:0x)?[a-fA-F0-9]{16,}").expect("invalid regex: hex pattern"));
 
 /// URL encoded pattern
-static URL_ENC_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%[0-9A-Fa-f]{2}{5,}").expect("invalid regex: URL encoding pattern"));
+static URL_ENC_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"%[0-9A-Fa-f]{2}{5,}").expect("invalid regex: URL encoding pattern")
+});
 
 // NOTE: BASE64_ENTROPY_RE removed - not used
 

@@ -143,10 +143,16 @@ pub struct TaskService<S: TaskStore> {
 
 impl<S: TaskStore> TaskService<S> {
     pub fn new(store: Arc<S>) -> Self {
-        Self { store, event_bus: None }
+        Self {
+            store,
+            event_bus: None,
+        }
     }
 
-    pub fn with_event_bus(mut self, event_bus: crate::coordination::events::XavierEventBus) -> Self {
+    pub fn with_event_bus(
+        mut self,
+        event_bus: crate::coordination::events::XavierEventBus,
+    ) -> Self {
         self.event_bus = Some(event_bus);
         self
     }

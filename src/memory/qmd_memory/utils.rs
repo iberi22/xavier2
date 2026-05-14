@@ -19,8 +19,10 @@ pub static SPEAKER_ROLE_RE: LazyLock<Regex> = LazyLock::new(|| {
 pub static QUERY_SPEAKER_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(?:who|what|where|when|why|how|did|was|were)(?:\s+is|\s+did|\s+was|\s+were)?\s+([A-Z][a-zA-Z]+)").expect("valid regex")
 });
-pub static SHE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bshe\b").expect("valid regex"));
-pub static HE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\bhe\b").expect("valid regex"));
+pub static SHE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\bshe\b").expect("valid regex"));
+pub static HE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\bhe\b").expect("valid regex"));
 pub static SYNONYM_MAP: LazyLock<HashMap<&'static str, &'static [&'static str]>> =
     LazyLock::new(|| {
         HashMap::from([

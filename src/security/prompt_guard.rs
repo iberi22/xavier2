@@ -173,21 +173,26 @@ static INDIRECT_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
 static LEAKING_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     vec![
         // Attempts to extract system prompt
-        Regex::new(
-            r"(?i)(what\s+(are|is)\s+your\s+(system\s+)?(instructions?|prompt|guidelines))",
-        )
-        .expect("invalid regex: what are your instructions"),
-        Regex::new(r"(?i)(repeat\s+(after\s+me|your\s+instructions))").expect("invalid regex: repeat instructions"),
-        Regex::new(r"(?i)(show\s+(me\s+)?your\s+(system\s+)?prompt)").expect("invalid regex: show your prompt"),
+        Regex::new(r"(?i)(what\s+(are|is)\s+your\s+(system\s+)?(instructions?|prompt|guidelines))")
+            .expect("invalid regex: what are your instructions"),
+        Regex::new(r"(?i)(repeat\s+(after\s+me|your\s+instructions))")
+            .expect("invalid regex: repeat instructions"),
+        Regex::new(r"(?i)(show\s+(me\s+)?your\s+(system\s+)?prompt)")
+            .expect("invalid regex: show your prompt"),
         Regex::new(r"(?i)(what\s+(was|were)\s+your\s+(original|first|initial)\s+prompt)")
             .expect("invalid regex: what was your initial prompt"),
         Regex::new(r"(?i)(tell\s+me\s+(about\s+)?your\s+(rules|guidelines|instructions))")
             .expect("invalid regex: tell me your rules"),
-        Regex::new(r"(?i)(output\s+(your|all)\s+(system\s+)?instructions)").expect("invalid regex: output instructions"),
-        Regex::new(r"(?i)(list\s+(all\s+)?your\s+(system\s+)?(rules|instructions))").expect("invalid regex: list your rules"),
-        Regex::new(r"(?i)(ignore\s+previous?\s+and\s+tell\s+me\s+your)").expect("invalid regex: ignore previous and tell"),
-        Regex::new(r"(?i)(forget\s+instructions?\s+and\s+tell\s+me)").expect("invalid regex: forget instructions and tell"),
-        Regex::new(r"(?i)(print\s+(your|all)\s+(system\s+)?prompt)").expect("invalid regex: print your prompt"),
+        Regex::new(r"(?i)(output\s+(your|all)\s+(system\s+)?instructions)")
+            .expect("invalid regex: output instructions"),
+        Regex::new(r"(?i)(list\s+(all\s+)?your\s+(system\s+)?(rules|instructions))")
+            .expect("invalid regex: list your rules"),
+        Regex::new(r"(?i)(ignore\s+previous?\s+and\s+tell\s+me\s+your)")
+            .expect("invalid regex: ignore previous and tell"),
+        Regex::new(r"(?i)(forget\s+instructions?\s+and\s+tell\s+me)")
+            .expect("invalid regex: forget instructions and tell"),
+        Regex::new(r"(?i)(print\s+(your|all)\s+(system\s+)?prompt)")
+            .expect("invalid regex: print your prompt"),
         // Token/format based extraction
         Regex::new(r"(?i)(<\|)").expect("invalid regex: left angle pipe"),
         Regex::new(r"(?i)(\[\[INST\]\])").expect("invalid regex: double INST brackets"),

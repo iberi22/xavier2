@@ -287,7 +287,10 @@ mod tests {
         )
         .await
         .expect("test assertion");
-        workspace_registry.insert(workspace).await.expect("test assertion");
+        workspace_registry
+            .insert(workspace)
+            .await
+            .expect("test assertion");
         let workspace = workspace_registry
             .authenticate("panel-token")
             .await
@@ -332,7 +335,11 @@ mod tests {
             .body(Body::from(r#"{"title":"Panel Thread"}"#))
             .expect("test assertion");
 
-        let create_response = app.clone().oneshot(create_request).await.expect("test assertion");
+        let create_response = app
+            .clone()
+            .oneshot(create_request)
+            .await
+            .expect("test assertion");
         let create_body = to_bytes(create_response.into_body(), usize::MAX)
             .await
             .expect("test assertion");
@@ -363,7 +370,9 @@ mod tests {
             .expect("test assertion");
 
         let response = app.oneshot(request).await.expect("test assertion");
-        let body = to_bytes(response.into_body(), usize::MAX).await.expect("test assertion");
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("test assertion");
         let payload: PanelChatResponse = serde_json::from_slice(&body).expect("test assertion");
 
         assert_eq!(payload.messages.len(), 2);

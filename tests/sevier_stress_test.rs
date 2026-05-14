@@ -184,8 +184,14 @@ async fn test_time_metric_endpoint_returns_correct_shape() {
         "Response should contain 'status' field: {:?}",
         parsed
     );
-    assert_eq!(parsed["metric_type"].as_str().expect("test assertion"), "agent_execution");
-    assert_eq!(parsed["agent_id"].as_str().expect("test assertion"), "test-agent-001");
+    assert_eq!(
+        parsed["metric_type"].as_str().expect("test assertion"),
+        "agent_execution"
+    );
+    assert_eq!(
+        parsed["agent_id"].as_str().expect("test assertion"),
+        "test-agent-001"
+    );
 }
 
 // ─── Test 4: Session Event — POST and verify mapped response ─────────────────
@@ -230,7 +236,10 @@ async fn test_session_event_returns_mapped_status() {
         parsed.get("mapped").is_some(),
         "Response should contain 'mapped' field"
     );
-    assert_eq!(parsed["session_id"].as_str().expect("test assertion"), "session-test-001");
+    assert_eq!(
+        parsed["session_id"].as_str().expect("test assertion"),
+        "session-test-001"
+    );
 }
 
 // ─── Test 5: Session Event unknown event type falls back gracefully ──────────

@@ -96,7 +96,9 @@ mod tests {
             .expect("test assertion");
 
         let conn = pool.connection();
-        let mut stmt = conn.prepare("SELECT id, name FROM test").expect("test assertion");
+        let mut stmt = conn
+            .prepare("SELECT id, name FROM test")
+            .expect("test assertion");
         let rows = stmt
             .query_map([], |row| {
                 Ok((row.get::<_, i32>(0)?, row.get::<_, String>(1)?))

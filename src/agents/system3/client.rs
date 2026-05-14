@@ -1,9 +1,9 @@
+use crate::agents::provider::ModelProviderClient;
+use crate::agents::system1::RetrievedDocument;
 use anyhow::Result;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use crate::agents::provider::ModelProviderClient;
-use crate::agents::system1::RetrievedDocument;
 
 pub trait ResponseGenerator: Send + Sync {
     fn generate_response<'a>(

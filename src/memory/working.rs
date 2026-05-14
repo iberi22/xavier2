@@ -563,7 +563,10 @@ mod tests {
         wm.push(MemoryItem::new("1", "Updated content"));
 
         assert_eq!(wm.len(), 1);
-        assert_eq!(wm.get("1").expect("test assertion").content, "Updated content");
+        assert_eq!(
+            wm.get("1").expect("test assertion").content,
+            "Updated content"
+        );
     }
 
     #[test]

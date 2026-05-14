@@ -893,7 +893,9 @@ mod tests {
             .expect("test assertion");
 
         // Subscribe agent1 to topic
-        bus.subscribe("agent1", "news").await.expect("test assertion");
+        bus.subscribe("agent1", "news")
+            .await
+            .expect("test assertion");
 
         // Publish to topic
         let msg = AgentMessage::new(
@@ -1094,7 +1096,9 @@ mod tests {
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
             .expect("test assertion");
-        bus.subscribe("agent1", "news").await.expect("test assertion");
+        bus.subscribe("agent1", "news")
+            .await
+            .expect("test assertion");
 
         let result = bus.unsubscribe("agent1", "news").await;
         assert!(result.is_ok());
@@ -1158,7 +1162,9 @@ mod tests {
 
         let msg = AgentMessage::task("sender", serde_json::json!({"test": "data"}));
 
-        bus.send_to_dlq(msg.clone(), "test failure").await.expect("test assertion");
+        bus.send_to_dlq(msg.clone(), "test failure")
+            .await
+            .expect("test assertion");
 
         let dlq = bus.get_dlq().await;
         assert_eq!(dlq.len(), 1);
@@ -1177,8 +1183,12 @@ mod tests {
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
             .expect("test assertion");
-        bus.subscribe("agent1", "news").await.expect("test assertion");
-        bus.subscribe("agent1", "updates").await.expect("test assertion");
+        bus.subscribe("agent1", "news")
+            .await
+            .expect("test assertion");
+        bus.subscribe("agent1", "updates")
+            .await
+            .expect("test assertion");
 
         let topics = bus.get_topics().await;
         assert!(topics.contains_key("news"));
@@ -1209,7 +1219,9 @@ mod tests {
         bus.register_agent("agent1", "Agent 1", vec![])
             .await
             .expect("test assertion");
-        bus.subscribe("agent1", "announcements").await.expect("test assertion");
+        bus.subscribe("agent1", "announcements")
+            .await
+            .expect("test assertion");
 
         let id = bus
             .broadcast(

@@ -8,12 +8,17 @@ use crate::security::detections::{ScanResult, Severity, Threat, ThreatCategory};
 /// Authority escalation patterns
 static AUTH_ESCALATION_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     vec![
-        Regex::new(r"(?i)(give me|grant me|elevate to)\s*(admin|root|moderator)").expect("invalid regex: auth escalation - admin request"),
-        Regex::new(r"(?i)(bypass|disable|turn off)\s*(security|filter|guard|protection)").expect("invalid regex: auth escalation - bypass security"),
-        Regex::new(r"(?i)(ignore|disregard)\s*(all\s+)?(rules|restrictions|safety)").expect("invalid regex: auth escalation - ignore rules"),
-        Regex::new(r"(?i)(unlock|open)\s*(admin|root|dev)").expect("invalid regex: auth escalation - unlock admin"),
+        Regex::new(r"(?i)(give me|grant me|elevate to)\s*(admin|root|moderator)")
+            .expect("invalid regex: auth escalation - admin request"),
+        Regex::new(r"(?i)(bypass|disable|turn off)\s*(security|filter|guard|protection)")
+            .expect("invalid regex: auth escalation - bypass security"),
+        Regex::new(r"(?i)(ignore|disregard)\s*(all\s+)?(rules|restrictions|safety)")
+            .expect("invalid regex: auth escalation - ignore rules"),
+        Regex::new(r"(?i)(unlock|open)\s*(admin|root|dev)")
+            .expect("invalid regex: auth escalation - unlock admin"),
         Regex::new(r"(?i)sudo\s+").expect("invalid regex: auth escalation - sudo"),
-        Regex::new(r"(?i)\.\.\.\s*admin\s*\.\.\.").expect("invalid regex: auth escalation - admin ellipsis"),
+        Regex::new(r"(?i)\.\.\.\s*admin\s*\.\.\.")
+            .expect("invalid regex: auth escalation - admin ellipsis"),
     ]
 });
 
@@ -24,23 +29,32 @@ static SOCIAL_ENGINEERING_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
             r"(?i)(you (must|have to|need to)|I (need|must|require)).*(urgent|immediately|asap)",
         )
         .expect("invalid regex: social engineering - urgent coercion"),
-        Regex::new(r"(?i)(trust me|believe me|I'?m (your |a )?(friend|developer|admin))").expect("invalid regex: social engineering - trust claim"),
-        Regex::new(r"(?i)(this is (safe|secure|okay)|don'?t worry|won'?t hurt)").expect("invalid regex: social engineering - safety assurance"),
-        Regex::new(r"(?i)(just|simply)\s+(do|run|execute)\s+(it|this|that)").expect("invalid regex: social engineering - command instruction"),
-        Regex::new(r"(?i)(quick|fast|one second|just a minute)").expect("invalid regex: social engineering - urgency phrase"),
+        Regex::new(r"(?i)(trust me|believe me|I'?m (your |a )?(friend|developer|admin))")
+            .expect("invalid regex: social engineering - trust claim"),
+        Regex::new(r"(?i)(this is (safe|secure|okay)|don'?t worry|won'?t hurt)")
+            .expect("invalid regex: social engineering - safety assurance"),
+        Regex::new(r"(?i)(just|simply)\s+(do|run|execute)\s+(it|this|that)")
+            .expect("invalid regex: social engineering - command instruction"),
+        Regex::new(r"(?i)(quick|fast|one second|just a minute)")
+            .expect("invalid regex: social engineering - urgency phrase"),
         Regex::new(r"(?i)(don'?t tell|no one needs to know|keep (this|it) (secret|quiet))")
             .expect("invalid regex: social engineering - secrecy request"),
-        Regex::new(r"(?i)pretend\s+(you are|we are)").expect("invalid regex: social engineering - pretense"),
+        Regex::new(r"(?i)pretend\s+(you are|we are)")
+            .expect("invalid regex: social engineering - pretense"),
     ]
 });
 
 /// False pre-approval patterns
 static FALSE_APPROVAL_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     vec![
-        Regex::new(r"(?i)(already approved|previously approved|authorized|pre-approved)").expect("invalid regex: false approval - pre-approved claim"),
-        Regex::new(r"(?i)(clearance|permission|approval)\s+(granted|given|received)").expect("invalid regex: false approval - clearance granted"),
-        Regex::new(r"(?i)verified\s+(by|with)\s+(admin|system|security)").expect("invalid regex: false approval - verified claim"),
-        Regex::new(r"(?i)(security|admin)\s+(verified|cleared|approved)").expect("invalid regex: false approval - admin verified"),
+        Regex::new(r"(?i)(already approved|previously approved|authorized|pre-approved)")
+            .expect("invalid regex: false approval - pre-approved claim"),
+        Regex::new(r"(?i)(clearance|permission|approval)\s+(granted|given|received)")
+            .expect("invalid regex: false approval - clearance granted"),
+        Regex::new(r"(?i)verified\s+(by|with)\s+(admin|system|security)")
+            .expect("invalid regex: false approval - verified claim"),
+        Regex::new(r"(?i)(security|admin)\s+(verified|cleared|approved)")
+            .expect("invalid regex: false approval - admin verified"),
     ]
 });
 

@@ -11,18 +11,18 @@
 //! - `mcp`: MCP stdio server
 //! - `tests`: Integration tests
 
-pub mod state;
-pub mod commands;
-pub mod proxy;
-pub(crate) mod config;
-pub(crate) mod security;
 pub(crate) mod code_graph;
-pub(crate) mod utils;
-pub(crate) mod server;
+pub mod commands;
+pub(crate) mod config;
 pub(crate) mod mcp;
+pub mod proxy;
+pub(crate) mod security;
+pub(crate) mod server;
+pub mod state;
 #[cfg(test)]
 mod tests;
+pub(crate) mod utils;
 
 // Re-exports for backward compatibility (main.rs uses `use cli::Cli`)
-pub use state::Cli;
 pub use commands::Command;
+pub use state::Cli;

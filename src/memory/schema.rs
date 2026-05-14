@@ -733,7 +733,9 @@ mod tests {
         )
         .expect("test assertion");
 
-        let recorded_at = metadata["provenance"]["recorded_at"].as_str().expect("test assertion");
+        let recorded_at = metadata["provenance"]["recorded_at"]
+            .as_str()
+            .expect("test assertion");
         assert!(DateTime::parse_from_rfc3339(recorded_at).is_ok());
         assert_ne!(recorded_at, "not-a-date");
     }

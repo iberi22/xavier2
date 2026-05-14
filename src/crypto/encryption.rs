@@ -207,7 +207,8 @@ mod tests {
         let plaintext = b"Hello, Xavier E2E Encryption!";
 
         let blob = encrypt_data(plaintext, &key, &nonce).expect("test assertion");
-        let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).expect("test assertion");
+        let decrypted =
+            decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).expect("test assertion");
 
         assert_eq!(plaintext.to_vec(), decrypted);
     }
@@ -331,7 +332,8 @@ mod tests {
         let plaintext = b"";
 
         let blob = encrypt_data(plaintext, &key, &nonce).expect("test assertion");
-        let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).expect("test assertion");
+        let decrypted =
+            decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).expect("test assertion");
 
         assert_eq!(plaintext.to_vec(), decrypted);
     }
@@ -348,7 +350,8 @@ mod tests {
         let plaintext = vec![0xAB; 1024 * 1024];
 
         let blob = encrypt_data(&plaintext, &key, &nonce).expect("test assertion");
-        let decrypted = decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).expect("test assertion");
+        let decrypted =
+            decrypt_data(&blob.ciphertext, &key, nonce.as_bytes()).expect("test assertion");
 
         assert_eq!(plaintext, decrypted);
     }

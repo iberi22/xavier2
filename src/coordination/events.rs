@@ -1,8 +1,8 @@
 use crate::tasks::models::Task;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-use reqwest::Client;
-use tracing::{info, error};
+use tracing::{error, info};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum XavierEvent {
@@ -25,7 +25,10 @@ impl XavierEventBus {
         self.sender.subscribe()
     }
 
-    pub fn publish(&self, event: XavierEvent) -> Result<usize, broadcast::error::SendError<XavierEvent>> {
+    pub fn publish(
+        &self,
+        event: XavierEvent,
+    ) -> Result<usize, broadcast::error::SendError<XavierEvent>> {
         self.sender.send(event)
     }
 }
@@ -58,16 +61,17 @@ impl WebhookDispatcher {
                                 "event_type": "TaskCompleted",
                                 "task": task,
                             });
-                            
-                            let res = client.post(endpoint)
-                                .json(&payload)
-                                .send()
-                                .await;
+
+                            let res = client.post(endpoint).json(&payload).send().await;
 
                             match res {
                                 Ok(response) => {
                                     if !response.status().is_success() {
-                                        error!("Webhook to {} failed with status {}", endpoint, response.status());
+                                        error!(
+                                            "Webhook to {} failed with status {}",
+                                            endpoint,
+                                            response.status()
+                                        );
                                     }
                                 }
                                 Err(e) => error!("Failed to send webhook to {}: {}", endpoint, e),
