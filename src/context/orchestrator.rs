@@ -5,7 +5,7 @@ use super::{
     hybrid::{ContextSearchHit, HybridContextSearch},
     ContextDocument,
 };
-use crate::memory::virtual_memory::{MemoryReference, VirtualMemoryEntry};
+use crate::memory::virtual_memory::{VirtualMemoryEntry};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HookKind {
@@ -134,7 +134,10 @@ impl Orchestrator {
         for document in selected {
             if plan.level == ContextLevel::Minimal {
                 // L0/L1 Virtualization: Only send summary and keywords
-                let path = document.metadata["path"].as_str().unwrap_or("unknown").to_string();
+                let path = document.metadata["path"]
+                    .as_str()
+                    .unwrap_or("unknown")
+                    .to_string();
                 let virtual_entry = VirtualMemoryEntry::new(
                     path,
                     document.content.clone(),
@@ -147,7 +150,7 @@ impl Orchestrator {
                     reference.summary,
                     reference.keywords.join(", ")
                 );
-                
+
                 let mut virtual_doc = document.clone();
                 virtual_doc.content = virtual_content;
                 virtual_doc.token_count = virtual_doc.content.split_whitespace().count();

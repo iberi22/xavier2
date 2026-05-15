@@ -10,6 +10,7 @@ use parking_lot::Mutex;
 use rusqlite::params;
 
 use crate::adapters::inbound::http::dto::TimeMetricDto;
+use crate::ports::outbound::schema_init::SchemaInitializer;
 
 /// Table name for time metrics
 const TABLE_TIME_METRICS: &str = "time_metrics";
@@ -23,43 +24,6 @@ impl TimeMetricsStore {
     /// Create a new TimeMetricsStore with the given SQLite connection
     pub fn new(conn: Arc<Mutex<rusqlite::Connection>>) -> Self {
         Self { conn }
-    }
-
-    /// Initialize the time_metrics table schema
-    pub fn init_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
-        conn.execute_batch(&format!(
-            r#"
-            CREATE TABLE IF NOT EXISTS {} (
-                id TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                path TEXT NOT NULL,
-                metric_type TEXT NOT NULL,
-                agent_id TEXT NOT NULL,
-                task_id TEXT,
-                started_at TEXT NOT NULL,
-                completed_at TEXT NOT NULL,
-                duration_ms INTEGER NOT NULL,
-                status TEXT NOT NULL,
-                error_message TEXT,
-                provider TEXT,
-                model TEXT,
-                tokens_used INTEGER,
-                task_category TEXT,
-                metadata TEXT NOT NULL DEFAULT '{{}}',
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_time_metrics_workspace ON {}(workspace_id);
-            CREATE INDEX IF NOT EXISTS idx_time_metrics_agent ON {}(agent_id);
-            CREATE INDEX IF NOT EXISTS idx_time_metrics_type ON {}(metric_type);
-            CREATE INDEX IF NOT EXISTS idx_time_metrics_path ON {}(path);
-            "#,
-            TABLE_TIME_METRICS,
-            TABLE_TIME_METRICS,
-            TABLE_TIME_METRICS,
-            TABLE_TIME_METRICS,
-            TABLE_TIME_METRICS
-        ))
     }
 
     /// Save a TimeMetric to the store
@@ -110,6 +74,47 @@ impl TimeMetricsStore {
         )
         .map_err(|e| e.to_string())?;
 
+        Ok(())
+    }
+}
+
+impl SchemaInitializer for TimeMetricsStore {
+    /// Initialize the time_metrics table schema
+    fn init_schema(&self) -> Result<()> {
+        let conn = self.conn.lock();
+        conn.execute_batch(&format!(
+            r#"
+            CREATE TABLE IF NOT EXISTS {} (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                path TEXT NOT NULL,
+                metric_type TEXT NOT NULL,
+                agent_id TEXT NOT NULL,
+                task_id TEXT,
+                started_at TEXT NOT NULL,
+                completed_at TEXT NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                error_message TEXT,
+                provider TEXT,
+                model TEXT,
+                tokens_used INTEGER,
+                task_category TEXT,
+                metadata TEXT NOT NULL DEFAULT '{{}}',
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_time_metrics_workspace ON {}(workspace_id);
+            CREATE INDEX IF NOT EXISTS idx_time_metrics_agent ON {}(agent_id);
+            CREATE INDEX IF NOT EXISTS idx_time_metrics_type ON {}(metric_type);
+            CREATE INDEX IF NOT EXISTS idx_time_metrics_path ON {}(path);
+            "#,
+            TABLE_TIME_METRICS,
+            TABLE_TIME_METRICS,
+            TABLE_TIME_METRICS,
+            TABLE_TIME_METRICS,
+            TABLE_TIME_METRICS
+        ))?;
         Ok(())
     }
 }

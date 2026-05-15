@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tempfile::NamedTempFile;
 use xavier::agents::system3::{ActorConfig, System3Actor};
 use xavier::coordination::{KeyLendingEngine, XavierEvent, XavierEventBus};
+use xavier::ports::outbound::schema_init::SchemaInitializer;
 use xavier::secrets::audit::QmdAuditLogger;
 use xavier::tasks::models::{Task, TaskStatus};
 
@@ -13,8 +14,9 @@ async fn test_clavis_persistence_and_revocation() -> Result<()> {
     // 1. Setup SQLite database
     let db_file = NamedTempFile::new()?;
     let conn = Connection::open(db_file.path())?;
-    QmdAuditLogger::init_schema(&conn)?;
     let shared_conn = Arc::new(Mutex::new(conn));
+    let logger = QmdAuditLogger::new(shared_conn.clone());
+    logger.init_schema()?;
 
     // 2. Setup Clavis Engine with Persistent Logger
     let audit_logger = Box::new(QmdAuditLogger::new(shared_conn.clone()));

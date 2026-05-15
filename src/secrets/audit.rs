@@ -1,4 +1,5 @@
 use super::lending::AuditLogger;
+use crate::ports::outbound::schema_init::SchemaInitializer;
 use chrono::Utc;
 use parking_lot::Mutex;
 use rusqlite::params;
@@ -12,8 +13,11 @@ impl QmdAuditLogger {
     pub fn new(conn: Arc<Mutex<rusqlite::Connection>>) -> Self {
         Self { conn }
     }
+}
 
-    pub fn init_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+impl SchemaInitializer for QmdAuditLogger {
+    fn init_schema(&self) -> anyhow::Result<()> {
+        let conn = self.conn.lock();
         conn.execute(
             "CREATE TABLE IF NOT EXISTS secret_audit_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
