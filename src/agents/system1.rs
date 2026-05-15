@@ -21,6 +21,31 @@ pub struct RetrievalResult {
     pub total_results: usize,
 }
 
+impl RetrievalResult {
+    /// Truncate results to fit the token budget (greedy fill by relevance)
+    pub fn truncate_to_budget(&mut self, budget_tokens: usize) {
+        let mut total_tokens = 0;
+        let mut final_documents = Vec::new();
+
+        for doc in std::mem::take(&mut self.documents) {
+            if total_tokens + doc.token_count <= budget_tokens {
+                total_tokens += doc.token_count;
+                final_documents.push(doc);
+            } else if final_documents.is_empty() {
+                // If the first document alone exceeds budget, we still skip it to strictly enforce budget,
+                // or we could partially truncate it. The requirement says "hard cap".
+                // We'll skip it for now to be safe, as it's the simplest "hard cap" implementation.
+                break;
+            } else {
+                break;
+            }
+        }
+
+        self.documents = final_documents;
+        self.total_results = self.documents.len();
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetrievedDocument {
     pub id: String,
@@ -223,7 +248,7 @@ impl System1Retriever {
             .into_iter()
             .enumerate()
             .map(|(index, doc)| {
-                let token_count = doc.content.split_whitespace().count();
+                let token_count = estimate_tokens(&doc.content);
                 RetrievedDocument {
                     id: doc
                         .id
@@ -272,7 +297,7 @@ impl System1Retriever {
                         .iter()
                         .any(|d| d.id == doc.id.clone().unwrap_or_default() || d.path == doc.path)
                     {
-                        let token_count = doc.content.split_whitespace().count();
+                        let token_count = estimate_tokens(&doc.content);
                         documents.push(RetrievedDocument {
                             id: doc.id.unwrap_or_default(),
                             path: doc.path,
@@ -297,7 +322,7 @@ impl System1Retriever {
                         .iter()
                         .any(|d| d.id == doc.id.clone().unwrap_or_default() || d.path == doc.path)
                     {
-                        let token_count = doc.content.split_whitespace().count();
+                        let token_count = estimate_tokens(&doc.content);
                         documents.push(RetrievedDocument {
                             id: doc.id.unwrap_or_default(),
                             path: doc.path,
@@ -327,7 +352,7 @@ impl System1Retriever {
                     .collect::<Vec<_>>()
                     .join("\n");
 
-                let token_count = belief_text.split_whitespace().count();
+                let token_count = estimate_tokens(&belief_text);
                 documents.push(RetrievedDocument {
                     id: "belief_graph_context".to_string(),
                     path: "belief_graph".to_string(),
@@ -341,42 +366,28 @@ impl System1Retriever {
 
         rank_documents_for_query(query, &mut documents);
 
-        // Budget enforcement: Truncate documents to fit within max_tokens
-        let mut total_tokens = 0;
-        let mut final_documents = Vec::new();
-
-        for doc in documents {
-            if total_tokens + doc.token_count <= max_tokens {
-                total_tokens += doc.token_count;
-                final_documents.push(doc);
-            } else if final_documents.is_empty() {
-                // Always include at least the first document (possibly truncated) to avoid empty context
-                // but for now, we just skip it if it's too large, or we could truncate its content.
-                // Xavier policy is usually to skip or truncate. Let's keep it simple: skip if it blows the budget
-                // unless it's the very first one and we want at least something.
-                // Requirement: "truncate results to fit the token budget (greedy fill by relevance)"
-                break;
-            } else {
-                break;
-            }
-        }
-        documents = final_documents;
-
-        let total = documents.len();
-
-        info!(
-            "✅ System1 retrieved {} documents in {:?}",
-            total,
-            start.elapsed()
-        );
-
-        Ok(RetrievalResult {
+        let mut result = RetrievalResult {
             query: query.to_string(),
             documents,
             search_type: selected_search_type,
-            total_results: total,
-        })
+            total_results: 0, // Will be updated by truncate_to_budget
+        };
+
+        // Budget enforcement: Truncate documents to fit within max_tokens
+        result.truncate_to_budget(max_tokens);
+
+        info!(
+            "✅ System1 retrieved {} documents in {:?}",
+            result.total_results,
+            start.elapsed()
+        );
+
+        Ok(result)
     }
+}
+
+fn estimate_tokens(text: &str) -> usize {
+    (text.len() / 4).max(1)
 }
 
 fn query_terms(query: &str) -> Vec<String> {
