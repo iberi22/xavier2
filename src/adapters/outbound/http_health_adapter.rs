@@ -9,16 +9,8 @@ pub struct HttpHealthAdapter {
 }
 
 impl HttpHealthAdapter {
-    pub fn new(base_url: String) -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .build()
-            .unwrap_or_else(|_| {
-                reqwest::Client::builder()
-                    .timeout(Duration::from_secs(30))
-                    .build()
-                    .expect("failed to build reqwest client")
-            });
+    pub fn new(base_url: String, client: reqwest::Client) -> Self {
+
         Self { base_url, client }
     }
 }

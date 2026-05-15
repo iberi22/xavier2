@@ -1,4 +1,5 @@
 pub mod curation;
+pub mod extraction;
 pub mod provider;
 pub mod rate_limit;
 pub mod router;

@@ -7,6 +7,7 @@ pub mod entity_graph;
 pub mod graph_traversal;
 pub mod episodic;
 pub mod file_indexer;
+pub mod graph_store;
 pub mod layers_config;
 pub mod manager;
 pub mod patterns;

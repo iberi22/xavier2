@@ -200,9 +200,9 @@ pub struct A2AClient {
 
 impl A2AClient {
     /// Creates a client with an empty in-memory discovery registry.
-    pub fn new() -> Self {
+    pub fn new(http_client: reqwest::Client) -> Self {
         Self {
-            http_client: reqwest::Client::new(),
+            http_client,
             agent_cards: RwLock::new(HashMap::new()),
         }
     }
@@ -360,7 +360,7 @@ impl A2AClient {
 
 impl Default for A2AClient {
     fn default() -> Self {
-        Self::new()
+        Self::new(crate::utils::http::DEFAULT_HTTP_CLIENT.clone())
     }
 }
 
@@ -751,7 +751,7 @@ mod tests {
 
     #[test]
     fn client_registry_returns_registered_agent() {
-        let client = A2AClient::new();
+        let client = A2AClient::new(crate::utils::http::DEFAULT_HTTP_CLIENT.clone());
         let card = create_xavier_agent_card();
         client.register_agent("xavier", card.clone());
 
