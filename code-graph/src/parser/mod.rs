@@ -6,7 +6,7 @@ use crate::parser::java::JavaParser;
 use crate::parser::python::PythonParser;
 use crate::parser::rust::RustParser;
 use crate::parser::typescript::TypeScriptParser;
-use crate::types::{Language, Symbol};
+use crate::types::{Language, Symbol, SymbolKind};
 use tree_sitter::Node;
 
 pub mod go;
@@ -68,6 +68,18 @@ pub(crate) fn compact_node_signature(node: Node, source: &str) -> Option<String>
     } else {
         Some(compact)
     }
+}
+
+/// Arguments for pushing a symbol
+pub struct PushSymbolArgs<'src> {
+    pub node: Node<'src>,
+    pub source: &'src str,
+    pub language: Language,
+    pub kind: SymbolKind,
+    pub file_path: &'src str,
+    pub name: String,
+    pub depth: usize,
+    pub parent: Option<String>,
 }
 
 pub(crate) fn cyclomatic_complexity(node: Node, source: &str) -> f32 {
