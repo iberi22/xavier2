@@ -75,3 +75,4 @@ pub async fn chat_batch_proxy(
 
     (StatusCode::OK, Json(results)).into_response()
 }
+
