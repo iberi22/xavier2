@@ -21,6 +21,8 @@ use crate::memory::qmd_memory::QmdMemory;
 use crate::memory::schema::MemoryQueryFilters;
 use crate::scheduler::JobScheduler;
 
+pub const DEFAULT_CONTEXT_BUDGET: usize = 4000;
+
 /// Estado de la sesión
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
@@ -425,10 +427,14 @@ impl AgentRuntime {
         let (retrieval_result, reasoning_result) = loop {
             // System 1: Retrieval
             let s1_start = std::time::Instant::now();
-            let retrieval_result = self
+            let mut retrieval_result = self
                 .system1
                 .run_with_filters(&current_query, None, filters.as_ref())
                 .await?;
+
+            // Enforce hard token budget to prevent context waste
+            retrieval_result.truncate_to_budget(DEFAULT_CONTEXT_BUDGET);
+
             s1_total_ms += s1_start.elapsed().as_millis() as u64;
 
             debug!(

@@ -21,6 +21,40 @@ pub struct RetrievalResult {
     pub total_results: usize,
 }
 
+impl RetrievalResult {
+    /// Truncates retrieved documents to fit within a token budget.
+    /// Uses a rough estimation (4 chars per token).
+    pub fn truncate_to_budget(&mut self, budget_tokens: usize) {
+        let mut current_tokens = 0;
+        let mut kept_documents = Vec::new();
+
+        for doc in self.documents.drain(..) {
+            let doc_tokens = estimate_tokens(&doc.content);
+            if current_tokens + doc_tokens <= budget_tokens {
+                current_tokens += doc_tokens;
+                kept_documents.push(doc);
+            } else {
+                break;
+            }
+        }
+
+        let original_count = self.documents.len() + kept_documents.len();
+        self.documents = kept_documents;
+        self.total_results = self.documents.len();
+
+        if self.total_results < original_count {
+            info!(
+                "✂️ Context truncated to {}/{} documents (approx {}/{} tokens)",
+                self.total_results, original_count, current_tokens, budget_tokens
+            );
+        }
+    }
+}
+
+fn estimate_tokens(text: &str) -> usize {
+    text.chars().count() / 4
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetrievedDocument {
     pub id: String,
@@ -552,5 +586,49 @@ mod tests {
             value.trim().to_ascii_lowercase().as_str(),
             "1" | "true" | "yes" | "on"
         )
+    }
+
+    #[test]
+    fn test_truncate_to_budget() {
+        let mut result = RetrievalResult {
+            query: "test".to_string(),
+            documents: vec![
+                RetrievedDocument {
+                    id: "1".to_string(),
+                    path: "p1".to_string(),
+                    content: "a".repeat(40), // 10 tokens
+                    relevance_score: 1.0,
+                    metadata: serde_json::json!({}),
+                },
+                RetrievedDocument {
+                    id: "2".to_string(),
+                    path: "p2".to_string(),
+                    content: "b".repeat(40), // 10 tokens
+                    relevance_score: 0.9,
+                    metadata: serde_json::json!({}),
+                },
+                RetrievedDocument {
+                    id: "3".to_string(),
+                    path: "p3".to_string(),
+                    content: "c".repeat(40), // 10 tokens
+                    relevance_score: 0.8,
+                    metadata: serde_json::json!({}),
+                },
+            ],
+            search_type: SearchType::Keyword,
+            total_results: 3,
+        };
+
+        // Budget of 25 tokens should allow 2 docs (10 + 10 = 20 tokens)
+        result.truncate_to_budget(25);
+        assert_eq!(result.documents.len(), 2);
+        assert_eq!(result.documents[0].id, "1");
+        assert_eq!(result.documents[1].id, "2");
+        assert_eq!(result.total_results, 2);
+
+        // Budget of 5 tokens should allow 0 docs
+        result.truncate_to_budget(5);
+        assert_eq!(result.documents.len(), 0);
+        assert_eq!(result.total_results, 0);
     }
 }
