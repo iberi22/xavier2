@@ -15,8 +15,103 @@
 // - VirtualMemory: Smart content retrieval
 // ============================================
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
+
+use crate::memory::belief_graph::SharedBeliefGraph;
+use crate::memory::qmd_memory::QmdMemory;
+
+/// Virtual Memory Engine
+/// Integrates L0-L1-L2 memory hierarchy with deterministic graph traversal
+pub struct VirtualMemory {
+    pub memory: Arc<QmdMemory>,
+    pub belief_graph: Option<SharedBeliefGraph>,
+}
+
+impl VirtualMemory {
+    pub fn new(memory: Arc<QmdMemory>, belief_graph: Option<SharedBeliefGraph>) -> Self {
+        Self {
+            memory,
+            belief_graph,
+        }
+    }
+
+    /// Retrieve context using deterministic graph traversal (Belief paths)
+    /// alongside vector similarity search.
+    pub async fn page_in(&self, query: &str, limit: usize) -> Result<Vec<VirtualMemoryEntry>> {
+        let mut entries = Vec::new();
+        let mut seen_ids = std::collections::HashSet::new();
+
+        // 1. Deterministic Graph Traversal (L1/L2 index) - Depth 2 BFS
+        if let Some(graph_lock) = &self.belief_graph {
+            let graph = graph_lock.read().await;
+            let initial_relations = graph.search(query).await;
+
+            let mut queue = std::collections::VecDeque::new();
+            for rel in initial_relations {
+                queue.push_back((rel, 0)); // (Relation, Depth)
+            }
+
+            while let Some((rel, depth)) = queue.pop_front() {
+                let source_id = rel.provenance_id.clone();
+                if source_id != "unknown" {
+                    if !seen_ids.contains(&source_id) {
+                        if let Ok(Some(doc)) = self.memory.get(&source_id).await {
+                            let mut entry =
+                                VirtualMemoryEntry::new(doc.path, doc.content, doc.metadata);
+                            if let Some(doc_id) = doc.id.clone() {
+                                entry.id = doc_id;
+                            }
+                            entries.push(entry);
+                            seen_ids.insert(source_id);
+                        }
+                    }
+                }
+
+                if entries.len() >= limit {
+                    break;
+                }
+
+                // Follow relations further if depth < 1 (for total depth 2)
+                if depth < 1 {
+                    let related_concepts = graph.get_related(&rel.target);
+                    for concept in related_concepts {
+                        // Find relations where this concept is source
+                        let sub_relations = graph.get_relations();
+                        for sub_rel in sub_relations {
+                            if sub_rel.source == rel.target && sub_rel.target == concept {
+                                queue.push_back((sub_rel, depth + 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Tandem Vector Search (Probabilistic) - if we still need more context
+        if entries.len() < limit {
+            let remaining = limit - entries.len();
+            if let Ok(docs) = self.memory.search(query, remaining).await {
+                for doc in docs {
+                    let doc_id = doc.id.clone().unwrap_or_else(|| doc.path.clone());
+                    // Avoid duplicates
+                    if !seen_ids.contains(&doc_id) {
+                        let mut entry = VirtualMemoryEntry::new(doc.path, doc.content, doc.metadata);
+                        if let Some(id) = doc.id {
+                            entry.id = id;
+                        }
+                        entries.push(entry);
+                        seen_ids.insert(doc_id);
+                    }
+                }
+            }
+        }
+
+        Ok(entries)
+    }
+}
 
 /// Checkpoint for session continuity
 /// Allows AI to remember past decisions even after context reset

@@ -290,7 +290,7 @@ impl Default for MemoryManagerConfig {
 /// Intelligent Memory Manager - manages memory lifecycle autonomously
 pub struct MemoryManager {
     memory: Arc<QmdMemory>,
-    belief_graph: Option<crate::memory::belief_graph::SharedBeliefGraph>,
+    _belief_graph: Option<crate::memory::belief_graph::SharedBeliefGraph>,
     config: MemoryManagerConfig,
     /// Track access counts per document
     access_counts: std::sync::Mutex<HashMap<String, usize>>,
@@ -309,7 +309,7 @@ impl MemoryManager {
     ) -> Self {
         Self {
             memory,
-            belief_graph,
+            _belief_graph: belief_graph,
             config: MemoryManagerConfig::default(),
             access_counts: std::sync::Mutex::new(HashMap::new()),
             last_access_times: std::sync::Mutex::new(HashMap::new()),
@@ -325,7 +325,7 @@ impl MemoryManager {
     ) -> Self {
         Self {
             memory,
-            belief_graph,
+            _belief_graph: belief_graph,
             config,
             access_counts: std::sync::Mutex::new(HashMap::new()),
             last_access_times: std::sync::Mutex::new(HashMap::new()),
@@ -417,8 +417,14 @@ impl MemoryManager {
                 .copied()
                 .unwrap_or(0);
             let last_access = doc.id.as_ref().and_then(|id| times.get(id)).copied();
+
+            let mut verified = false;
+            if let (Some(graph_lock), Some(doc_id)) = (&self._belief_graph, &doc.id) {
+                verified = graph_lock.read().await.has_supporting_beliefs(doc_id).await;
+            }
+
             let quality =
-                MemoryQuality::calculate(&doc, priority, access_count, last_access, false);
+                MemoryQuality::calculate(&doc, priority, access_count, last_access, verified);
 
             let bucket = if quality.overall >= 0.7 {
                 "high"
@@ -474,8 +480,14 @@ impl MemoryManager {
                 .unwrap_or(0);
             let last_access = doc.id.as_ref().and_then(|id| times.get(id)).copied();
             let created_at = doc.id.as_ref().and_then(|id| created.get(id)).copied();
+
+            let mut verified = false;
+            if let (Some(graph_lock), Some(doc_id)) = (&self._belief_graph, &doc.id) {
+                verified = graph_lock.read().await.has_supporting_beliefs(doc_id).await;
+            }
+
             let quality =
-                MemoryQuality::calculate(&doc, priority, access_count, last_access, false);
+                MemoryQuality::calculate(&doc, priority, access_count, last_access, verified);
 
             memories.push(ManagedMemory {
                 doc,

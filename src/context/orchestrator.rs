@@ -1,11 +1,15 @@
 use serde::{Deserialize, Serialize};
 
+use std::sync::Arc;
+
 use super::{
     classifier::{ContextClassifier, ContextLevel},
     hybrid::{ContextSearchHit, HybridContextSearch},
     ContextDocument,
 };
-use crate::memory::virtual_memory::{VirtualMemoryEntry};
+use crate::memory::belief_graph::SharedBeliefGraph;
+use crate::memory::qmd_memory::QmdMemory;
+use crate::memory::virtual_memory::{VirtualMemory, VirtualMemoryEntry};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HookKind {
@@ -30,6 +34,8 @@ pub struct Orchestrator {
     classifier: ContextClassifier,
     search: HybridContextSearch,
     budgets: ContextBudgetConfig,
+    belief_graph: Option<SharedBeliefGraph>,
+    memory: Option<Arc<QmdMemory>>,
 }
 
 impl Default for Orchestrator {
@@ -44,6 +50,8 @@ impl Orchestrator {
             classifier: ContextClassifier::new(),
             search: HybridContextSearch::default(),
             budgets: ContextBudgetConfig::from_env(),
+            belief_graph: None,
+            memory: None,
         }
     }
 
@@ -52,28 +60,38 @@ impl Orchestrator {
             classifier: ContextClassifier::new(),
             search: HybridContextSearch::default(),
             budgets,
+            belief_graph: None,
+            memory: None,
         }
     }
 
-    pub fn session_start(
+    pub fn with_memory(mut self, memory: Arc<QmdMemory>, graph: Option<SharedBeliefGraph>) -> Self {
+        self.memory = Some(memory);
+        self.belief_graph = graph;
+        self
+    }
+
+    pub async fn session_start(
         &self,
         session_id: &str,
         prompt: &str,
         documents: &[ContextDocument],
     ) -> ExecutionPlan {
         self.plan(HookKind::SessionStart, session_id, prompt, documents)
+            .await
     }
 
-    pub fn precompact(
+    pub async fn precompact(
         &self,
         session_id: &str,
         prompt: &str,
         documents: &[ContextDocument],
     ) -> ExecutionPlan {
         self.plan(HookKind::Precompact, session_id, prompt, documents)
+            .await
     }
 
-    fn plan(
+    async fn plan(
         &self,
         hook: HookKind,
         session_id: &str,
@@ -89,9 +107,34 @@ impl Orchestrator {
 
         let config = self.budgets.plan(hook, level);
         let query = build_query(prompt, level, hook);
-        let selected = self
-            .search
-            .search(&session_documents, &query, config.max_documents);
+
+        let mut selected_document_ids = Vec::new();
+
+        // 1. Prioritize Deterministic Retrieval (Belief Graph)
+        if let (Some(memory), Some(graph)) = (&self.memory, &self.belief_graph) {
+            let vm = VirtualMemory::new(Arc::clone(memory), Some(Arc::clone(graph)));
+            if let Ok(graph_entries) = vm.page_in(&query, config.max_documents).await {
+                for entry in graph_entries {
+                    // Prioritize deterministic nodes by placing them at the beginning
+                    if !selected_document_ids.contains(&entry.id) {
+                        selected_document_ids.push(entry.id.clone());
+                    }
+                }
+            }
+        }
+
+        // 2. Probabilistic Retrieval (Hybrid Search) - Fill remaining budget
+        let remaining_limit = config.max_documents.saturating_sub(selected_document_ids.len());
+        if remaining_limit > 0 {
+            let hybrid_hits = self
+                .search
+                .search(&session_documents, &query, remaining_limit);
+            for hit in hybrid_hits {
+                if !selected_document_ids.contains(&hit.document.id) {
+                    selected_document_ids.push(hit.document.id);
+                }
+            }
+        }
 
         ExecutionPlan {
             hook,
@@ -101,24 +144,41 @@ impl Orchestrator {
             max_tokens: config.max_tokens,
             include_tool_calls: config.include_tool_calls,
             include_metadata: config.include_metadata,
-            selected_document_ids: selected.into_iter().map(|hit| hit.document.id).collect(),
+            selected_document_ids,
         }
     }
 
-    pub fn execute<'a>(
+    pub async fn execute(
         &self,
         plan: &ExecutionPlan,
-        documents: &'a [ContextDocument],
+        documents: &[ContextDocument],
+        session_id: &str,
     ) -> Vec<ContextDocument> {
         let mut by_id = std::collections::HashMap::new();
         for document in documents {
-            by_id.insert(document.id.as_str(), document);
+            by_id.insert(document.id.clone(), document.clone());
         }
 
         let mut selected = Vec::new();
         let mut total_tokens = 0usize;
         for document_id in &plan.selected_document_ids {
-            let Some(document) = by_id.get(document_id.as_str()).copied() else {
+            let document = if let Some(doc) = by_id.get(document_id) {
+                doc.clone()
+            } else if let Some(memory) = &self.memory {
+                // Fetch missing document from memory
+                if let Ok(Some(m_doc)) = memory.get(document_id).await {
+                    let mut c_doc = ContextDocument::new(
+                        m_doc.id.unwrap_or_else(|| document_id.clone()),
+                        session_id,
+                        "system",
+                        m_doc.content,
+                    );
+                    c_doc.metadata = m_doc.metadata;
+                    c_doc
+                } else {
+                    continue;
+                }
+            } else {
                 continue;
             };
 
@@ -359,8 +419,8 @@ mod tests {
             )
     }
 
-    #[test]
-    fn session_start_plan_is_scoped_to_session() {
+    #[tokio::test]
+    async fn session_start_plan_is_scoped_to_session() {
         let orchestrator = Orchestrator::new();
         let documents = vec![
             doc("1", "s-1", "assistant", "build regression in rust", 120, 1),
@@ -375,7 +435,7 @@ mod tests {
             ),
         ];
 
-        let plan = orchestrator.session_start("s-1", "debug the build regression", &documents);
+        let plan = orchestrator.session_start("s-1", "debug the build regression", &documents).await;
 
         assert_eq!(plan.hook, HookKind::SessionStart);
         assert_eq!(plan.level, ContextLevel::Maximum);
@@ -383,21 +443,21 @@ mod tests {
         assert!(!plan.selected_document_ids.is_empty());
     }
 
-    #[test]
-    fn precompact_plan_has_larger_budget_than_session_start() {
+    #[tokio::test]
+    async fn precompact_plan_has_larger_budget_than_session_start() {
         let orchestrator = Orchestrator::new();
         let documents = vec![doc("1", "s-1", "assistant", "quick build summary", 100, 1)];
 
-        let start = orchestrator.session_start("s-1", "continue from previous context", &documents);
-        let compact = orchestrator.precompact("s-1", "continue from previous context", &documents);
+        let start = orchestrator.session_start("s-1", "continue from previous context", &documents).await;
+        let compact = orchestrator.precompact("s-1", "continue from previous context", &documents).await;
 
         assert!(compact.max_documents > start.max_documents);
         assert!(compact.max_tokens > start.max_tokens);
         assert!(compact.include_metadata);
     }
 
-    #[test]
-    fn execute_respects_token_budget_after_first_document() {
+    #[tokio::test]
+    async fn execute_respects_token_budget_after_first_document() {
         let orchestrator = Orchestrator::new();
         let documents = vec![
             doc("1", "s-1", "assistant", "build regression in rust", 700, 1),
@@ -422,7 +482,7 @@ mod tests {
             selected_document_ids: vec!["1".to_string(), "2".to_string()],
         };
 
-        let selected = orchestrator.execute(&plan, &documents);
+        let selected = orchestrator.execute(&plan, &documents, "s-1").await;
 
         assert_eq!(selected.len(), 1);
         assert_eq!(selected[0].id, "1");

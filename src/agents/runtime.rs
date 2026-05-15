@@ -205,6 +205,7 @@ impl AgentRuntime {
         config: RuntimeConfig,
     ) -> Result<Self> {
         let semantic_cache = Arc::new(SemanticCache::new(0.95)?);
+        let orchestrator = Orchestrator::new().with_memory(Arc::clone(&memory), belief_graph.clone());
         Ok(Self {
             system1: System1Retriever::new(
                 Arc::clone(&memory),
@@ -218,7 +219,7 @@ impl AgentRuntime {
             config,
             checkpoint_manager: None,
             scheduler: None,
-            orchestrator: None,
+            orchestrator: Some(orchestrator),
             rate_manager: None,
         })
     }
@@ -307,10 +308,16 @@ impl AgentRuntime {
         let session_id = session_id.unwrap_or_else(|| ulid::Ulid::new().to_string());
         let query_fingerprint = query_fingerprint(query);
 
-        // Fire session_start hook into context orchestrator (fire-and-forget)
+        // Fire session_start hook into context orchestrator
+        let mut retrieved_docs = Vec::new();
         if let Some(ref orch) = self.orchestrator {
-            orch.session_start(&session_id, query, &[]);
-            debug!(session_id = %session_id, "context_orchestrator: session_start");
+            let plan = orch.session_start(&session_id, query, &[]).await;
+            retrieved_docs = orch.execute(&plan, &[], &session_id).await;
+            debug!(
+                session_id = %session_id,
+                docs_count = retrieved_docs.len(),
+                "context_orchestrator: session_start"
+            );
         }
 
         info!("🚀 Starting agent runtime for session: {}", session_id);
@@ -490,8 +497,14 @@ impl AgentRuntime {
 
             // Fire precompact hook before expanding context
             if let Some(ref orch) = self.orchestrator {
-                orch.precompact(&session_id, &current_query, &[]);
-                debug!(session_id = %session_id, "context_orchestrator: precompact");
+                let plan = orch.precompact(&session_id, &current_query, &[]).await;
+                let new_docs = orch.execute(&plan, &[], &session_id).await;
+                retrieved_docs.extend(new_docs);
+                debug!(
+                    session_id = %session_id,
+                    new_docs_count = retrieved_docs.len(),
+                    "context_orchestrator: precompact"
+                );
             }
 
             current_query = format!("{} (expanded context needed)", current_query);

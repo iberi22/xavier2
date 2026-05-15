@@ -8,8 +8,13 @@ use serde::{Deserialize, Serialize};
 
 /// Re-export the canonical MemoryQueryFilters from memory::schema for now,
 /// as the schema is the authoritative definition.
+pub mod belief;
+
+pub use belief::{BeliefEdge, BeliefNode};
 pub use crate::memory::schema::MemoryQueryFilters;
 pub use crate::memory::store::MemoryRecord;
+
+pub mod graph;
 
 /// Core TimeMetric domain value — NOT a DTO.
 /// Used by the TimeMetrics inbound port to decouple from HTTP DTOs.

@@ -71,6 +71,8 @@ pub struct EntityRelationRecord {
     pub support_count: usize,
     #[serde(default)]
     pub provenance: Vec<String>,
+    pub confidence_score: f32,
+    pub contradicts_edge_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -849,11 +851,14 @@ impl GraphData {
                 co_occurrence_score: relation.co_occurrence_score,
                 support_count: 0,
                 provenance: Vec::new(),
+                confidence_score: 1.0,
+                contradicts_edge_id: None,
                 created_at: relation.now,
                 updated_at: relation.now,
             });
 
         entry.weight = (entry.weight + relation.weight).min(10.0);
+        entry.confidence_score = (entry.confidence_score + relation.weight).min(1.0);
         entry.co_occurrence_score = relation.co_occurrence_score.max(entry.co_occurrence_score);
         entry.support_count += 1;
         if let Some(memory_id) = relation.memory_id {

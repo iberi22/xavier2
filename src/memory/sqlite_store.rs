@@ -12,7 +12,7 @@ use rusqlite::{params, Connection};
 use tokio::fs;
 
 use crate::checkpoint::Checkpoint;
-use crate::memory::belief_graph::BeliefRelation;
+use crate::domain::memory::belief::BeliefEdge;
 use crate::memory::schema::MemoryQueryFilters;
 use crate::memory::store::{
     filter_records, revisioned_record, stable_key, DurableWorkspaceState, MemoryBackend,
@@ -428,7 +428,7 @@ impl MemoryStore for SqliteMemoryStore {
         })
     }
 
-    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()> {
+    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefEdge>) -> Result<()> {
         let belief_key = stable_key("belief_row", &[workspace_id]);
         let conn = self.conn.lock();
         let beliefs_json = serde_json::to_string(&beliefs)?;
