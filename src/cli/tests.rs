@@ -50,6 +50,7 @@ mod tests {
             ),
             parent: None,
             complexity: Some(1.0),
+
         })
         .unwrap();
         db.insert_symbol(&Symbol {
@@ -68,6 +69,7 @@ mod tests {
             ),
             parent: None,
             complexity: Some(1.0),
+
         })
         .unwrap();
 

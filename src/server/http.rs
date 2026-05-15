@@ -18,7 +18,7 @@ use crate::{
     consistency::regularization::{CoherenceReport, RetentionRegularizer},
     consolidation::ConsolidationTask,
     embedding,
-    memory::belief_graph::{BeliefNode, BeliefRelation},
+    domain::memory::belief::{BeliefNode, BeliefEdge},
     memory::entity_graph::EntityRecord,
     memory::qmd_memory::MemoryDocument,
     memory::schema::{MemoryQueryFilters, TypedMemoryPayload},
@@ -559,7 +559,7 @@ pub struct QueryResponse {
 pub struct GraphResponse {
     pub status: String,
     pub nodes: Vec<BeliefNode>,
-    pub edges: Vec<BeliefRelation>,
+    pub edges: Vec<BeliefEdge>,
 }
 
 #[derive(Debug, Deserialize)]

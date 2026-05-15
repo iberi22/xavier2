@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use tokio::{fs, sync::RwLock};
 
 use crate::checkpoint::Checkpoint;
-use crate::memory::belief_graph::BeliefRelation;
+use crate::domain::memory::belief::BeliefEdge;
 use crate::memory::qmd_memory::MemoryDocument;
 use crate::memory::schema::{resolve_metadata, MemoryQueryFilters};
 use crate::utils::crypto::hex_encode;
@@ -137,7 +137,7 @@ pub struct DurableWorkspaceState {
     #[serde(default)]
     pub memories: Vec<MemoryRecord>,
     #[serde(default)]
-    pub beliefs: Vec<BeliefRelation>,
+    pub beliefs: Vec<BeliefEdge>,
     #[serde(default)]
     pub session_tokens: Vec<SessionTokenRecord>,
     #[serde(default)]
@@ -313,7 +313,7 @@ pub trait MemoryStore: Send + Sync {
         )
     }
     async fn load_workspace_state(&self, workspace_id: &str) -> Result<DurableWorkspaceState>;
-    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()>;
+    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefEdge>) -> Result<()>;
     async fn save_session_token(&self, workspace_id: &str, token: SessionTokenRecord)
         -> Result<()>;
     async fn is_session_token_valid(&self, workspace_id: &str, token: &str) -> Result<bool>;
@@ -501,7 +501,7 @@ impl MemoryStore for FileMemoryStore {
             .unwrap_or_default())
     }
 
-    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()> {
+    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefEdge>) -> Result<()> {
         {
             let mut state = self.state.write().await;
             let workspace = Self::workspace_mut(&mut state, workspace_id);
@@ -695,7 +695,7 @@ impl MemoryStore for InMemoryMemoryStore {
             .unwrap_or_default())
     }
 
-    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefRelation>) -> Result<()> {
+    async fn save_beliefs(&self, workspace_id: &str, beliefs: Vec<BeliefEdge>) -> Result<()> {
         let mut state = self.state.write().await;
         let workspace = state
             .workspaces

@@ -311,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_token_savings() {
-        let original = "word ".repeat(11200); // ~56KB with spaces
+        let original = "x ".repeat(56000); // 112KB with spaces to ensure keyword extraction
         let entry = VirtualMemoryEntry::new(
             "test.txt".to_string(),
             original.clone(),

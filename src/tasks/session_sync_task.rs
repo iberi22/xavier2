@@ -522,7 +522,13 @@ impl Default for SessionSyncTask {
                     }
                 };
 
-                crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(final_url)
+                let client = reqwest::Client::builder()
+                    .timeout(Duration::from_secs(30))
+                    .user_agent(concat!("xavier-sync-task/", env!("CARGO_PKG_VERSION")))
+                    .build()
+                    .expect("failed to build sync task HTTP client");
+
+                crate::adapters::outbound::http_health_adapter::HttpHealthAdapter::new(final_url, client)
             }),
             memory_store: None,
             last_check: Arc::new(TokioRwLock::new(Instant::now())),
