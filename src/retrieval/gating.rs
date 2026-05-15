@@ -440,6 +440,7 @@ mod tests {
                 metadata: serde_json::json!({}),
                 content_vector: None,
                 embedding: vec![],
+                ..Default::default()
             },
             MemoryDocument {
                 id: Some("doc2".to_string()),
@@ -448,6 +449,7 @@ mod tests {
                 metadata: serde_json::json!({}),
                 content_vector: None,
                 embedding: vec![],
+                ..Default::default()
             },
         ];
 
@@ -511,6 +513,7 @@ mod tests {
             metadata: serde_json::json!({}),
             content_vector: None,
             embedding: vec![],
+            ..Default::default()
         }];
         let sessions: Vec<SessionSummary> = vec![];
         let entities: Vec<EntityRecord> = vec![];

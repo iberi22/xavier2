@@ -6,17 +6,16 @@ use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use xavier::agents::rate_limit::RateLimitManager;
 use xavier::app::proxy_use_case::ProxyUseCase;
 use xavier::coordination::{KeyLendingEngine, XavierEventBus};
 use xavier::memory::session_store::SessionStore;
 use xavier::memory::store::MemoryStore;
 use xavier::ports::inbound::{AgentLifecyclePort, MemoryQueryPort};
-use xavier::security::SecurityService;
+use xavier::app::security_service::SecurityService;
 use xavier::tasks::store::{InMemoryTaskStore, TaskService};
 use xavier::time::TimeMetricsStore;
-use xavier::AppState;
+
 
 #[derive(Clone)]
 pub struct CliState {

@@ -16,7 +16,7 @@ use tokio::{fs, sync::RwLock};
 use crate::checkpoint::Checkpoint;
 use crate::domain::memory::belief::BeliefEdge;
 use crate::memory::qmd_memory::MemoryDocument;
-use crate::memory::schema::{resolve_metadata, MemoryQueryFilters};
+use crate::memory::schema::{resolve_metadata, MemoryLevel, MemoryQueryFilters, RelationKind};
 use crate::utils::crypto::hex_encode;
 
 // ---------------------------------------------------------------------------
@@ -79,6 +79,12 @@ pub struct MemoryRecord {
     pub revision: u64,
     pub primary: bool,
     pub parent_id: Option<String>,
+    #[serde(default)]
+    pub cluster_id: Option<String>,
+    #[serde(default)]
+    pub level: MemoryLevel,
+    #[serde(default)]
+    pub relation: Option<RelationKind>,
     #[serde(default)]
     pub revisions: Vec<MemoryRevision>,
 }
@@ -202,6 +208,9 @@ impl MemoryRecord {
             revision,
             primary,
             parent_id,
+            cluster_id: document.cluster_id.clone(),
+            level: document.level,
+            relation: document.relation.clone(),
             revisions: vec![MemoryRevision {
                 revision,
                 recorded_at: updated_at,
@@ -237,6 +246,9 @@ impl MemoryRecord {
             metadata,
             content_vector: Some(self.embedding.clone()),
             embedding: self.embedding.clone(),
+            cluster_id: self.cluster_id.clone(),
+            level: self.level,
+            relation: self.relation.clone(),
         }
     }
 
@@ -826,6 +838,21 @@ pub(crate) fn filter_records(
                 return false;
             }
             filters.is_none_or(|filters| {
+                let matches_hierarchical = filters.cluster_ids.as_ref().is_none_or(|ids| {
+                    record
+                        .cluster_id
+                        .as_ref()
+                        .map(|id| ids.contains(id))
+                        .unwrap_or(false)
+                }) && filters
+                    .levels
+                    .as_ref()
+                    .is_none_or(|levels| levels.contains(&record.level));
+
+                if !matches_hierarchical {
+                    return false;
+                }
+
                 resolve_metadata(&record.path, &record.metadata, workspace_id, None)
                     .map(|resolved| {
                         filters.workspace_id.as_deref().is_none_or(|value| {

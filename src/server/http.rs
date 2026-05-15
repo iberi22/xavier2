@@ -457,6 +457,12 @@ pub struct AddMemoryRequest {
     pub namespace: Option<crate::memory::schema::MemoryNamespace>,
     #[serde(default)]
     pub provenance: Option<crate::memory::schema::MemoryProvenance>,
+    #[serde(default)]
+    pub cluster_id: Option<String>,
+    #[serde(default)]
+    pub level: Option<crate::memory::schema::MemoryLevel>,
+    #[serde(default)]
+    pub relation: Option<crate::memory::schema::RelationKind>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -893,6 +899,9 @@ pub async fn memory_add(
         evidence_kind: payload.evidence_kind,
         namespace: payload.namespace,
         provenance: payload.provenance,
+        cluster_id: payload.cluster_id,
+        level: payload.level,
+        relation: payload.relation,
     };
     let content_vector = match embedding::build_embedder_from_env().await {
         Ok(embedder) => match embedder.encode(&content).await {

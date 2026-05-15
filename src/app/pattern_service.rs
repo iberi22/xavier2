@@ -41,6 +41,7 @@ impl PatternDiscoverPort for PatternService {
             metadata: json!({"kind": "pattern"}),
             content_vector: None,
             embedding: vec![],
+            ..Default::default()
         };
         let record = MemoryRecord::from_document(&self.pattern_workspace, &doc, true, None);
         self.storage.put(record).await?;
@@ -108,6 +109,7 @@ impl PatternDiscoverPort for PatternService {
             metadata: json!({"kind": "pattern"}),
             content_vector: None,
             embedding: vec![],
+            ..Default::default()
         };
         let updated_rec = MemoryRecord::from_document(&self.pattern_workspace, &doc, true, None);
         self.storage.put(updated_rec).await?;
@@ -152,6 +154,7 @@ impl PatternDiscoverPort for PatternService {
             metadata: json!({"kind": "pattern"}),
             content_vector: None,
             embedding: vec![],
+            ..Default::default()
         };
         let updated_rec = MemoryRecord::from_document(&self.pattern_workspace, &doc, true, None);
         self.storage.put(updated_rec).await?;

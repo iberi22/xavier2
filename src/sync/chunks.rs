@@ -121,6 +121,7 @@ mod tests {
                 metadata: serde_json::json!({}),
                 content_vector: Some(vec![0.1, 0.2]),
                 embedding: vec![0.1, 0.2],
+                ..Default::default()
             },
             MemoryDocument {
                 id: Some("doc2".to_string()),
@@ -129,6 +130,7 @@ mod tests {
                 metadata: serde_json::json!({"key": "value"}),
                 content_vector: Some(vec![]),
                 embedding: vec![],
+                ..Default::default()
             },
         ];
 

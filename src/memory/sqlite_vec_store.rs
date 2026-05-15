@@ -23,7 +23,7 @@ use tokio::sync::broadcast;
 use crate::checkpoint::Checkpoint;
 use crate::domain::memory::belief::BeliefEdge;
 use crate::memory::embedder::EmbeddingClient;
-use crate::memory::schema::MemoryQueryFilters;
+use crate::memory::schema::{MemoryLevel, MemoryQueryFilters};
 use crate::memory::sqlite_store::{
     TABLE_BELIEFS, TABLE_CHECKPOINTS, TABLE_MEMORIES, TABLE_SESSION_TOKENS,
 };
@@ -523,7 +523,6 @@ impl VecSqliteMemoryStore {
 
     fn deserialize_record(row: &rusqlite::Row) -> rusqlite::Result<MemoryRecord> {
         let metadata_str: String = row.get(4)?;
-        let revisions_str: String = row.get(11)?;
         let embedding_blob: Vec<u8> = row.get(5)?;
 
         Ok(MemoryRecord {
@@ -542,7 +541,13 @@ impl VecSqliteMemoryStore {
             revision: row.get(8)?,
             primary: row.get::<_, i32>(9)? != 0,
             parent_id: row.get(10)?,
-            revisions: serde_json::from_str(&revisions_str).unwrap_or_default(),
+            cluster_id: row.get(11)?,
+            level: MemoryLevel::parse(&row.get::<_, String>(12)?),
+            relation: row.get::<_, Option<String>>(13)?
+                .and_then(|s| serde_json::from_str(&s).ok()),
+            revisions: row.get::<_, Option<String>>(14)?
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default(),
         })
     }
 
@@ -846,7 +851,7 @@ impl VecSqliteMemoryStore {
         memory_id: &str,
     ) -> Result<Option<MemoryRecord>> {
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE id = ? AND workspace_id = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE id = ? AND workspace_id = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -1253,7 +1258,7 @@ impl VecSqliteMemoryStore {
                         let vec_sql = r#"
                             SELECT m.id, m.workspace_id, m.path, m.content, m.metadata, m.embedding,
                                    m.created_at, m.updated_at, m.revision, m.primary_flag,
-                                   m.parent_id, m.revisions, ve.distance
+                                   m.parent_id, m.cluster_id, m.level, m.relation, m.revisions, ve.distance
                             FROM memory_embeddings ve
                             JOIN memory_records m ON m.id = ve.id AND m.workspace_id = ?
                             WHERE ve.embedding MATCH vec_f32(?)
@@ -1297,7 +1302,7 @@ impl VecSqliteMemoryStore {
                     let fts_sql = r#"
                         SELECT m.id, m.workspace_id, m.path, m.content, m.metadata, m.embedding,
                                m.created_at, m.updated_at, m.revision, m.primary_flag,
-                               m.parent_id, m.revisions, bm25(f, 1.0, 0.8) AS rank
+                               m.parent_id, m.cluster_id, m.level, m.relation, m.revisions, bm25(f, 1.0, 0.8) AS rank
                         FROM memory_fts f
                         JOIN memory_records m ON m.id = f.id AND m.workspace_id = ?
                         WHERE f.memory_fts MATCH ?
@@ -1311,7 +1316,7 @@ impl VecSqliteMemoryStore {
                         {
                             let mut rank = 0usize;
                             while let Some(row) = rows.next()? {
-                                let bm25_score = row.get::<_, f32>(12).ok();
+                                let bm25_score = row.get::<_, f32>(15).ok();
                                 if let Ok(record) = Self::deserialize_record(row) {
                                     if Self::row_matches_filters(workspace_id, &record, filters) {
                                         rank += 1;
@@ -1488,7 +1493,7 @@ impl VecSqliteMemoryStore {
             let relation_path: String = row.get(4)?;
 
             let mut hit_stmt = conn.prepare(&format!(
-                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions
+                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions
                  FROM {}
                  WHERE workspace_id = ?
                    AND content LIKE '%' || ? || '%'
@@ -1567,9 +1572,12 @@ impl SchemaInitializer for VecSqliteMemoryStore {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 revision INTEGER NOT NULL DEFAULT 1,
-                primary_flag INTEGER NOT NULL DEFAULT 1,
+                primary_flag INTEGER DEFAULT 0,
                 parent_id TEXT,
-                revisions TEXT NOT NULL DEFAULT '[]'
+                cluster_id TEXT,
+                level TEXT DEFAULT 'raw',
+                relation TEXT,
+                revisions TEXT
             );
 
             CREATE TABLE IF NOT EXISTS {} (
@@ -1739,7 +1747,7 @@ impl MemoryStore for VecSqliteMemoryStore {
             };
             conn.execute(
                 &format!(
-                    "INSERT OR REPLACE INTO {} (id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                    "INSERT OR REPLACE INTO {} (id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                     TABLE_MEMORIES
                 ),
                 params![
@@ -1754,6 +1762,9 @@ impl MemoryStore for VecSqliteMemoryStore {
                     record.revision,
                     record.primary as i32,
                     record.parent_id,
+                    record.cluster_id,
+                    record.level.as_str(),
+                    serde_json::to_string(&record.relation).unwrap_or_default(),
                     serde_json::to_string(&record.revisions).unwrap_or_default(),
                 ],
             )?;
@@ -1792,7 +1803,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         // Try by id first (O(1) lookup)
         let key = Self::row_key(workspace_id, id_or_path);
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE id = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE id = ? LIMIT 1",
             TABLE_MEMORIES
         ))?;
 
@@ -1805,7 +1816,7 @@ impl MemoryStore for VecSqliteMemoryStore {
 
         // Fallback: try by path
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ? AND path = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE workspace_id = ? AND path = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -1915,7 +1926,7 @@ impl MemoryStore for VecSqliteMemoryStore {
     async fn list(&self, workspace_id: &str) -> Result<Vec<MemoryRecord>> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(&format!(
-            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ?",
+            "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE workspace_id = ?",
             TABLE_MEMORIES
         ))?;
 
@@ -2020,7 +2031,7 @@ impl MemoryStore for VecSqliteMemoryStore {
         let mut memories = Vec::new();
         {
             let mut stmt = conn.prepare(&format!(
-                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, revisions FROM {} WHERE workspace_id = ?",
+                "SELECT id, workspace_id, path, content, metadata, embedding, created_at, updated_at, revision, primary_flag, parent_id, cluster_id, level, relation, revisions FROM {} WHERE workspace_id = ?",
                 TABLE_MEMORIES
             ))?;
             let mut rows = stmt.query([workspace_id])?;
@@ -2333,6 +2344,9 @@ mod tests {
             revision: 1,
             primary: true,
             parent_id: None,
+            cluster_id: None,
+            level: MemoryLevel::Raw,
+            relation: None,
             revisions: Vec::new(),
         }
     }
@@ -2532,13 +2546,16 @@ mod tests {
                     workspace_id TEXT NOT NULL,
                     path TEXT NOT NULL,
                     content TEXT NOT NULL,
-                    metadata TEXT NOT NULL DEFAULT '{{}}',
+                    metadata TEXT NOT NULL DEFAULT '{}',
                     embedding BLOB,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     revision INTEGER NOT NULL DEFAULT 1,
                     primary_flag INTEGER NOT NULL DEFAULT 1,
                     parent_id TEXT,
+                    cluster_id TEXT,
+                    level TEXT DEFAULT 'raw',
+                    relation TEXT,
                     revisions TEXT NOT NULL DEFAULT '[]'
                 );
                 CREATE VIRTUAL TABLE memory_fts USING fts5(

@@ -1,6 +1,5 @@
 use crate::ports::outbound::health_check_port::{HealthCheckPort, HealthStatus};
 use async_trait::async_trait;
-use std::time::Duration;
 
 /// HTTP adapter that calls the /xavier/health endpoint on the remote Xavier instance.
 pub struct HttpHealthAdapter {

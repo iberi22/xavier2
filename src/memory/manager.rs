@@ -132,8 +132,14 @@ impl MemoryQuality {
         };
         let relevance_score = (base_relevance * 0.6 + priority_boost * 0.4).min(1.0);
 
-        // Accuracy: based on verification in belief graph
-        let accuracy_score = if verified { 1.0 } else { 0.5 };
+        // Accuracy: based on verification in belief graph and memory level
+        let level_accuracy = match doc.level {
+            crate::memory::schema::MemoryLevel::Belief => 1.0,
+            crate::memory::schema::MemoryLevel::Extracted => 0.8,
+            crate::memory::schema::MemoryLevel::Processed => 0.7,
+            crate::memory::schema::MemoryLevel::Raw => 0.5,
+        };
+        let accuracy_score = if verified { 1.0 } else { level_accuracy };
 
         // Freshness: based on days since last access
         let freshness_score = if let Some(last) = last_access {
@@ -1088,6 +1094,7 @@ mod tests {
             metadata: serde_json::json!({"kind": "fact"}),
             content_vector: Some(vec![0.0; 384]),
             embedding: vec![0.0; 384],
+            ..Default::default()
         };
 
         let quality = MemoryQuality::calculate(

@@ -123,6 +123,7 @@ pub async fn import_openclaw_markdown_dir(
             evidence_kind: Some(EvidenceKind::Observation),
             namespace: Some(namespace),
             provenance: Some(provenance),
+            ..Default::default()
         };
 
         let title = frontmatter
@@ -232,6 +233,7 @@ pub async fn import_engram_export(
                     evidence_kind: Some(EvidenceKind::SessionSummary),
                     namespace: Some(namespace),
                     provenance: Some(provenance),
+                    ..Default::default()
                 }),
             )
             .await?;
@@ -332,6 +334,7 @@ pub async fn import_engram_export(
                     evidence_kind: Some(EvidenceKind::Observation),
                     namespace: Some(namespace),
                     provenance: Some(provenance),
+                    ..Default::default()
                 }),
             )
             .await?;
@@ -389,6 +392,7 @@ pub async fn import_engram_export(
                     evidence_kind: Some(EvidenceKind::UserPrompt),
                     namespace: Some(namespace),
                     provenance: Some(provenance),
+                    ..Default::default()
                 }),
             )
             .await?;

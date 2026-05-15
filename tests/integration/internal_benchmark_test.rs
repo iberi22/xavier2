@@ -35,6 +35,7 @@ async fn internal_benchmark_smoke_covers_filters_and_optional_system3() {
                     source_type: Some("observation".to_string()),
                     ..MemoryProvenance::default()
                 }),
+                ..Default::default()
             }),
         )
         .await

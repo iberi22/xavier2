@@ -18,6 +18,28 @@ pub struct MemoryDocument {
     #[serde(default)]
     pub content_vector: Option<Vec<f32>>,
     pub embedding: Vec<f32>,
+    #[serde(default)]
+    pub cluster_id: Option<String>,
+    #[serde(default)]
+    pub level: crate::memory::schema::MemoryLevel,
+    #[serde(default)]
+    pub relation: Option<crate::memory::schema::RelationKind>,
+}
+
+impl Default for MemoryDocument {
+    fn default() -> Self {
+        Self {
+            id: None,
+            path: String::new(),
+            content: String::new(),
+            metadata: serde_json::json!({}),
+            content_vector: None,
+            embedding: Vec::new(),
+            cluster_id: None,
+            level: crate::memory::schema::MemoryLevel::Raw,
+            relation: None,
+        }
+    }
 }
 
 impl MemoryDocument {
@@ -35,6 +57,9 @@ impl MemoryDocument {
                 .map(|value| value.len() * std::mem::size_of::<f32>())
                 .unwrap_or_default() as u64
             + (self.embedding.len() * std::mem::size_of::<f32>()) as u64
+            + self.cluster_id.as_ref().map(|s| s.len()).unwrap_or(0) as u64
+            + 1 // level enum size estimate
+            + self.relation.as_ref().map(|r| r.name.len()).unwrap_or(0) as u64
     }
 }
 

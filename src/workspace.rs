@@ -1047,7 +1047,7 @@ impl WorkspaceState {
         };
 
         let normalized =
-            crate::memory::schema::normalize_metadata(&path, metadata, &self.config.id, typed)?;
+            crate::memory::schema::normalize_metadata(&path, metadata, &self.config.id, typed.as_ref())?;
         let mut document = crate::memory::qmd_memory::MemoryDocument {
             id: existing.id.clone(),
             path,
@@ -1055,6 +1055,12 @@ impl WorkspaceState {
             metadata: normalized,
             content_vector: Some(existing.embedding.clone()),
             embedding: existing.embedding.clone(),
+            cluster_id: typed.as_ref().and_then(|t| t.cluster_id.clone()),
+            level: typed
+                .as_ref()
+                .and_then(|t| t.level)
+                .unwrap_or(existing.level),
+            relation: typed.as_ref().and_then(|t| t.relation.clone()),
         };
 
         if let Some(object) = document.metadata.as_object_mut() {
@@ -1120,6 +1126,7 @@ impl WorkspaceState {
                         recorded_at: Some(timestamp.to_rfc3339()),
                         ..crate::memory::schema::MemoryProvenance::default()
                     }),
+                    ..crate::memory::schema::TypedMemoryPayload::default()
                 }),
             )
             .await
@@ -1438,6 +1445,7 @@ async fn seed_workspace(workspace: &WorkspaceState) -> Result<()> {
                 metadata: normalized,
                 content_vector: Some(Vec::new()),
                 embedding: Vec::new(),
+                ..Default::default()
             })
             .await?;
     }
@@ -1578,6 +1586,7 @@ mod tests {
                         ..crate::memory::schema::MemoryNamespace::default()
                     }),
                     provenance: None,
+                    ..crate::memory::schema::TypedMemoryPayload::default()
                 }),
             )
             .await

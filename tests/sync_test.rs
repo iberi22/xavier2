@@ -16,6 +16,7 @@ fn test_sync_protocol_integration() -> Result<()> {
             metadata: serde_json::json!({"test": true}),
             content_vector: None,
             embedding: vec![0.1; 128],
+            ..Default::default()
         },
         MemoryDocument {
             id: Some("doc-integration-2".to_string()),
@@ -24,6 +25,7 @@ fn test_sync_protocol_integration() -> Result<()> {
             metadata: serde_json::json!({"priority": "high"}),
             content_vector: None,
             embedding: vec![0.2; 128],
+            ..Default::default()
         },
     ];
 
@@ -73,6 +75,7 @@ fn test_sync_no_duplicate_chunks() -> Result<()> {
         metadata: serde_json::json!({}),
         content_vector: None,
         embedding: vec![],
+        ..Default::default()
     }];
 
     let hash1 = export_to_chunk(sync_dir, &docs, &mut manifest)?;

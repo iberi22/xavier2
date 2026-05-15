@@ -115,6 +115,7 @@ mod tests {
             metadata: json!({}),
             content_vector: None,
             embedding: Vec::new(),
+            ..Default::default()
         }
     }
 

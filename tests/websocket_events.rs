@@ -68,6 +68,7 @@ async fn test_add_handler(
             metadata: metadata.clone(),
             content_vector: None,
             embedding: vec![],
+            ..Default::default()
         },
         true,
         None,

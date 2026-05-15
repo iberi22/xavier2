@@ -292,6 +292,7 @@ mod tests {
             }),
             content_vector: None,
             embedding: Vec::new(),
+            ..Default::default()
         };
 
         ManagedMemory {

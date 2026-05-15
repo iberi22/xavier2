@@ -155,6 +155,7 @@ mod tests {
             metadata: serde_json::json!({"memory_importance": 0.2}),
             content_vector: None,
             embedding: Vec::new(),
+            ..Default::default()
         }];
 
         let result = fallback_reflection(&memories);

@@ -4,7 +4,9 @@ use crate::cli::config::{require_xavier_token, resolve_base_url, resolve_http_po
 use crate::cli::security::secure_cli_input;
 
 use crate::cli::mcp::start_mcp_stdio;
-use crate::cli::server::{search_memories, start_http_server, SessionContext, SwarmConfig};
+use crate::cli::server::{
+    add_memory_hierarchical, search_memories_filtered, start_http_server, SessionContext, SwarmConfig,
+};
 use crate::cli::state::Cli;
 use anyhow::{anyhow, Result};
 use clap::Subcommand;
@@ -21,18 +23,12 @@ pub static CLI_HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
         .expect("failed to build HTTP client")
 });
 
-use xavier::adapters::inbound::http::routes::{
-    sync_check_handler, time_metric_handler, verify_save_handler,
-};
 use xavier::agents::{Agent, AgentConfig};
 use xavier::memory::qmd_memory::{MemoryDocument, QmdMemory};
 
 use xavier::memory::sqlite_vec_store::VecSqliteMemoryStore;
 use xavier::memory::store::{MemoryRecord, MemoryStore};
 
-use xavier::server::panel::{
-    panel_asset, panel_index, CreateThreadRequest, PanelChatRequest, PanelChatResponse,
-};
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum Command {
@@ -41,7 +37,14 @@ pub enum Command {
     /// Start Xavier MCP-stdio server
     Mcp,
     /// Search memories
-    Search { query: String, limit: Option<usize> },
+    Search {
+        query: String,
+        limit: Option<usize>,
+        #[arg(long)]
+        cluster: Vec<String>,
+        #[arg(long)]
+        level: Vec<String>,
+    },
     /// Add a memory
     Add {
         content: String,
@@ -49,6 +52,12 @@ pub enum Command {
         /// Memory type: episodic, semantic, procedural, fact, decision, etc.
         #[arg(short, long)]
         kind: Option<String>,
+        #[arg(long)]
+        cluster: Option<String>,
+        #[arg(long)]
+        level: Option<String>,
+        #[arg(long)]
+        relation: Option<String>,
     },
     /// Recall memories with score-based display
     Recall {
@@ -203,11 +212,22 @@ impl Cli {
                 start_http_server(port).await
             }
             Command::Mcp => start_mcp_stdio().await,
-            Command::Search { query, limit } => {
+            Command::Search {
+                query,
+                limit,
+                cluster,
+                level,
+            } => {
                 let base_url = resolve_base_url();
                 println!("Searching memories via HTTP API on {}", base_url);
                 let lim = limit.unwrap_or(10);
-                search_memories(query, lim).await
+                search_memories_filtered(
+                    &query,
+                    lim,
+                    cluster.clone(),
+                    level.clone(),
+                )
+                .await
             }
             Command::Usage { cmd } => {
                 let base_url = resolve_base_url();
@@ -289,9 +309,20 @@ impl Cli {
                 content,
                 title,
                 kind,
+                cluster,
+                level,
+                relation,
             } => {
                 println!("Adding memory...");
-                add_memory(content, title.as_ref().map(|s| s.as_str()), kind.as_deref()).await
+                add_memory_hierarchical(
+                    content,
+                    title.as_ref().map(|s| s.as_str()),
+                    kind.as_deref(),
+                    cluster.as_deref(),
+                    level.as_deref(),
+                    relation.as_deref(),
+                )
+                .await
             }
             Command::Recall { query, limit } => recall_memories(query, *limit).await,
             Command::Stats => {

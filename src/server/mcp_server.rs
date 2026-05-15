@@ -929,6 +929,7 @@ pub async fn handle_tool_call(
                         evidence_kind,
                         namespace,
                         provenance,
+                        ..Default::default()
                     }),
                     None,
                     false,
@@ -1057,6 +1058,7 @@ pub async fn handle_tool_call(
                         file_path: Some(relative.replace('\\', "/")),
                         ..MemoryProvenance::default()
                     }),
+                    ..Default::default()
                 });
 
                 if let Some(existing) = workspace.workspace.get_memory_record(&path).await? {
@@ -1151,6 +1153,7 @@ pub async fn handle_tool_call(
                     file_path,
                     ..MemoryProvenance::default()
                 }),
+                ..Default::default()
             });
 
             workspace
@@ -1749,6 +1752,7 @@ mod tests {
                         ..MemoryNamespace::default()
                     }),
                     provenance: None,
+                    ..Default::default()
                 }),
             )
             .await

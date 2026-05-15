@@ -39,7 +39,7 @@ impl VirtualMemory {
     }
 
     /// Retrieve context using deterministic graph traversal (Belief paths)
-    /// alongside vector similarity search.
+    /// alongside vector similarity search and hierarchical cluster expansion.
     pub async fn page_in(&self, query: &str, limit: usize) -> Result<Vec<VirtualMemoryEntry>> {
         let mut entries = Vec::new();
         let mut seen_ids = std::collections::HashSet::new();
@@ -59,13 +59,34 @@ impl VirtualMemory {
                 if source_id != "unknown" {
                     if !seen_ids.contains(&source_id) {
                         if let Ok(Some(doc)) = self.memory.get(&source_id).await {
-                            let mut entry =
-                                VirtualMemoryEntry::new(doc.path, doc.content, doc.metadata);
-                            if let Some(doc_id) = doc.id.clone() {
-                                entry.id = doc_id;
+                            // Expansion: If this belongs to a cluster, pull cluster siblings
+                            if let Some(cluster_id) = &doc.cluster_id {
+                                let mut filters = crate::memory::schema::MemoryQueryFilters::default();
+                                filters.cluster_ids = Some(vec![cluster_id.clone()]);
+                                if let Ok(siblings) = self.memory.search_filtered(query, 5, Some(&filters)).await {
+                                    for sibling in siblings {
+                                        let sibling_id = sibling.id.clone().unwrap_or_else(|| sibling.path.clone());
+                                        if !seen_ids.contains(&sibling_id) {
+                                            let mut entry = VirtualMemoryEntry::new(sibling.path, sibling.content, sibling.metadata);
+                                            if let Some(id) = sibling.id {
+                                                entry.id = id;
+                                            }
+                                            entries.push(entry);
+                                            seen_ids.insert(sibling_id);
+                                        }
+                                    }
+                                }
                             }
-                            entries.push(entry);
-                            seen_ids.insert(source_id);
+
+                            if !seen_ids.contains(&source_id) {
+                                let mut entry =
+                                    VirtualMemoryEntry::new(doc.path, doc.content, doc.metadata);
+                                if let Some(doc_id) = doc.id.clone() {
+                                    entry.id = doc_id;
+                                }
+                                entries.push(entry);
+                                seen_ids.insert(source_id);
+                            }
                         }
                     }
                 }
@@ -98,12 +119,33 @@ impl VirtualMemory {
                     let doc_id = doc.id.clone().unwrap_or_else(|| doc.path.clone());
                     // Avoid duplicates
                     if !seen_ids.contains(&doc_id) {
-                        let mut entry = VirtualMemoryEntry::new(doc.path, doc.content, doc.metadata);
-                        if let Some(id) = doc.id {
-                            entry.id = id;
+                        // Expansion: If this belongs to a cluster, pull cluster siblings
+                        if let Some(cluster_id) = &doc.cluster_id {
+                            let mut filters = crate::memory::schema::MemoryQueryFilters::default();
+                            filters.cluster_ids = Some(vec![cluster_id.clone()]);
+                            if let Ok(siblings) = self.memory.search_filtered(query, 3, Some(&filters)).await {
+                                for sibling in siblings {
+                                    let sibling_id = sibling.id.clone().unwrap_or_else(|| sibling.path.clone());
+                                    if !seen_ids.contains(&sibling_id) {
+                                        let mut entry = VirtualMemoryEntry::new(sibling.path, sibling.content, sibling.metadata);
+                                        if let Some(id) = sibling.id {
+                                            entry.id = id;
+                                        }
+                                        entries.push(entry);
+                                        seen_ids.insert(sibling_id);
+                                    }
+                                }
+                            }
                         }
-                        entries.push(entry);
-                        seen_ids.insert(doc_id);
+
+                        if !seen_ids.contains(&doc_id) {
+                            let mut entry = VirtualMemoryEntry::new(doc.path, doc.content, doc.metadata);
+                            if let Some(id) = doc.id {
+                                entry.id = id;
+                            }
+                            entries.push(entry);
+                            seen_ids.insert(doc_id);
+                        }
                     }
                 }
             }

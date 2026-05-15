@@ -182,6 +182,9 @@ fn make_session_record(seconds_ago: i64) -> MemoryRecord {
         primary: true,
         parent_id: None,
         revisions: vec![],
+        cluster_id: None,
+        level: xavier::memory::schema::MemoryLevel::Raw,
+        relation: None,
     }
 }
 

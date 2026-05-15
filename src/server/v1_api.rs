@@ -148,6 +148,7 @@ pub async fn v1_memories_add(
                 evidence_kind: payload.evidence_kind,
                 namespace,
                 provenance: payload.provenance,
+                ..Default::default()
             }),
         )
         .await
@@ -330,6 +331,7 @@ pub async fn v1_memories_update(
                 evidence_kind: payload.evidence_kind,
                 namespace,
                 provenance: payload.provenance,
+                ..Default::default()
             }),
         )
         .await

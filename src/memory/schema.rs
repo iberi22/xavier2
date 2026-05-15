@@ -103,6 +103,56 @@ pub enum EvidenceKind {
     UserPrompt,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryLevel {
+    Raw,        // Original raw memory
+    Processed,  // Cleaned/standardized
+    Extracted,  // Entity/relationship extracted
+    Belief,     // Validated belief
+}
+
+impl Default for MemoryLevel {
+    fn default() -> Self {
+        Self::Raw
+    }
+}
+
+impl MemoryLevel {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Raw => "raw",
+            Self::Processed => "processed",
+            Self::Extracted => "extracted",
+            Self::Belief => "belief",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "processed" => Self::Processed,
+            "extracted" => Self::Extracted,
+            "belief" => Self::Belief,
+            _ => Self::Raw,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RelationKind {
+    pub name: String,
+    pub inverse: Option<String>,
+}
+
+impl RelationKind {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            inverse: None,
+        }
+    }
+}
+
 impl EvidenceKind {
     pub fn parse(value: &str) -> Option<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
@@ -165,6 +215,9 @@ pub struct TypedMemoryPayload {
     pub evidence_kind: Option<EvidenceKind>,
     pub namespace: Option<MemoryNamespace>,
     pub provenance: Option<MemoryProvenance>,
+    pub cluster_id: Option<String>,
+    pub level: Option<MemoryLevel>,
+    pub relation: Option<RelationKind>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -190,6 +243,8 @@ pub struct MemoryQueryFilters {
     pub observed_before: Option<String>,
     pub recorded_after: Option<String>,
     pub recorded_before: Option<String>,
+    pub cluster_ids: Option<Vec<String>>,
+    pub levels: Option<Vec<MemoryLevel>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -204,7 +259,7 @@ pub fn normalize_metadata(
     path: &str,
     metadata: Value,
     workspace_id: &str,
-    typed: Option<TypedMemoryPayload>,
+    typed: Option<&TypedMemoryPayload>,
 ) -> Result<Value> {
     let mut metadata = ensure_object(metadata);
     let resolved = resolve_metadata(path, &metadata, workspace_id, typed)?;
@@ -224,9 +279,9 @@ pub fn resolve_metadata(
     path: &str,
     metadata: &Value,
     workspace_id: &str,
-    typed: Option<TypedMemoryPayload>,
+    typed: Option<&TypedMemoryPayload>,
 ) -> Result<ResolvedMemoryMetadata> {
-    let typed = typed.unwrap_or_default();
+    let typed = typed.cloned().unwrap_or_default();
     let mut namespace = typed
         .namespace
         .or_else(|| {
@@ -399,6 +454,23 @@ pub fn matches_filters(
         filters.recorded_before.as_deref(),
     ) {
         return false;
+    }
+
+    if let Some(cluster_ids) = &filters.cluster_ids {
+        let actual_cluster = metadata.get("cluster_id").and_then(|v| v.as_str());
+        if !actual_cluster.is_some_and(|cluster| cluster_ids.contains(&cluster.to_string())) {
+            return false;
+        }
+    }
+
+    if let Some(levels) = &filters.levels {
+        let actual_level = metadata
+            .get("level")
+            .and_then(|v| v.as_str())
+            .map(MemoryLevel::parse);
+        if !actual_level.is_some_and(|level| levels.contains(&level)) {
+            return false;
+        }
     }
 
     true

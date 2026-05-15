@@ -262,6 +262,7 @@ impl ConsolidationTask {
                     evidence_kind: Some(EvidenceKind::SummaryFact),
                     namespace: None,
                     provenance: None,
+                    ..Default::default()
                 }),
             )
             .await?;

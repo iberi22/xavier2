@@ -55,6 +55,7 @@ mod memory_manager_tests {
                 metadata: serde_json::json!({"kind": "fact", "memory_priority": "medium"}),
                 content_vector: None,
                 embedding: vec![],
+                ..Default::default()
             });
             docs_guard.push(MemoryDocument {
                 id: Some("doc_new".to_string()),
@@ -63,6 +64,7 @@ mod memory_manager_tests {
                 metadata: serde_json::json!({"kind": "fact", "memory_priority": "medium"}),
                 content_vector: None,
                 embedding: vec![],
+                ..Default::default()
             });
         }
 
@@ -92,6 +94,7 @@ mod memory_manager_tests {
             metadata: serde_json::json!({"memory_priority": "low"}),
             content_vector: None,
             embedding: vec![],
+            ..Default::default()
         }]));
 
         let config = MemoryManagerConfig {

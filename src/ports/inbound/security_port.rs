@@ -12,6 +12,15 @@ pub struct SecureInputResult {
     pub attack_type: String,
 }
 
+impl SecureInputResult {
+    /// Returns the input to use (sanitized if available, otherwise original).
+    pub fn effective_input(&self) -> &str {
+        self.sanitized_input
+            .as_deref()
+            .unwrap_or(&self.original_input)
+    }
+}
+
 #[async_trait]
 pub trait SecurityScanPort: Send + Sync {
     async fn scan(&self, target: &str, level: Option<ThreatLevel>) -> anyhow::Result<ScanResult>;

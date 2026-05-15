@@ -41,6 +41,7 @@ async fn test_full_harvest_workflow() {
             metadata: serde_json::json!({"status": "accepted"}),
             content_vector: None,
             embedding: vec![],
+            ..Default::default()
         },
     ]))));
 

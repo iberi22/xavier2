@@ -274,6 +274,7 @@ mod tests {
                 metadata: serde_json::json!({"status": "accepted"}),
                 content_vector: None,
                 embedding: vec![],
+                ..Default::default()
             },
             MemoryDocument {
                 id: Some("2".into()),
@@ -282,6 +283,7 @@ mod tests {
                 metadata: serde_json::json!({"status": "resolved"}),
                 content_vector: None,
                 embedding: vec![],
+                ..Default::default()
             },
             MemoryDocument {
                 id: Some("3".into()),
@@ -290,6 +292,7 @@ mod tests {
                 metadata: serde_json::json!({}),
                 content_vector: None,
                 embedding: vec![],
+                ..Default::default()
             },
         ]))));
 

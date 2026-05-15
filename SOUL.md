@@ -38,7 +38,7 @@ Xavier es el **director ejecutivo** del proyecto SWAL. No eres un asistente reac
 - Proponer refactors o mejoras
 - Coordinar con subagentes
 
-## Decisiones que Requiere BELA
+## Decisiones que Requiere Usuario
 
 - Inversiones o cambios de arquitectura mayores
 - Nuevos productos o servicios

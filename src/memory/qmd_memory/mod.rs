@@ -615,7 +615,7 @@ impl QmdMemory {
     ) -> Result<String> {
         let id = ulid::Ulid::new().to_string();
         let metadata =
-            crate::memory::schema::normalize_metadata(&path, metadata, &self.workspace_id, typed)?;
+            crate::memory::schema::normalize_metadata(&path, metadata, &self.workspace_id, typed.as_ref())?;
         let metadata = index::normalize_locomo_metadata(&path, metadata);
         let variants = index::expand_document_variants(&path, &content, &metadata);
         let is_locomo_benchmark = metadata
@@ -655,6 +655,12 @@ impl QmdMemory {
                 metadata: variant_metadata,
                 content_vector: Some(variant_embedding.clone()),
                 embedding: variant_embedding,
+                cluster_id: typed.as_ref().and_then(|t| t.cluster_id.clone()),
+                level: typed
+                    .as_ref()
+                    .and_then(|t| t.level)
+                    .unwrap_or(crate::memory::schema::MemoryLevel::Raw),
+                relation: typed.as_ref().and_then(|t| t.relation.clone()),
             })
             .await?;
         }
@@ -1126,6 +1132,7 @@ mod tests {
                 metadata: serde_json::json!({}),
                 content_vector: Some(vec![0.0, 1.0]),
                 embedding: vec![0.0, 1.0],
+                ..Default::default()
             })
             .await
             .expect("test assertion");
@@ -1139,6 +1146,7 @@ mod tests {
                 metadata: serde_json::json!({}),
                 content_vector: Some(vec![1.0, 0.0]),
                 embedding: vec![1.0, 0.0],
+                ..Default::default()
             })
             .await
             .expect("test assertion");
@@ -1150,6 +1158,7 @@ mod tests {
                 metadata: serde_json::json!({}),
                 content_vector: Some(vec![0.0, 0.2]),
                 embedding: vec![0.0, 0.2],
+                ..Default::default()
             })
             .await
             .expect("test assertion");

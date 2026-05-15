@@ -741,6 +741,7 @@ mod tests {
             metadata: serde_json::json!({}),
             content_vector: None,
             embedding: vec![],
+            ..Default::default()
         }];
 
         let report = regularizer.check_coherence(&memories);
