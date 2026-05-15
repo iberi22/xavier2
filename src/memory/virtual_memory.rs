@@ -47,7 +47,7 @@ impl VirtualMemory {
         // 1. Deterministic Graph Traversal (L1/L2 index) - Depth 2 BFS
         if let Some(graph_lock) = &self.belief_graph {
             let graph = graph_lock.read().await;
-            let initial_relations = graph.search_relations(query).await;
+            let initial_relations = graph.search(query).await;
 
             let mut queue = std::collections::VecDeque::new();
             for rel in initial_relations {
@@ -55,7 +55,8 @@ impl VirtualMemory {
             }
 
             while let Some((rel, depth)) = queue.pop_front() {
-                if let Some(source_id) = rel.source_memory_id {
+                let source_id = rel.provenance_id.clone();
+                if source_id != "unknown" {
                     if !seen_ids.contains(&source_id) {
                         if let Ok(Some(doc)) = self.memory.get(&source_id).await {
                             let mut entry =
@@ -64,7 +65,7 @@ impl VirtualMemory {
                                 entry.id = doc_id;
                             }
                             entries.push(entry);
-                            seen_ids.insert(source_id.clone());
+                            seen_ids.insert(source_id);
                         }
                     }
                 }

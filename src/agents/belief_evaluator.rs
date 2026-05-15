@@ -1,5 +1,6 @@
 use crate::domain::memory::belief::BeliefEdge;
 
+#[derive(Debug, Clone)]
 pub struct BeliefEvaluator;
 
 impl BeliefEvaluator {

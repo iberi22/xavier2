@@ -17,7 +17,8 @@ impl GraphRetriever {
         let path = pathfinder.shortest_path(start, end);
 
         path.into_iter()
-            .filter_map(|rel| rel.source_memory_id)
+            .filter(|rel| rel.provenance_id != "unknown")
+            .map(|rel| rel.provenance_id.clone())
             .collect()
     }
 
@@ -29,7 +30,8 @@ impl GraphRetriever {
 
         let mut memory_ids: Vec<String> = relations
             .into_iter()
-            .filter_map(|rel| rel.source_memory_id)
+            .filter(|rel| rel.provenance_id != "unknown")
+            .map(|rel| rel.provenance_id.clone())
             .collect();
 
         memory_ids.sort();

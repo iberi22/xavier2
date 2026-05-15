@@ -10,7 +10,7 @@ use std::sync::Arc;
 use crate::domain::memory::graph::{
     GraphEntity, GraphEntityType, GraphRelationship, GraphRelationshipType,
 };
-use crate::memory::graph_store::GraphStore;
+use crate::memory::graph_store::SqliteGraphStore;
 
 /// Structured output for entity extraction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,11 +36,11 @@ pub struct ExtractionResult {
 }
 
 pub struct ExtractionService {
-    graph_store: Arc<GraphStore>,
+    graph_store: Arc<SqliteGraphStore>,
 }
 
 impl ExtractionService {
-    pub fn new(graph_store: Arc<GraphStore>) -> Self {
+    pub fn new(graph_store: Arc<SqliteGraphStore>) -> Self {
         Self { graph_store }
     }
 
@@ -134,7 +134,7 @@ mod tests {
     #[tokio::test]
     async fn test_process_text_extraction() {
         let conn = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
-        let graph_store = Arc::new(GraphStore::new(conn).unwrap());
+        let graph_store = Arc::new(SqliteGraphStore::new(conn).unwrap());
         let service = ExtractionService::new(graph_store.clone());
 
         let text = "Alice works at Acme Corp.";

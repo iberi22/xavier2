@@ -1,4 +1,5 @@
-use crate::memory::belief_graph::{BeliefGraph, BeliefRelation};
+use crate::memory::belief_graph::BeliefGraph;
+use crate::domain::memory::belief::BeliefEdge;
 
 pub struct Pathfinder<'a> {
     graph: &'a BeliefGraph,
@@ -11,7 +12,7 @@ impl<'a> Pathfinder<'a> {
 
     /// Finds the shortest path between two concepts using BFS.
     /// Returns a list of relations forming the path.
-    pub fn shortest_path(&self, start: &str, end: &str) -> Vec<BeliefRelation> {
+    pub fn shortest_path(&self, start: &str, end: &str) -> Vec<BeliefEdge> {
         let mut visited = std::collections::HashSet::new();
         let mut queue = std::collections::VecDeque::new();
 
@@ -43,7 +44,7 @@ impl<'a> Pathfinder<'a> {
 
     /// Performs a k-hop expansion from a start concept.
     /// Returns all relations within k hops.
-    pub fn k_hop_expansion(&self, start: &str, k: usize) -> Vec<BeliefRelation> {
+    pub fn k_hop_expansion(&self, start: &str, k: usize) -> Vec<BeliefEdge> {
         let mut result = Vec::new();
         let mut visited_nodes = std::collections::HashSet::new();
         let mut visited_relations = std::collections::HashSet::new();
@@ -81,7 +82,7 @@ impl<'a> Pathfinder<'a> {
     }
 
     /// Finds all possible paths from start to end up to max_depth.
-    pub fn all_paths(&self, start: &str, end: &str, max_depth: usize) -> Vec<Vec<BeliefRelation>> {
+    pub fn all_paths(&self, start: &str, end: &str, max_depth: usize) -> Vec<Vec<BeliefEdge>> {
         let mut results = Vec::new();
         let relations = self.graph.get_relations();
         self.find_all_paths_recursive(start, end, max_depth, Vec::new(), &relations, &mut results);
@@ -93,9 +94,9 @@ impl<'a> Pathfinder<'a> {
         current: &str,
         end: &str,
         depth_left: usize,
-        current_path: Vec<BeliefRelation>,
-        all_relations: &[BeliefRelation],
-        results: &mut Vec<Vec<BeliefRelation>>,
+        current_path: Vec<BeliefEdge>,
+        all_relations: &[BeliefEdge],
+        results: &mut Vec<Vec<BeliefEdge>>,
     ) {
         if current == end {
             if !current_path.is_empty() {
@@ -141,10 +142,10 @@ mod tests {
         graph.add_node("C".to_string(), 1.0);
         graph.add_node("D".to_string(), 1.0);
 
-        graph.add_relation("A".to_string(), "B".to_string(), "related_to".to_string(), 1.0, Some("mem1".to_string()), None, None);
-        graph.add_relation("B".to_string(), "C".to_string(), "related_to".to_string(), 1.0, Some("mem2".to_string()), None, None);
-        graph.add_relation("A".to_string(), "D".to_string(), "related_to".to_string(), 1.0, Some("mem3".to_string()), None, None);
-        graph.add_relation("D".to_string(), "C".to_string(), "related_to".to_string(), 1.0, Some("mem4".to_string()), None, None);
+        graph.add_relation("A".to_string(), "B".to_string(), "related_to".to_string(), Some("mem1".to_string()), None).await.unwrap();
+        graph.add_relation("B".to_string(), "C".to_string(), "related_to".to_string(), Some("mem2".to_string()), None).await.unwrap();
+        graph.add_relation("A".to_string(), "D".to_string(), "related_to".to_string(), Some("mem3".to_string()), None).await.unwrap();
+        graph.add_relation("D".to_string(), "C".to_string(), "related_to".to_string(), Some("mem4".to_string()), None).await.unwrap();
 
         let pathfinder = Pathfinder::new(&graph);
 

@@ -419,7 +419,7 @@ impl MemoryManager {
             let last_access = doc.id.as_ref().and_then(|id| times.get(id)).copied();
 
             let mut verified = false;
-            if let (Some(graph_lock), Some(doc_id)) = (&self.belief_graph, &doc.id) {
+            if let (Some(graph_lock), Some(doc_id)) = (&self._belief_graph, &doc.id) {
                 verified = graph_lock.read().await.has_supporting_beliefs(doc_id).await;
             }
 
@@ -482,7 +482,7 @@ impl MemoryManager {
             let created_at = doc.id.as_ref().and_then(|id| created.get(id)).copied();
 
             let mut verified = false;
-            if let (Some(graph_lock), Some(doc_id)) = (&self.belief_graph, &doc.id) {
+            if let (Some(graph_lock), Some(doc_id)) = (&self._belief_graph, &doc.id) {
                 verified = graph_lock.read().await.has_supporting_beliefs(doc_id).await;
             }
 

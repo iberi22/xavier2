@@ -90,7 +90,7 @@ impl MemoryStore for MockMemoryStore {
     async fn save_beliefs(
         &self,
         _workspace_id: &str,
-        _beliefs: Vec<xavier::memory::belief_graph::BeliefRelation>,
+        _beliefs: Vec<xavier::domain::memory::belief::BeliefEdge>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
