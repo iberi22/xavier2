@@ -5,7 +5,7 @@
 [![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/iberi22/xavier/actions)
 
-Xavier is a **Rust-based memory runtime for AI agents** with HTTP, CLI, and MCP entry points. It stores, retrieves, and manages vector embeddings and structured memory over a SQLite-backed store, giving agents fast contextual recall without external dependencies.
+Xavier is a **Rust-based memory runtime for AI agents** with HTTP, CLI, and MCP entry points. It stores, retrieves, and manages vector embeddings, hierarchical memory, and semantic relationships over a SQLite-backed store, giving agents fast contextual recall without external dependencies.
 
 ## Quick Start
 
@@ -16,23 +16,18 @@ cargo install xavier
 # Option 2: Run with Docker
 docker run -p 8006:8006 -v xavier-data:/data ghcr.io/iberi22/xavier:latest
 
-# Start the server with a token
+# Start the server
 export XAVIER_TOKEN=your-secret-token
 xavier http
 
 # Add and search memory
 xavier add "AI agents should always verify their sources" "agent-guidelines"
 xavier search "agent guidelines"
-
-# Build a daily chronicle from local project activity
-xavier chronicle harvest --since 2026-05-01
-xavier chronicle generate
-xavier chronicle preview
 ```
 
 ## Installer
 
-Xavier2 ships with an interactive **TUI setup wizard** that configures everything in 6 steps — no manual config editing needed.
+Xavier ships with an interactive **TUI setup wizard** that configures everything in 6 steps — no manual config editing needed.
 
 ### One-liner install
 
@@ -46,66 +41,17 @@ irm https://raw.githubusercontent.com/iberi22/xavier/main/install.ps1 | iex
 curl -fsSL https://raw.githubusercontent.com/iberi22/xavier/main/install.sh | bash
 ```
 
-The wizard walks you through authentication token, server bind, storage path, and embedding provider selection.
+## Key Features
 
-### Setup Wizard Screenshots
-
-<p align="center">
-  <img src="docs/screenshots/welcome.png" width="32%" alt="Welcome">
-  <img src="docs/screenshots/token.png" width="32%" alt="Token Setup">
-  <img src="docs/screenshots/server.png" width="32%" alt="Server Config">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/storage.png" width="32%" alt="Storage Config">
-  <img src="docs/screenshots/embeddings.png" width="32%" alt="Embeddings Provider">
-  <img src="docs/screenshots/review.png" width="32%" alt="Review &amp; Save">
-</p>
-
-### Manual install
-
-```bash
-# From source
-cargo install xavier
-
-# Run the setup wizard
-xavier-installer
-
-# Or skip wizard and configure manually
-cp config/xavier.config.example.json config/xavier.config.json
-```
-
-### Run as a service (auto-start)
-
-**Linux (systemd):**
-```bash
-curl -fsSL https://raw.githubusercontent.com/iberi22/xavier/main/install.sh | bash
-# systemd service is auto-created. Enable and start:
-systemctl --user enable --now xavier2
-```
-
-**Windows (Scheduled Task):**
-```powershell
-irm https://raw.githubusercontent.com/iberi22/xavier/main/install.ps1 | iex -args "-AsService"
-# Xavier2 auto-starts at logon. Manage with:
-schtasks /run  /tn Xavier2MemoryRuntime     # Start now
-schtasks /end  /tn Xavier2MemoryRuntime     # Stop
-schtasks /query /tn Xavier2MemoryRuntime    # Status
-```
-
-## Features
-
-- **HTTP API** — JSON REST endpoints for memory CRUD with token-based auth
-- **CLI client** — `add`, `search`, `stats` commands for quick interaction
-- **MCP server** — stdio-based [Model Context Protocol](https://modelcontextprotocol.io) server exposing `search`, `add`, and `stats` tools
-- **SQLite-backed** — Persistent, zero-infrastructure storage with vector search support
-- **Public dataset export** — Generate read-optimized NDJSON datasets for agent bootstrap (see [Public Export](#public-dataset-export))
-- **Hybrid retrieval** — Building blocks for combining keyword and semantic search
-- **TUI installer** — Interactive terminal wizard (6 steps) for painless setup on Windows, Linux, and macOS
-- **Service/daemon support** — systemd (Linux) + scheduled task (Windows) for auto-start at boot/logon
-- **Agent runtime modules** — Ready-to-use runtime components for agent memory workflows
-- **Chronicle workflow** — `xavier chronicle` can harvest project activity, generate daily technical posts, preview them, and publish Markdown outputs
-- **Plugin system** — Extensible enterprise integrations (Cortex, PgHeart)
+- **Belief Graph & GraphRAG** — Hierarchical memory with semantic relationship mapping for deep context.
+- **Native Security Scanner** — Built-in multi-layer protection against prompt injection and sensitive data leaks.
+- **HTTP API** — JSON REST endpoints for memory CRUD with token-based auth.
+- **CLI Client** — High-performance `add`, `search`, and `stats` commands.
+- **MCP Server** — stdio-based [Model Context Protocol](https://modelcontextprotocol.io) server.
+- **TUI Setup Wizard** — Interactive installer (6 steps) for Windows, Linux, and macOS.
+- **Service & Daemon Support** — systemd (Linux) and Scheduled Tasks (Windows) for background execution.
+- **Chronicle Workflow** — Automated harvesting of project activity to generate technical documentation.
+- **Plugin System** — Extensible enterprise integrations (Cortex, PgHeart).
 
 ## Enterprise Plugins
 
