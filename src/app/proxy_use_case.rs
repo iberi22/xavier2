@@ -8,11 +8,13 @@ use crate::domain::proxy::{ChatChoice, ChatCompletion, ChatMessage, ProxyChatCom
 use crate::agents::rate_limit::RateLimitManager;
 use crate::agents::router::{load_routing_policy, RouteCategory, Router};
 use crate::agents::provider::{ModelProviderClient, ModelProviderConfig, LLM_TIMEOUT};
+use crate::ports::outbound::ThreatDetectionPort;
 
 pub struct ProxyUseCase {
     pub rate_manager: Arc<RateLimitManager>,
     pub prompt_cache: Arc<Mutex<HashMap<String, Vec<String>>>>,
     pub router: Router,
+    pub threat_detector: Option<Arc<dyn ThreatDetectionPort>>,
 }
 
 impl ProxyUseCase {
@@ -24,10 +26,31 @@ impl ProxyUseCase {
             rate_manager,
             prompt_cache,
             router: Router::new(),
+            threat_detector: None,
         }
     }
 
+    pub fn with_threat_detector(mut self, threat_detector: Arc<dyn ThreatDetectionPort>) -> Self {
+        self.threat_detector = Some(threat_detector);
+        self
+    }
+
     pub async fn execute(&self, cmd: ProxyChatCommand) -> Result<ChatCompletion, ProxyError> {
+        // 0. Threat Detection
+        if let Some(ref detector) = self.threat_detector {
+            for msg in &cmd.messages {
+                if let Some(content) = msg["content"].as_str() {
+                    let clean = detector.scan_and_log(content, "proxy").await
+                        .map_err(|e| ProxyError::ProviderError(format!("Security check failed: {}", e)))?;
+
+                    if !clean {
+                        warn!("Proxy request blocked: security threat detected");
+                        return Err(ProxyError::ProviderError("Security policy violation detected".to_string()));
+                    }
+                }
+            }
+        }
+
         // 1. Resolve Provider based on Rate Limits
         let providers = [
             "opencode-go",
