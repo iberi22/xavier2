@@ -13,7 +13,12 @@ impl HttpHealthAdapter {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
+            .unwrap_or_else(|_| {
+                reqwest::Client::builder()
+                    .timeout(Duration::from_secs(30))
+                    .build()
+                    .expect("failed to build reqwest client")
+            });
         Self { base_url, client }
     }
 }

@@ -34,6 +34,7 @@ use xavier::adapters::inbound::http::routes::{
 use xavier::adapters::outbound::http_health_adapter::HttpHealthAdapter;
 use xavier::agents::rate_limit::RateLimitManager;
 use xavier::agents::system3::{ActorConfig, System3Actor};
+use xavier::app::proxy_use_case::ProxyUseCase;
 use xavier::app::qmd_memory_adapter::QmdMemoryAdapter;
 use xavier::coordination::SimpleAgentRegistry;
 use xavier::coordination::{KeyLendingEngine, XavierEventBus};
@@ -182,6 +183,8 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     let panel_root = state_panel_root(&workspace_dir, &workspace_id);
     let panel_store = Arc::new(SessionStore::new(panel_root).await?);
 
+    let prompt_cache = Arc::new(parking_lot::Mutex::new(HashMap::new()));
+    let proxy_use_case = Arc::new(ProxyUseCase::new(rate_manager.clone(), prompt_cache.clone()));
     let secrets_engine = Arc::new(KeyLendingEngine::new(Box::new(
         xavier::secrets::audit::QmdAuditLogger::new(shared_conn.clone()),
     )));
@@ -239,7 +242,8 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         event_bus,
         tasks,
         rate_manager: rate_manager.clone(),
-        prompt_cache: Arc::new(parking_lot::Mutex::new(HashMap::new())),
+        prompt_cache,
+        proxy_use_case,
     };
 
     info!(
@@ -264,7 +268,10 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         .route("/code/context", post(code_context_handler))
         .route("/code/stats", get(code_stats_handler))
         .route("/code/dependencies", post(code_dependencies_handler))
-        .route("/code/reverse-dependencies", post(code_reverse_dependencies_handler))
+        .route(
+            "/code/reverse-dependencies",
+            post(code_reverse_dependencies_handler),
+        )
         .route("/code/call-chain", post(code_call_chain_handler))
         .route("/code/hubs", get(code_hubs_handler))
         .route("/code/hotspots", get(code_hotspots_handler))
@@ -1302,7 +1309,10 @@ pub async fn code_call_chain_handler(
 }
 
 pub async fn code_hubs_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
-    match state.code_query.hubs(default_min_degree(), default_graph_limit()) {
+    match state
+        .code_query
+        .hubs(default_min_degree(), default_graph_limit())
+    {
         Ok(hubs) => {
             let (items, truncated, estimated_tokens) =
                 truncate_json_items(hubs, default_graph_budget());
@@ -1322,7 +1332,9 @@ pub async fn code_hubs_handler(State(state): State<CliState>) -> impl axum::resp
     }
 }
 
-pub async fn code_hotspots_handler(State(state): State<CliState>) -> impl axum::response::IntoResponse {
+pub async fn code_hotspots_handler(
+    State(state): State<CliState>,
+) -> impl axum::response::IntoResponse {
     match state
         .code_query
         .hotspots(default_min_complexity(), default_graph_limit())
@@ -1391,7 +1403,9 @@ fn code_graph_edges_response(
             .code_query
             .reverse_dependencies(&query, edge_type, depth, limit)
     } else {
-        state.code_query.dependencies(&query, edge_type, depth, limit)
+        state
+            .code_query
+            .dependencies(&query, edge_type, depth, limit)
     };
 
     match result {
@@ -1813,7 +1827,10 @@ pub async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let base_url = resolve_base_url();
     let url = format!("{}/memory/search", base_url);
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .expect("failed to build reqwest client");
     let response = client
         .post(&url)
         .header("X-Xavier-Token", &token)
