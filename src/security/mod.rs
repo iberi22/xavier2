@@ -6,6 +6,7 @@
 pub mod anticipator;
 pub mod auth;
 pub mod detections;
+pub mod threat_store;
 pub mod layers;
 pub mod prompt_guard;
 pub mod scanner;

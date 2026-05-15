@@ -3,6 +3,7 @@
 //! Patterns are code/text patterns discovered by agents (Codex, subagents) that have been
 //! verified and can be reused across the codebase.
 
+use crate::ports::outbound::schema_init::SchemaInitializer;
 use chrono::Utc;
 use parking_lot::Mutex;
 use rusqlite::{params, Connection};
@@ -132,34 +133,6 @@ impl PatternStore {
     /// Create a new PatternStore
     pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
         Self { conn }
-    }
-
-    /// Initialize the patterns table
-    pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS patterns (
-                id TEXT PRIMARY KEY,
-                category TEXT NOT NULL,
-                pattern TEXT NOT NULL,
-                project TEXT NOT NULL,
-                discovered_by TEXT NOT NULL,
-                confidence REAL NOT NULL DEFAULT 0.5,
-                source_file TEXT DEFAULT '',
-                source_occurrences INTEGER DEFAULT 0,
-                source_snippet TEXT DEFAULT '',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                usage_count INTEGER DEFAULT 0,
-                verification TEXT DEFAULT 'pending'
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_patterns_project ON patterns(project);
-            CREATE INDEX IF NOT EXISTS idx_patterns_category ON patterns(category);
-            CREATE INDEX IF NOT EXISTS idx_patterns_confidence ON patterns(confidence);
-            "#,
-        )?;
-        Ok(())
     }
 
     /// Discover/register a new pattern
@@ -351,6 +324,37 @@ impl PatternStore {
         )?;
 
         Ok(affected)
+    }
+}
+
+impl SchemaInitializer for PatternStore {
+    /// Initialize the patterns table
+    fn init_schema(&self) -> anyhow::Result<()> {
+        let conn = self.conn.lock();
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS patterns (
+                id TEXT PRIMARY KEY,
+                category TEXT NOT NULL,
+                pattern TEXT NOT NULL,
+                project TEXT NOT NULL,
+                discovered_by TEXT NOT NULL,
+                confidence REAL NOT NULL DEFAULT 0.5,
+                source_file TEXT DEFAULT '',
+                source_occurrences INTEGER DEFAULT 0,
+                source_snippet TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                usage_count INTEGER DEFAULT 0,
+                verification TEXT DEFAULT 'pending'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_patterns_project ON patterns(project);
+            CREATE INDEX IF NOT EXISTS idx_patterns_category ON patterns(category);
+            CREATE INDEX IF NOT EXISTS idx_patterns_confidence ON patterns(confidence);
+            "#,
+        )?;
+        Ok(())
     }
 }
 

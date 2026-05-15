@@ -1,6 +1,7 @@
 pub mod agent_port;
 pub mod embedding_port;
 pub mod health_check_port;
+pub mod schema_init;
 
 pub use agent_port::AgentRuntimePort;
 pub use embedding_port::EmbeddingPort;

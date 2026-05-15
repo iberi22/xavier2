@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use crate::domain::proxy::{ChatChoice, ChatCompletion, ChatMessage, ProxyChatCommand, ProxyError, Usage};
 use crate::agents::rate_limit::RateLimitManager;
 use crate::agents::router::{load_routing_policy, RouteCategory, Router};
-use crate::agents::provider::{ModelProviderClient, ModelProviderConfig};
+use crate::agents::provider::{ModelProviderClient, ModelProviderConfig, LLM_TIMEOUT};
 
 pub struct ProxyUseCase {
     pub rate_manager: Arc<RateLimitManager>,
@@ -124,11 +124,14 @@ impl ProxyUseCase {
             .with_model_override(Some(requested_model.clone()));
         let client = ModelProviderClient::new(config);
 
-        match client
-            .generate_text_with_cache(system_msg, user_msg, is_cache_hit)
-            .await
-        {
-            Ok(text) => {
+        let result = tokio::time::timeout(
+            LLM_TIMEOUT,
+            client.generate_text_with_cache(system_msg, user_msg, is_cache_hit),
+        )
+        .await;
+
+        match result {
+            Ok(Ok(text)) => {
                 // 4. Track Usage and Cost
                 let prompt_tokens = user_msg.len() / 4;
                 let completion_tokens = text.len() / 4;
@@ -180,16 +183,40 @@ impl ProxyUseCase {
                     },
                 })
             }
-            Err(e) => {
-                warn!("Provider {} failed: {}", provider_name, e);
+            Ok(Err(e)) => {
+                let err_msg = e.to_string();
+                if err_msg.contains("timed out") {
+                    warn!("Provider {} timed out (internal)", provider_name);
+                    if let Err(track_err) = self
+                        .rate_manager
+                        .track_request(&provider_name, 0, 504, 0.0, false)
+                        .await
+                    {
+                        warn!("Failed to track timeout request: {}", track_err);
+                    }
+                    Err(ProxyError::ProviderError(format!("Provider {} timed out after {}s", provider_name, LLM_TIMEOUT.as_secs())))
+                } else {
+                    warn!("Provider {} failed: {}", provider_name, e);
+                    if let Err(track_err) = self
+                        .rate_manager
+                        .track_request(&provider_name, 0, 500, 0.0, false)
+                        .await
+                    {
+                        warn!("Failed to track failed request: {}", track_err);
+                    }
+                    Err(ProxyError::ProviderError(e.to_string()))
+                }
+            }
+            Err(_) => {
+                warn!("Provider {} timed out", provider_name);
                 if let Err(track_err) = self
                     .rate_manager
-                    .track_request(&provider_name, 0, 500, 0.0, false)
+                    .track_request(&provider_name, 0, 504, 0.0, false)
                     .await
                 {
-                    warn!("Failed to track failed request: {}", track_err);
+                    warn!("Failed to track timeout request: {}", track_err);
                 }
-                Err(ProxyError::ProviderError(e.to_string()))
+                Err(ProxyError::ProviderError(format!("Provider {} timed out after {}s", provider_name, LLM_TIMEOUT.as_secs())))
             }
         }
     }
@@ -200,12 +227,14 @@ mod tests {
     use super::*;
     use rusqlite::Connection;
     use crate::agents::rate_limit::RateLimitManager;
+    use crate::ports::outbound::schema_init::SchemaInitializer;
 
     #[tokio::test]
     async fn test_proxy_use_case_rate_limited() {
         let conn = Connection::open_in_memory().unwrap();
-        RateLimitManager::init_schema(&conn).unwrap();
-        let rate_manager = Arc::new(RateLimitManager::new(Arc::new(Mutex::new(conn))));
+        let shared_conn = std::sync::Arc::new(parking_lot::Mutex::new(conn));
+        let rate_manager = std::sync::Arc::new(RateLimitManager::new(shared_conn.clone()));
+        rate_manager.init_schema().unwrap();
         let prompt_cache = Arc::new(Mutex::new(HashMap::new()));
 
         // Mark all providers as rate limited
