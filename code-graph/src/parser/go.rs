@@ -1,7 +1,7 @@
 //! Go parser using tree-sitter.
 
 use crate::error::{GraphError, Result};
-use crate::parser::{compact_node_signature, cyclomatic_complexity};
+use crate::parser::{compact_node_signature, cyclomatic_complexity, PushSymbolArgs};
 use crate::types::{Language, Symbol, SymbolKind};
 use tree_sitter::{Node, Parser};
 
@@ -102,13 +102,17 @@ impl GoParser {
                         })
                         .unwrap_or(SymbolKind::Symbol);
                     self.push_symbol(
-                        child,
-                        source,
-                        file_path,
                         symbols,
-                        name.to_string(),
-                        kind,
-                        None,
+                        PushSymbolArgs {
+                            node: child,
+                            source,
+                            language: Language::Go,
+                            kind,
+                            file_path,
+                            name: name.to_string(),
+                            depth: 0,
+                            parent: None,
+                        },
                     );
                 }
             }
@@ -127,13 +131,17 @@ impl GoParser {
         if let Some(name_node) = node.child_by_field_name("name") {
             if let Ok(name) = name_node.utf8_text(source.as_bytes()) {
                 self.push_symbol(
-                    node,
-                    source,
-                    file_path,
                     symbols,
-                    name.to_string(),
-                    kind,
-                    parent,
+                    PushSymbolArgs {
+                        node,
+                        source,
+                        language: Language::Go,
+                        kind,
+                        file_path,
+                        name: name.to_string(),
+                        depth: 0,
+                        parent,
+                    },
                 );
             }
         }
@@ -143,44 +151,39 @@ impl GoParser {
         let raw = node.utf8_text(source.as_bytes()).unwrap_or_default();
         for part in raw.split('"').skip(1).step_by(2) {
             self.push_symbol(
-                node,
-                source,
-                file_path,
                 symbols,
-                part.to_string(),
-                SymbolKind::Import,
-                None,
+                PushSymbolArgs {
+                    node,
+                    source,
+                    language: Language::Go,
+                    kind: SymbolKind::Import,
+                    file_path,
+                    name: part.to_string(),
+                    depth: 0,
+                    parent: None,
+                },
             );
         }
     }
 
-    fn push_symbol(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-        symbols: &mut Vec<Symbol>,
-        name: String,
-        kind: SymbolKind,
-        parent: Option<String>,
-    ) {
-        let start = node.start_position();
-        let end = node.end_position();
-        let complexity = matches!(kind, SymbolKind::Function | SymbolKind::Method)
-            .then(|| cyclomatic_complexity(node, source));
+    fn push_symbol(&self, symbols: &mut Vec<Symbol>, args: PushSymbolArgs<'_>) {
+        let start = args.node.start_position();
+        let end = args.node.end_position();
+        let complexity = matches!(args.kind, SymbolKind::Function | SymbolKind::Method)
+            .then(|| cyclomatic_complexity(args.node, args.source));
         symbols.push(Symbol {
             id: None,
             stable_id: None,
-            name,
-            kind,
+            name: args.name,
+            kind: args.kind,
             lang: Language::Go,
-            file_path: file_path.to_string(),
+            file_path: args.file_path.to_string(),
             start_line: (start.row + 1) as u32,
             end_line: (end.row + 1) as u32,
             start_col: start.column as u32,
             end_col: end.column as u32,
-            signature: compact_node_signature(node, source),
-            parent,
+            signature: compact_node_signature(args.node, args.source),
+            parent: args.parent,
             complexity,
         });
     }

@@ -1,7 +1,7 @@
 //! Python parser using tree-sitter.
 
 use crate::error::{GraphError, Result};
-use crate::parser::{compact_node_signature, cyclomatic_complexity};
+use crate::parser::{compact_node_signature, cyclomatic_complexity, PushSymbolArgs};
 use crate::types::{Language, Symbol, SymbolKind};
 use tree_sitter::{Node, Parser};
 
@@ -100,7 +100,19 @@ impl PythonParser {
     ) -> Option<String> {
         let name_node = node.child_by_field_name("name")?;
         let name = name_node.utf8_text(source.as_bytes()).ok()?.to_string();
-        self.push_symbol(node, source, file_path, symbols, name.clone(), kind, parent);
+        self.push_symbol(
+            symbols,
+            PushSymbolArgs {
+                node,
+                source,
+                language: Language::Python,
+                kind,
+                file_path,
+                name: name.clone(),
+                depth: 0,
+                parent,
+            },
+        );
         Some(name)
     }
 
@@ -115,43 +127,38 @@ impl PythonParser {
             .trim()
             .to_string();
         self.push_symbol(
-            node,
-            source,
-            file_path,
             symbols,
-            name,
-            SymbolKind::Import,
-            None,
+            PushSymbolArgs {
+                node,
+                source,
+                language: Language::Python,
+                kind: SymbolKind::Import,
+                file_path,
+                name,
+                depth: 0,
+                parent: None,
+            },
         );
     }
 
-    fn push_symbol(
-        &self,
-        node: Node,
-        source: &str,
-        file_path: &str,
-        symbols: &mut Vec<Symbol>,
-        name: String,
-        kind: SymbolKind,
-        parent: Option<String>,
-    ) {
-        let start = node.start_position();
-        let end = node.end_position();
+    fn push_symbol(&self, symbols: &mut Vec<Symbol>, args: PushSymbolArgs<'_>) {
+        let start = args.node.start_position();
+        let end = args.node.end_position();
         let complexity =
-            (kind == SymbolKind::Function).then(|| cyclomatic_complexity(node, source));
+            (args.kind == SymbolKind::Function).then(|| cyclomatic_complexity(args.node, args.source));
         symbols.push(Symbol {
             id: None,
             stable_id: None,
-            name,
-            kind,
+            name: args.name,
+            kind: args.kind,
             lang: Language::Python,
-            file_path: file_path.to_string(),
+            file_path: args.file_path.to_string(),
             start_line: (start.row + 1) as u32,
             end_line: (end.row + 1) as u32,
             start_col: start.column as u32,
             end_col: end.column as u32,
-            signature: compact_node_signature(node, source),
-            parent,
+            signature: compact_node_signature(args.node, args.source),
+            parent: args.parent,
             complexity,
         });
     }
