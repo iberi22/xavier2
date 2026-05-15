@@ -150,11 +150,19 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     let memory_port =
         Arc::new(QmdMemoryAdapter::new(Arc::clone(&memory))) as Arc<dyn MemoryQueryPort>;
 
+    let http_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .user_agent(concat!("xavier-server/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| anyhow!("Failed to build HTTP client: {}", e))?;
+
     // Register global time metrics port for HTTP handler (wrap in adapter)
     use xavier::adapters::inbound::http::routes::{init_health_port, init_time_store};
     use xavier::adapters::inbound::http::time_metrics_adapter::TimeMetricsAdapter;
-    let health_adapter = Arc::new(HttpHealthAdapter::new(resolve_base_url_for_port(port)))
-        as Arc<dyn HealthCheckPort>;
+    let health_adapter = Arc::new(HttpHealthAdapter::new(
+        resolve_base_url_for_port(port),
+        http_client.clone(),
+    )) as Arc<dyn HealthCheckPort>;
     let time_adapter =
         Arc::new(TimeMetricsAdapter::new(Arc::clone(&time_store))) as Arc<dyn TimeMetricsPort>;
     init_time_store(time_adapter);
@@ -244,6 +252,8 @@ pub async fn start_http_server(port: u16) -> Result<()> {
         rate_manager: rate_manager.clone(),
         prompt_cache,
         proxy_use_case,
+        http_client,
+
     };
 
     info!(
@@ -1827,10 +1837,8 @@ pub async fn search_memories(query: &str, limit: usize) -> Result<()> {
     let base_url = resolve_base_url();
     let url = format!("{}/memory/search", base_url);
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .expect("failed to build reqwest client");
+    let client = crate::cli::commands::CLI_HTTP_CLIENT.clone();
+
     let response = client
         .post(&url)
         .header("X-Xavier-Token", &token)

@@ -7,19 +7,15 @@ pub struct VerificationService {
 }
 
 impl VerificationService {
-    pub fn new() -> Self {
-        Self {
-            client: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .expect("failed to build reqwest client"),
-        }
+    pub fn new(client: reqwest::Client) -> Self {
+        Self { client }
+
     }
 }
 
 impl Default for VerificationService {
     fn default() -> Self {
-        Self::new()
+        Self::new(crate::utils::http::DEFAULT_HTTP_CLIENT.clone())
     }
 }
 
