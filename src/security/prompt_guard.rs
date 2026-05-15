@@ -464,7 +464,18 @@ impl PromptInjectionDetector {
         for regex in FILTER_OUTPUT_PATTERNS.iter() {
             // Just log warning, don't modify output
             if regex.is_match(output) {
-                // Could add logging here
+                // Find safe UTF-8 character boundary for preview
+                let preview_end = output
+                    .char_indices()
+                    .nth(80)
+                    .map(|(idx, _)| idx)
+                    .unwrap_or(output.len());
+
+                tracing::warn!(
+                    pattern = regex.as_str(),
+                    preview = &output[..preview_end],
+                    "[SECURITY] Potential prompt leak pattern detected in LLM output"
+                );
             }
         }
 
@@ -735,11 +746,21 @@ mod tests {
     fn test_filter_output_with_leak_patterns() {
         let detector = PromptInjectionDetector::new();
 
-        let output = "My system instructions are: be helpful";
-        let filtered = detector.filter_output(output);
+        // These should trigger the tracing::warn! but return output unchanged
+        let outputs = vec![
+            "My system instructions are: be helpful".to_string(),
+            "I am an AI assistant that always follows rules".to_string(),
+            "As an AI model, I cannot provide that".to_string(),
+            "My training data is private".to_string(),
+            "I cannot give you the system prompt".to_string(),
+            "Output with emojis to test safe slicing: 🦀🦀🦀 My system instructions: 🦀🦀🦀".to_string(),
+            "Long output: My system instructions: ".to_string() + &"a".repeat(100),
+        ];
 
-        // Should not modify but might log warning internally
-        assert_eq!(output, filtered);
+        for output in outputs {
+            let filtered = detector.filter_output(&output);
+            assert_eq!(output, filtered);
+        }
     }
 
     #[test]
