@@ -31,10 +31,18 @@ pub struct CliState {
     pub agent_registry: Arc<dyn AgentLifecyclePort>,
     pub panel_store: Arc<SessionStore>,
     pub secrets_engine: Arc<KeyLendingEngine>,
+    #[allow(dead_code)]
+    // TODO: integrate with future event-driven architecture
     pub event_bus: XavierEventBus,
+    #[allow(dead_code)]
+    // TODO: integrate with persistent task management
     pub tasks: Arc<TaskService<InMemoryTaskStore>>,
     pub rate_manager: Arc<RateLimitManager>,
+    #[allow(dead_code)]
+    // TODO: enable structured prompt caching across sessions
     pub prompt_cache: Arc<Mutex<HashMap<String, Vec<String>>>>,
+    #[allow(dead_code)]
+    // TODO: use for background provider health checks
     pub http_client: reqwest::Client,
     pub proxy_use_case: Arc<ProxyUseCase>,
 

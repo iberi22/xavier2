@@ -53,32 +53,29 @@ impl WebhookDispatcher {
         tokio::spawn(async move {
             info!("WebhookDispatcher started listening for events.");
             while let Ok(event) = receiver.recv().await {
-                match &event {
-                    XavierEvent::TaskCompleted { task } => {
-                        info!("Task {} completed! Dispatching webhooks...", task.id);
-                        for endpoint in &endpoints {
-                            let payload = serde_json::json!({
-                                "event_type": "TaskCompleted",
-                                "task": task,
-                            });
+                if let XavierEvent::TaskCompleted { task } = &event {
+                    info!("Task {} completed! Dispatching webhooks...", task.id);
+                    for endpoint in &endpoints {
+                        let payload = serde_json::json!({
+                            "event_type": "TaskCompleted",
+                            "task": task,
+                        });
 
-                            let res = client.post(endpoint).json(&payload).send().await;
+                        let res = client.post(endpoint).json(&payload).send().await;
 
-                            match res {
-                                Ok(response) => {
-                                    if !response.status().is_success() {
-                                        error!(
-                                            "Webhook to {} failed with status {}",
-                                            endpoint,
-                                            response.status()
-                                        );
-                                    }
+                        match res {
+                            Ok(response) => {
+                                if !response.status().is_success() {
+                                    error!(
+                                        "Webhook to {} failed with status {}",
+                                        endpoint,
+                                        response.status()
+                                    );
                                 }
-                                Err(e) => error!("Failed to send webhook to {}: {}", endpoint, e),
                             }
+                            Err(e) => error!("Failed to send webhook to {}: {}", endpoint, e),
                         }
                     }
-                    _ => {}
                 }
             }
         });

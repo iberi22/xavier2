@@ -105,18 +105,15 @@ pub enum EvidenceKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum MemoryLevel {
+    #[default]
     Raw,        // Original raw memory
     Processed,  // Cleaned/standardized
     Extracted,  // Entity/relationship extracted
     Belief,     // Validated belief
 }
 
-impl Default for MemoryLevel {
-    fn default() -> Self {
-        Self::Raw
-    }
-}
 
 impl MemoryLevel {
     pub fn as_str(&self) -> &'static str {

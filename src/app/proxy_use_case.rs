@@ -67,7 +67,7 @@ impl ProxyUseCase {
             match self.rate_manager.get_status(provider).await {
                 Ok(status) => {
                     let now = chrono::Utc::now();
-                    if status.rate_limited_until.map_or(true, |until| until < now) {
+                    if status.rate_limited_until.is_none_or(|until| until < now) {
                         selected_provider = Some(provider.to_string());
                         break;
                     }
@@ -102,7 +102,7 @@ impl ProxyUseCase {
 
         let is_cache_hit = {
             let mut cache = self.prompt_cache.lock();
-            let hashes = cache.entry(provider_name.clone()).or_insert_with(Vec::new);
+            let hashes = cache.entry(provider_name.clone()).or_default();
             let hit = hashes.contains(&system_hash);
             if !hit {
                 hashes.push(system_hash);
@@ -119,9 +119,7 @@ impl ProxyUseCase {
 
         let user_msg = cmd
             .messages
-            .iter()
-            .filter(|m| m["role"] == "user")
-            .last()
+            .iter().rfind(|m| m["role"] == "user")
             .and_then(|m| m["content"].as_str())
             .unwrap_or("");
 

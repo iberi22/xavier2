@@ -5,10 +5,10 @@ use crate::cli::security::secure_cli_input;
 
 use crate::cli::mcp::start_mcp_stdio;
 use crate::cli::server::{
-    add_memory_hierarchical, search_memories_filtered, start_http_server, SessionContext, SwarmConfig,
+    add_memory_hierarchical, search_memories_filtered, start_http_server, SwarmConfig,
 };
 use crate::cli::state::Cli;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use clap::Subcommand;
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc, sync::LazyLock, time::Duration};
@@ -222,7 +222,7 @@ impl Cli {
                 println!("Searching memories via HTTP API on {}", base_url);
                 let lim = limit.unwrap_or(10);
                 search_memories_filtered(
-                    &query,
+                    query,
                     lim,
                     cluster.clone(),
                     level.clone(),
@@ -379,103 +379,6 @@ impl Cli {
     }
 }
 
-pub fn estimate_tokens(text: &str) -> usize {
-    (text.len() / 4).max(1)
-}
-
-pub async fn session_load(ctx: &str) -> Result<String> {
-    let token = require_xavier_token()?;
-    let url = format!("{}/memory/search", resolve_base_url());
-
-    let client = CLI_HTTP_CLIENT.clone();
-
-    let response = client
-        .get(&url)
-        .header("X-Xavier-Token", &token)
-        .json(&serde_json::json!({
-            "query": format!("path:context/{}/latest", ctx),
-            "limit": 1
-        }))
-        .send()
-        .await?;
-
-    if !response.status().is_success() {
-        return Err(anyhow!("session_load failed: {}", response.status()));
-    }
-
-    let body: serde_json::Value = response.json().await?;
-    let _results = body
-        .get("results")
-        .and_then(|r| r.as_array())
-        .map(|a| a.len())
-        .unwrap_or(0);
-    let context = body
-        .get("results")
-        .and_then(|r| r.as_array())
-        .and_then(|arr| arr.first())
-        .and_then(|doc| doc.get("content"))
-        .and_then(|c| c.as_str())
-        .map(String::from);
-
-    let tokens_restored = context.as_ref().map(|c| estimate_tokens(c)).unwrap_or(0);
-
-    let session_ctx = SessionContext {
-        session_id: ctx.to_string(),
-        context,
-        tokens_restored,
-    };
-
-    serde_json::to_string(&session_ctx)
-        .map_err(|e| anyhow!("failed to serialize session context: {}", e))
-}
-
-pub async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> Result<()> {
-    let content = secure_cli_input("memory content", content, 1_000_000)?;
-    let title = title
-        .map(|title| secure_cli_input("memory title", title, 512))
-        .transpose()?;
-    let token = xavier_token();
-    let base_url = resolve_base_url();
-    let url = format!("{}/memory/add", base_url);
-
-    let mut body = serde_json::json!({
-        "content": content,
-        "metadata": {}
-    });
-
-    if let Some(t) = title.as_deref() {
-        body["metadata"]["title"] = serde_json::json!(t);
-    }
-    if let Some(k) = kind {
-        body["metadata"]["kind"] = serde_json::json!(k);
-    }
-
-    let client = CLI_HTTP_CLIENT.clone();
-
-    let response = client
-        .post(&url)
-        .header("X-Xavier-Token", &token)
-        .json(&body)
-        .send()
-        .await;
-
-    match response {
-        Ok(resp) => {
-            if resp.status().is_success() {
-                println!("Memory added successfully!");
-            } else {
-                println!("Failed to add memory: {}", resp.status());
-            }
-        }
-        Err(e) => {
-            println!("Error connecting to Xavier server: {}", e);
-            println!("Configured endpoint: {}", base_url);
-            println!("Is the server running? (xavier http)");
-        }
-    }
-
-    Ok(())
-}
 
 pub async fn recall_memories(query: &str, limit: usize) -> Result<()> {
     let token = xavier_token();
