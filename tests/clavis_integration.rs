@@ -90,11 +90,11 @@ async fn test_clavis_persistence_and_revocation() -> Result<()> {
 #[tokio::test]
 async fn test_system3_restoration_logic() -> Result<()> {
     let config = ActorConfig::default();
-    let actor = System3Actor::new(config);
+    let _actor = System3Actor::new(config);
 
     // Test heuristic answer (Directly testing restored logic)
-    let query = "Where is the dance studio?";
-    let docs: Vec<xavier::agents::system1::RetrievedDocument> = vec![]; // Empty docs should return "Not discussed"
+    let _query = "Where is the dance studio?";
+    let _docs: Vec<xavier::agents::system1::RetrievedDocument> = vec![]; // Empty docs should return "Not discussed"
 
     // Using a trick to call the heuristic_answer which is pub(crate)
     // Since this is an integration test, it might not have access to pub(crate)

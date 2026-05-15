@@ -836,8 +836,7 @@ pub async fn add_handler(
     // Hierarchical fields
     let cluster_id = payload.cluster_id.clone();
     let level = payload
-        .level
-        .and_then(|l| Some(xavier::memory::schema::MemoryLevel::parse(&l)))
+        .level.map(|l| xavier::memory::schema::MemoryLevel::parse(&l))
         .unwrap_or(MemoryLevel::Raw);
     let relation = payload.relation.clone().map(|r| xavier::memory::schema::RelationKind { name: r, inverse: None });
 
@@ -2210,22 +2209,11 @@ pub(crate) struct AgentRegisterPayload {
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct AgentHeartbeatPayload {
-    agent_id: String,
-}
-
-#[derive(Debug, Deserialize)]
 pub(crate) struct AgentPushContextPayload {
     context: String,
     metadata: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct SessionContext {
-    pub session_id: String,
-    pub context: Option<String>,
-    pub tokens_restored: usize,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct SwarmConfig {

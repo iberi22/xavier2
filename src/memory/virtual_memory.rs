@@ -56,8 +56,8 @@ impl VirtualMemory {
 
             while let Some((rel, depth)) = queue.pop_front() {
                 let source_id = rel.provenance_id.clone();
-                if source_id != "unknown" {
-                    if !seen_ids.contains(&source_id) {
+                if source_id != "unknown"
+                    && !seen_ids.contains(&source_id) {
                         if let Ok(Some(doc)) = self.memory.get(&source_id).await {
                             // Expansion: If this belongs to a cluster, pull cluster siblings
                             if let Some(cluster_id) = &doc.cluster_id {
@@ -89,7 +89,6 @@ impl VirtualMemory {
                             }
                         }
                     }
-                }
 
                 if entries.len() >= limit {
                     break;

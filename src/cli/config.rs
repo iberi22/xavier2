@@ -88,14 +88,3 @@ pub fn state_panel_root(workspace_dir: &std::path::Path, workspace_id: &str) -> 
         })
 }
 
-pub fn default_token_budget() -> usize {
-    800
-}
-
-pub fn default_limit() -> usize {
-    10
-}
-
-pub fn default_compaction_threshold() -> f64 {
-    80.0
-}

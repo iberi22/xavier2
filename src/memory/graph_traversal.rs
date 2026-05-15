@@ -28,14 +28,13 @@ impl<'a> Pathfinder<'a> {
             }
 
             for relation in &relations {
-                if relation.source == current {
-                    if !visited.contains(&relation.target) {
+                if relation.source == current
+                    && !visited.contains(&relation.target) {
                         visited.insert(relation.target.clone());
                         let mut new_path = path.clone();
                         new_path.push(relation.clone());
                         queue.push_back((relation.target.clone(), new_path));
                     }
-                }
             }
         }
 
