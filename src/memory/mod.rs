@@ -4,6 +4,7 @@ pub mod checkpoint_summary;
 pub mod embedder;
 pub mod entities;
 pub mod entity_graph;
+pub mod graph_traversal;
 pub mod episodic;
 pub mod file_indexer;
 pub mod graph_store;

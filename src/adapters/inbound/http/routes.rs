@@ -18,6 +18,16 @@ use crate::session::types::SessionEvent;
 use crate::settings::XavierSettings;
 use crate::tasks::session_sync_task::get_last_sync_result;
 use crate::verification::auto_verifier::AutoVerifier;
+use std::sync::LazyLock;
+use std::time::Duration;
+
+pub static LIB_HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .user_agent(concat!("xavier-lib/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .expect("failed to build library HTTP client")
+});
 
 // ─── Module-level TimeMetricsPort (initialized by CLI) ────────────────────────
 static TIME_STORE: std::sync::OnceLock<Arc<dyn TimeMetricsPort>> = std::sync::OnceLock::new();
@@ -150,10 +160,8 @@ pub async fn verify_save_handler(
         }
     };
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .expect("failed to build reqwest client");
+    let client = LIB_HTTP_CLIENT.clone();
+
     let result = AutoVerifier::verify_save(
         &client,
         &xavier_url,
