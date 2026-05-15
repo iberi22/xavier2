@@ -161,6 +161,7 @@ pub async fn verify_save_handler(
     };
 
     let client = LIB_HTTP_CLIENT.clone();
+
     let result = AutoVerifier::verify_save(
         &client,
         &xavier_url,

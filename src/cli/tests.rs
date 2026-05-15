@@ -36,6 +36,7 @@ mod tests {
         let db = code_graph::db::CodeGraphDB::in_memory().unwrap();
         db.insert_symbol(&Symbol {
             id: None,
+            stable_id: Some("rust:src/cli.rs:search_memories".to_string()),
             name: "search_memories".to_string(),
             kind: SymbolKind::Function,
             lang: Language::Rust,
@@ -48,12 +49,13 @@ mod tests {
                 "async fn search_memories(query: &str, limit: usize) -> Result<()>".to_string(),
             ),
             parent: None,
-            stable_id: None,
-            complexity: Some(0.0),
+            complexity: Some(1.0),
+
         })
         .unwrap();
         db.insert_symbol(&Symbol {
             id: None,
+            stable_id: Some("rust:src/cli.rs:add_memory".to_string()),
             name: "add_memory".to_string(),
             kind: SymbolKind::Function,
             lang: Language::Rust,
@@ -66,8 +68,8 @@ mod tests {
                 "async fn add_memory(content: &str, title: Option<&str>, kind: Option<&str>) -> Result<()>".to_string(),
             ),
             parent: None,
-            stable_id: None,
-            complexity: Some(0.0),
+            complexity: Some(1.0),
+
         })
         .unwrap();
 

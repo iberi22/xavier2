@@ -201,6 +201,113 @@ static LEAKING_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     ]
 });
 
+static SANITIZE_PATTERNS: LazyLock<Vec<(Regex, &'static str)>> = LazyLock::new(|| {
+    vec![
+        (
+            Regex::new(r"(?i)ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|rules?|context|prompt)").expect("invalid regex: ignore previous"),
+            "[FILTERED]",
+        ),
+        (Regex::new(r"(?i)ignore\s+(all\s+)?instructions?").expect("invalid regex: ignore instructions"), "[FILTERED]"),
+        (
+            Regex::new(r"(?i)forget\s+(everything|all|your)\s+(instructions?|rules?|training)").expect("invalid regex: forget instructions"),
+            "[FILTERED]",
+        ),
+        (Regex::new(r"(?i)forget\s+everything").expect("invalid regex: forget everything"), "[FILTERED]"),
+        (Regex::new(r"(?i)new\s+(system\s+)?instructions?:").expect("invalid regex: new instructions"), "[SYSTEM] "),
+        (
+            Regex::new(r"(?i)override\s+(your\s+)?(safety|guidelines|rules)").expect("invalid regex: override safety"),
+            "[FILTERED]",
+        ),
+        (
+            Regex::new(r"(?i)disregard\s+(all\s+)?(rules|guidelines|instructions)").expect("invalid regex: disregard rules"),
+            "[FILTERED]",
+        ),
+        (Regex::new(r"(?i)<\|system\|>").expect("invalid regex: system token"), "[TOKENS_FILTERED]"),
+        (Regex::new(r"(?i)<\|user\|>").expect("invalid regex: user token"), "[TOKENS_FILTERED]"),
+        (Regex::new(r"(?i)<\|assistant\|>").expect("invalid regex: assistant token"), "[TOKENS_FILTERED]"),
+        (Regex::new(r"(?i)DAN\s+(do\s+anything\s+now|mode)").expect("invalid regex: DAN mode"), "[FILTERED]"),
+        (Regex::new(r"(?i)developer\s+mode").expect("invalid regex: developer mode"), "[FILTERED]"),
+        (Regex::new(r"(?i)jailbreak").expect("invalid regex: jailbreak"), "[FILTERED]"),
+        (Regex::new(r"(\{\{.*\}\})").expect("invalid regex: double brace template"), "[TEMPLATE_FILTERED]"),
+        (Regex::new(r"(\{\%.*\%\})").expect("invalid regex: percent brace template"), "[TEMPLATE_FILTERED]"),
+        // Zero-width characters
+        (Regex::new(r"[\u200b]").expect("invalid regex: zw space"), ""),
+        (Regex::new(r"[\u200c]").expect("invalid regex: zw non-joiner"), ""),
+        (Regex::new(r"[\u200d]").expect("invalid regex: zw joiner"), ""),
+        (Regex::new(r"[\u2060]").expect("invalid regex: word joiner"), ""),
+        (Regex::new(r"[\ufeff]").expect("invalid regex: BOM"), ""),
+        // Template injection variants
+        (Regex::new(r"(\$\{.*?\})").expect("invalid regex: dollar template"), "[TEMPLATE_FILTERED]"),
+        // HTML script tag
+        (Regex::new(r"(?i)<script").expect("invalid regex: script tag"), "[HTML_FILTERED]"),
+        // Event handler injection
+        (Regex::new(r"(?i)onerror\s*=").expect("invalid regex: onerror"), "[EVENT_FILTERED]"),
+        (Regex::new(r"(?i)onload\s*=").expect("invalid regex: onload"), "[EVENT_FILTERED]"),
+        // Context switching
+        (
+            Regex::new(r"(?i)for\s+(the\s+)?(purposes?|sake|scope)\s+of\s+(this\s+)?(exercise|scenario|conversation)").expect("invalid regex: context switching"),
+            "[FILTERED]",
+        ),
+        (
+            Regex::new(r"(?i)from\s+now\s+on[,;]\s+you\s+(are|will|must)").expect("invalid regex: from now on"),
+            "[FILTERED]",
+        ),
+        (
+            Regex::new(r"(?i)hypothetical\s+(scenario|situation|context)").expect("invalid regex: hypothetical scenario"),
+            "[FILTERED]",
+        ),
+        // URL injection - generic URLs replaced
+        (Regex::new(r"(?i)https?://[^\s]+").expect("invalid regex: http url"), "[URL_FILTERED]"),
+        (Regex::new(r"(?i)file:///[^\s]+").expect("invalid regex: file url"), "[URL_FILTERED]"),
+        (Regex::new(r"(?i)data:\s*\w+/\w+;?\w*[^\s]*").expect("invalid regex: data url"), "[URL_FILTERED]"),
+        // Expanded jailbreak sanitization
+        (
+            Regex::new(r"(?i)no\s+(restrictions?|limits?|boundaries?|filter|constraints?)").expect("invalid regex: no restrictions"),
+            "[FILTERED]",
+        ),
+        (
+            Regex::new(r"(?i)without\s+(any\s+)?(restrictions?|limits?|filter|censorship)").expect("invalid regex: without restrictions"),
+            "[FILTERED]",
+        ),
+        (Regex::new(r"(?i)(unfiltered|uncensored|unconstrained)").expect("invalid regex: un-words"), "[FILTERED]"),
+        (
+            Regex::new(r"(?i)bypass\s+(your\s+)?(safety|ethics?|ethical|filter|restrictions?)").expect("invalid regex: bypass safety"),
+            "[FILTERED]",
+        ),
+        (
+            Regex::new(r"(?i)you\s+(can|may)\s+(now\s+)?(say|tell|do|answer|output)\s+anything").expect("invalid regex: you can say anything"),
+            "[FILTERED]",
+        ),
+        (
+            Regex::new(r"(?i)reprogram\s+(yourself|your\s+(core|system))").expect("invalid regex: reprogram yourself"),
+            "[FILTERED]",
+        ),
+        (
+            Regex::new(r"(?i)do\s+(not|n['\u{2019}t])\s+(refuse|decline|reject)").expect("invalid regex: do not refuse"),
+            "[FILTERED]",
+        ),
+        (Regex::new(r"(?i)always\s+(say\s+)?yes\s+(to|and)").expect("invalid regex: always say yes"), "[FILTERED]"),
+        // Encoding bypass - hex escapes
+        (Regex::new(r"\\x[0-9a-fA-F]{2}").expect("invalid regex: hex escape"), "[HEX_FILTERED]"),
+        // Encoding bypass - HTML entities
+        (Regex::new(r"(&#[xX]?[0-9a-fA-F]{2,6};)").expect("invalid regex: html entity"), "[ENTITY_FILTERED]"),
+        // Encoding bypass - URL encoded sequences (decode by removing %)
+        (Regex::new(r"%[0-9a-fA-F]{2}").expect("invalid regex: url encoded"), ""),
+        // Encoding bypass - fullwidth unicode confusables (normalize by removing)
+        (Regex::new(r"[\u{ff01}\u{ff03}-\u{ff5e}]").expect("invalid regex: fullwidth confusables"), ""),
+    ]
+});
+
+static FILTER_OUTPUT_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+    vec![
+        Regex::new(r"(?i)my\s+(system\s+)?(instructions?|prompt|guidelines):").expect("invalid regex: my instructions leak"),
+        Regex::new(r"(?i)i\s+am\s+(a\s+)?(an?\s+)?(AI|assistant|model)\s+that\s+always").expect("invalid regex: i am AI leak"),
+        Regex::new(r"(?i)as\s+(an?\s+)?(AI|assistant|model)").expect("invalid regex: as an AI leak"),
+        Regex::new(r"(?i)my\s+training\s+(data|model)").expect("invalid regex: my training leak"),
+        Regex::new(r"(?i)i\s+(cannot|can't|will\s+not)\s+(provide|give|tell)").expect("invalid regex: i cannot leak"),
+    ]
+});
+
 impl PromptInjectionDetector {
     /// Crea un nuevo detector de prompt injection using static precompiled patterns
     pub fn new() -> Self {
@@ -344,106 +451,8 @@ impl PromptInjectionDetector {
     pub fn sanitize(&self, input: &str) -> String {
         let mut sanitized = input.to_string();
 
-        // Remove or replace potentially dangerous patterns
-        let dangerous_patterns = vec![
-            (
-                r"(?i)ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|rules?|context|prompt)",
-                "[FILTERED]",
-            ),
-            (r"(?i)ignore\s+(all\s+)?instructions?", "[FILTERED]"),
-            (
-                r"(?i)forget\s+(everything|all|your)\s+(instructions?|rules?|training)",
-                "[FILTERED]",
-            ),
-            (r"(?i)forget\s+everything", "[FILTERED]"),
-            (r"(?i)new\s+(system\s+)?instructions?:", "[SYSTEM] "),
-            (
-                r"(?i)override\s+(your\s+)?(safety|guidelines|rules)",
-                "[FILTERED]",
-            ),
-            (
-                r"(?i)disregard\s+(all\s+)?(rules|guidelines|instructions)",
-                "[FILTERED]",
-            ),
-            (r"(?i)<\|system\|>", "[TOKENS_FILTERED]"),
-            (r"(?i)<\|user\|>", "[TOKENS_FILTERED]"),
-            (r"(?i)<\|assistant\|>", "[TOKENS_FILTERED]"),
-            (r"(?i)DAN\s+(do\s+anything\s+now|mode)", "[FILTERED]"),
-            (r"(?i)developer\s+mode", "[FILTERED]"),
-            (r"(?i)jailbreak", "[FILTERED]"),
-            (r"(\{\{.*\}\})", "[TEMPLATE_FILTERED]"),
-            (r"(\{\%.*\%\})", "[TEMPLATE_FILTERED]"),
-            // Zero-width characters
-            (r"[\u200b]", ""),
-            (r"[\u200c]", ""),
-            (r"[\u200d]", ""),
-            (r"[\u2060]", ""),
-            (r"[\ufeff]", ""),
-            // Template injection variants
-            (r"(\$\{.*?\})", "[TEMPLATE_FILTERED]"),
-            // HTML script tag
-            (r"(?i)<script", "[HTML_FILTERED]"),
-            // Event handler injection
-            (r"(?i)onerror\s*=", "[EVENT_FILTERED]"),
-            (r"(?i)onload\s*=", "[EVENT_FILTERED]"),
-            // Context switching
-            (
-                r"(?i)for\s+(the\s+)?(purposes?|sake|scope)\s+of\s+(this\s+)?(exercise|scenario|conversation)",
-                "[FILTERED]",
-            ),
-            (
-                r"(?i)from\s+now\s+on[,;]\s+you\s+(are|will|must)",
-                "[FILTERED]",
-            ),
-            (
-                r"(?i)hypothetical\s+(scenario|situation|context)",
-                "[FILTERED]",
-            ),
-            // URL injection - generic URLs replaced
-            (r"(?i)https?://[^\s]+", "[URL_FILTERED]"),
-            (r"(?i)file:///[^\s]+", "[URL_FILTERED]"),
-            (r"(?i)data:\s*\w+/\w+;?\w*[^\s]*", "[URL_FILTERED]"),
-            // Expanded jailbreak sanitization
-            (
-                r"(?i)no\s+(restrictions?|limits?|boundaries?|filter|constraints?)",
-                "[FILTERED]",
-            ),
-            (
-                r"(?i)without\s+(any\s+)?(restrictions?|limits?|filter|censorship)",
-                "[FILTERED]",
-            ),
-            (r"(?i)(unfiltered|uncensored|unconstrained)", "[FILTERED]"),
-            (
-                r"(?i)bypass\s+(your\s+)?(safety|ethics?|ethical|filter|restrictions?)",
-                "[FILTERED]",
-            ),
-            (
-                r"(?i)you\s+(can|may)\s+(now\s+)?(say|tell|do|answer|output)\s+anything",
-                "[FILTERED]",
-            ),
-            (
-                r"(?i)reprogram\s+(yourself|your\s+(core|system))",
-                "[FILTERED]",
-            ),
-            (
-                r"(?i)do\s+(not|n['\u{2019}t])\s+(refuse|decline|reject)",
-                "[FILTERED]",
-            ),
-            (r"(?i)always\s+(say\s+)?yes\s+(to|and)", "[FILTERED]"),
-            // Encoding bypass - hex escapes
-            (r"\\x[0-9a-fA-F]{2}", "[HEX_FILTERED]"),
-            // Encoding bypass - HTML entities
-            (r"(&#[xX]?[0-9a-fA-F]{2,6};)", "[ENTITY_FILTERED]"),
-            // Encoding bypass - URL encoded sequences (decode by removing %)
-            (r"%[0-9a-fA-F]{2}", ""),
-            // Encoding bypass - fullwidth unicode confusables (normalize by removing)
-            (r"[\u{ff01}\u{ff03}-\u{ff5e}]", ""),
-        ];
-
-        for (pattern, replacement) in dangerous_patterns {
-            if let Ok(regex) = Regex::new(pattern) {
-                sanitized = regex.replace_all(&sanitized, replacement).to_string();
-            }
+        for (regex, replacement) in SANITIZE_PATTERNS.iter() {
+            sanitized = regex.replace_all(&sanitized, *replacement).to_string();
         }
 
         sanitized
@@ -451,27 +460,15 @@ impl PromptInjectionDetector {
 
     /// Filtra el output para prevenir filtración de información sensible
     pub fn filter_output(&self, output: &str) -> String {
-        let filtered = output.to_string();
-
         // Patterns that might indicate the model is leaking its system prompt
-        let leak_patterns = vec![
-            r"(?i)my\s+(system\s+)?(instructions?|prompt|guidelines):",
-            r"(?i)i\s+am\s+(a\s+)?(an?\s+)?(AI|assistant|model)\s+that\s+always",
-            r"(?i)as\s+(an?\s+)?(AI|assistant|model)",
-            r"(?i)my\s+training\s+(data|model)",
-            r"(?i)i\s+(cannot|can't|will\s+not)\s+(provide|give|tell)",
-        ];
-
-        for pattern in leak_patterns {
-            if let Ok(regex) = Regex::new(pattern) {
-                // Just log warning, don't modify output
-                if regex.is_match(&filtered) {
-                    // Could add logging here
-                }
+        for regex in FILTER_OUTPUT_PATTERNS.iter() {
+            // Just log warning, don't modify output
+            if regex.is_match(output) {
+                // Could add logging here
             }
         }
 
-        filtered
+        output.to_string()
     }
 }
 

@@ -10,6 +10,7 @@ pub struct HttpHealthAdapter {
 
 impl HttpHealthAdapter {
     pub fn new(base_url: String, client: reqwest::Client) -> Self {
+
         Self { base_url, client }
     }
 }
