@@ -373,11 +373,13 @@ impl MemoryManager {
     /// Initialize tracking for a new document
     pub fn track_new_document(&self, doc: &MemoryDocument) {
         if let Some(id) = &doc.id {
-            let mut times = self
-                .created_times
-                .lock()
-                .expect("manager: created_times lock poisoned");
-            times.insert(id.clone(), Utc::now());
+            {
+                let mut times = self
+                    .created_times
+                    .lock()
+                    .expect("manager: created_times lock poisoned");
+                times.insert(id.clone(), Utc::now());
+            }
 
             let mut relevance = self
                 .relevance_scores
@@ -400,15 +402,6 @@ impl MemoryManager {
             decayed_count: 0,
         };
 
-        let counts = self
-            .access_counts
-            .lock()
-            .expect("manager: access_counts lock poisoned");
-        let times = self
-            .last_access_times
-            .lock()
-            .expect("manager: last_access_times lock poisoned");
-
         for doc in docs {
             let priority = MemoryPriority::from_metadata(&doc.metadata);
             *stats
@@ -416,13 +409,19 @@ impl MemoryManager {
                 .entry(priority.as_str().to_string())
                 .or_insert(0) += 1;
 
-            let access_count = doc
-                .id
-                .as_ref()
-                .and_then(|id| counts.get(id))
-                .copied()
-                .unwrap_or(0);
-            let last_access = doc.id.as_ref().and_then(|id| times.get(id)).copied();
+            let (access_count, last_access) = if let Some(id) = &doc.id {
+                let counts = self
+                    .access_counts
+                    .lock()
+                    .expect("manager: access_counts lock poisoned");
+                let times = self
+                    .last_access_times
+                    .lock()
+                    .expect("manager: last_access_times lock poisoned");
+                (counts.get(id).copied().unwrap_or(0), times.get(id).copied())
+            } else {
+                (0, None)
+            };
 
             let mut verified = false;
             if let (Some(graph_lock), Some(doc_id)) = (&self._belief_graph, &doc.id) {
@@ -458,34 +457,32 @@ impl MemoryManager {
     /// Get all managed memories with their quality scores
     pub async fn get_all_memories(&self) -> Result<Vec<ManagedMemory>> {
         let docs = self.memory.all_documents().await;
-        let counts = self
-            .access_counts
-            .lock()
-            .expect("manager: access_counts lock poisoned");
-        let times = self
-            .last_access_times
-            .lock()
-            .expect("manager: last_access_times lock poisoned");
-        let created = self
-            .created_times
-            .lock()
-            .expect("manager: created_times lock poisoned");
-        let _relevance = self
-            .relevance_scores
-            .lock()
-            .expect("manager: relevance_scores lock poisoned");
 
         let mut memories = Vec::new();
         for doc in docs {
             let priority = MemoryPriority::from_metadata(&doc.metadata);
-            let access_count = doc
-                .id
-                .as_ref()
-                .and_then(|id| counts.get(id))
-                .copied()
-                .unwrap_or(0);
-            let last_access = doc.id.as_ref().and_then(|id| times.get(id)).copied();
-            let created_at = doc.id.as_ref().and_then(|id| created.get(id)).copied();
+            let (access_count, last_access, created_at) = if let Some(id) = &doc.id {
+                let counts = self
+                    .access_counts
+                    .lock()
+                    .expect("manager: access_counts lock poisoned");
+                let times = self
+                    .last_access_times
+                    .lock()
+                    .expect("manager: last_access_times lock poisoned");
+                let created = self
+                    .created_times
+                    .lock()
+                    .expect("manager: created_times lock poisoned");
+
+                (
+                    counts.get(id).copied().unwrap_or(0),
+                    times.get(id).copied(),
+                    created.get(id).copied(),
+                )
+            } else {
+                (0, None, None)
+            };
 
             let mut verified = false;
             if let (Some(graph_lock), Some(doc_id)) = (&self._belief_graph, &doc.id) {
