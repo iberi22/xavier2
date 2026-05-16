@@ -90,6 +90,17 @@ pub struct LayerSearchResult {
     pub scores: Vec<f32>,
 }
 
+/// Result containing all layers for Context Pack export
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayeredSearchResult {
+    pub topic: String,
+    pub timestamp: String,
+    pub level_0_working: Vec<ScoredResult>,
+    pub level_1_entity_graph: Vec<ScoredResult>,
+    pub level_2_semantic: Vec<ScoredResult>,
+    pub level_3_episodic: Vec<ScoredResult>,
+}
+
 /// Adaptive gating for multi-layer memory retrieval
 #[derive(Debug, Clone)]
 pub struct AdaptiveGating {
@@ -142,6 +153,41 @@ impl AdaptiveGating {
             .collect()
     }
 
+    /// Retrieve categorized by layers for Context Pack export
+    pub fn retrieve_layered(
+        &self,
+        all_docs: &[MemoryDocument],
+        episodic: &[SessionSummary],
+        semantic: &[EntityRecord],
+        query: &str,
+    ) -> LayeredSearchResult {
+        // Level 0: Working Memory (Filtered for non-belief documents)
+        let working_docs: Vec<MemoryDocument> = all_docs
+            .iter()
+            .filter(|d| d.level != crate::memory::schema::MemoryLevel::Belief)
+            .cloned()
+            .collect();
+        let level_0_results = self.score_working_layer(&working_docs, query);
+
+        // Level 1: Entity Graph
+        let level_1_results = self.score_semantic_layer(semantic, query);
+
+        // Level 2: Semantic (Rules, Definitions) -> Documents with MemoryLevel::Belief
+        let level_2_results = self.score_belief_layer(all_docs, query);
+
+        // Level 3: Episodic (History, snippets)
+        let level_3_results = self.score_episodic_layer(episodic, query);
+
+        LayeredSearchResult {
+            topic: query.to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level_0_working: level_0_results,
+            level_1_entity_graph: level_1_results,
+            level_2_semantic: level_2_results,
+            level_3_episodic: level_3_results,
+        }
+    }
+
     /// Retrieve only from working memory
     pub fn retrieve_working(&self, working: &[MemoryDocument], query: &str) -> Vec<ScoredResult> {
         self.score_working_layer(working, query)
@@ -159,10 +205,30 @@ impl AdaptiveGating {
 
     /// Score working memory layer using keyword matching
     fn score_working_layer(&self, working: &[MemoryDocument], query: &str) -> Vec<ScoredResult> {
+        self.score_document_layer(working, query, "working")
+    }
+
+    /// Score belief layer (Level 2) using keyword matching on Belief-level documents
+    fn score_belief_layer(&self, documents: &[MemoryDocument], query: &str) -> Vec<ScoredResult> {
+        let beliefs: Vec<MemoryDocument> = documents
+            .iter()
+            .filter(|d| d.level == crate::memory::schema::MemoryLevel::Belief)
+            .cloned()
+            .collect();
+        self.score_document_layer(&beliefs, query, "semantic_belief")
+    }
+
+    /// Generic document layer scoring
+    fn score_document_layer(
+        &self,
+        documents: &[MemoryDocument],
+        query: &str,
+        source: &str,
+    ) -> Vec<ScoredResult> {
         let query_lower = query.to_lowercase();
         let query_terms: Vec<&str> = query_lower.split_whitespace().collect();
 
-        let mut results: Vec<ScoredResult> = working
+        let mut results: Vec<ScoredResult> = documents
             .iter()
             .filter_map(|doc| {
                 let content_lower = doc.content.to_lowercase();
@@ -189,7 +255,7 @@ impl AdaptiveGating {
                         id: doc.id.clone().unwrap_or_default(),
                         content: doc.content.clone(),
                         score: score.min(1.0),
-                        source: "working".to_string(),
+                        source: source.to_string(),
                         path: doc.path.clone(),
                         updated_at: doc
                             .metadata

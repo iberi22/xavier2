@@ -10,6 +10,7 @@ pub mod file_indexer;
 pub mod graph_store;
 pub mod layers_config;
 pub mod manager;
+pub mod pack;
 pub mod patterns;
 pub mod qmd_memory;
 pub mod schema;
