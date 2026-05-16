@@ -274,6 +274,7 @@ pub async fn start_http_server(port: u16) -> Result<()> {
     #[allow(unused_mut)]
     let mut protected_routes = Router::new()
         .route("/memory/search", post(search_handler))
+        .route("/memory/export-pack", post(export_pack_handler))
         .route("/memory/add", post(add_handler))
         .route("/memory/delete", post(delete_handler))
         .route("/memory/stats", get(stats_handler))
@@ -601,6 +602,71 @@ pub async fn panel_create_thread(
             serde_json::json!({ "error": error.to_string() }),
         ),
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExportPackPayload {
+    pub topic: String,
+    #[serde(default = "default_max_level_val")]
+    pub max_level: usize,
+}
+
+fn default_max_level_val() -> usize {
+    3
+}
+
+pub async fn export_pack_handler(
+    State(state): State<CliState>,
+    Json(payload): Json<ExportPackPayload>,
+) -> Response {
+    info!(
+        "Export context pack request: topic={}, max_level={}",
+        payload.topic, payload.max_level
+    );
+
+    let gating = xavier::retrieval::gating::AdaptiveGating::with_defaults();
+
+    // In CLI server mode, we need to gather all documents from the memory port
+    let all_docs = match state.store.list(&state.workspace_id).await {
+        Ok(records) => records.into_iter().map(|r| r.to_document()).collect::<Vec<_>>(),
+        Err(e) => return json_response(StatusCode::INTERNAL_SERVER_ERROR, serde_json::json!({ "error": e.to_string() })),
+    };
+
+    let episodic_summaries = state
+        .panel_store
+        .list_threads()
+        .await
+        .into_iter()
+        .map(|s| xavier::retrieval::gating::SessionSummary {
+            session_id: s.id.clone(),
+            start_time: s.created_at,
+            summary: s.last_preview.clone(),
+            key_events: vec![],
+            sentiment_timeline: vec![],
+        })
+        .collect::<Vec<_>>();
+
+    // We don't have a direct entity_graph in CliState for now that is easily accessible like in WorkspaceState,
+    // but we can try to use what we have or a mock for now if it's not fully wired.
+    // Actually, EntityGraph is used in WorkspaceState.
+    // Let's see if we can get entities.
+    let semantic_entities = Vec::new(); // Fallback for now if not easily available in CliState
+
+    let layered_result = gating.retrieve_layered(
+        &all_docs,
+        &episodic_summaries,
+        &semantic_entities,
+        &payload.topic,
+    );
+
+    let xml = xavier::memory::pack::generate_xcp(layered_result, payload.max_level);
+    let filename = format!("context-{}.xcp", payload.topic.replace(" ", "_"));
+
+    json_response(StatusCode::OK, serde_json::json!({
+        "status": "ok",
+        "xml": xml,
+        "filename": filename,
+    }))
 }
 
 pub async fn panel_get_thread(

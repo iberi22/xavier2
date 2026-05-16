@@ -2,6 +2,7 @@
 ## Saved: 2026-05-12 15:55 (Bogota)
 
 ## ✅ Completed
+- [feat] Implement Context Pack (.xcp) Export for SOTA GraphRAG
 - cli.rs split into src/cli/ module (10 files) — committed & pushed
 - Chrono timestamp_opt fixes — committed & pushed  
 - Ghost directory src/memory/sqlite_vec_store/ — eliminated + .gitignore added

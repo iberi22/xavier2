@@ -536,6 +536,24 @@ pub struct MultiLayerRetrieveResponse {
     pub coherence_report: Option<CoherenceReport>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ExportPackRequest {
+    pub topic: String,
+    #[serde(default = "default_max_level")]
+    pub max_level: usize,
+}
+
+fn default_max_level() -> usize {
+    3
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExportPackResponse {
+    pub status: String,
+    pub xml: String,
+    pub filename: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct RetrievedMemory {
     pub id: String,
@@ -1059,6 +1077,54 @@ pub async fn memory_retrieve(
     );
 
     Json(build_multi_layer_retrieve_response(&workspace, &payload).await)
+}
+
+pub async fn memory_export_pack(
+    Extension(workspace): Extension<WorkspaceContext>,
+    Json(payload): Json<ExportPackRequest>,
+) -> impl IntoResponse {
+    info!(
+        topic = %payload.topic,
+        max_level = payload.max_level,
+        "memory_export_pack"
+    );
+
+    let gating = AdaptiveGating::with_defaults();
+    let all_docs = workspace.workspace.memory.all_documents().await;
+
+    let episodic_summaries = workspace
+        .workspace
+        .panel_store
+        .list_threads()
+        .await
+        .into_iter()
+        .map(|s| SessionSummary {
+            session_id: s.id.clone(),
+            start_time: s.created_at,
+            summary: s.last_preview.clone(),
+            key_events: vec![],
+            sentiment_timeline: vec![],
+        })
+        .collect::<Vec<_>>();
+
+    let semantic_entities: Vec<EntityRecord> =
+        workspace.workspace.entity_graph.all_entities().await;
+
+    let layered_result = gating.retrieve_layered(
+        &all_docs,
+        &episodic_summaries,
+        &semantic_entities,
+        &payload.topic,
+    );
+
+    let xml = crate::memory::pack::generate_xcp(layered_result, payload.max_level);
+    let filename = format!("context-{}.xcp", payload.topic.replace(" ", "_"));
+
+    Json(ExportPackResponse {
+        status: "ok".to_string(),
+        xml,
+        filename,
+    })
 }
 
 async fn build_multi_layer_retrieve_response(

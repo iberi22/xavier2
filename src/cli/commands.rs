@@ -65,6 +65,15 @@ pub enum Command {
         #[arg(short, long, default_value_t = 10)]
         limit: usize,
     },
+    /// Export structured context pack (.xcp) for LLMs
+    ExportPack {
+        #[arg(short, long)]
+        topic: String,
+        #[arg(short, long, default_value_t = 3)]
+        max_level: usize,
+        #[arg(short, long)]
+        out: PathBuf,
+    },
     /// Show statistics
     Stats,
     /// Query Xavier code graph
@@ -325,6 +334,11 @@ impl Cli {
                 .await
             }
             Command::Recall { query, limit } => recall_memories(query, *limit).await,
+            Command::ExportPack {
+                topic,
+                max_level,
+                out,
+            } => export_context_pack(topic, *max_level, out).await,
             Command::Stats => {
                 println!("Fetching Xavier statistics...");
                 show_stats().await
@@ -379,6 +393,46 @@ impl Cli {
     }
 }
 
+
+pub async fn export_context_pack(topic: &str, max_level: usize, out: &std::path::Path) -> Result<()> {
+    let token = xavier_token();
+    let base_url = resolve_base_url();
+    let url = format!("{}/memory/export-pack", base_url);
+
+    let body = serde_json::json!({
+        "topic": topic,
+        "max_level": max_level,
+    });
+
+    let client = CLI_HTTP_CLIENT.clone();
+
+    let response = client
+        .post(&url)
+        .header("X-Xavier-Token", &token)
+        .json(&body)
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let json: serde_json::Value = resp.json().await.unwrap_or_default();
+                let xml = json["xml"].as_str().unwrap_or_default();
+                std::fs::write(out, xml)?;
+                println!("✅ Context Pack exported to: {}", out.display());
+            } else {
+                let status = resp.status();
+                let text = resp.text().await.unwrap_or_default();
+                println!("❌ Export failed ({}): {}", status, text);
+            }
+        }
+        Err(e) => {
+            println!("❌ Error connecting to Xavier server: {}", e);
+        }
+    }
+
+    Ok(())
+}
 
 pub async fn recall_memories(query: &str, limit: usize) -> Result<()> {
     let token = xavier_token();
